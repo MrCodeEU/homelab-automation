@@ -64,12 +64,12 @@ deploy_to_device() {
     fi
     
     # Execute deployment scripts based on roles
-    if [[ "$roles" == *"base"* ]] || [ "$ROLES" = "all" ]; then
+    if [[ "$roles" == *"base"* ]] || [ "$roles" = "all" ]; then
         echo "Executing base setup..."
         ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/01-base-setup.sh"
     fi
     
-    if [[ "$roles" == *"docker"* ]] || [ "$ROLES" = "all" ]; then
+    if [[ "$roles" == *"docker"* ]] || [ "$roles" = "all" ]; then
         echo "Executing Docker setup..."
         ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/02-docker-setup.sh"
         
@@ -77,7 +77,7 @@ deploy_to_device() {
         ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/03-docker-compose-deploy.sh"
     fi
     
-    if [[ "$roles" == *"caddy"* ]] || [ "$ROLES" = "all" ]; then
+    if [[ "$roles" == *"caddy"* ]] || [ "$roles" = "all" ]; then
         echo "Executing Caddy setup..."
         # Check if Caddyfile exists for this device
         CADDYFILE="/tmp/homelab-deploy/configs/caddy/Caddyfile"
