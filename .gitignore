@@ -1,0 +1,35 @@
+# Temporary files
+*.tmp
+*.log
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sublime-*
+
+# User-specific configurations
+inventory.local.yml
+configs/caddy/Caddyfile
+!configs/caddy/Caddyfile.example
+
+# SSH keys (never commit these!)
+*.pem
+*.key
+id_rsa*
+
+# Secrets
+.env
+secrets/
+*.secret
+
+# Build artifacts
+/tmp/
+/dist/
+/build/

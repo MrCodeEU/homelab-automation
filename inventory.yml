@@ -1,0 +1,38 @@
+# Homelab Device Inventory
+# Configure your devices here with their Tailscale hostnames/IPs
+
+devices:
+  vps:
+    hostname: "vps.tailnet-xxxx.ts.net"  # Replace with your VPS Tailscale hostname
+    user: "root"
+    os: "rocky"  # Rocky Linux
+    description: "Cloud VPS Server"
+    roles:
+      - base
+      - docker
+      - caddy
+    
+  homeserver:
+    hostname: "homeserver.tailnet-xxxx.ts.net"  # Replace with your home server Tailscale hostname
+    user: "root"
+    os: "rocky"  # Rocky Linux
+    description: "Home Linux Server"
+    roles:
+      - base
+      - docker
+      - caddy
+    
+  unraid:
+    hostname: "unraid.tailnet-xxxx.ts.net"  # Replace with your Unraid NAS Tailscale hostname
+    user: "root"
+    os: "slackware"  # Unraid is based on Slackware
+    description: "Unraid NAS"
+    roles:
+      - base
+      - docker
+
+# SSH Configuration
+ssh:
+  key_path: "~/.ssh/id_rsa"  # Path to your SSH private key
+  port: 22
+  options: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
