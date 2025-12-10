@@ -1,6 +1,7 @@
 #!/bin/bash
 # Docker Compose deployment script
 # Deploys Docker containers using docker-compose files
+# For Unraid, redirects to Unraid-specific deployment
 
 set -e
 
@@ -8,7 +9,20 @@ echo "========================================="
 echo "Starting Docker Compose Deployment"
 echo "========================================="
 
-COMPOSE_DIR="${1:-/opt/docker-compose}"
+# Accept OS as parameter
+OS_PARAM="${1:-}"
+COMPOSE_DIR="${2:-/opt/docker-compose}"
+
+# Check if first parameter is an OS type
+if [ -n "$OS_PARAM" ] && [ "$OS_PARAM" = "slackware" ]; then
+    echo "Unraid/Slackware detected - using Unraid-specific deployment"
+    echo "Unraid uses Community Applications templates instead of docker-compose"
+    echo "Please use the Unraid web interface to install applications from Community Applications"
+    echo ""
+    echo "For automated deployment of basic services, see 03-unraid-deploy.sh"
+    echo "========================================="
+    exit 0
+fi
 
 echo "Using compose directory: $COMPOSE_DIR"
 

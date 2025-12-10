@@ -13,17 +13,20 @@ echo ""
 
 # Function to show usage
 show_usage() {
-    echo "Usage: $0 <hostname> <user> [roles]"
+    echo "Usage: $0 <hostname> <user> [os] [roles]"
     echo ""
     echo "Arguments:"
     echo "  hostname  - Tailscale hostname or IP address"
     echo "  user      - SSH user (e.g., root)"
+    echo "  os        - Operating system (rocky, slackware, ubuntu, debian)"
+    echo "              Use 'auto' to auto-detect (default)"
     echo "  roles     - Comma-separated roles (default: all)"
     echo "              Options: base, docker, caddy, all"
     echo ""
     echo "Examples:"
-    echo "  $0 myserver.tailnet-xxx.ts.net root all"
-    echo "  $0 192.168.1.100 admin base,docker"
+    echo "  $0 myserver.tailnet-xxx.ts.net root rocky all"
+    echo "  $0 unraid.tailnet-xxx.ts.net root slackware docker"
+    echo "  $0 192.168.1.100 admin auto base,docker"
     echo ""
 }
 
@@ -35,13 +38,21 @@ fi
 
 HOSTNAME=$1
 USER=$2
-ROLES=${3:-all}
+OS=${3:-auto}
+ROLES=${4:-all}
+
+# If third argument looks like roles (contains comma or is 'all'), treat it as roles
+if [[ "$OS" == *","* ]] || [ "$OS" = "all" ] || [ "$OS" = "base" ] || [ "$OS" = "docker" ] || [ "$OS" = "caddy" ]; then
+    ROLES=$OS
+    OS="auto"
+fi
 
 # Configuration
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
 SSH_OPTIONS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 echo "Target: $USER@$HOSTNAME"
+echo "OS: $OS"
 echo "Roles: $ROLES"
 echo "SSH Key: $SSH_KEY"
 echo ""
@@ -79,24 +90,30 @@ echo ""
 # Execute deployment scripts based on roles
 if [[ "$ROLES" == *"base"* ]] || [ "$ROLES" = "all" ]; then
     echo ">>> Executing base setup..."
-    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/01-base-setup.sh"
+    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/01-base-setup.sh $OS"
     echo ""
 fi
 
 if [[ "$ROLES" == *"docker"* ]] || [ "$ROLES" = "all" ]; then
     echo ">>> Executing Docker setup..."
-    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/02-docker-setup.sh"
+    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/02-docker-setup.sh $OS"
     echo ""
     
-    echo ">>> Deploying Docker Compose stacks..."
-    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/03-docker-compose-deploy.sh"
+    # Use Unraid-specific deployment for Slackware/Unraid
+    if [ "$OS" = "slackware" ]; then
+        echo ">>> Deploying Docker containers for Unraid..."
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/03-unraid-deploy.sh"
+    else
+        echo ">>> Deploying Docker Compose stacks..."
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/03-docker-compose-deploy.sh $OS"
+    fi
     echo ""
 fi
 
 if [[ "$ROLES" == *"caddy"* ]] || [ "$ROLES" = "all" ]; then
     echo ">>> Executing Caddy setup..."
     CADDYFILE="/tmp/homelab-deploy/configs/caddy/Caddyfile"
-    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/04-caddy-setup.sh $CADDYFILE"
+    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/04-caddy-setup.sh $OS $CADDYFILE"
     echo ""
 fi
 

@@ -8,16 +8,23 @@ echo "========================================="
 echo "Starting Docker Installation"
 echo "========================================="
 
-# Detect OS
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    OS=$ID
-else
-    echo "Cannot detect OS"
-    exit 1
-fi
+# Accept OS as parameter, or detect it
+OS_PARAM="${1:-}"
 
-echo "Detected OS: $OS"
+if [ -n "$OS_PARAM" ]; then
+    OS="$OS_PARAM"
+    echo "Using provided OS: $OS"
+else
+    # Detect OS
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+    else
+        echo "Cannot detect OS"
+        exit 1
+    fi
+    echo "Detected OS: $OS"
+fi
 
 # Check if Docker is already installed
 if command -v docker &> /dev/null; then
@@ -25,6 +32,23 @@ if command -v docker &> /dev/null; then
     DOCKER_EXISTS=true
 else
     DOCKER_EXISTS=false
+fi
+
+# Special handling for Unraid/Slackware
+if [ "$OS" = "slackware" ]; then
+    if [ "$DOCKER_EXISTS" = true ]; then
+        echo "Docker is already installed on Unraid"
+        echo "Note: Docker is built-in to Unraid and managed through the UI"
+    else
+        echo "Warning: Docker should be pre-installed on Unraid"
+        echo "Please ensure Docker is enabled in Unraid Settings > Docker"
+        exit 1
+    fi
+    
+    echo "========================================="
+    echo "Docker Setup Complete for Unraid!"
+    echo "========================================="
+    exit 0
 fi
 
 # Install Docker if not present
@@ -45,11 +69,11 @@ if [ "$DOCKER_EXISTS" = false ]; then
         apt-get update -y
         apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
         
-    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ] || [ "$OS" = "fedora" ]; then
-        # Install Docker using convenience script
-        curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
-        sh /tmp/get-docker.sh
-        rm /tmp/get-docker.sh
+    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ] || [ "$OS" = "fedora" ] || [ "$OS" = "rocky" ]; then
+        # Install Docker using official repository for Rocky Linux
+        yum install -y yum-utils
+        yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+        yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     fi
 else
     echo "Skipping Docker installation (already installed)"
