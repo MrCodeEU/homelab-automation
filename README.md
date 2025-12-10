@@ -2,6 +2,22 @@
 
 This repository contains everything needed to automatically deploy and manage a complete homelab setup across multiple devices using SSH over Tailscale VPN.
 
+## ⚡ Quick Start
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/MrCodeEU/homelab-automation.git
+cd homelab-automation
+
+# 2. Configure your devices in inventory.yml
+nano inventory.yml
+
+# 3. Deploy to a device
+./scripts/deploy-single.sh your-device.tailnet-xxx.ts.net root all
+```
+
+📖 See [QUICKSTART.md](QUICKSTART.md) for a 5-minute setup guide or [SETUP.md](SETUP.md) for detailed instructions.
+
 ## 🏗️ Architecture
 
 The automation supports deployment to three types of devices:
