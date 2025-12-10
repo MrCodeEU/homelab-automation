@@ -31,7 +31,7 @@ deploy_unraid_container() {
     local service_name=$1
     local image=$2
     shift 2
-    local docker_args="$@"
+    # Remaining arguments are docker run options
     
     echo "Deploying: $service_name"
     
@@ -46,9 +46,9 @@ deploy_unraid_container() {
     echo "Pulling image: $image"
     docker pull "$image"
     
-    # Run the container
+    # Run the container with all provided arguments
     echo "Starting container: $service_name"
-    eval "docker run -d --name=\"$service_name\" $docker_args \"$image\""
+    docker run -d --name="$service_name" "$@" "$image"
     
     echo "Deployed: $service_name"
 }

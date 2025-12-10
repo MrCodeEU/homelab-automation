@@ -35,7 +35,7 @@ elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ] || [ "$OS" = "fedora" ] || [ "$O
 elif [ "$OS" = "arch" ]; then
     pacman -Sy
 elif [ "$OS" = "slackware" ]; then
-    # Unraid/Slackware - use slackpkg or skip package updates
+    # Unraid/Slackware - skip package manager updates (Unraid manages updates via its own system)
     echo "Slackware detected - skipping package manager updates (Unraid manages updates)"
 fi
 
