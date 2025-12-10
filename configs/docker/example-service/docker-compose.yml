@@ -1,0 +1,49 @@
+version: '3.8'
+
+# This is an example docker-compose.yml template
+# Copy this file and modify it for your own services
+
+services:
+  example-app:
+    # Use your desired Docker image
+    image: nginx:latest
+    
+    # Container name (optional but recommended)
+    container_name: example-app
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Port mappings (host:container)
+    ports:
+      - "8080:80"
+    
+    # Environment variables
+    environment:
+      - TZ=UTC
+      - EXAMPLE_VAR=value
+    
+    # Volume mappings for persistent data
+    volumes:
+      - ./data:/data
+      - ./config:/config
+    
+    # Networks (optional)
+    # networks:
+    #   - homelab
+    
+    # Resource limits (optional but recommended)
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '0.5'
+    #       memory: 512M
+
+# Define volumes (if needed)
+# volumes:
+#   example-data:
+
+# Define networks (if needed)
+# networks:
+#   homelab:
+#     driver: bridge
