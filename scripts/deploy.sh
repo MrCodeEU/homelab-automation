@@ -38,10 +38,12 @@ deploy_to_device() {
     local device_name=$1
     local hostname=$2
     local user=$3
-    local roles=$4
+    local os=$4
+    local roles=$5
     
     echo "========================================="
     echo "Deploying to: $device_name ($hostname)"
+    echo "OS: $os"
     echo "Roles: $roles"
     echo "========================================="
     
@@ -66,22 +68,28 @@ deploy_to_device() {
     # Execute deployment scripts based on roles
     if [[ "$roles" == *"base"* ]] || [ "$roles" = "all" ]; then
         echo "Executing base setup..."
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/01-base-setup.sh"
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/01-base-setup.sh $os"
     fi
     
     if [[ "$roles" == *"docker"* ]] || [ "$roles" = "all" ]; then
         echo "Executing Docker setup..."
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/02-docker-setup.sh"
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/02-docker-setup.sh $os"
         
-        echo "Deploying Docker Compose stacks..."
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/03-docker-compose-deploy.sh"
+        # Use Unraid-specific deployment for Slackware/Unraid
+        if [ "$os" = "slackware" ]; then
+            echo "Deploying Docker containers for Unraid..."
+            ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/03-unraid-deploy.sh"
+        else
+            echo "Deploying Docker Compose stacks..."
+            ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/03-docker-compose-deploy.sh $os"
+        fi
     fi
     
     if [[ "$roles" == *"caddy"* ]] || [ "$roles" = "all" ]; then
         echo "Executing Caddy setup..."
         # Check if Caddyfile exists for this device
         CADDYFILE="/tmp/homelab-deploy/configs/caddy/Caddyfile"
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/04-caddy-setup.sh $CADDYFILE"
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/04-caddy-setup.sh $os $CADDYFILE"
     fi
     
     echo "Deployment to $device_name completed successfully!"
@@ -98,19 +106,19 @@ echo ""
 if [ "$TARGET_DEVICE" = "all" ] || [ "$TARGET_DEVICE" = "vps" ]; then
     echo "Deploy to VPS:"
     echo "Please configure your VPS details in inventory.yml"
-    echo "Example: deploy_to_device 'vps' 'vps.tailnet-xxxx.ts.net' 'root' 'base,docker,caddy'"
+    echo "Example: deploy_to_device 'vps' 'vps.tailnet-xxxx.ts.net' 'root' 'rocky' 'base,docker,caddy'"
 fi
 
 if [ "$TARGET_DEVICE" = "all" ] || [ "$TARGET_DEVICE" = "homeserver" ]; then
     echo "Deploy to Home Server:"
     echo "Please configure your home server details in inventory.yml"
-    echo "Example: deploy_to_device 'homeserver' 'homeserver.tailnet-xxxx.ts.net' 'root' 'base,docker,caddy'"
+    echo "Example: deploy_to_device 'homeserver' 'homeserver.tailnet-xxxx.ts.net' 'root' 'rocky' 'base,docker,caddy'"
 fi
 
 if [ "$TARGET_DEVICE" = "all" ] || [ "$TARGET_DEVICE" = "unraid" ]; then
     echo "Deploy to Unraid NAS:"
     echo "Please configure your Unraid details in inventory.yml"
-    echo "Example: deploy_to_device 'unraid' 'unraid.tailnet-xxxx.ts.net' 'root' 'base,docker'"
+    echo "Example: deploy_to_device 'unraid' 'unraid.tailnet-xxxx.ts.net' 'root' 'slackware' 'base,docker'"
 fi
 
 echo ""

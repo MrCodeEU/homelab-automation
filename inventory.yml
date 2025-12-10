@@ -5,6 +5,7 @@ devices:
   vps:
     hostname: "vps.tailnet-xxxx.ts.net"  # Replace with your VPS Tailscale hostname
     user: "root"
+    os: "rocky"  # Rocky Linux
     description: "Cloud VPS Server"
     roles:
       - base
@@ -14,6 +15,7 @@ devices:
   homeserver:
     hostname: "homeserver.tailnet-xxxx.ts.net"  # Replace with your home server Tailscale hostname
     user: "root"
+    os: "rocky"  # Rocky Linux
     description: "Home Linux Server"
     roles:
       - base
@@ -23,6 +25,7 @@ devices:
   unraid:
     hostname: "unraid.tailnet-xxxx.ts.net"  # Replace with your Unraid NAS Tailscale hostname
     user: "root"
+    os: "slackware"  # Unraid is based on Slackware
     description: "Unraid NAS"
     roles:
       - base

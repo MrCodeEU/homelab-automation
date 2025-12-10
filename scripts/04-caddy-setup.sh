@@ -7,16 +7,32 @@ echo "========================================="
 echo "Starting Caddy Setup"
 echo "========================================="
 
-# Detect OS
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    OS=$ID
+# Accept OS as first parameter, Caddyfile as second
+OS_PARAM="${1:-}"
+CADDYFILE_SOURCE="${2:-}"
+
+if [ -n "$OS_PARAM" ]; then
+    OS="$OS_PARAM"
+    echo "Using provided OS: $OS"
 else
-    echo "Cannot detect OS"
-    exit 1
+    # Detect OS
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$ID
+    else
+        echo "Cannot detect OS"
+        exit 1
+    fi
+    echo "Detected OS: $OS"
 fi
 
-echo "Detected OS: $OS"
+# Skip Caddy installation for Unraid/Slackware
+if [ "$OS" = "slackware" ]; then
+    echo "Unraid/Slackware detected - Caddy should be installed as a Docker container"
+    echo "Please use Unraid Community Applications to install Caddy"
+    echo "========================================="
+    exit 0
+fi
 
 # Check if Caddy is already installed
 if command -v caddy &> /dev/null; then
@@ -38,8 +54,8 @@ if [ "$CADDY_EXISTS" = false ]; then
         apt-get update -y
         apt-get install -y caddy
         
-    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ] || [ "$OS" = "fedora" ]; then
-        # Install Caddy from official repository
+    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ] || [ "$OS" = "fedora" ] || [ "$OS" = "rocky" ]; then
+        # Install Caddy from official repository for Rocky Linux
         yum install -y yum-plugin-copr
         yum copr enable -y @caddy/caddy
         yum install -y caddy
@@ -52,8 +68,7 @@ fi
 CADDY_CONFIG_DIR="/etc/caddy"
 mkdir -p "$CADDY_CONFIG_DIR"
 
-# Deploy Caddyfile if provided
-CADDYFILE_SOURCE="${1:-}"
+# Deploy Caddyfile if provided (second parameter)
 if [ -n "$CADDYFILE_SOURCE" ] && [ -f "$CADDYFILE_SOURCE" ]; then
     echo "Deploying Caddyfile from: $CADDYFILE_SOURCE"
     cp "$CADDYFILE_SOURCE" "$CADDY_CONFIG_DIR/Caddyfile"

@@ -9,11 +9,14 @@ This repository contains everything needed to automatically deploy and manage a 
 git clone https://github.com/MrCodeEU/homelab-automation.git
 cd homelab-automation
 
-# 2. Configure your devices in inventory.yml
+# 2. Configure your devices in inventory.yml (set hostnames and OS types)
 nano inventory.yml
 
-# 3. Deploy to a device
-./scripts/deploy-single.sh your-device.tailnet-xxx.ts.net root all
+# 3. Deploy to a Rocky Linux VPS
+./scripts/deploy-single.sh your-vps.tailnet-xxx.ts.net root rocky all
+
+# 4. Deploy to Unraid NAS (uses community templates)
+./scripts/deploy-single.sh your-unraid.tailnet-xxx.ts.net root slackware all
 ```
 
 📖 See [QUICKSTART.md](QUICKSTART.md) for a 5-minute setup guide or [SETUP.md](SETUP.md) for detailed instructions.
@@ -21,20 +24,28 @@ nano inventory.yml
 ## 🏗️ Architecture
 
 The automation supports deployment to three types of devices:
-- **VPS**: Cloud-based Virtual Private Server
-- **Home Server**: Linux server running at home
-- **Unraid NAS**: Network Attached Storage running Unraid
+- **VPS**: Cloud-based Virtual Private Server (Rocky Linux)
+- **Home Server**: Linux server running at home (Rocky Linux)
+- **Unraid NAS**: Network Attached Storage running Unraid (Slackware-based)
 
 All devices are connected via Tailscale VPN for secure SSH access.
+
+**OS-Specific Handling:**
+- Rocky Linux servers use standard package managers (yum) and docker-compose
+- Unraid uses Docker via its built-in system and Community Applications templates
 
 ## 🚀 Features
 
 - **Automated Base Setup**: Installs essential packages (git, docker, curl, vim, htop, etc.)
-- **Docker Installation**: Sets up Docker and Docker Compose on all devices
-- **Docker Stack Deployment**: Automatically deploys containerized services
-- **Caddy Configuration**: Deploys and configures Caddy reverse proxy
+- **Multi-OS Support**: Rocky Linux, Ubuntu, Debian, and Slackware (Unraid)
+- **Docker Installation**: Sets up Docker and Docker Compose on Rocky Linux servers
+- **Docker Stack Deployment**: 
+  - Rocky Linux: Uses docker-compose for service orchestration
+  - Unraid: Uses native Docker with Community Applications-style deployment
+- **Caddy Configuration**: Deploys and configures Caddy reverse proxy on Rocky Linux
 - **GitHub Workflows**: CI/CD pipeline for automated deployments
 - **Tailscale Integration**: Secure VPN connectivity for remote management
+- **Unraid-Specific**: Proper handling for Unraid's Docker system and appdata storage
 
 ## 📁 Repository Structure
 
@@ -52,11 +63,13 @@ homelab-automation/
 │       └── homepage/           # Application dashboard
 ├── scripts/
 │   ├── deploy.sh               # Main deployment orchestration script
-│   ├── 01-base-setup.sh        # Base system setup
-│   ├── 02-docker-setup.sh      # Docker installation
+│   ├── deploy-single.sh        # Single device deployment helper
+│   ├── 01-base-setup.sh        # Base system setup (OS-aware)
+│   ├── 02-docker-setup.sh      # Docker installation (OS-aware)
 │   ├── 03-docker-compose-deploy.sh  # Docker Compose deployment
-│   └── 04-caddy-setup.sh       # Caddy setup and configuration
-├── inventory.yml               # Device inventory and configuration
+│   ├── 03-unraid-deploy.sh     # Unraid-specific Docker deployment
+│   └── 04-caddy-setup.sh       # Caddy setup and configuration (OS-aware)
+├── inventory.yml               # Device inventory with OS types
 └── README.md
 ```
 
@@ -77,18 +90,21 @@ homelab-automation/
    ```
 
 2. **Configure inventory.yml**:
-   Edit `inventory.yml` and update with your actual Tailscale hostnames:
+   Edit `inventory.yml` and update with your actual Tailscale hostnames and OS types:
    ```yaml
    devices:
      vps:
        hostname: "your-vps.tailnet-xxx.ts.net"
        user: "root"
+       os: "rocky"  # Rocky Linux
      homeserver:
        hostname: "your-homeserver.tailnet-xxx.ts.net"
        user: "root"
+       os: "rocky"  # Rocky Linux
      unraid:
        hostname: "your-unraid.tailnet-xxx.ts.net"
        user: "root"
+       os: "slackware"  # Unraid (Slackware-based)
    ```
 
 3. **Customize Caddy Configuration**:
@@ -124,11 +140,21 @@ Deploy to all devices:
 ./scripts/deploy.sh all all
 ```
 
-Deploy to a specific device:
+Deploy to a specific device with OS specified:
 ```bash
-./scripts/deploy.sh vps all
-./scripts/deploy.sh homeserver docker,caddy
-./scripts/deploy.sh unraid base,docker
+# VPS (Rocky Linux) - all roles
+./scripts/deploy-single.sh vps.tailnet-xxx.ts.net root rocky all
+
+# Home server (Rocky Linux) - docker and caddy only
+./scripts/deploy-single.sh homeserver.tailnet-xxx.ts.net root rocky docker,caddy
+
+# Unraid NAS (Slackware) - base and docker (uses community templates)
+./scripts/deploy-single.sh unraid.tailnet-xxx.ts.net root slackware docker
+```
+
+Or use auto-detection (not recommended for Unraid):
+```bash
+./scripts/deploy-single.sh vps.tailnet-xxx.ts.net root auto all
 ```
 
 ### Automated Deployment via GitHub Actions
@@ -143,19 +169,29 @@ Deploy to a specific device:
 
 | Script | Description |
 |--------|-------------|
-| `01-base-setup.sh` | Installs essential packages and utilities |
-| `02-docker-setup.sh` | Installs Docker and Docker Compose |
-| `03-docker-compose-deploy.sh` | Deploys all Docker Compose stacks |
-| `04-caddy-setup.sh` | Installs and configures Caddy |
+| `01-base-setup.sh` | Installs essential packages and utilities (OS-aware) |
+| `02-docker-setup.sh` | Installs Docker and Docker Compose (OS-aware) |
+| `03-docker-compose-deploy.sh` | Deploys Docker Compose stacks (Rocky Linux) |
+| `03-unraid-deploy.sh` | Deploys Docker containers on Unraid (Community Apps style) |
+| `04-caddy-setup.sh` | Installs and configures Caddy (OS-aware) |
 | `deploy.sh` | Main orchestration script that runs all others |
+| `deploy-single.sh` | Single device deployment helper with OS parameter |
 
 ## 🐳 Included Docker Services
 
+**For Rocky Linux (via docker-compose):**
 - **Portainer**: Web-based Docker management UI (port 9000)
 - **Watchtower**: Automatic container update service
 - **Homepage**: Application dashboard (port 3000)
 
-Add more services by creating docker-compose.yml files in `configs/docker/`.
+**For Unraid (via native Docker):**
+- **Portainer**: Docker management UI with Unraid appdata storage
+- **Watchtower**: Auto-updates for Unraid containers
+- **Homepage**: Dashboard with proper Unraid paths
+
+Add more services:
+- Rocky Linux: Create docker-compose.yml files in `configs/docker/`
+- Unraid: Use Community Applications UI or modify `03-unraid-deploy.sh`
 
 ## 🔒 Security Notes
 
