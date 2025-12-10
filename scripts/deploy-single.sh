@@ -41,8 +41,9 @@ USER=$2
 OS=${3:-auto}
 ROLES=${4:-all}
 
-# If third argument looks like roles (contains comma or is 'all'), treat it as roles
-if [[ "$OS" == *","* ]] || [ "$OS" = "all" ] || [ "$OS" = "base" ] || [ "$OS" = "docker" ] || [ "$OS" = "caddy" ]; then
+# If third argument looks like roles (not an OS), treat it as roles
+# Check if it's a known OS type, otherwise assume it's roles
+if [ "$OS" != "rocky" ] && [ "$OS" != "slackware" ] && [ "$OS" != "ubuntu" ] && [ "$OS" != "debian" ] && [ "$OS" != "auto" ]; then
     ROLES=$OS
     OS="auto"
 fi
