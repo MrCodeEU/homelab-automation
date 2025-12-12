@@ -1,0 +1,47 @@
+# Service Configuration
+# This file defines all services for your homelab
+# Used to generate Caddyfile, Glance dashboard, and other configs
+
+global:
+  domain: "example.com"  # Your base domain
+  email: "admin@example.com"  # For Let's Encrypt
+  location: "London, United Kingdom"  # For weather widget
+
+# Dashboard configuration
+dashboard:
+  name: "Homelab Dashboard"
+  theme: "dark"  # dark or light
+  timezone: "Europe/London"
+
+services:
+  # Dashboard
+  - name: glance
+    enabled: true
+    domain: "home.example.com"
+    port: 8080
+    description: "Main dashboard"
+    icon: "mdi:view-dashboard"
+    
+  # Container Management
+  - name: portainer
+    enabled: false
+    domain: "portainer.example.com"
+    port: 9000
+    description: "Docker management"
+    icon: "si:portainer"
+  
+  # Monitoring (prepared for future)
+  - name: kuma
+    enabled: false
+    domain: "status.example.com"
+    port: 3001
+    description: "Uptime monitoring"
+    icon: "mdi:heart-pulse"
+    
+  # Add more services here
+  # - name: service_name
+  #   enabled: true
+  #   domain: "subdomain.example.com"
+  #   port: 8080
+  #   description: "Service description"
+  #   icon: "mdi:icon-name"
