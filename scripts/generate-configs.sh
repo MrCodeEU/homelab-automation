@@ -68,7 +68,7 @@ if [ "$SERVICE_COUNT" -gt 0 ]; then
         SERVICE_NAME=$(yq eval ".services[$i].name" "$CONFIG_FILE")
         DOMAIN=$(yq eval ".services[$i].domain // \"\"" "$CONFIG_FILE")
         PORT=$(yq eval ".services[$i].port // \"\"" "$CONFIG_FILE")
-        HOST=$(yq eval ".services[$i].host // \"localhost\"" "$CONFIG_FILE")
+        HOST=$(yq eval ".services[$i].host // \"\"" "$CONFIG_FILE")
         UPSTREAM=$(yq eval ".services[$i].upstream // \"\"" "$CONFIG_FILE")
         ENABLED=$(yq eval ".services[$i].enabled // true" "$CONFIG_FILE")
         
@@ -82,12 +82,13 @@ if [ "$SERVICE_COUNT" -gt 0 ]; then
             # Use custom upstream URL
             TARGET="$UPSTREAM"
         elif [ -n "$PORT" ]; then
-            # Build target from host:port
-            if [ "$HOST" = "localhost" ] || [ "$HOST" = "null" ]; then
-                TARGET="localhost:$PORT"
-            else
-                TARGET="$HOST:$PORT"
-            fi
+          # Build target from host:port
+          EFFECTIVE_HOST="$HOST"
+          if [ -z "$EFFECTIVE_HOST" ] || [ "$EFFECTIVE_HOST" = "localhost" ] || [ "$EFFECTIVE_HOST" = "null" ]; then
+            # Default to service name so Caddy can reach the container via the shared Docker network
+            EFFECTIVE_HOST="$SERVICE_NAME"
+          fi
+          TARGET="$EFFECTIVE_HOST:$PORT"
         else
             echo "⚠️  Skipping $SERVICE_NAME: No port or upstream defined"
             continue
