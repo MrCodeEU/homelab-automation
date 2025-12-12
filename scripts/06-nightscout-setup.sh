@@ -72,7 +72,12 @@ fi
 
 # Validate required environment variables
 echo "Validating configuration..."
-source "$ENV_FILE"
+
+# Extract values from .env file safely (without sourcing)
+API_SECRET=$(grep -E '^API_SECRET=' "$ENV_FILE" | cut -d '=' -f 2- | tr -d '"' | tr -d "'")
+LINK_UP_USERNAME=$(grep -E '^LINK_UP_USERNAME=' "$ENV_FILE" | cut -d '=' -f 2- | tr -d '"' | tr -d "'")
+LINK_UP_PASSWORD=$(grep -E '^LINK_UP_PASSWORD=' "$ENV_FILE" | cut -d '=' -f 2- | tr -d '"' | tr -d "'")
+NIGHTSCOUT_API_TOKEN=$(grep -E '^NIGHTSCOUT_API_TOKEN=' "$ENV_FILE" | cut -d '=' -f 2- | tr -d '"' | tr -d "'")
 
 if [ -z "$API_SECRET" ] || [ "$API_SECRET" = "your-secret-here-min-12-chars" ]; then
     echo "❌ Error: API_SECRET not configured in .env file"
