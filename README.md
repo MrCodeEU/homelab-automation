@@ -37,15 +37,22 @@ All devices are connected via Tailscale VPN for secure SSH access.
 ## 🚀 Features
 
 - **Automated Base Setup**: Installs essential packages (git, docker, curl, vim, htop, etc.)
-- **Multi-OS Support**: Rocky Linux, Ubuntu, Debian, and Slackware (Unraid)
-- **Docker Installation**: Sets up Docker and Docker Compose on Rocky Linux servers
-- **Docker Stack Deployment**: 
-  - Rocky Linux: Uses docker-compose for service orchestration
-  - Unraid: Uses native Docker with Community Applications-style deployment
-- **Caddy Configuration**: Deploys and configures Caddy reverse proxy on Rocky Linux
-- **GitHub Workflows**: CI/CD pipeline for automated deployments
-- **Tailscale Integration**: Secure VPN connectivity for remote management
-- **Unraid-Specific**: Proper handling for Unraid's Docker system and appdata storage
+- **Rocky Linux Focus**: Streamlined deployment for Rocky Linux systems
+- **Docker Installation**: Sets up Docker and Docker Compose
+- **Caddy Reverse Proxy**: Auto-configured HTTPS reverse proxy from YAML config
+- **Glance Dashboard**: Beautiful self-hosted dashboard with:
+  - 🌤️ Weather widget
+  - 📅 Calendar integration
+  - 🕐 Multiple timezone clocks
+  - 🐳 Docker container monitoring
+  - 📊 Server stats (CPU, memory, disk)
+  - 📰 RSS feeds (Hacker News, The Verge, TechCrunch)
+  - 🔗 Service health monitoring
+  - 📱 Reddit, Lobsters feeds
+- **Uptime Kuma Ready**: Prepared for service monitoring integration (see [Uptime Kuma README](configs/uptime-kuma/README.md))
+- **GitHub Workflows**: CI/CD pipeline with Tailscale SSH authentication
+- **YAML-Driven Configuration**: Single `services.yml` file generates all configs
+- **Tailscale Integration**: Secure VPN connectivity without SSH keys
 
 ## 📁 Repository Structure
 

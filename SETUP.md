@@ -64,7 +64,7 @@ Example output:
 
 Your hostnames will be in the format: `device-name.tailnet-xxxxx.ts.net`
 
-## SSH Configuration
+## SSH Configuration (Not needed anymore. Should be fully handled by tailscale)
 
 ### 1. Generate SSH Key (if you don't have one)
 

@@ -1,99 +1,78 @@
 #!/bin/bash
-# Caddy installation and configuration deployment script
+# Caddy setup script for Rocky Linux
+# Deploys Caddy as a Docker container
 
 set -e
 
 echo "========================================="
-echo "Starting Caddy Setup"
+echo "Starting Caddy Setup (Docker)"
 echo "========================================="
 
-# Accept OS as first parameter, Caddyfile as second
-OS_PARAM="${1:-}"
-CADDYFILE_SOURCE="${2:-}"
+CADDY_DIR="/opt/caddy"
+CONFIG_SOURCE="${1:-}"
 
-if [ -n "$OS_PARAM" ]; then
-    OS="$OS_PARAM"
-    echo "Using provided OS: $OS"
+# Create directory structure
+mkdir -p "$CADDY_DIR/data"
+mkdir -p "$CADDY_DIR/config"
+
+# Create docker-compose.yml for Caddy
+echo "Creating Caddy docker-compose.yml..."
+cat > "$CADDY_DIR/docker-compose.yml" << 'EOF'
+version: '3.8'
+
+services:
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data:/data
+      - ./config:/config
+    networks:
+      - caddy_network
+
+networks:
+  caddy_network:
+    name: caddy_network
+EOF
+
+# Deploy Caddyfile if provided
+if [ -n "$CONFIG_SOURCE" ] && [ -f "$CONFIG_SOURCE" ]; then
+    echo "Deploying Caddyfile from: $CONFIG_SOURCE"
+    cp "$CONFIG_SOURCE" "$CADDY_DIR/Caddyfile"
 else
-    # Detect OS
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        OS=$ID
-    else
-        echo "Cannot detect OS"
-        exit 1
-    fi
-    echo "Detected OS: $OS"
+    # Create minimal default Caddyfile
+    echo "Creating default Caddyfile..."
+    cat > "$CADDY_DIR/Caddyfile" << 'EOF'
+# Default Caddyfile
+# Edit this file and restart Caddy to apply changes
+
+:80 {
+    respond "Caddy is running!" 200
+}
+EOF
 fi
 
-# Skip Caddy installation for Unraid/Slackware
-if [ "$OS" = "slackware" ]; then
-    echo "Unraid/Slackware detected - Caddy should be installed as a Docker container"
-    echo "Please use Unraid Community Applications to install Caddy"
-    echo "========================================="
-    exit 0
-fi
+# Validate Caddyfile using Docker
+echo "Validating Caddyfile..."
+docker run --rm -v "$CADDY_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:latest caddy validate --config /etc/caddy/Caddyfile
 
-# Check if Caddy is already installed
-if command -v caddy &> /dev/null; then
-    echo "Caddy is already installed: $(caddy version)"
-    CADDY_EXISTS=true
-else
-    CADDY_EXISTS=false
-fi
+# Start Caddy
+echo "Starting Caddy container..."
+cd "$CADDY_DIR"
+docker compose up -d
 
-# Install Caddy if not present
-if [ "$CADDY_EXISTS" = false ]; then
-    echo "Installing Caddy..."
-    
-    if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-        # Install Caddy from official repository
-        apt-get install -y debian-keyring debian-archive-keyring apt-transport-https
-        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
-        apt-get update -y
-        apt-get install -y caddy
-        
-    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ] || [ "$OS" = "fedora" ] || [ "$OS" = "rocky" ]; then
-        # Install Caddy from official repository for Rocky Linux
-        yum install -y yum-plugin-copr
-        yum copr enable -y @caddy/caddy
-        yum install -y caddy
-    fi
-else
-    echo "Skipping Caddy installation (already installed)"
-fi
-
-# Create Caddy config directory
-CADDY_CONFIG_DIR="/etc/caddy"
-mkdir -p "$CADDY_CONFIG_DIR"
-
-# Deploy Caddyfile if provided (second parameter)
-if [ -n "$CADDYFILE_SOURCE" ] && [ -f "$CADDYFILE_SOURCE" ]; then
-    echo "Deploying Caddyfile from: $CADDYFILE_SOURCE"
-    cp "$CADDYFILE_SOURCE" "$CADDY_CONFIG_DIR/Caddyfile"
-    
-    # Validate Caddyfile
-    echo "Validating Caddyfile..."
-    caddy validate --config "$CADDY_CONFIG_DIR/Caddyfile"
-    
-    # Reload Caddy
-    echo "Reloading Caddy..."
-    systemctl reload caddy
-else
-    echo "No Caddyfile provided or file not found, skipping configuration deployment"
-    echo "Default Caddyfile location: $CADDY_CONFIG_DIR/Caddyfile"
-fi
-
-# Enable and start Caddy service
-echo "Enabling Caddy service..."
-systemctl enable caddy
-systemctl start caddy
-
-# Check Caddy status
-echo "Caddy status:"
-systemctl status caddy --no-pager || true
+# Show status
+echo ""
+echo "Caddy container status:"
+docker compose ps
 
 echo "========================================="
 echo "Caddy Setup Complete!"
+echo "Caddyfile location: $CADDY_DIR/Caddyfile"
 echo "========================================="

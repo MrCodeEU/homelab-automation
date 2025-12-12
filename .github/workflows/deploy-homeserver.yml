@@ -13,8 +13,6 @@ on:
           - base
           - docker
           - caddy
-          - base,docker
-          - base,docker,caddy
 
 permissions:
   contents: read
@@ -50,26 +48,32 @@ jobs:
       - name: Execute base setup
         if: contains(github.event.inputs.roles, 'base') || github.event.inputs.roles == 'all'
         run: |
-          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/01-base-setup.sh rocky"
+          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/01-base-setup.sh"
           echo "✓ Base setup completed"
 
       - name: Execute Docker setup
         if: contains(github.event.inputs.roles, 'docker') || github.event.inputs.roles == 'all'
         run: |
-          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/02-docker-setup.sh rocky"
+          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/02-docker-setup.sh"
           echo "✓ Docker setup completed"
 
-      - name: Deploy Docker Compose stacks
-        if: contains(github.event.inputs.roles, 'docker') || github.event.inputs.roles == 'all'
+      - name: Generate configurations
+        if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
         run: |
-          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/03-docker-compose-deploy.sh rocky"
-          echo "✓ Docker Compose stacks deployed"
+          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/generate-configs.sh /tmp/homelab-deploy/configs/services.yml"
+          echo "✓ Configurations generated"
 
       - name: Execute Caddy setup
         if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
         run: |
-          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/04-caddy-setup.sh rocky /tmp/homelab-deploy/configs/caddy/Caddyfile"
+          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/04-caddy-setup.sh"
           echo "✓ Caddy setup completed"
+
+      - name: Execute Glance setup
+        if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/05-glance-setup.sh"
+          echo "✓ Glance setup completed"
 
       - name: Deployment summary
         if: always()
