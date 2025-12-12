@@ -36,57 +36,226 @@ jobs:
         run: chmod +x scripts/*.sh
 
       - name: Test SSH connectivity
+        id: test-ssh
+        continue-on-error: true
         run: |
-          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "echo '✓ VPS connection successful'"
+          echo "======================================"
+          echo "🔌 Testing SSH Connectivity"
+          echo "======================================"
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "echo '✓ VPS connection successful'"; then
+            echo "SSH_STATUS=✅ Success" >> $GITHUB_ENV
+            echo "✅ SSH connection established"
+          else
+            echo "SSH_STATUS=❌ Failed" >> $GITHUB_ENV
+            echo "❌ SSH connection failed"
+            exit 1
+          fi
 
       - name: Copy deployment scripts
+        id: copy-scripts
+        continue-on-error: true
         run: |
-          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p /tmp/homelab-deploy"
-          tar czf - scripts/ configs/ | tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"
-          echo "✓ Scripts and configs deployed"
+          echo ""
+          echo "======================================"
+          echo "📦 Copying Deployment Files"
+          echo "======================================"
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p /tmp/homelab-deploy" && \
+             tar czf - scripts/ configs/ | tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"; then
+            echo "COPY_STATUS=✅ Success" >> $GITHUB_ENV
+            echo "✅ Scripts and configs deployed to /tmp/homelab-deploy"
+          else
+            echo "COPY_STATUS=❌ Failed" >> $GITHUB_ENV
+            echo "❌ Failed to copy deployment files"
+            exit 1
+          fi
 
       - name: Execute base setup
+        id: base-setup
         if: contains(github.event.inputs.roles, 'base') || github.event.inputs.roles == 'all'
+        continue-on-error: true
         run: |
-          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/01-base-setup.sh"
-          echo "✓ Base setup completed"
+          echo ""
+          echo "======================================"
+          echo "🔧 Base System Setup"
+          echo "======================================"
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/01-base-setup.sh"; then
+            echo "BASE_STATUS=✅ Success" >> $GITHUB_ENV
+            echo "✅ Base setup completed"
+          else
+            echo "BASE_STATUS=❌ Failed" >> $GITHUB_ENV
+            echo "❌ Base setup failed"
+            exit 1
+          fi
 
       - name: Execute Docker setup
+        id: docker-setup
         if: contains(github.event.inputs.roles, 'docker') || github.event.inputs.roles == 'all'
+        continue-on-error: true
         run: |
-          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/02-docker-setup.sh"
-          echo "✓ Docker setup completed"
+          echo ""
+          echo "======================================"
+          echo "🐳 Docker Installation"
+          echo "======================================"
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/02-docker-setup.sh"; then
+            echo "DOCKER_STATUS=✅ Success" >> $GITHUB_ENV
+            echo "✅ Docker setup completed"
+          else
+            echo "DOCKER_STATUS=❌ Failed" >> $GITHUB_ENV
+            echo "❌ Docker setup failed"
+            exit 1
+          fi
 
       - name: Generate configurations
+        id: generate-configs
         if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
+        continue-on-error: true
         run: |
-          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/generate-configs.sh /tmp/homelab-deploy/configs/services.yml"
-          echo "✓ Configurations generated"
+          echo ""
+          echo "======================================"
+          echo "⚙️  Generating Configurations"
+          echo "======================================"
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/generate-configs.sh /tmp/homelab-deploy/configs/services.yml"; then
+            echo "CONFIG_STATUS=✅ Success" >> $GITHUB_ENV
+            echo "✅ Configurations generated (Caddyfile, Glance config)"
+          else
+            echo "CONFIG_STATUS=❌ Failed" >> $GITHUB_ENV
+            echo "❌ Configuration generation failed"
+            exit 1
+          fi
 
       - name: Execute Caddy setup
+        id: caddy-setup
         if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
+        continue-on-error: true
         run: |
-          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/04-caddy-setup.sh"
-          echo "✓ Caddy setup completed"
+          echo ""
+          echo "======================================"
+          echo "🌐 Caddy Reverse Proxy Setup"
+          echo "======================================"
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/04-caddy-setup.sh"; then
+            echo "CADDY_STATUS=✅ Success" >> $GITHUB_ENV
+            echo "✅ Caddy setup completed"
+          else
+            echo "CADDY_STATUS=❌ Failed" >> $GITHUB_ENV
+            echo "❌ Caddy setup failed"
+            exit 1
+          fi
 
       - name: Execute Glance setup
+        id: glance-setup
         if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
+        continue-on-error: true
         run: |
-          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/05-glance-setup.sh"
-          echo "✓ Glance setup completed"
+          echo ""
+          echo "======================================"
+          echo "📊 Glance Dashboard Deployment"
+          echo "======================================"
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/05-glance-setup.sh"; then
+            echo "GLANCE_STATUS=✅ Success" >> $GITHUB_ENV
+            echo "✅ Glance dashboard deployed"
+          else
+            echo "GLANCE_STATUS=❌ Failed" >> $GITHUB_ENV
+            echo "❌ Glance setup failed"
+            exit 1
+          fi
+      
+      - name: Execute Nightscout setup
+        id: nightscout-setup
+        if: contains(github.event.inputs.roles, 'nightscout') || github.event.inputs.roles == 'all'
+        continue-on-error: true
+        run: |
+          echo ""
+          echo "======================================"
+          echo "🩺 Nightscout CGM Monitor Deployment"
+          echo "======================================"
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/06-nightscout-setup.sh"; then
+            echo "NIGHTSCOUT_STATUS=✅ Success" >> $GITHUB_ENV
+            echo "✅ Nightscout stack deployed"
+          else
+            echo "NIGHTSCOUT_STATUS=❌ Failed (may need .env configuration)" >> $GITHUB_ENV
+            echo "⚠️  Nightscout setup failed or needs configuration"
+          fi
 
       - name: Deployment summary
         if: always()
         run: |
-          echo "### VPS Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo ""
+          echo "======================================"
+          echo "📋 DEPLOYMENT SUMMARY"
+          echo "======================================"
+          echo ""
+          
+          # Console summary
+          echo "Device: VPS (${{ secrets.VPS_HOST }})"
+          echo "Roles: ${{ github.event.inputs.roles }}"
+          echo ""
+          echo "Component Status:"
+          echo "  SSH Connection:      ${SSH_STATUS:-⏭️  Skipped}"
+          echo "  File Transfer:       ${COPY_STATUS:-⏭️  Skipped}"
+          echo "  Base Setup:          ${BASE_STATUS:-⏭️  Skipped}"
+          echo "  Docker Setup:        ${DOCKER_STATUS:-⏭️  Skipped}"
+          echo "  Config Generation:   ${CONFIG_STATUS:-⏭️  Skipped}"
+          echo "  Caddy Proxy:         ${CADDY_STATUS:-⏭️  Skipped}"
+          echo "  Glance Dashboard:    ${GLANCE_STATUS:-⏭️  Skipped}"
+          echo "  Nightscout CGM:      ${NIGHTSCOUT_STATUS:-⏭️  Skipped}"
+          echo ""
+          
+          # GitHub step summary
+          echo "## 🚀 VPS Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Device**: VPS" >> $GITHUB_STEP_SUMMARY
-          echo "- **Roles**: ${{ github.event.inputs.roles }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Target:** VPS (\`${{ secrets.VPS_HOST }}\`)" >> $GITHUB_STEP_SUMMARY
+          echo "**Roles:** \`${{ github.event.inputs.roles }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Status:** \`${{ job.status }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "🎉 **VPS deployment successful!**" >> $GITHUB_STEP_SUMMARY
+          echo "### 📦 Component Status" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| SSH Connection | ${SSH_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
+          echo "| File Transfer | ${COPY_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Base Setup | ${BASE_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Setup | ${DOCKER_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Config Generation | ${CONFIG_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Caddy Proxy | ${CADDY_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Glance Dashboard | ${GLANCE_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Nightscout CGM | ${NIGHTSCOUT_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Overall status
+          if [[ "${{ job.status }}" == "success" ]]; then
+            echo "### ✅ Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All requested components were deployed successfully." >> $GITHUB_STEP_SUMMARY
+          elif [[ "${SSH_STATUS}" == *"Failed"* ]] || [[ "${COPY_STATUS}" == *"Failed"* ]]; then
+            echo "### ❌ Deployment Failed - Connection Error" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Failed to connect to VPS or transfer files. Check Tailscale connection and credentials." >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ **VPS deployment failed. Check logs above.**" >> $GITHUB_STEP_SUMMARY
+            echo "### ⚠️ Deployment Completed with Warnings" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Some components failed to deploy. Check the status table above and logs for details." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next Steps:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Check container status: \`docker ps\`" >> $GITHUB_STEP_SUMMARY
+          echo "- View service logs: \`docker logs <container>\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Access Glance: \`https://dash.mljr.eu\`" >> $GITHUB_STEP_SUMMARY
+          if [[ "${NIGHTSCOUT_STATUS}" == *"Success"* ]]; then
+            echo "- Access Nightscout: \`https://nightscout.mljr.eu\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Determine final exit code
+          if [[ "${SSH_STATUS}" == *"Failed"* ]] || [[ "${COPY_STATUS}" == *"Failed"* ]] || \
+             [[ "${BASE_STATUS}" == *"Failed"* ]] || [[ "${DOCKER_STATUS}" == *"Failed"* ]] || \
+             [[ "${CADDY_STATUS}" == *"Failed"* ]] || [[ "${GLANCE_STATUS}" == *"Failed"* ]]; then
+            echo ""
+            echo "❌ Deployment had failures"
+            exit 1
+          else
+            echo ""
+            echo "✅ Deployment completed successfully"
           fi
