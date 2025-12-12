@@ -113,6 +113,14 @@ fi
 
 echo "Caddyfile generated at: $CADDYFILE"
 
+# Format Caddyfile if docker is available (matches Caddy's fmt warning)
+if command -v docker &> /dev/null; then
+  echo "Formatting Caddyfile with caddy fmt..."
+  docker run --rm -v "$CADDY_OUTPUT_DIR:/etc/caddy" caddy:latest caddy fmt --overwrite /etc/caddy/Caddyfile || echo "⚠️  caddy fmt failed; continuing"
+else
+  echo "⚠️  Docker not available; skipping caddy fmt"
+fi
+
 # Generate Glance configuration
 echo ""
 echo "Generating Glance configuration..."
