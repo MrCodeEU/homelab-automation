@@ -1,0 +1,80 @@
+name: Deploy Unraid
+
+on:
+  workflow_dispatch:
+    inputs:
+      roles:
+        description: 'Roles to deploy (all, base, docker)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - base
+          - docker
+          - base,docker
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-unraid:
+    name: Deploy to Unraid NAS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh
+
+      - name: Test SSH connectivity
+        run: |
+          tailscale ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" "echo '✓ Unraid connection successful'"
+
+      - name: Copy deployment scripts
+        run: |
+          tailscale ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" "mkdir -p /tmp/homelab-deploy"
+          tar czf - scripts/ configs/ | tailscale ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"
+          echo "✓ Scripts and configs deployed"
+
+      - name: Execute base setup
+        if: contains(github.event.inputs.roles, 'base') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" "bash /tmp/homelab-deploy/scripts/01-base-setup.sh slackware"
+          echo "✓ Base setup completed"
+
+      - name: Execute Docker setup
+        if: contains(github.event.inputs.roles, 'docker') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" "bash /tmp/homelab-deploy/scripts/02-docker-setup.sh slackware"
+          echo "✓ Docker setup completed"
+
+      - name: Deploy Docker containers (Unraid specific)
+        if: contains(github.event.inputs.roles, 'docker') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" "bash /tmp/homelab-deploy/scripts/03-unraid-deploy.sh"
+          echo "✓ Docker containers deployed"
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "### Unraid Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Device**: Unraid NAS" >> $GITHUB_STEP_SUMMARY
+          echo "- **Roles**: ${{ github.event.inputs.roles }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "🎉 **Unraid deployment successful!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Unraid deployment failed. Check logs above.**" >> $GITHUB_STEP_SUMMARY
+          fi
