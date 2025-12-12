@@ -24,7 +24,7 @@ services:
   
   # Health Monitoring
   - name: nightscout
-    enabled: false
+    enabled: true
     domain: "nightscout.mljr.eu"
     port: 1337
     description: "CGM Monitor"
