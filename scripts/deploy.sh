@@ -6,6 +6,9 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+REMOTE_BASE="/tmp/homelab-deploy"
+REMOTE_SCRIPTS="$REMOTE_BASE/scripts"
+REMOTE_CONFIGS="$REMOTE_BASE/configs"
 
 echo "========================================="
 echo "Homelab Automation Deployment"
@@ -54,54 +57,54 @@ deploy_to_device() {
         return 1
     fi
     
-    # Copy scripts to remote host
+    # Copy scripts to remote host (preserve scripts/ prefix like CI workflow)
     echo "Copying deployment scripts..."
-    ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "mkdir -p /tmp/homelab-deploy"
-    scp $SSH_OPTIONS -i "$SSH_KEY" -r "$SCRIPT_DIR"/* "$user@$hostname:/tmp/homelab-deploy/"
+    ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "mkdir -p $REMOTE_BASE"
+    scp $SSH_OPTIONS -i "$SSH_KEY" -r "$SCRIPT_DIR" "$user@$hostname:$REMOTE_BASE/"
     
     # Copy configs to remote host
     if [ -d "$PROJECT_ROOT/configs" ]; then
         echo "Copying configuration files..."
-        scp $SSH_OPTIONS -i "$SSH_KEY" -r "$PROJECT_ROOT/configs" "$user@$hostname:/tmp/homelab-deploy/"
+        scp $SSH_OPTIONS -i "$SSH_KEY" -r "$PROJECT_ROOT/configs" "$user@$hostname:$REMOTE_BASE/"
     fi
     
     # Execute deployment scripts based on roles
     if [[ "$roles" == *"base"* ]] || [ "$roles" = "all" ]; then
         echo "Executing base setup..."
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/01-base-setup.sh $os"
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/01-base-setup.sh $os"
     fi
     
     if [[ "$roles" == *"docker"* ]] || [ "$roles" = "all" ]; then
         echo "Executing Docker setup..."
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/02-docker-setup.sh $os"
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/02-docker-setup.sh $os"
         
         # Use Unraid-specific deployment for Slackware/Unraid
         if [ "$os" = "slackware" ]; then
             echo "Deploying Docker containers for Unraid..."
-            ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/03-unraid-deploy.sh"
+            ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/03-unraid-deploy.sh"
         else
             echo "Deploying Docker Compose stacks..."
-            ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/03-docker-compose-deploy.sh $os"
+            ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/03-docker-compose-deploy.sh $os"
         fi
     fi
     
     if [[ "$roles" == *"caddy"* ]] || [ "$roles" = "all" ]; then
         echo "Executing Caddy setup..."
-        # Check if Caddyfile exists for this device
-        CADDYFILE="/tmp/homelab-deploy/configs/caddy/Caddyfile"
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/04-caddy-setup.sh $os $CADDYFILE"
+        # Generate configs (Caddyfile, Glance) then deploy Caddy with the generated file
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/generate-configs.sh $REMOTE_CONFIGS/services.yml"
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/04-caddy-setup.sh /opt/caddy/Caddyfile"
     fi
     
     # Deploy Glance dashboard (if Caddy role is included)
     if [[ "$roles" == *"caddy"* ]] || [ "$roles" = "all" ]; then
         echo "Deploying Glance dashboard..."
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/05-glance-setup.sh || echo 'Glance deployment skipped or failed'"
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/05-glance-setup.sh || echo 'Glance deployment skipped or failed'"
     fi
     
     # Deploy Nightscout (if enabled in services.yml)
     if [[ "$roles" == *"nightscout"* ]] || [ "$roles" = "all" ]; then
         echo "Deploying Nightscout (if enabled)..."
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/06-nightscout-setup.sh || echo 'Nightscout deployment skipped or failed'"
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/06-nightscout-setup.sh || echo 'Nightscout deployment skipped or failed'"
     fi
     
     echo "Deployment to $device_name completed successfully!"
