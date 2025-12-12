@@ -10,9 +10,7 @@ echo "========================================="
 
 CADDY_DIR="/opt/caddy"
 CONFIG_SOURCE="${1:-}"
-OLD_HASH=""
-NEW_HASH=""
-NEED_RELOAD="false"
+SERVICES_FILE="${2:-/tmp/homelab-deploy/configs/services.yml}"
 
 # Create directory structure
 mkdir -p "$CADDY_DIR/data"
@@ -44,11 +42,6 @@ networks:
     name: caddy_network
 EOF
 
-# Capture current hash if present
-if [ -f "$CADDY_DIR/Caddyfile" ]; then
-  OLD_HASH=$(sha256sum "$CADDY_DIR/Caddyfile" | awk '{print $1}')
-fi
-
 # Deploy Caddyfile if provided
 if [ -n "$CONFIG_SOURCE" ] && [ -f "$CONFIG_SOURCE" ]; then
   echo "Deploying Caddyfile from: $CONFIG_SOURCE"
@@ -72,17 +65,6 @@ else
   echo ""
 fi
 
-# Compute new hash and decide if reload is needed
-if [ -f "$CADDY_DIR/Caddyfile" ]; then
-  NEW_HASH=$(sha256sum "$CADDY_DIR/Caddyfile" | awk '{print $1}')
-  if [ "$OLD_HASH" != "$NEW_HASH" ]; then
-    NEED_RELOAD="true"
-    echo "Caddyfile changed (hash diff). Will reload after container is up."
-  else
-    echo "Caddyfile unchanged (hash match). Reload not required."
-  fi
-fi
-
 # Validate Caddyfile using Docker
 echo "Validating Caddyfile..."
 docker run --rm -v "$CADDY_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:latest caddy validate --config /etc/caddy/Caddyfile
@@ -92,19 +74,45 @@ echo "Starting Caddy container..."
 cd "$CADDY_DIR"
 docker compose up -d
 
-# Reload Caddy only if config changed and container is running
-if [ "$NEED_RELOAD" = "true" ]; then
-  if docker ps --format '{{.Names}}' | grep -q '^caddy$'; then
-    echo "Reloading Caddy with updated configuration..."
-    if docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile; then
-      echo "✓ Caddy reloaded"
-    else
-      echo "⚠️  docker compose exec reload failed, trying docker exec..."
-      docker exec caddy caddy reload --config /etc/caddy/Caddyfile || echo "⚠️  Caddy reload failed"
-    fi
+# Reload Caddy unconditionally to apply the config
+if docker ps --format '{{.Names}}' | grep -q '^caddy$'; then
+  echo "Reloading Caddy with updated configuration..."
+  if docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile; then
+    echo "✓ Caddy reloaded"
   else
-    echo "⚠️  Caddy container not running; skipping reload"
+    echo "⚠️  docker compose exec reload failed, trying docker exec..."
+    docker exec caddy caddy reload --config /etc/caddy/Caddyfile || echo "⚠️  Caddy reload failed"
   fi
+else
+  echo "⚠️  Caddy container not running; skipping reload"
+fi
+
+# Optional per-service reloads (controlled by services.yml: services[].reload = true)
+if [ -f "$SERVICES_FILE" ] && command -v yq &> /dev/null; then
+  SERVICE_COUNT=$(yq eval '.services | length' "$SERVICES_FILE")
+  if [ "$SERVICE_COUNT" -gt 0 ]; then
+    echo "Checking for services that request reload..."
+    for i in $(seq 0 $((SERVICE_COUNT - 1))); do
+      RELOAD_FLAG=$(yq eval ".services[$i].reload // false" "$SERVICES_FILE")
+      if [ "$RELOAD_FLAG" != "true" ]; then
+        continue
+      fi
+      SERVICE_NAME=$(yq eval ".services[$i].name" "$SERVICES_FILE")
+      CONTAINER_NAME=$(yq eval ".services[$i].container_name // \"$SERVICE_NAME\"" "$SERVICES_FILE")
+      if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+        echo "Reloading container for service: $SERVICE_NAME (container: $CONTAINER_NAME)"
+        if docker restart "$CONTAINER_NAME"; then
+          echo "✓ Restarted $CONTAINER_NAME"
+        else
+          echo "⚠️  Failed to restart $CONTAINER_NAME"
+        fi
+      else
+        echo "ℹ️  Container $CONTAINER_NAME not running; skipping reload"
+      fi
+    done
+  fi
+else
+  echo "ℹ️  Services file not found or yq missing; skipping per-service reloads"
 fi
 
 # Show status
