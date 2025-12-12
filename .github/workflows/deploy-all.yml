@@ -1,0 +1,219 @@
+name: Deploy All Devices
+
+on:
+  workflow_dispatch:
+    inputs:
+      roles:
+        description: 'Roles to deploy (all, base, docker, caddy)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - base
+          - docker
+          - caddy
+          - base,docker
+          - base,docker,caddy
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-vps:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh
+
+      - name: Test SSH connectivity
+        run: |
+          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "echo '✓ VPS connection successful'"
+
+      - name: Copy deployment scripts
+        run: |
+          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p /tmp/homelab-deploy"
+          tar czf - scripts/ configs/ | tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"
+          echo "✓ Scripts and configs deployed"
+
+      - name: Execute base setup
+        if: contains(github.event.inputs.roles, 'base') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/01-base-setup.sh rocky"
+          echo "✓ Base setup completed"
+
+      - name: Execute Docker setup
+        if: contains(github.event.inputs.roles, 'docker') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/02-docker-setup.sh rocky"
+          echo "✓ Docker setup completed"
+
+      - name: Deploy Docker Compose stacks
+        if: contains(github.event.inputs.roles, 'docker') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/03-docker-compose-deploy.sh rocky"
+          echo "✓ Docker Compose stacks deployed"
+
+      - name: Execute Caddy setup
+        if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/04-caddy-setup.sh rocky /tmp/homelab-deploy/configs/caddy/Caddyfile"
+          echo "✓ Caddy setup completed"
+
+      - name: Report VPS status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "🎉 VPS deployment successful"
+          else
+            echo "❌ VPS deployment failed"
+          fi
+
+  deploy-homeserver:
+    name: Deploy to Home Server
+    runs-on: ubuntu-latest
+    needs: deploy-vps
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh
+
+      - name: Test SSH connectivity
+        run: |
+          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "echo '✓ Homeserver connection successful'"
+
+      - name: Copy deployment scripts
+        run: |
+          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "mkdir -p /tmp/homelab-deploy"
+          tar czf - scripts/ configs/ | tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"
+          echo "✓ Scripts and configs deployed"
+
+      - name: Execute base setup
+        if: contains(github.event.inputs.roles, 'base') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/01-base-setup.sh rocky"
+          echo "✓ Base setup completed"
+
+      - name: Execute Docker setup
+        if: contains(github.event.inputs.roles, 'docker') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/02-docker-setup.sh rocky"
+          echo "✓ Docker setup completed"
+
+      - name: Deploy Docker Compose stacks
+        if: contains(github.event.inputs.roles, 'docker') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/03-docker-compose-deploy.sh rocky"
+          echo "✓ Docker Compose stacks deployed"
+
+      - name: Execute Caddy setup
+        if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/04-caddy-setup.sh rocky /tmp/homelab-deploy/configs/caddy/Caddyfile"
+          echo "✓ Caddy setup completed"
+
+      - name: Report homeserver status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "🎉 Homeserver deployment successful"
+          else
+            echo "❌ Homeserver deployment failed"
+          fi
+
+  deploy-unraid:
+    name: Deploy to Unraid NAS
+    runs-on: ubuntu-latest
+    needs: deploy-homeserver
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh
+
+      - name: Test SSH connectivity
+        run: |
+          tailscale ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" "echo '✓ Unraid connection successful'"
+
+      - name: Copy deployment scripts
+        run: |
+          tailscale ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" "mkdir -p /tmp/homelab-deploy"
+          tar czf - scripts/ configs/ | tailscale ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"
+          echo "✓ Scripts and configs deployed"
+
+      - name: Execute base setup
+        if: contains(github.event.inputs.roles, 'base') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" "bash /tmp/homelab-deploy/scripts/01-base-setup.sh slackware"
+          echo "✓ Base setup completed"
+
+      - name: Execute Docker setup
+        if: contains(github.event.inputs.roles, 'docker') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" "bash /tmp/homelab-deploy/scripts/02-docker-setup.sh slackware"
+          echo "✓ Docker setup completed"
+
+      - name: Deploy Docker containers (Unraid specific)
+        if: contains(github.event.inputs.roles, 'docker') || github.event.inputs.roles == 'all'
+        run: |
+          tailscale ssh "${{ secrets.UNRAID_USER }}@${{ secrets.UNRAID_HOST }}" "bash /tmp/homelab-deploy/scripts/03-unraid-deploy.sh"
+          echo "✓ Docker containers deployed"
+
+      - name: Report Unraid status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "🎉 Unraid deployment successful"
+          else
+            echo "❌ Unraid deployment failed"
+          fi
+
+  deployment-summary:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-vps, deploy-homeserver, deploy-unraid]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "### Full Homelab Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Roles Deployed**: ${{ github.event.inputs.roles }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **VPS Status**: ${{ needs.deploy-vps.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Homeserver Status**: ${{ needs.deploy-homeserver.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Unraid Status**: ${{ needs.deploy-unraid.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.deploy-vps.result }}" == "success" ] && [ "${{ needs.deploy-homeserver.result }}" == "success" ] && [ "${{ needs.deploy-unraid.result }}" == "success" ]; then
+            echo "🎉 **All deployments successful!**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Some deployments failed. Check logs above.**" >> $GITHUB_STEP_SUMMARY
+          fi

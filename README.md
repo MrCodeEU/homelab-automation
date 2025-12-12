@@ -52,8 +52,13 @@ All devices are connected via Tailscale VPN for secure SSH access.
 ```
 homelab-automation/
 ├── .github/
-│   └── workflows/
-│       └── deploy.yml          # GitHub Actions workflow for deployment
+│   ├── workflows/
+│   │   ├── deploy-all.yml      # Deploy to all devices sequentially
+│   │   ├── deploy-vps.yml      # Deploy VPS only
+│   │   ├── deploy-homeserver.yml  # Deploy home server only
+│   │   ├── deploy-unraid.yml   # Deploy Unraid only
+│   │   └── README.md           # Workflow documentation
+│   └── SECRETS_TEMPLATE.md     # GitHub Secrets setup guide
 ├── configs/
 │   ├── caddy/
 │   │   └── Caddyfile.example   # Example Caddy configuration
@@ -117,14 +122,21 @@ homelab-automation/
 
 ### GitHub Secrets (for automated deployment)
 
-Configure the following secrets in your GitHub repository:
+Configure the following secrets in your GitHub repository (see [.github/SECRETS_TEMPLATE.md](.github/SECRETS_TEMPLATE.md) for details):
 
-- `SSH_PRIVATE_KEY`: Your SSH private key
+**Tailscale OAuth:**
 - `TS_OAUTH_CLIENT_ID`: Tailscale OAuth client ID
-- `TS_OAUTH_SECRET`: Tailscale OAuth secret
-- `VPS_HOST`: Tailscale hostname for VPS
+- `TS_OAUTH_SECRET`: Tailscale OAuth secret (get from https://login.tailscale.com/admin/settings/oauth)
+
+**Device Credentials:**
+- `VPS_USER`: SSH username for VPS (usually `root`)
+- `VPS_HOST`: Tailscale hostname for VPS (e.g., `vps.tailnet-xxx.ts.net`)
+- `HOMESERVER_USER`: SSH username for home server
 - `HOMESERVER_HOST`: Tailscale hostname for home server
+- `UNRAID_USER`: SSH username for Unraid
 - `UNRAID_HOST`: Tailscale hostname for Unraid NAS
+
+**Note:** The new workflows use Tailscale SSH (no SSH keys needed!). See [.github/workflows/README.md](.github/workflows/README.md) for full setup instructions.
 
 ## 📦 Usage
 
@@ -159,11 +171,20 @@ Or use auto-detection (not recommended for Unraid):
 
 ### Automated Deployment via GitHub Actions
 
+**New modular workflows** - Deploy individually or all at once!
+
+**Deploy all devices (sequential):**
 1. Go to the **Actions** tab in your GitHub repository
-2. Select **Deploy Homelab** workflow
-3. Click **Run workflow**
-4. Choose target device and roles
-5. Click **Run workflow** to start deployment
+2. Select **Deploy All Devices** workflow
+3. Click **Run workflow**, choose roles
+4. Deploys: VPS → Home Server → Unraid
+
+**Deploy individual device (for testing):**
+1. Select **Deploy VPS**, **Deploy Home Server**, or **Deploy Unraid**
+2. Click **Run workflow**, choose roles
+3. Test changes without affecting other devices
+
+See [.github/workflows/README.md](.github/workflows/README.md) for detailed workflow documentation.
 
 ## 🛠️ Available Scripts
 
