@@ -33,31 +33,34 @@ else
     exit 1
 fi
 
-# Check if .env file exists
+# Check if .env file exists, if not create from example
 if [ ! -f "$ENV_FILE" ]; then
+    echo ""
+    echo "⚠️  No .env file found. Creating from .env.example..."
+    cp "$ENV_EXAMPLE" "$ENV_FILE"
+    echo "✓ Created $ENV_FILE"
+fi
+
+# Check if .env.example has been configured with real values
+if grep -q "your-secret-here-min-12-chars" "$ENV_FILE" 2>/dev/null || \
+   grep -q "your-librelink-email@example.com" "$ENV_FILE" 2>/dev/null; then
     echo ""
     echo "⚠️  Configuration Required!"
     echo "========================================="
-    echo "No .env file found. Creating from example..."
-    cp "$ENV_EXAMPLE" "$ENV_FILE"
-    echo ""
-    echo "❌ IMPORTANT: Edit the .env file before starting Nightscout!"
+    echo "❌ The .env file still contains example values!"
     echo ""
     echo "Required settings:"
     echo "  1. API_SECRET - Your Nightscout password (min 12 characters)"
     echo "  2. LINK_UP_USERNAME - Your LibreLink Up email"
     echo "  3. LINK_UP_PASSWORD - Your LibreLink Up password"
     echo "  4. LINK_UP_REGION - Your region (EU, US, DE, etc.)"
-    echo "  5. NIGHTSCOUT_API_TOKEN - SHA1 hash (see instructions below)"
-    echo ""
-    echo "Generate API token hash:"
-    echo "  echo -n 'librelink-connector' | sha1sum | cut -d ' ' -f 1"
+    echo "  5. NIGHTSCOUT_API_TOKEN - SHA1 hash (already set)"
+    echo "  6. NIGHTSCOUT_DOMAIN - Your domain (already set)"
     echo ""
     echo "Edit configuration:"
     echo "  nano $ENV_FILE"
     echo ""
-    echo "Then run this script again:"
-    echo "  bash $(basename $0)"
+    echo "Then run this script again."
     echo ""
     exit 1
 fi

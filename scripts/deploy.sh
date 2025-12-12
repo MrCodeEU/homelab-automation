@@ -92,6 +92,18 @@ deploy_to_device() {
         ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/04-caddy-setup.sh $os $CADDYFILE"
     fi
     
+    # Deploy Glance dashboard (if Caddy role is included)
+    if [[ "$roles" == *"caddy"* ]] || [ "$roles" = "all" ]; then
+        echo "Deploying Glance dashboard..."
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/05-glance-setup.sh || echo 'Glance deployment skipped or failed'"
+    fi
+    
+    # Deploy Nightscout (if enabled in services.yml)
+    if [[ "$roles" == *"nightscout"* ]] || [ "$roles" = "all" ]; then
+        echo "Deploying Nightscout (if enabled)..."
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash /tmp/homelab-deploy/06-nightscout-setup.sh || echo 'Nightscout deployment skipped or failed'"
+    fi
+    
     echo "Deployment to $device_name completed successfully!"
     echo ""
 }

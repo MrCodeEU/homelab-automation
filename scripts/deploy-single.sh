@@ -117,7 +117,19 @@ if [[ "$ROLES" == *"caddy"* ]] || [ "$ROLES" = "all" ]; then
     ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/04-caddy-setup.sh $OS $CADDYFILE"
     echo ""
 fi
+# Deploy Glance dashboard (if Caddy role is included)
+if [[ "$ROLES" == *"caddy"* ]] || [ "$ROLES" = "all" ]; then
+    echo ">>> Deploying Glance dashboard..."
+    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/05-glance-setup.sh || echo 'Glance deployment skipped or failed'"
+    echo ""
+fi
 
+# Deploy Nightscout (if enabled in services.yml)
+if [[ "$ROLES" == *"nightscout"* ]] || [ "$ROLES" = "all" ]; then
+    echo ">>> Deploying Nightscout (if enabled)..."
+    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/06-nightscout-setup.sh || echo 'Nightscout deployment skipped or failed - check if enabled in services.yml and .env configured'"
+    echo ""
+fi
 echo "========================================="
 echo "Deployment Complete!"
 echo "========================================="
