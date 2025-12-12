@@ -12,10 +12,19 @@ CONFIG_FILE="${1:-/tmp/homelab-deploy/configs/services.yml}"
 CADDY_OUTPUT_DIR="${2:-/opt/caddy}"
 GLANCE_OUTPUT_DIR="${3:-/opt/glance}"
 
+echo "Config file: $CONFIG_FILE"
+echo "Caddy output: $CADDY_OUTPUT_DIR"
+echo "Glance output: $GLANCE_OUTPUT_DIR"
+echo ""
+
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Error: Configuration file not found: $CONFIG_FILE"
+    echo "❌ Error: Configuration file not found: $CONFIG_FILE"
+    echo "Looking for file..."
+    ls -la "$(dirname "$CONFIG_FILE")" || echo "Directory doesn't exist"
     exit 1
 fi
+
+echo "✓ Configuration file found"
 
 # Check if yq is available
 if ! command -v yq &> /dev/null; then

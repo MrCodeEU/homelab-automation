@@ -114,9 +114,20 @@ jobs:
           echo "======================================"
           echo "⚙️  Generating Configurations"
           echo "======================================"
-          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/generate-configs.sh /tmp/homelab-deploy/configs/services.yml"; then
+          echo "Checking if config file exists..."
+          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "ls -la /tmp/homelab-deploy/configs/services.yml || echo 'Config file not found!'"
+          echo ""
+          echo "Creating output directories..."
+          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p /opt/caddy /opt/glance"
+          echo ""
+          echo "Running generate-configs.sh..."
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash -x /tmp/homelab-deploy/scripts/generate-configs.sh /tmp/homelab-deploy/configs/services.yml"; then
             echo "CONFIG_STATUS=✅ Success" >> $GITHUB_ENV
+            echo ""
             echo "✅ Configurations generated (Caddyfile, Glance config)"
+            echo ""
+            echo "Verifying generated files..."
+            tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "echo '=== Caddyfile ===' && cat /opt/caddy/Caddyfile && echo '' && echo '=== Glance Config ===' && ls -la /opt/glance/"
           else
             echo "CONFIG_STATUS=❌ Failed" >> $GITHUB_ENV
             echo "❌ Configuration generation failed"
