@@ -14,21 +14,23 @@ dashboard:
   timezone: "Europe/London"
 
 services:
-  # Dashboard
+  # Dashboard (local on VPS)
   - name: glance
     enabled: true
     domain: "dash.mljr.eu"
     port: 8080
     description: "Main dashboard"
     icon: "mdi:view-dashboard"
+    # host: localhost  # Optional: defaults to localhost if not specified
   
-  # Health Monitoring
+  # Health Monitoring (local on VPS)
   - name: nightscout
     enabled: true
     domain: "nightscout.mljr.eu"
     port: 1337
     description: "CGM Monitor"
     icon: "mdi:diabetes"
+    # host: localhost  # Optional: defaults to localhost
     
   # Container Management
   - name: portainer
@@ -46,10 +48,30 @@ services:
     description: "Uptime monitoring"
     icon: "mdi:heart-pulse"
     
-  # Add more services here
-  # - name: service_name
-  #   enabled: true
-  #   domain: "subdomain.mljr.eu"
-  #   port: 8080
-  #   description: "Service description"
-  #   icon: "mdi:icon-name"
+  # Remote Services Examples:
+  
+  # Example: Home Assistant on Raspberry Pi (local network via Tailscale exit node)
+  - name: homeassistant
+    enabled: false
+    domain: "home.mljr.eu"
+    host: "192.168.50.4"  # Local IP in home network
+    port: 8123
+    description: "Home Automation"
+    icon: "mdi:home-assistant"
+  
+  # Example: Service on another Tailscale device
+  # - name: plex
+  #   enabled: false
+  #   domain: "plex.mljr.eu"
+  #   host: "homeserver.tailnet-xxx.ts.net"  # Tailscale hostname
+  #   port: 32400
+  #   description: "Media Server"
+  #   icon: "mdi:plex"
+  
+  # Example: Service with custom upstream (no port needed if already in URL format)
+  # - name: custom
+  #   enabled: false
+  #   domain: "app.mljr.eu"
+  #   upstream: "http://192.168.1.100:8080/path"  # Full URL
+  #   description: "Custom Service"
+  #   icon: "mdi:application"

@@ -59,15 +59,43 @@ if [ "$SERVICE_COUNT" -gt 0 ]; then
         SERVICE_NAME=$(yq eval ".services[$i].name" "$CONFIG_FILE")
         DOMAIN=$(yq eval ".services[$i].domain // \"\"" "$CONFIG_FILE")
         PORT=$(yq eval ".services[$i].port // \"\"" "$CONFIG_FILE")
+        HOST=$(yq eval ".services[$i].host // \"localhost\"" "$CONFIG_FILE")
+        UPSTREAM=$(yq eval ".services[$i].upstream // \"\"" "$CONFIG_FILE")
         ENABLED=$(yq eval ".services[$i].enabled // true" "$CONFIG_FILE")
         
-        if [ "$ENABLED" = "true" ] && [ -n "$DOMAIN" ] && [ -n "$PORT" ]; then
-            echo "" >> "$CADDYFILE"
-            echo "# $SERVICE_NAME" >> "$CADDYFILE"
-            echo "$DOMAIN {" >> "$CADDYFILE"
-            echo "    reverse_proxy localhost:$PORT" >> "$CADDYFILE"
-            echo "}" >> "$CADDYFILE"
-            echo "✓ Caddy: Added $SERVICE_NAME: $DOMAIN -> :$PORT"
+        # Skip if not enabled or no domain
+        if [ "$ENABLED" != "true" ] || [ -z "$DOMAIN" ]; then
+            continue
+        fi
+        
+        # Determine the upstream target
+        if [ -n "$UPSTREAM" ]; then
+            # Use custom upstream URL
+            TARGET="$UPSTREAM"
+        elif [ -n "$PORT" ]; then
+            # Build target from host:port
+            if [ "$HOST" = "localhost" ] || [ "$HOST" = "null" ]; then
+                TARGET="localhost:$PORT"
+            else
+                TARGET="$HOST:$PORT"
+            fi
+        else
+            echo "⚠️  Skipping $SERVICE_NAME: No port or upstream defined"
+            continue
+        fi
+        
+        # Add to Caddyfile
+        echo "" >> "$CADDYFILE"
+        echo "# $SERVICE_NAME" >> "$CADDYFILE"
+        echo "$DOMAIN {" >> "$CADDYFILE"
+        echo "    reverse_proxy $TARGET" >> "$CADDYFILE"
+        echo "}" >> "$CADDYFILE"
+        
+        # Log what was added
+        if [ -n "$UPSTREAM" ]; then
+            echo "✓ Caddy: Added $SERVICE_NAME: $DOMAIN -> $UPSTREAM"
+        else
+            echo "✓ Caddy: Added $SERVICE_NAME: $DOMAIN -> $TARGET"
         fi
     done
 else
