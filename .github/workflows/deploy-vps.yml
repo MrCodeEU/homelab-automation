@@ -170,6 +170,46 @@ jobs:
             exit 1
           fi
       
+      - name: Validate deployment
+        id: validate-deployment
+        if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
+        continue-on-error: true
+        run: |
+          echo ""
+          echo "======================================"
+          echo "🔍 Validating Deployment"
+          echo "======================================"
+          echo ""
+          echo "=== Checking Caddyfile contains services ==="
+          CADDYFILE_OK=true
+          for service in "dash.mljr.eu" "nightscout.mljr.eu"; do
+            if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "grep -q '$service' /opt/caddy/Caddyfile"; then
+              echo "✅ $service found in Caddyfile"
+            else
+              echo "❌ $service NOT found in Caddyfile"
+              CADDYFILE_OK=false
+            fi
+          done
+          echo ""
+          echo "=== Checking running Docker containers ==="
+          CONTAINERS_OK=true
+          for container in "caddy" "glance" "nightscout"; do
+            if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "docker ps --format '{{.Names}}' | grep -q '^$container$'"; then
+              echo "✅ $container is running"
+            else
+              echo "⚠️  $container is NOT running"
+              CONTAINERS_OK=false
+            fi
+          done
+          echo ""
+          if [ "$CADDYFILE_OK" = true ] && [ "$CONTAINERS_OK" = true ]; then
+            echo "VALIDATION_STATUS=✅ Success" >> $GITHUB_ENV
+            echo "✅ All validations passed"
+          else
+            echo "VALIDATION_STATUS=⚠️ Issues" >> $GITHUB_ENV
+            echo "⚠️  Some validations failed (check above)"
+          fi
+
       - name: Execute Nightscout setup
         id: nightscout-setup
         if: contains(github.event.inputs.roles, 'nightscout') || github.event.inputs.roles == 'all'
@@ -208,6 +248,7 @@ jobs:
           echo "  Config Generation:   ${CONFIG_STATUS:-⏭️  Skipped}"
           echo "  Caddy Proxy:         ${CADDY_STATUS:-⏭️  Skipped}"
           echo "  Glance Dashboard:    ${GLANCE_STATUS:-⏭️  Skipped}"
+          echo "  Deployment Validation: ${VALIDATION_STATUS:-⏭️  Skipped}"
           echo "  Nightscout CGM:      ${NIGHTSCOUT_STATUS:-⏭️  Skipped}"
           echo ""
           
@@ -230,6 +271,7 @@ jobs:
           echo "| Config Generation | ${CONFIG_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Caddy Proxy | ${CADDY_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Glance Dashboard | ${GLANCE_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Deployment Validation | ${VALIDATION_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Nightscout CGM | ${NIGHTSCOUT_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
