@@ -49,6 +49,15 @@ All devices are connected via Tailscale VPN for secure SSH access.
   - 📰 RSS feeds (Hacker News, The Verge, TechCrunch)
   - 🔗 Service health monitoring
   - 📱 Reddit, Lobsters feeds
+- **Nightscout CGM Monitoring**: Self-hosted continuous glucose monitoring with:
+  - 🩺 Nightscout web interface with HTTPS
+  - 🔄 Automatic LibreLink Up data sync
+  - 💾 MongoDB database for CGM readings
+  - 📊 Real-time glucose visualization
+  - 🚨 Configurable alarms and notifications
+  - 📱 Mobile-friendly interface
+  - 🔐 Secure internal network for data connector
+  - See [NIGHTSCOUT.md](docs/NIGHTSCOUT.md) for detailed setup
 - **Uptime Kuma Ready**: Prepared for service monitoring integration (see [Uptime Kuma README](configs/uptime-kuma/README.md))
 - **GitHub Workflows**: CI/CD pipeline with Tailscale SSH authentication
 - **YAML-Driven Configuration**: Single `services.yml` file generates all configs
@@ -76,11 +85,14 @@ homelab-automation/
 ├── scripts/
 │   ├── deploy.sh               # Main deployment orchestration script
 │   ├── deploy-single.sh        # Single device deployment helper
+│   ├── generate-configs.sh     # Generate Caddy & Glance configs from YAML
 │   ├── 01-base-setup.sh        # Base system setup (OS-aware)
 │   ├── 02-docker-setup.sh      # Docker installation (OS-aware)
 │   ├── 03-docker-compose-deploy.sh  # Docker Compose deployment
 │   ├── 03-unraid-deploy.sh     # Unraid-specific Docker deployment
-│   └── 04-caddy-setup.sh       # Caddy setup and configuration (OS-aware)
+│   ├── 04-caddy-setup.sh       # Caddy setup and configuration (OS-aware)
+│   ├── 05-glance-setup.sh      # Glance dashboard deployment
+│   └── 06-nightscout-setup.sh  # Nightscout + LibreLink Up deployment
 ├── inventory.yml               # Device inventory with OS types
 └── README.md
 ```
@@ -197,17 +209,28 @@ See [.github/workflows/README.md](.github/workflows/README.md) for detailed work
 
 | Script | Description |
 |--------|-------------|
+| `generate-configs.sh` | Generates Caddyfile and Glance config from services.yml |
 | `01-base-setup.sh` | Installs essential packages and utilities (OS-aware) |
 | `02-docker-setup.sh` | Installs Docker and Docker Compose (OS-aware) |
 | `03-docker-compose-deploy.sh` | Deploys Docker Compose stacks (Rocky Linux) |
 | `03-unraid-deploy.sh` | Deploys Docker containers on Unraid (Community Apps style) |
-| `04-caddy-setup.sh` | Installs and configures Caddy (OS-aware) |
+| `04-caddy-setup.sh` | Installs and configures Caddy reverse proxy (OS-aware) |
+| `05-glance-setup.sh` | Deploys Glance dashboard with auto-generated config |
+| `06-nightscout-setup.sh` | Deploys Nightscout CGM monitor + LibreLink Up connector |
 | `deploy.sh` | Main orchestration script that runs all others |
 | `deploy-single.sh` | Single device deployment helper with OS parameter |
 
 ## 🐳 Included Docker Services
 
-**For Rocky Linux (via docker-compose):**
+**Core Services (Rocky Linux):**
+- **Caddy**: Reverse proxy with automatic HTTPS (ports 80, 443)
+- **Glance**: Self-hosted dashboard (port 8080)
+- **Nightscout** *(optional)*: CGM monitoring (port 1337)
+  - MongoDB database
+  - LibreLink Up connector
+  - See [docs/NIGHTSCOUT.md](docs/NIGHTSCOUT.md) for setup
+
+**Additional Services (via docker-compose):**
 - **Portainer**: Web-based Docker management UI (port 9000)
 - **Watchtower**: Automatic container update service
 - **Homepage**: Application dashboard (port 3000)
@@ -217,8 +240,8 @@ See [.github/workflows/README.md](.github/workflows/README.md) for detailed work
 - **Watchtower**: Auto-updates for Unraid containers
 - **Homepage**: Dashboard with proper Unraid paths
 
-Add more services:
-- Rocky Linux: Create docker-compose.yml files in `configs/docker/`
+**Add more services:**
+- Rocky Linux: Create docker-compose.yml files in `configs/docker/` or add to `services.yml`
 - Unraid: Use Community Applications UI or modify `03-unraid-deploy.sh`
 
 ## 🔒 Security Notes

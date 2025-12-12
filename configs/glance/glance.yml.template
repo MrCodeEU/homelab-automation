@@ -4,7 +4,6 @@
 
 server:
   port: 8080
-  assets-path: /app/assets
 
 branding:
   logo-text: "⚡"
@@ -55,6 +54,13 @@ pages:
                   - title: Reddit
                     url: https://reddit.com
                     icon: si:reddit
+              - title: Health Monitoring
+                color: 96 44 68
+                links:
+                  - title: Nightscout
+                    url: https://nightscout.example.com
+                    icon: mdi:diabetes
+                    same-tab: false
       
       # Main content area
       - size: full
@@ -93,6 +99,9 @@ pages:
             title: Service Health
             cache: 1m
             sites:
+              - title: Nightscout
+                url: https://nightscout.example.com
+                icon: mdi:diabetes
               - title: GitHub
                 url: https://github.com
                 icon: si:github

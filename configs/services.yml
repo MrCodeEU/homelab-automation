@@ -3,8 +3,8 @@
 # Used to generate Caddyfile, Glance dashboard, and other configs
 
 global:
-  domain: "example.com"  # Your base domain
-  email: "admin@example.com"  # For Let's Encrypt
+  domain: "mljr.eu"  # Your base domain
+  email: "admin@mljr.eu"  # For Let's Encrypt
   location: "London, United Kingdom"  # For weather widget
 
 # Dashboard configuration
@@ -17,15 +17,23 @@ services:
   # Dashboard
   - name: glance
     enabled: true
-    domain: "home.example.com"
+    domain: "dash.mljr.eu"
     port: 8080
     description: "Main dashboard"
     icon: "mdi:view-dashboard"
+  
+  # Health Monitoring
+  - name: nightscout
+    enabled: false
+    domain: "nightscout.mljr.eu"
+    port: 1337
+    description: "CGM Monitor"
+    icon: "mdi:diabetes"
     
   # Container Management
   - name: portainer
     enabled: false
-    domain: "portainer.example.com"
+    domain: "portainer.mljr.eu"
     port: 9000
     description: "Docker management"
     icon: "si:portainer"
@@ -33,7 +41,7 @@ services:
   # Monitoring (prepared for future)
   - name: kuma
     enabled: false
-    domain: "status.example.com"
+    domain: "status.mljr.eu"
     port: 3001
     description: "Uptime monitoring"
     icon: "mdi:heart-pulse"
@@ -41,7 +49,7 @@ services:
   # Add more services here
   # - name: service_name
   #   enabled: true
-  #   domain: "subdomain.example.com"
+  #   domain: "subdomain.mljr.eu"
   #   port: 8080
   #   description: "Service description"
   #   icon: "mdi:icon-name"
