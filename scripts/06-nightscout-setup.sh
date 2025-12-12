@@ -24,10 +24,15 @@ fi
 echo "Creating Nightscout directory..."
 mkdir -p "$NIGHTSCOUT_DIR"
 
-# Copy configuration files from deployment
+# Copy configuration files from deployment (including hidden files like .env.example)
 if [ -d "/tmp/homelab-deploy/configs/nightscout" ]; then
     echo "Copying Nightscout configuration files..."
+    # Copy all files including hidden ones using rsync or cp with dotglob
+    shopt -s dotglob nullglob
     cp -r /tmp/homelab-deploy/configs/nightscout/* "$NIGHTSCOUT_DIR/"
+    shopt -u dotglob nullglob
+    echo "✓ Copied configuration files to $NIGHTSCOUT_DIR"
+    ls -la "$NIGHTSCOUT_DIR/"
 else
     echo "Error: Nightscout configuration not found in /tmp/homelab-deploy/configs/nightscout"
     exit 1
