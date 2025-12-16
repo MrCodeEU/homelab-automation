@@ -8,6 +8,17 @@ echo "========================================="
 echo "Starting Nightscout Deployment"
 echo "========================================="
 
+# Respect skip_deploy in services.yml
+SERVICES_FILE="/tmp/homelab-deploy/configs/services.yml"
+if [ -f "$SERVICES_FILE" ] && command -v yq &> /dev/null; then
+    NIGHTSCOUT_ENABLED=$(yq eval '.services[] | select(.name == "nightscout") | .enabled // true' "$SERVICES_FILE" 2>/dev/null || echo "true")
+    NIGHTSCOUT_SKIP=$(yq eval '.services[] | select(.name == "nightscout") | .skip_deploy // false' "$SERVICES_FILE" 2>/dev/null || echo "false")
+    if [ "$NIGHTSCOUT_ENABLED" != "true" ] || [ "$NIGHTSCOUT_SKIP" = "true" ]; then
+        echo "ℹ️  Nightscout deployment skipped by configuration (enabled=$NIGHTSCOUT_ENABLED, skip_deploy=$NIGHTSCOUT_SKIP)"
+        exit 0
+    fi
+fi
+
 # Configuration
 NIGHTSCOUT_DIR="/opt/nightscout"
 COMPOSE_FILE="$NIGHTSCOUT_DIR/docker-compose.yml"

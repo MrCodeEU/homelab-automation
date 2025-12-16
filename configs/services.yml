@@ -17,6 +17,7 @@ services:
   # Dashboard (local on VPS)
   - name: glance
     enabled: true
+    # skip_deploy: false  # Optional: set true to exclude from generated configs/deploy reloads
     domain: "dash.mljr.eu"
     port: 8080
     description: "Main dashboard"
@@ -26,6 +27,7 @@ services:
   # Health Monitoring (local on VPS)
   - name: nightscout
     enabled: true
+    # skip_deploy: false
     domain: "nightscout.mljr.eu"
     port: 1337
     description: "CGM Monitor"
@@ -35,6 +37,7 @@ services:
   # Container Management
   - name: portainer
     enabled: false
+    # skip_deploy: false
     domain: "portainer.mljr.eu"
     port: 9000
     description: "Docker management"
@@ -43,21 +46,43 @@ services:
   # Monitoring (prepared for future)
   - name: kuma
     enabled: false
+    # skip_deploy: false
     domain: "status.mljr.eu"
+
+  # Home Assistant
+  - name: homeassistant
+    enabled: true
+    managed: false
+    domain: "ha.mljr.eu"
+    port: 8123
+    description: "Home Automation"
+    icon: "mdi:home-assistant"
+    host: raspi
     port: 3001
     description: "Uptime monitoring"
     icon: "mdi:heart-pulse"
     
   # Remote Services Examples:
   
-  # Example: Home Assistant on Raspberry Pi (local network via Tailscale exit node)
+  # Example: Home Assistant on Raspberry Pi
   - name: homeassistant
     enabled: false
+    # skip_deploy: false
     domain: "home.mljr.eu"
-    host: "192.168.50.4"  # Local IP in home network
+    host: "100.100.10.4"
+    host-fallback: "pi, pi.tail33930.ts.net, 192.168.50.4" # possible fallback connection options
     port: 8123
     description: "Home Automation"
     icon: "mdi:home-assistant"
+
+  # Mail archiver (Bichon)
+  - name: bichon
+    enabled: false
+    # skip_deploy: false
+    domain: "mail-archive.mljr.eu"
+    port: 15630
+    description: "Email archiver (Bichon)"
+    icon: "mdi:email"
   
   # Example: Service on another Tailscale device
   # - name: plex
