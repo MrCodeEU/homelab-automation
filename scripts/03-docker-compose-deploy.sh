@@ -63,7 +63,18 @@ if [ -f "$SERVICES_FILE" ]; then
                 if [ -d "$SERVICE_CONFIG_DIR" ] && [ -f "$SERVICE_CONFIG_DIR/docker-compose.yml" ]; then
                     echo "Deploying managed service: $SERVICE_NAME"
                     mkdir -p "$TARGET_DIR"
+                    
+                    # Copy all files including hidden ones (like .env.example)
+                    shopt -s dotglob nullglob
                     cp -r "$SERVICE_CONFIG_DIR/"* "$TARGET_DIR/"
+                    shopt -u dotglob nullglob
+                    
+                    # Handle .env generation from example
+                    if [ ! -f "$TARGET_DIR/.env" ] && [ -f "$TARGET_DIR/.env.example" ]; then
+                        echo "⚠️  No .env found for $SERVICE_NAME. Creating from .env.example..."
+                        cp "$TARGET_DIR/.env.example" "$TARGET_DIR/.env"
+                        echo "✓ Created .env for $SERVICE_NAME"
+                    fi
                     
                     cd "$TARGET_DIR"
                     docker compose pull
