@@ -32,6 +32,7 @@ services:
       - "443:443/udp"  # HTTP/3
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./site:/srv:ro
       - ./data:/data
       - ./config:/config
     networks:
@@ -93,8 +94,9 @@ if [ -f "$SERVICES_FILE" ] && command -v yq &> /dev/null; then
   if [ "$SERVICE_COUNT" -gt 0 ]; then
     echo "Checking for services that request reload..."
     for i in $(seq 0 $((SERVICE_COUNT - 1))); do
-      RELOAD_FLAG=$(yq eval ".services[$i].reload // false" "$SERVICES_FILE")
-      if [ "$RELOAD_FLAG" != "true" ]; then
+        RELOAD_FLAG=$(yq eval ".services[$i].reload // false" "$SERVICES_FILE")
+        SKIP_DEPLOY=$(yq eval ".services[$i].skip_deploy // false" "$SERVICES_FILE")
+        if [ "$RELOAD_FLAG" != "true" ] || [ "$SKIP_DEPLOY" = "true" ]; then
         continue
       fi
       SERVICE_NAME=$(yq eval ".services[$i].name" "$SERVICES_FILE")

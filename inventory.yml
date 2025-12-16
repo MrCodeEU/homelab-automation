@@ -4,7 +4,7 @@
 
 devices:
   vps:
-    hostname: "vps.tailnet-xxxx.ts.net"  # Replace with your VPS Tailscale hostname
+    hostname: "mljr.tail33930.ts.net"  # Replace with your VPS Tailscale hostname
     user: "root"
     description: "Cloud VPS Server (Rocky Linux)"
     roles:
@@ -13,10 +13,33 @@ devices:
       - caddy
     
   homeserver:
-    hostname: "homeserver.tailnet-xxxx.ts.net"  # Replace with your home server Tailscale hostname
+    hostname: "nuc.tail33930.ts.net"  # Replace with your home server Tailscale hostname
+    fallbacks:
+      - "192.168.1.10"
     user: "root"
     description: "Home Linux Server (Rocky Linux)"
     roles:
       - base
       - docker
       - caddy
+
+  raspi:
+    hostname: "pi.tail33930.ts.net"
+    fallbacks:
+      - "192.168.50.4"
+      - "100.100.10.4"
+      - "pi"
+    user: "pi" # not needed technically as only used in home assistant service
+    description: "Home Assistant Raspberry Pi"
+    roles:
+      - base
+      - docker
+
+  nas:
+    hostname: "nas.tail33930.ts.net"
+    fallbacks:
+      - "192.168.1.1"
+    user: "root"
+    description: "Unraid NAS Server"
+    roles:
+      - none # at some point automate plugins, setttings and use xml templates for services?!?!

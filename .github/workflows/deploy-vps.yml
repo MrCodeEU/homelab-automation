@@ -2,17 +2,18 @@ name: Deploy VPS
 
 on:
   workflow_dispatch:
-    inputs:
-      roles:
-        description: 'Roles to deploy (all, base, docker, caddy)'
-        required: true
-        default: 'all'
-        type: choice
-        options:
-          - all
-          - base
-          - docker
-          - caddy
+      inputs:
+        roles:
+          description: 'Roles to deploy (all, base, docker, caddy, bichon)'
+          required: true
+          default: 'all'
+          type: choice
+          options:
+            - all
+            - base
+            - docker
+            - caddy
+            - bichon
 
 permissions:
   contents: read
@@ -169,6 +170,24 @@ jobs:
             echo "❌ Glance setup failed"
             exit 1
           fi
+
+      - name: Execute Bichon setup
+        id: bichon-setup
+        if: contains(github.event.inputs.roles, 'bichon') || github.event.inputs.roles == 'all'
+        continue-on-error: true
+        run: |
+          echo ""
+          echo "======================================"
+          echo "📥 Bichon Mail Archiver Deployment"
+          echo "======================================"
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/07-bichon-setup.sh"; then
+            echo "BICHON_STATUS=✅ Success" >> $GITHUB_ENV
+            echo "✅ Bichon deployed"
+          else
+            echo "BICHON_STATUS=❌ Failed" >> $GITHUB_ENV
+            echo "❌ Bichon setup failed"
+            exit 1
+          fi
       
       - name: Validate deployment
         id: validate-deployment
@@ -248,6 +267,7 @@ jobs:
           echo "  Config Generation:   ${CONFIG_STATUS:-⏭️  Skipped}"
           echo "  Caddy Proxy:         ${CADDY_STATUS:-⏭️  Skipped}"
           echo "  Glance Dashboard:    ${GLANCE_STATUS:-⏭️  Skipped}"
+          echo "  Bichon Archiver:     ${BICHON_STATUS:-⏭️  Skipped}"
           echo "  Deployment Validation: ${VALIDATION_STATUS:-⏭️  Skipped}"
           echo "  Nightscout CGM:      ${NIGHTSCOUT_STATUS:-⏭️  Skipped}"
           echo ""
@@ -271,6 +291,7 @@ jobs:
           echo "| Config Generation | ${CONFIG_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Caddy Proxy | ${CADDY_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Glance Dashboard | ${GLANCE_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bichon Archiver | ${BICHON_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployment Validation | ${VALIDATION_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Nightscout CGM | ${NIGHTSCOUT_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -302,9 +323,9 @@ jobs:
           fi
           
           # Determine final exit code
-          if [[ "${SSH_STATUS}" == *"Failed"* ]] || [[ "${COPY_STATUS}" == *"Failed"* ]] || \
+           if [[ "${SSH_STATUS}" == *"Failed"* ]] || [[ "${COPY_STATUS}" == *"Failed"* ]] || \
              [[ "${BASE_STATUS}" == *"Failed"* ]] || [[ "${DOCKER_STATUS}" == *"Failed"* ]] || \
-             [[ "${CADDY_STATUS}" == *"Failed"* ]] || [[ "${GLANCE_STATUS}" == *"Failed"* ]]; then
+             [[ "${CADDY_STATUS}" == *"Failed"* ]] || [[ "${GLANCE_STATUS}" == *"Failed"* ]] || [[ "${BICHON_STATUS}" == *"Failed"* ]]; then
             echo ""
             echo "❌ Deployment had failures"
             exit 1

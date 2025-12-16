@@ -67,6 +67,12 @@ deploy_to_device() {
         echo "Copying configuration files..."
         scp $SSH_OPTIONS -i "$SSH_KEY" -r "$PROJECT_ROOT/configs" "$user@$hostname:$REMOTE_BASE/"
     fi
+
+    # Copy inventory to remote host (needed for config generation)
+    if [ -f "$INVENTORY_FILE" ]; then
+        echo "Copying inventory file..."
+        scp $SSH_OPTIONS -i "$SSH_KEY" "$INVENTORY_FILE" "$user@$hostname:$REMOTE_BASE/inventory.yml"
+    fi
     
     # Execute deployment scripts based on roles
     if [[ "$roles" == *"base"* ]] || [ "$roles" = "all" ]; then
@@ -84,14 +90,14 @@ deploy_to_device() {
             ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/03-unraid-deploy.sh"
         else
             echo "Deploying Docker Compose stacks..."
-            ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/03-docker-compose-deploy.sh $os"
+            ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/03-docker-compose-deploy.sh $os $REMOTE_CONFIGS/services.yml $REMOTE_CONFIGS"
         fi
     fi
     
     if [[ "$roles" == *"caddy"* ]] || [ "$roles" = "all" ]; then
         echo "Executing Caddy setup..."
         # Generate configs (Caddyfile, Glance) then deploy Caddy with the generated file
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/generate-configs.sh $REMOTE_CONFIGS/services.yml"
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/generate-configs.sh $REMOTE_CONFIGS/services.yml /opt/caddy /opt/glance $REMOTE_BASE/inventory.yml"
         ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/04-caddy-setup.sh /opt/caddy/Caddyfile"
     fi
     
@@ -105,6 +111,11 @@ deploy_to_device() {
     if [[ "$roles" == *"nightscout"* ]] || [ "$roles" = "all" ]; then
         echo "Deploying Nightscout (if enabled)..."
         ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/06-nightscout-setup.sh || echo 'Nightscout deployment skipped or failed'"
+    fi
+
+    if [[ "$roles" == *"bichon"* ]] || [ "$roles" = "all" ]; then
+        echo "Deploying Bichon mail archiver (if enabled)..."
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/07-bichon-setup.sh || echo 'Bichon deployment skipped or failed'"
     fi
     
     echo "Deployment to $device_name completed successfully!"
