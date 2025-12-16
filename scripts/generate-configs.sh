@@ -60,8 +60,8 @@ cat > "$CADDYFILE" << EOF
     email $EMAIL
 }
 
-# Default route
-:80 {
+# Default route for base domain
+$DOMAIN {
     root * /srv
     file_server
 }

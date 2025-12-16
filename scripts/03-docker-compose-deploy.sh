@@ -32,6 +32,12 @@ mkdir -p "$CADDY_DIR"
 mkdir -p "$CADDY_DIR/data"
 mkdir -p "$CADDY_DIR/config"
 
+# Ensure shared network exists
+if ! docker network inspect caddy_network &> /dev/null; then
+    echo "Creating caddy_network..."
+    docker network create caddy_network
+fi
+
 # Deploy Caddy if compose file exists
 if [ -f "$CADDY_DIR/docker-compose.yml" ]; then
     echo "Deploying Caddy..."

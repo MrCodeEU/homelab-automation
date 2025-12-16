@@ -5,7 +5,7 @@
 global:
   domain: "mljr.eu"  # Your base domain
   email: "admin@mljr.eu"  # For Let's Encrypt
-  location: "London, United Kingdom"  # For weather widget
+  location: "Thaling, Austria"  # For weather widget
 
 # Dashboard configuration
 dashboard:
@@ -61,9 +61,6 @@ services:
     description: "Home Automation"
     icon: "mdi:home-assistant"
     host: pi
-    port: 3001
-    description: "Uptime monitoring"
-    icon: "mdi:heart-pulse"
 
   # Mail archiver (Bichon)
   - name: bichon
