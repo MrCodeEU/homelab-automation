@@ -107,17 +107,6 @@ deploy_to_device() {
         ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/05-glance-setup.sh || echo 'Glance deployment skipped or failed'"
     fi
     
-    # Deploy Nightscout (if enabled in services.yml)
-    if [[ "$roles" == *"nightscout"* ]] || [ "$roles" = "all" ]; then
-        echo "Deploying Nightscout (if enabled)..."
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/06-nightscout-setup.sh || echo 'Nightscout deployment skipped or failed'"
-    fi
-
-    if [[ "$roles" == *"bichon"* ]] || [ "$roles" = "all" ]; then
-        echo "Deploying Bichon mail archiver (if enabled)..."
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/07-bichon-setup.sh || echo 'Bichon deployment skipped or failed'"
-    fi
-    
     echo "Deployment to $device_name completed successfully!"
     echo ""
 }
