@@ -42,6 +42,15 @@ services:
     skip_deploy: false
     domain: "uptime.mljr.eu"
 
+  # Access Logs (GoAccess)
+  - name: goaccess
+    enabled: true
+    domain: "logs.mljr.eu"
+    port: 7890
+    host: mljr
+    description: "Access Logs"
+    icon: "mdi:chart-bar"
+
   # Home Assistant
   - name: homeassistant
     enabled: true

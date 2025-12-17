@@ -1,44 +1,38 @@
 #!/bin/bash
 # Caddy setup script for Rocky Linux
-# Deploys Caddy as a Docker container
+# Deploys Caddy as a native system service
 
 set -e
 
 echo "========================================="
-echo "Starting Caddy Setup (Docker)"
+echo "Starting Caddy Setup (Native)"
 echo "========================================="
 
 CADDY_DIR="/opt/caddy"
 CONFIG_SOURCE="${1:-}"
 SERVICES_FILE="${2:-/tmp/homelab-deploy/configs/services.yml}"
 
+# Install Caddy if not present
+if ! command -v caddy &> /dev/null; then
+    echo "Installing Caddy..."
+    dnf install -y 'dnf-command(config-manager)'
+    dnf config-manager --add-repo https://dl.cloudsmith.io/public/caddy/stable/rpm/el/9/x86_64/caddy-stable.repo
+    dnf install -y caddy
+    systemctl enable --now caddy
+else
+    echo "✓ Caddy is already installed"
+fi
+
 # Create directory structure
 mkdir -p "$CADDY_DIR/data"
 mkdir -p "$CADDY_DIR/config"
+mkdir -p "$CADDY_DIR/logs"
+mkdir -p "$CADDY_DIR/site"
 
-# Create docker-compose.yml for Caddy
-echo "Creating Caddy docker-compose.yml..."
-cat > "$CADDY_DIR/docker-compose.yml" << 'EOF'
-version: '3.8'
-
-services:
-  caddy:
-    image: caddy:latest
-    container_name: caddy
-    restart: unless-stopped
-    network_mode: host
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./site:/srv:ro
-      - ./data:/data
-      - ./config:/config
-    # networks:
-    #   - caddy_network
-
-# networks:
-#   caddy_network:
-#     name: caddy_network
-EOF
+# Set permissions for caddy user
+chown -R caddy:caddy "$CADDY_DIR"
+chmod 755 "$CADDY_DIR"
+chmod 755 "$CADDY_DIR/logs"
 
 # Deploy Caddyfile if provided
 if [ -n "$CONFIG_SOURCE" ] && [ -f "$CONFIG_SOURCE" ]; then
@@ -57,47 +51,22 @@ elif [ ! -f "$CADDY_DIR/Caddyfile" ]; then
 EOF
 else
   echo "✓ Using existing Caddyfile at: $CADDY_DIR/Caddyfile"
-  echo ""
-  echo "Caddyfile contents preview (first 20 lines):"
-  head -n 20 "$CADDY_DIR/Caddyfile"
-  echo ""
 fi
 
-# Validate Caddyfile using Docker
+# Link Caddyfile to /etc/caddy/Caddyfile
+echo "Linking Caddyfile..."
+ln -sf "$CADDY_DIR/Caddyfile" /etc/caddy/Caddyfile
+
+# Validate Caddyfile
 echo "Validating Caddyfile..."
-docker run --rm -v "$CADDY_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:latest caddy validate --config /etc/caddy/Caddyfile
+caddy validate --config /etc/caddy/Caddyfile
 
-# Start Caddy
-echo "Starting Caddy container..."
-cd "$CADDY_DIR"
-docker compose up -d
+# Reload Caddy
+echo "Reloading Caddy..."
+systemctl reload caddy || systemctl restart caddy
 
-# Reload Caddy unconditionally to apply the config
-if docker ps --format '{{.Names}}' | grep -q '^caddy$'; then
-  echo "Reloading Caddy with updated configuration..."
-  if docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile; then
-    echo "✓ Caddy reloaded"
-  else
-    echo "⚠️  docker compose exec reload failed, trying docker exec..."
-    docker exec caddy caddy reload --config /etc/caddy/Caddyfile || echo "⚠️  Caddy reload failed"
-  fi
-else
-  echo "⚠️  Caddy container not running; skipping reload"
-fi
+echo "✓ Caddy setup complete"
 
-# Optional per-service reloads (controlled by services.yml: services[].reload = true)
-if [ -f "$SERVICES_FILE" ] && command -v yq &> /dev/null; then
-  SERVICE_COUNT=$(yq eval '.services | length' "$SERVICES_FILE")
-  if [ "$SERVICE_COUNT" -gt 0 ]; then
-    echo "Checking for services that request reload..."
-    for i in $(seq 0 $((SERVICE_COUNT - 1))); do
-        RELOAD_FLAG=$(yq eval ".services[$i].reload // false" "$SERVICES_FILE")
-        SKIP_DEPLOY=$(yq eval ".services[$i].skip_deploy // false" "$SERVICES_FILE")
-        if [ "$RELOAD_FLAG" != "true" ] || [ "$SKIP_DEPLOY" = "true" ]; then
-        continue
-      fi
-      SERVICE_NAME=$(yq eval ".services[$i].name" "$SERVICES_FILE")
-      CONTAINER_NAME=$(yq eval ".services[$i].container_name // \"$SERVICE_NAME\"" "$SERVICES_FILE")
       if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
         echo "Reloading container for service: $SERVICE_NAME (container: $CONTAINER_NAME)"
         if docker restart "$CONTAINER_NAME"; then

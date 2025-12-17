@@ -55,17 +55,63 @@ if ! docker network inspect caddy_network &> /dev/null; then
     docker network create caddy_network
 fi
 
-# Deploy Caddy if compose file exists
-if [ -f "$CADDY_DIR/docker-compose.yml" ]; then
-    log_info "Deploying Caddy..."
-    cd "$CADDY_DIR"
-    docker compose pull
-    docker compose up -d
-    log_success "Caddy deployed"
+# Caddy is now managed natively, so we skip docker deployment for it
+# But we still need to ensure configs are generated and service is reloaded
+log_info "Configuring native Caddy..."
+if [ -f "$(dirname "$0")/setup-caddy.sh" ]; then
+    bash "$(dirname "$0")/setup-caddy.sh" "$CADDY_DIR/Caddyfile" "$SERVICES_FILE"
 else
-    log_warn "No Caddy docker-compose.yml found at $CADDY_DIR"
-    log_info "Will be created by Caddy setup script or generate-configs.sh"
+    log_warn "setup-caddy.sh not found, skipping Caddy reload"
 fi
+
+# --- Service Cleanup Logic ---
+STATE_DIR="/opt/homelab-state"
+STATE_FILE="$STATE_DIR/managed_services.txt"
+mkdir -p "$STATE_DIR"
+
+# Get current list of services from YAML
+CURRENT_SERVICES=$(yq eval '.services[].name' "$SERVICES_FILE" | sort)
+
+# Get previous list of services
+if [ -f "$STATE_FILE" ]; then
+    PREVIOUS_SERVICES=$(cat "$STATE_FILE" | sort)
+else
+    PREVIOUS_SERVICES=""
+fi
+
+# Identify removed services
+# comm -23 produces lines in file1 (previous) but not in file2 (current)
+if [ -n "$PREVIOUS_SERVICES" ]; then
+    REMOVED_SERVICES=$(comm -23 <(echo "$PREVIOUS_SERVICES") <(echo "$CURRENT_SERVICES"))
+    
+    if [ -n "$REMOVED_SERVICES" ]; then
+        log_header "Cleaning up removed services"
+        for SERVICE in $REMOVED_SERVICES; do
+            log_warn "Service '$SERVICE' was removed from configuration. Cleaning up..."
+            SERVICE_DIR="/opt/$SERVICE"
+            
+            if [ -d "$SERVICE_DIR" ]; then
+                # Stop containers if docker-compose exists
+                if [ -f "$SERVICE_DIR/docker-compose.yml" ]; then
+                    log_info "Stopping containers for $SERVICE..."
+                    (cd "$SERVICE_DIR" && docker compose down) || log_warn "Failed to stop containers for $SERVICE"
+                fi
+                
+                # Archive the directory
+                ARCHIVE_DIR="/opt/archive/${SERVICE}_$(date +%Y%m%d_%H%M%S)"
+                log_info "Archiving $SERVICE_DIR to $ARCHIVE_DIR..."
+                mkdir -p "/opt/archive"
+                mv "$SERVICE_DIR" "$ARCHIVE_DIR"
+            else
+                log_info "Directory for $SERVICE not found, nothing to clean up."
+            fi
+        done
+    fi
+fi
+
+# Update state file with current services
+echo "$CURRENT_SERVICES" > "$STATE_FILE"
+# -----------------------------
 
 # Deploy other managed services
 DEPLOYMENT_REPORT=""

@@ -78,8 +78,12 @@ cat > "$CADDYFILE" << EOF
 
 # Default route for base domain
 $DOMAIN {
-    root * /srv
+    root * /opt/caddy/site
     file_server
+    log {
+        output file /opt/caddy/logs/access.log
+        format json
+    }
 }
 
 EOF
@@ -232,6 +236,10 @@ if [ "$SERVICE_COUNT" -gt 0 ]; then
         echo "# $SERVICE_NAME" >> "$CADDYFILE"
         echo "$DOMAIN {" >> "$CADDYFILE"
         echo "    reverse_proxy $TARGET" >> "$CADDYFILE"
+        echo "    log {" >> "$CADDYFILE"
+        echo "        output file /opt/caddy/logs/access.log" >> "$CADDYFILE"
+        echo "        format json" >> "$CADDYFILE"
+        echo "    }" >> "$CADDYFILE"
         echo "}" >> "$CADDYFILE"
         
         # Log what was added
