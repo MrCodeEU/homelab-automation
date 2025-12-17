@@ -65,7 +65,12 @@ if [ -f "$PROVISION_SCRIPT" ]; then
     export KUMA_USERNAME
     export KUMA_PASSWORD
     
-    python3 "$PROVISION_SCRIPT" "$SERVICES_FILE"
+    if python3 "$PROVISION_SCRIPT" "$SERVICES_FILE"; then
+        log_success "Uptime Kuma provisioning completed"
+    else
+        log_warn "Uptime Kuma provisioning failed (likely due to fresh install/auth). Please configure monitors manually."
+        # Do not fail the deployment
+    fi
 else
     log_error "Provisioning script not found: $PROVISION_SCRIPT"
 fi
