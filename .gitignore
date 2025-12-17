@@ -26,6 +26,7 @@ id_rsa*
 
 # Secrets
 .env
+secrets.env
 secrets/
 *.secret
 

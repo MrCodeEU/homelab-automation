@@ -49,31 +49,37 @@ else
     exit 1
 fi
 
-# Check if .env file exists, if not create from example
+# Check if .env file exists, if not create from example with secret injection
 if [ ! -f "$ENV_FILE" ]; then
     echo ""
     echo "⚠️  No .env file found. Creating from .env.example..."
-    cp "$ENV_EXAMPLE" "$ENV_FILE"
+    
+    # Check if inject-secrets.sh exists and use it, otherwise just copy
+    if [ -f "/tmp/homelab-deploy/scripts/inject-secrets.sh" ]; then
+        echo "Using secret injection script..."
+        bash /tmp/homelab-deploy/scripts/inject-secrets.sh "$ENV_EXAMPLE" "$ENV_FILE"
+    else
+        echo "Note: inject-secrets.sh not found, copying template..."
+        cp "$ENV_EXAMPLE" "$ENV_FILE"
+    fi
     echo "✓ Created $ENV_FILE"
 fi
 
-# Check if .env.example has been configured with real values
-if grep -q "your-secret-here-min-12-chars" "$ENV_FILE" 2>/dev/null || \
-   grep -q "your-librelink-email@example.com" "$ENV_FILE" 2>/dev/null; then
+# Check if .env file still contains placeholders
+if grep -q "PLACEHOLDER_" "$ENV_FILE" 2>/dev/null; then
     echo ""
     echo "⚠️  Configuration Required!"
     echo "========================================="
-    echo "❌ The .env file still contains example values!"
+    echo "❌ The .env file still contains PLACEHOLDER values!"
     echo ""
-    echo "Required settings:"
-    echo "  1. API_SECRET - Your Nightscout password (min 12 characters)"
+    echo "Required GitHub Secrets (for CI/CD):"
+    echo "  1. NIGHTSCOUT_API_SECRET - Your Nightscout password (min 12 characters)"
     echo "  2. LINK_UP_USERNAME - Your LibreLink Up email"
     echo "  3. LINK_UP_PASSWORD - Your LibreLink Up password"
-    echo "  4. LINK_UP_REGION - Your region (EU, US, DE, etc.)"
-    echo "  5. NIGHTSCOUT_API_TOKEN - SHA1 hash (already set)"
-    echo "  6. NIGHTSCOUT_DOMAIN - Your domain (already set)"
+    echo "  4. NIGHTSCOUT_API_TOKEN - SHA1 hash"
+    echo "  5. NIGHTSCOUT_DOMAIN - Your domain"
     echo ""
-    echo "Edit configuration:"
+    echo "Or manually edit configuration:"
     echo "  nano $ENV_FILE"
     echo ""
     echo "Then run this script again."

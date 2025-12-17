@@ -48,7 +48,15 @@ fi
 # Ensure .env exists
 if [ ! -f "$ENV_FILE" ]; then
   echo "⚠️  No .env found. Creating from .env.example..."
-  cp "$ENV_EXAMPLE" "$ENV_FILE"
+  
+  # Check if inject-secrets.sh exists and use it, otherwise just copy
+  if [ -f "/tmp/homelab-deploy/scripts/inject-secrets.sh" ]; then
+    echo "Using secret injection script..."
+    bash /tmp/homelab-deploy/scripts/inject-secrets.sh "$ENV_EXAMPLE" "$ENV_FILE"
+  else
+    echo "Note: inject-secrets.sh not found, copying template..."
+    cp "$ENV_EXAMPLE" "$ENV_FILE"
+  fi
   echo "✓ Created $ENV_FILE"
 fi
 
@@ -56,8 +64,8 @@ fi
 BICHON_ENCRYPT_PASSWORD=$(grep -E '^BICHON_ENCRYPT_PASSWORD=' "$ENV_FILE" | cut -d '=' -f 2- | tr -d '"' | tr -d "'")
 BICHON_ROOT_DIR=$(grep -E '^BICHON_ROOT_DIR=' "$ENV_FILE" | cut -d '=' -f 2- | tr -d '"' | tr -d "'")
 
-if [ -z "$BICHON_ENCRYPT_PASSWORD" ] || [ "$BICHON_ENCRYPT_PASSWORD" = "change-me-strong" ]; then
-  echo "❌ BICHON_ENCRYPT_PASSWORD is required. Edit $ENV_FILE"
+if [ -z "$BICHON_ENCRYPT_PASSWORD" ] || [ "$BICHON_ENCRYPT_PASSWORD" = "PLACEHOLDER_BICHON_ENCRYPT_PASSWORD" ]; then
+  echo "❌ BICHON_ENCRYPT_PASSWORD is required. Set GitHub Secret BICHON_ENCRYPT_PASSWORD or edit $ENV_FILE"
   exit 1
 fi
 
