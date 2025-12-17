@@ -52,6 +52,16 @@ jobs:
             exit 1
           fi
 
+      - name: Prepare secrets for injection
+        run: |
+          # Export secrets as environment variables for the inject-secrets.sh script
+          echo "NIGHTSCOUT_API_SECRET=${{ secrets.NIGHTSCOUT_API_SECRET }}" >> secrets.env
+          echo "LINK_UP_USERNAME=${{ secrets.LINK_UP_USERNAME }}" >> secrets.env
+          echo "LINK_UP_PASSWORD=${{ secrets.LINK_UP_PASSWORD }}" >> secrets.env
+          echo "NIGHTSCOUT_API_TOKEN=${{ secrets.NIGHTSCOUT_API_TOKEN }}" >> secrets.env
+          echo "NIGHTSCOUT_DOMAIN=${{ secrets.NIGHTSCOUT_DOMAIN }}" >> secrets.env
+          echo "BICHON_ENCRYPT_PASSWORD=${{ secrets.BICHON_ENCRYPT_PASSWORD }}" >> secrets.env
+
       - name: Copy deployment scripts
         id: copy-scripts
         continue-on-error: true
@@ -61,7 +71,7 @@ jobs:
           echo "📦 Copying Deployment Files"
           echo "======================================"
           if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p /tmp/homelab-deploy" && \
-             tar czf - scripts/ configs/ | tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"; then
+             tar czf - scripts/ configs/ secrets.env | tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"; then
             echo "COPY_STATUS=✅ Success" >> $GITHUB_ENV
             echo "✅ Scripts and configs deployed to /tmp/homelab-deploy"
           else
@@ -245,6 +255,12 @@ jobs:
             echo "NIGHTSCOUT_STATUS=❌ Failed (may need .env configuration)" >> $GITHUB_ENV
             echo "⚠️  Nightscout setup failed or needs configuration"
           fi
+
+      - name: Cleanup secrets
+        if: always()
+        run: |
+          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "rm -f /tmp/homelab-deploy/secrets.env" || true
+          rm -f secrets.env || true
 
       - name: Deployment summary
         if: always()
