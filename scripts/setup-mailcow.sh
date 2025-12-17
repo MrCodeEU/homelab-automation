@@ -39,20 +39,14 @@ fi
 # Generate config if not exists
 if [ ! -f "mailcow.conf" ]; then
     echo "⚙️  Generating configuration..."
-    # Automate generate_config.sh inputs:
-    # 1. Hostname
-    # 2. Timezone (if prompted, but we can set TZ env var to avoid prompt if script supports it, but piping is safer)
-    # 3. Disable ClamAV? (n)
-    # 4. Branch (1 = master)
-    
-    # Note: The script might detect timezone automatically.
-    # We'll provide inputs just in case.
-    
+    # Automate generate_config.sh inputs using environment variables where possible
+    export MAILCOW_HOSTNAME="$MAILCOW_HOSTNAME"
+    export MAILCOW_TZ="$TIMEZONE"
+    export SKIP_CLAMD=n
+    export MAILCOW_BRANCH=master
+
+    # The script might still ask for daemon.json creation if IPv6 is detected
     ./generate_config.sh <<EOF
-$MAILCOW_HOSTNAME
-$TIMEZONE
-n
-1
 y
 EOF
     echo "✓ Configuration generated"

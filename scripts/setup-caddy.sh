@@ -77,27 +77,6 @@ systemctl reload caddy || systemctl restart caddy
 
 echo "✓ Caddy setup complete"
 
-      if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-        echo "Reloading container for service: $SERVICE_NAME (container: $CONTAINER_NAME)"
-        if docker restart "$CONTAINER_NAME"; then
-          echo "✓ Restarted $CONTAINER_NAME"
-        else
-          echo "⚠️  Failed to restart $CONTAINER_NAME"
-        fi
-      else
-        echo "ℹ️  Container $CONTAINER_NAME not running; skipping reload"
-      fi
-    done
-  fi
-else
-  echo "ℹ️  Services file not found or yq missing; skipping per-service reloads"
-fi
-
-# Show status
-echo ""
-echo "Caddy container status:"
-docker compose ps
-
 echo "========================================="
 echo "Caddy Setup Complete!"
 echo "Caddyfile location: $CADDY_DIR/Caddyfile"

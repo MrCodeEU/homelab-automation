@@ -5,6 +5,8 @@ services:
     image: allinurl/goaccess:latest
     container_name: goaccess
     restart: unless-stopped
+    ports:
+      - "7890:7890"
     volumes:
       - /opt/caddy/logs:/srv/logs:ro
       - ./report:/srv/report
