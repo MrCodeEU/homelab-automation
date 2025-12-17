@@ -68,11 +68,13 @@ else
 fi
 
 # Deploy other managed services
+DEPLOYMENT_REPORT=""
 if [ -f "$SERVICES_FILE" ]; then
     log_info "Checking for other managed services..."
     SERVICE_COUNT=$(yq eval '.services | length' "$SERVICES_FILE")
     
     if [ "$SERVICE_COUNT" -gt 0 ]; then
+        DEPLOYMENT_REPORT="<br><br><strong>Deployment Status:</strong><br>"
         for i in $(seq 0 $((SERVICE_COUNT - 1))); do
             SERVICE_NAME=$(yq eval ".services[$i].name" "$SERVICES_FILE")
             
@@ -82,8 +84,23 @@ if [ -f "$SERVICES_FILE" ]; then
             # 2. Custom setup scripts (e.g. setup-mailcow.sh)
             # 3. Standard Docker Compose deployment
             # 4. Secret injection
-            bash "$(dirname "$0")/deploy-service.sh" "$SERVICE_NAME" "$SERVICES_FILE"
+            if bash "$(dirname "$0")/deploy-service.sh" "$SERVICE_NAME" "$SERVICES_FILE"; then
+                log_success "Service $SERVICE_NAME processed successfully"
+                DEPLOYMENT_REPORT="$DEPLOYMENT_REPORT <span style='color:#4caf50'>✓ $SERVICE_NAME</span><br>"
+            else
+                log_error "Service $SERVICE_NAME failed to process"
+                DEPLOYMENT_REPORT="$DEPLOYMENT_REPORT <span style='color:#f44336'>✗ $SERVICE_NAME</span><br>"
+                # We continue with other services instead of failing the whole deployment
+            fi
         done
+        
+        # Update index.html with deployment report
+        if [ -f "/opt/caddy/site/index.html" ]; then
+            log_info "Updating index.html with deployment status..."
+            # Escape slashes for sed
+            ESCAPED_REPORT=$(echo "$DEPLOYMENT_REPORT" | sed 's/\//\\\//g')
+            sed -i "s/<!-- DEPLOYMENT_STATUS -->/$ESCAPED_REPORT/" "/opt/caddy/site/index.html"
+        fi
     fi
 else
     log_warn "Services file not found at $SERVICES_FILE"

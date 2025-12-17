@@ -46,7 +46,9 @@ fi
 
 ENABLED=$(yq eval ".services[] | select(.name == \"$SERVICE_NAME\") | .enabled // true" "$SERVICES_FILE")
 SKIP_DEPLOY=$(yq eval ".services[] | select(.name == \"$SERVICE_NAME\") | .skip_deploy // false" "$SERVICES_FILE")
-MANAGED=$(yq eval ".services[] | select(.name == \"$SERVICE_NAME\") | .managed // true" "$SERVICES_FILE")
+# Explicitly check for managed property, default to true if null
+MANAGED=$(yq eval ".services[] | select(.name == \"$SERVICE_NAME\") | .managed" "$SERVICES_FILE")
+if [ "$MANAGED" = "null" ]; then MANAGED="true"; fi
 
 if [ "$ENABLED" != "true" ]; then
     log_info "Service $SERVICE_NAME is disabled. Skipping."
@@ -58,8 +60,8 @@ if [ "$SKIP_DEPLOY" = "true" ]; then
     exit 0
 fi
 
-if [ "$MANAGED" != "true" ]; then
-    log_info "Service $SERVICE_NAME is not managed. Skipping."
+if [ "$MANAGED" = "false" ]; then
+    log_info "Service $SERVICE_NAME is managed: false. Skipping deployment."
     exit 0
 fi
 
