@@ -59,7 +59,13 @@ fi
 # But we still need to ensure configs are generated and service is reloaded
 log_info "Configuring native Caddy..."
 if [ -f "$(dirname "$0")/setup-caddy.sh" ]; then
-    bash "$(dirname "$0")/setup-caddy.sh" "$CADDY_DIR/Caddyfile" "$SERVICES_FILE"
+    if bash "$(dirname "$0")/setup-caddy.sh" "$CADDY_DIR/Caddyfile" "$SERVICES_FILE"; then
+        log_success "Caddy configured successfully"
+    else
+        log_error "Caddy configuration failed"
+        # We don't exit here because we want to attempt to deploy other services
+        # although without Caddy they might not be accessible.
+    fi
 else
     log_warn "setup-caddy.sh not found, skipping Caddy reload"
 fi

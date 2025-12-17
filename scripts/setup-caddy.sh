@@ -15,12 +15,18 @@ SERVICES_FILE="${2:-/tmp/homelab-deploy/configs/services.yml}"
 # Install Caddy if not present
 if ! command -v caddy &> /dev/null; then
     echo "Installing Caddy..."
-    dnf install -y 'dnf-command(config-manager)'
-    dnf config-manager --add-repo https://dl.cloudsmith.io/public/caddy/stable/rpm/el/9/x86_64/caddy-stable.repo
     dnf install -y caddy
     systemctl enable --now caddy
 else
     echo "✓ Caddy is already installed"
+fi
+
+# Stop and remove old Caddy Docker container if it exists
+if docker ps -a --format '{{.Names}}' | grep -q '^caddy$'; then
+    echo "⚠️  Found old Caddy Docker container. Stopping and removing..."
+    docker stop caddy || true
+    docker rm caddy || true
+    echo "✓ Old Caddy container removed"
 fi
 
 # Create directory structure
