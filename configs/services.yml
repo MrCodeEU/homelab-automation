@@ -29,7 +29,9 @@ services:
   - name: nightscout
     enabled: true
     # skip_deploy: false
-    domain: "nightscout.mljr.eu"
+    domain: 
+      - "nightscout.mljr.eu"
+      - "ns.mljr.eu"
     port: 1337
     host: mljr
     description: "CGM Monitor"

@@ -46,9 +46,7 @@ if [ ! -f "mailcow.conf" ]; then
     export MAILCOW_BRANCH=master
 
     # The script might still ask for daemon.json creation if IPv6 is detected
-    ./generate_config.sh <<EOF
-y
-EOF
+    yes | ./generate_config.sh
     echo "✓ Configuration generated"
 else
     echo "ℹ️  mailcow.conf already exists, skipping generation"

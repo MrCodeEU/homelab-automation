@@ -177,7 +177,8 @@ SERVICE_COUNT=$(yq eval '.services | length' "$CONFIG_FILE")
 if [ "$SERVICE_COUNT" -gt 0 ]; then
     for i in $(seq 0 $((SERVICE_COUNT - 1))); do
         SERVICE_NAME=$(yq eval ".services[$i].name" "$CONFIG_FILE")
-        DOMAIN=$(yq eval ".services[$i].domain // \"\"" "$CONFIG_FILE")
+        DOMAIN=$(yq eval ".services[$i].domain | ([.] | flatten | join(\", \"))" "$CONFIG_FILE")
+        if [ "$DOMAIN" = "null" ]; then DOMAIN=""; fi
         PORT=$(yq eval ".services[$i].port // \"\"" "$CONFIG_FILE")
         HOST=$(yq eval ".services[$i].host // \"\"" "$CONFIG_FILE")
         UPSTREAM=$(yq eval ".services[$i].upstream // \"\"" "$CONFIG_FILE")
@@ -286,31 +287,42 @@ if [ -f "$TEMPLATE_PATH" ]; then
     
     log_success "Glance config generated from template at: $GLANCE_CONFIG"
     
-    # Append services to the bookmarks/links section
-    # We assume the template ends with "links:" or we need to find where to insert.
-    # For simplicity, if using the provided template which ends in "links:", we just append.
-    
+    # Generate services YAML for Glance
+    SERVICES_YAML_FILE="/tmp/glance_services.yml"
+    > "$SERVICES_YAML_FILE"
+
     for i in $(seq 0 $((SERVICE_COUNT - 1))); do
         SERVICE_NAME=$(yq eval ".services[$i].name" "$CONFIG_FILE")
-        SERVICE_DOMAIN=$(yq eval ".services[$i].domain // \"\"" "$CONFIG_FILE")
+        SERVICE_DOMAIN=$(yq eval ".services[$i].domain | ([.] | flatten | .[0])" "$CONFIG_FILE")
+        if [ "$SERVICE_DOMAIN" = "null" ]; then SERVICE_DOMAIN=""; fi
         ENABLED=$(yq eval ".services[$i].enabled // true" "$CONFIG_FILE")
         SKIP_DEPLOY=$(yq eval ".services[$i].skip_deploy // false" "$CONFIG_FILE")
         ICON=$(yq eval ".services[$i].icon // \"\"" "$CONFIG_FILE")
         DESCRIPTION=$(yq eval ".services[$i].description // \"\"" "$CONFIG_FILE")
         
         if [ "$ENABLED" = "true" ] && [ "$SKIP_DEPLOY" != "true" ] && [ -n "$SERVICE_DOMAIN" ]; then
-            echo "                  - title: $SERVICE_NAME" >> "$GLANCE_CONFIG"
-            echo "                    url: https://$SERVICE_DOMAIN" >> "$GLANCE_CONFIG"
+            echo "                  - title: $SERVICE_NAME" >> "$SERVICES_YAML_FILE"
+            echo "                    url: https://$SERVICE_DOMAIN" >> "$SERVICES_YAML_FILE"
             if [ -n "$ICON" ]; then
-                # Convert mdi:icon to proper format if needed, or just pass through
-                # Glance supports various icon sets.
-                echo "                    icon: $ICON" >> "$GLANCE_CONFIG"
+                echo "                    icon: $ICON" >> "$SERVICES_YAML_FILE"
             fi
             if [ -n "$DESCRIPTION" ]; then
-                 echo "                    description: $DESCRIPTION" >> "$GLANCE_CONFIG"
+                echo "                    description: $DESCRIPTION" >> "$SERVICES_YAML_FILE"
             fi
         fi
     done
+
+    # Inject services into Glance config
+    if grep -q "# GENERATED_SERVICES_MARKER" "$GLANCE_CONFIG"; then
+        sed -i "/# GENERATED_SERVICES_MARKER/r $SERVICES_YAML_FILE" "$GLANCE_CONFIG"
+        # Remove the marker line
+        sed -i "/# GENERATED_SERVICES_MARKER/d" "$GLANCE_CONFIG"
+        log_success "Injected services into Glance config"
+    else
+        log_warning "Marker # GENERATED_SERVICES_MARKER not found in Glance config"
+    fi
+    
+    rm -f "$SERVICES_YAML_FILE"
     
 else
     # Create minimal Glance config
@@ -348,7 +360,8 @@ EOF
     # Add monitored services
     for i in $(seq 0 $((SERVICE_COUNT - 1))); do
         SERVICE_NAME=$(yq eval ".services[$i].name" "$CONFIG_FILE")
-        SERVICE_DOMAIN=$(yq eval ".services[$i].domain // \"\"" "$CONFIG_FILE")
+        SERVICE_DOMAIN=$(yq eval ".services[$i].domain | ([.] | flatten | .[0])" "$CONFIG_FILE")
+        if [ "$SERVICE_DOMAIN" = "null" ]; then SERVICE_DOMAIN=""; fi
         ENABLED=$(yq eval ".services[$i].enabled // true" "$CONFIG_FILE")
         SKIP_DEPLOY=$(yq eval ".services[$i].skip_deploy // false" "$CONFIG_FILE")
         ICON=$(yq eval ".services[$i].icon // \"\"" "$CONFIG_FILE")

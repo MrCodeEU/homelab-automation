@@ -61,7 +61,12 @@ pages:
                     url: https://nightscout.example.com
                     icon: mdi:diabetes
                     same-tab: false
-      
+
+              - title: Hosted Services
+                color: 24 144 255
+                links:
+# GENERATED_SERVICES_MARKER
+
       # Main content area
       - size: full
         widgets:
