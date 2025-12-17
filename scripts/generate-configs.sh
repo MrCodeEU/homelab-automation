@@ -235,7 +235,14 @@ if [ "$SERVICE_COUNT" -gt 0 ]; then
         echo "" >> "$CADDYFILE"
         echo "# $SERVICE_NAME" >> "$CADDYFILE"
         echo "$DOMAIN {" >> "$CADDYFILE"
-        echo "    reverse_proxy $TARGET" >> "$CADDYFILE"
+        
+        if [ "$SERVICE_NAME" = "goaccess" ]; then
+             echo "    root * /opt/goaccess/report" >> "$CADDYFILE"
+             echo "    file_server" >> "$CADDYFILE"
+        else
+             echo "    reverse_proxy $TARGET" >> "$CADDYFILE"
+        fi
+
         echo "    log {" >> "$CADDYFILE"
         echo "        output file /opt/caddy/logs/access.log" >> "$CADDYFILE"
         echo "        format json" >> "$CADDYFILE"

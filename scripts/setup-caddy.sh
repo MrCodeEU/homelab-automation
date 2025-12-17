@@ -42,8 +42,12 @@ chmod 755 "$CADDY_DIR/logs"
 
 # Deploy Caddyfile if provided
 if [ -n "$CONFIG_SOURCE" ] && [ -f "$CONFIG_SOURCE" ]; then
-  echo "Deploying Caddyfile from: $CONFIG_SOURCE"
-  cp "$CONFIG_SOURCE" "$CADDY_DIR/Caddyfile"
+  if [ "$(readlink -f "$CONFIG_SOURCE")" != "$(readlink -f "$CADDY_DIR/Caddyfile")" ]; then
+      echo "Deploying Caddyfile from: $CONFIG_SOURCE"
+      cp "$CONFIG_SOURCE" "$CADDY_DIR/Caddyfile"
+  else
+      echo "Caddyfile is already in place."
+  fi
 elif [ ! -f "$CADDY_DIR/Caddyfile" ]; then
   # Only create default if no Caddyfile exists at all
   echo "⚠️  No Caddyfile found, creating minimal default..."

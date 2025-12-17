@@ -53,7 +53,7 @@ $MAILCOW_HOSTNAME
 $TIMEZONE
 n
 1
-n
+y
 EOF
     echo "✓ Configuration generated"
 else
