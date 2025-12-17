@@ -26,21 +26,18 @@ services:
     image: caddy:latest
     container_name: caddy
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"  # HTTP/3
+    network_mode: host
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./site:/srv:ro
       - ./data:/data
       - ./config:/config
-    networks:
-      - caddy_network
+    # networks:
+    #   - caddy_network
 
-networks:
-  caddy_network:
-    name: caddy_network
+# networks:
+#   caddy_network:
+#     name: caddy_network
 EOF
 
 # Deploy Caddyfile if provided

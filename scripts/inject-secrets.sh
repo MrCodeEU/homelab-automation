@@ -2,11 +2,25 @@
 # Secret injection script for .env file generation
 # Reads .env.example files and replaces placeholders with actual secrets from environment variables
 
-set -e
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/common.sh" ]; then
+    source "$SCRIPT_DIR/common.sh"
+else
+    # Fallback
+    echo "Warning: common.sh not found"
+    log_info() { echo "[INFO] $1"; }
+    log_success() { echo "[SUCCESS] $1"; }
+    log_error() { echo "[ERROR] $1"; }
+    log_header() { echo "=== $1 ==="; }
+    set_error_trap() { set -e; }
+fi
+
+set_error_trap
 
 if [ $# -lt 2 ]; then
-    echo "Usage: $0 <env-example-file> <output-env-file>"
-    echo "Example: $0 /tmp/nightscout/.env.example /opt/nightscout/.env"
+    log_error "Usage: $0 <env-example-file> <output-env-file>"
+    log_info "Example: $0 /tmp/nightscout/.env.example /opt/nightscout/.env"
     exit 1
 fi
 
@@ -14,24 +28,21 @@ ENV_EXAMPLE="$1"
 ENV_OUTPUT="$2"
 
 if [ ! -f "$ENV_EXAMPLE" ]; then
-    echo "Error: .env.example file not found: $ENV_EXAMPLE"
+    log_error ".env.example file not found: $ENV_EXAMPLE"
     exit 1
 fi
 
-echo "========================================="
-echo "Injecting secrets into .env file"
-echo "========================================="
-echo "Source: $ENV_EXAMPLE"
-echo "Output: $ENV_OUTPUT"
-echo ""
+log_header "Injecting secrets into .env file"
+log_info "Source: $ENV_EXAMPLE"
+log_info "Output: $ENV_OUTPUT"
 
 # Load secrets from secrets.env if it exists
 if [ -f "/tmp/homelab-deploy/secrets.env" ]; then
-    echo "Loading secrets from secrets.env..."
+    log_info "Loading secrets from secrets.env..."
     set -a
     source /tmp/homelab-deploy/secrets.env
     set +a
-    echo "✓ Secrets loaded"
+    log_success "Secrets loaded"
 fi
 
 # Copy .env.example to .env
@@ -44,10 +55,17 @@ inject_secret() {
     local value="${!env_var}"
     
     if [ -z "$value" ]; then
-        echo "⚠️  Warning: $env_var is not set, keeping placeholder"
+        log_warn "$env_var is not set, keeping placeholder"
         return
     fi
     
+    # Escape special characters for sed
+    # This is a basic escape, might need improvement for complex passwords
+    escaped_value=$(printf '%s\n' "$value" | sed -e 's/[\/&]/\\&/g')
+    
+    sed -i "s/$placeholder/$escaped_value/g" "$ENV_OUTPUT"
+    log_success "Injected $env_var"
+}
     # Escape special characters for sed
     local escaped_value=$(printf '%s\n' "$value" | sed -e 's/[\/&]/\\&/g')
     

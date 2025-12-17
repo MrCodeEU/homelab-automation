@@ -71,6 +71,14 @@ services:
     description: "Email archiver (Bichon)"
     icon: "mdi:email"
 
+  # Mailcow (Mail Server)
+  - name: mailcow
+    enabled: true
+    domain: "mail.mljr.eu"
+    description: "Mail Server"
+    icon: "mdi:email-server"
+    host: vps
+
   # Example: Service with custom upstream (no port needed if already in URL format)
   # - name: custom
   #   enabled: false

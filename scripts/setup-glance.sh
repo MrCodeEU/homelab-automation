@@ -80,7 +80,16 @@ if docker ps --format '{{.Names}}' | grep -q '^glance$'; then
     echo ""
     echo "Access Glance:"
     echo "  • Local: http://localhost:8080"
-    echo "  • Behind Caddy: https://$(grep -A1 'name: Glance' /tmp/homelab-deploy/configs/services.yml | grep domain | awk '{print $2}')"
+    
+    # Try to extract domain using yq if available, otherwise fallback to grep
+    if command -v yq &> /dev/null && [ -f "/tmp/homelab-deploy/configs/services.yml" ]; then
+        DOMAIN=$(yq eval '.services[] | select(.name == "glance") | .domain' /tmp/homelab-deploy/configs/services.yml)
+        echo "  • Behind Caddy: https://$DOMAIN"
+    else
+        # Fallback for when yq is missing
+        echo "  • Behind Caddy: (Check services.yml for domain)"
+    fi
+    
     echo ""
     echo "Useful commands:"
     echo "  • View logs: docker logs -f glance"

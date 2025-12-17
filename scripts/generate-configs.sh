@@ -2,40 +2,56 @@
 # Configuration generator script
 # Reads services.yml and generates Caddyfile, Glance config, and docker-compose configurations
 
-set -e
+# Source common functions
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$SCRIPT_DIR/common.sh" ]; then
+    source "$SCRIPT_DIR/common.sh"
+else
+    # Fallback
+    echo "Warning: common.sh not found"
+    log_info() { echo "[INFO] $1"; }
+    log_success() { echo "[SUCCESS] $1"; }
+    log_error() { echo "[ERROR] $1"; }
+    log_header() { echo "=== $1 ==="; }
+    set_error_trap() { set -e; }
+fi
 
-echo "========================================="
-echo "Generating Configurations from YAML"
-echo "========================================="
+set_error_trap
+
+log_header "Generating Configurations from YAML"
 
 CONFIG_FILE="${1:-/tmp/homelab-deploy/configs/services.yml}"
 CADDY_OUTPUT_DIR="${2:-/opt/caddy}"
 GLANCE_OUTPUT_DIR="${3:-/opt/glance}"
 INVENTORY_FILE="${4:-/tmp/homelab-deploy/inventory.yml}"
 
-echo "Config file: $CONFIG_FILE"
-echo "Caddy output: $CADDY_OUTPUT_DIR"
-echo "Glance output: $GLANCE_OUTPUT_DIR"
-echo "Inventory file: $INVENTORY_FILE"
-echo ""
+log_info "Config file: $CONFIG_FILE"
+log_info "Caddy output: $CADDY_OUTPUT_DIR"
+log_info "Glance output: $GLANCE_OUTPUT_DIR"
+log_info "Inventory file: $INVENTORY_FILE"
 
 if [ ! -f "$CONFIG_FILE" ]; then
-    echo "❌ Error: Configuration file not found: $CONFIG_FILE"
-    echo "Looking for file..."
-    ls -la "$(dirname "$CONFIG_FILE")" || echo "Directory doesn't exist"
+    log_error "Configuration file not found: $CONFIG_FILE"
+    log_info "Looking for file..."
+    ls -la "$(dirname "$CONFIG_FILE")" || log_warn "Directory doesn't exist"
     exit 1
 fi
 
-echo "✓ Configuration file found"
+log_success "Configuration file found"
 
 # Check if yq is available
 if ! command -v yq &> /dev/null; then
-    echo "Installing yq for YAML parsing..."
-    wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-    chmod +x /usr/local/bin/yq
+    log_info "Installing yq for YAML parsing..."
+    if command -v wget &> /dev/null; then
+        wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+        chmod +x /usr/local/bin/yq
+    else
+        log_error "wget not found, cannot install yq. Please install yq manually."
+        exit 1
+    fi
 fi
 
-echo "Reading configuration from: $CONFIG_FILE"
+log_info "Reading configuration from: $CONFIG_FILE"
 mkdir -p "$CADDY_OUTPUT_DIR"
 mkdir -p "$GLANCE_OUTPUT_DIR"
 
@@ -47,7 +63,7 @@ DASHBOARD_NAME=$(yq eval '.dashboard.name // "Homelab Dashboard"' "$CONFIG_FILE"
 TIMEZONE=$(yq eval '.dashboard.timezone // "Europe/London"' "$CONFIG_FILE")
 
 # Generate Caddyfile
-echo "Generating Caddyfile..."
+log_info "Generating Caddyfile..."
 CADDYFILE="$CADDY_OUTPUT_DIR/Caddyfile"
 
 # Start Caddyfile
@@ -145,8 +161,10 @@ if [ "$SERVICE_COUNT" -gt 0 ]; then
              fi
              echo "  - Resolved $EFFECTIVE_HOST to $TARGET"
           elif [ -z "$EFFECTIVE_HOST" ] || [ "$EFFECTIVE_HOST" = "localhost" ] || [ "$EFFECTIVE_HOST" = "null" ]; then
-            # Default to service name so Caddy can reach the container via the shared Docker network
-            EFFECTIVE_HOST="$SERVICE_NAME"
+            # Default to localhost since Caddy is running in host mode
+            # This REQUIRES the target service to expose its port to the host (e.g. ports: - "8080:8080")
+            # Docker internal DNS (e.g. "glance") will NOT work because Caddy is on the host network
+            EFFECTIVE_HOST="127.0.0.1"
             TARGET="$EFFECTIVE_HOST:$PORT"
           else
             TARGET="$EFFECTIVE_HOST:$PORT"

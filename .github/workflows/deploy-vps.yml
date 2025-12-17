@@ -71,7 +71,7 @@ jobs:
           echo "📦 Copying Deployment Files"
           echo "======================================"
           if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p /tmp/homelab-deploy" && \
-             tar czf - scripts/ configs/ secrets.env | tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"; then
+             tar czf - scripts/ configs/ secrets.env inventory.yml | tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"; then
             echo "COPY_STATUS=✅ Success" >> $GITHUB_ENV
             echo "✅ Scripts and configs deployed to /tmp/homelab-deploy"
           else
@@ -145,57 +145,21 @@ jobs:
             exit 1
           fi
 
-      - name: Execute Caddy setup
-        id: caddy-setup
+      - name: Deploy Services
+        id: deploy-services
         if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
         continue-on-error: true
         run: |
           echo ""
           echo "======================================"
-          echo "🌐 Caddy Reverse Proxy Setup"
+          echo "🚀 Deploying All Services"
           echo "======================================"
-          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/04-caddy-setup.sh"; then
-            echo "CADDY_STATUS=✅ Success" >> $GITHUB_ENV
-            echo "✅ Caddy setup completed"
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/03-docker-compose-deploy.sh rocky"; then
+            echo "DEPLOY_STATUS=✅ Success" >> $GITHUB_ENV
+            echo "✅ Services deployed successfully"
           else
-            echo "CADDY_STATUS=❌ Failed" >> $GITHUB_ENV
-            echo "❌ Caddy setup failed"
-            exit 1
-          fi
-
-      - name: Execute Glance setup
-        id: glance-setup
-        if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
-        continue-on-error: true
-        run: |
-          echo ""
-          echo "======================================"
-          echo "📊 Glance Dashboard Deployment"
-          echo "======================================"
-          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/05-glance-setup.sh"; then
-            echo "GLANCE_STATUS=✅ Success" >> $GITHUB_ENV
-            echo "✅ Glance dashboard deployed"
-          else
-            echo "GLANCE_STATUS=❌ Failed" >> $GITHUB_ENV
-            echo "❌ Glance setup failed"
-            exit 1
-          fi
-
-      - name: Execute Bichon setup
-        id: bichon-setup
-        if: contains(github.event.inputs.roles, 'bichon') || github.event.inputs.roles == 'all'
-        continue-on-error: true
-        run: |
-          echo ""
-          echo "======================================"
-          echo "📥 Bichon Mail Archiver Deployment"
-          echo "======================================"
-          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/07-bichon-setup.sh"; then
-            echo "BICHON_STATUS=✅ Success" >> $GITHUB_ENV
-            echo "✅ Bichon deployed"
-          else
-            echo "BICHON_STATUS=❌ Failed" >> $GITHUB_ENV
-            echo "❌ Bichon setup failed"
+            echo "DEPLOY_STATUS=❌ Failed" >> $GITHUB_ENV
+            echo "❌ Service deployment failed"
             exit 1
           fi
       
@@ -239,23 +203,6 @@ jobs:
             echo "⚠️  Some validations failed (check above)"
           fi
 
-      - name: Execute Nightscout setup
-        id: nightscout-setup
-        if: contains(github.event.inputs.roles, 'nightscout') || github.event.inputs.roles == 'all'
-        continue-on-error: true
-        run: |
-          echo ""
-          echo "======================================"
-          echo "🩺 Nightscout CGM Monitor Deployment"
-          echo "======================================"
-          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/06-nightscout-setup.sh"; then
-            echo "NIGHTSCOUT_STATUS=✅ Success" >> $GITHUB_ENV
-            echo "✅ Nightscout stack deployed"
-          else
-            echo "NIGHTSCOUT_STATUS=❌ Failed (may need .env configuration)" >> $GITHUB_ENV
-            echo "⚠️  Nightscout setup failed or needs configuration"
-          fi
-
       - name: Cleanup secrets
         if: always()
         run: |
@@ -281,11 +228,8 @@ jobs:
           echo "  Base Setup:          ${BASE_STATUS:-⏭️  Skipped}"
           echo "  Docker Setup:        ${DOCKER_STATUS:-⏭️  Skipped}"
           echo "  Config Generation:   ${CONFIG_STATUS:-⏭️  Skipped}"
-          echo "  Caddy Proxy:         ${CADDY_STATUS:-⏭️  Skipped}"
-          echo "  Glance Dashboard:    ${GLANCE_STATUS:-⏭️  Skipped}"
-          echo "  Bichon Archiver:     ${BICHON_STATUS:-⏭️  Skipped}"
+          echo "  Service Deployment:  ${DEPLOY_STATUS:-⏭️  Skipped}"
           echo "  Deployment Validation: ${VALIDATION_STATUS:-⏭️  Skipped}"
-          echo "  Nightscout CGM:      ${NIGHTSCOUT_STATUS:-⏭️  Skipped}"
           echo ""
           
           # GitHub step summary
@@ -305,11 +249,8 @@ jobs:
           echo "| Base Setup | ${BASE_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Docker Setup | ${DOCKER_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Config Generation | ${CONFIG_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Caddy Proxy | ${CADDY_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Glance Dashboard | ${GLANCE_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Bichon Archiver | ${BICHON_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Service Deployment | ${DEPLOY_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployment Validation | ${VALIDATION_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Nightscout CGM | ${NIGHTSCOUT_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Overall status
