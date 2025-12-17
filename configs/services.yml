@@ -34,16 +34,6 @@ services:
     host: mljr
     description: "CGM Monitor"
     icon: "mdi:diabetes"
-    
-  # Container Management
-  - name: portainer
-    enabled: false
-    # skip_deploy: false
-    domain: "portainer.mljr.eu"
-    port: 9000
-    host: mljr
-    description: "Docker management"
-    icon: "si:portainer"
   
   # Monitoring (prepared for future)
   - name: kuma
