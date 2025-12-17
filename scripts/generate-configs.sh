@@ -204,7 +204,7 @@ fi
 
 # Generate Glance configuration
 echo ""
-echo "Generating Glance configuration..."
+log_info "Generating Glance configuration..."
 GLANCE_CONFIG="$GLANCE_OUTPUT_DIR/glance.yml"
 
 # Check if template exists
@@ -216,7 +216,34 @@ if [ -f "$TEMPLATE_PATH" ]; then
         sed "s/\${SERVER_NAME}/$(hostname)/g" | \
         sed "s/\${DASHBOARD_NAME}/$DASHBOARD_NAME/g" > "$GLANCE_CONFIG"
     
-    echo "✓ Glance config generated from template at: $GLANCE_CONFIG"
+    log_success "Glance config generated from template at: $GLANCE_CONFIG"
+    
+    # Append services to the bookmarks/links section
+    # We assume the template ends with "links:" or we need to find where to insert.
+    # For simplicity, if using the provided template which ends in "links:", we just append.
+    
+    for i in $(seq 0 $((SERVICE_COUNT - 1))); do
+        SERVICE_NAME=$(yq eval ".services[$i].name" "$CONFIG_FILE")
+        SERVICE_DOMAIN=$(yq eval ".services[$i].domain // \"\"" "$CONFIG_FILE")
+        ENABLED=$(yq eval ".services[$i].enabled // true" "$CONFIG_FILE")
+        SKIP_DEPLOY=$(yq eval ".services[$i].skip_deploy // false" "$CONFIG_FILE")
+        ICON=$(yq eval ".services[$i].icon // \"\"" "$CONFIG_FILE")
+        DESCRIPTION=$(yq eval ".services[$i].description // \"\"" "$CONFIG_FILE")
+        
+        if [ "$ENABLED" = "true" ] && [ "$SKIP_DEPLOY" != "true" ] && [ -n "$SERVICE_DOMAIN" ]; then
+            echo "                  - title: $SERVICE_NAME" >> "$GLANCE_CONFIG"
+            echo "                    url: https://$SERVICE_DOMAIN" >> "$GLANCE_CONFIG"
+            if [ -n "$ICON" ]; then
+                # Convert mdi:icon to proper format if needed, or just pass through
+                # Glance supports various icon sets.
+                echo "                    icon: $ICON" >> "$GLANCE_CONFIG"
+            fi
+            if [ -n "$DESCRIPTION" ]; then
+                 echo "                    description: $DESCRIPTION" >> "$GLANCE_CONFIG"
+            fi
+        fi
+    done
+    
 else
     # Create minimal Glance config
     cat > "$GLANCE_CONFIG" << EOF
@@ -269,7 +296,7 @@ EOF
         fi
     done
     
-    echo "✓ Glance: Created minimal config at: $GLANCE_CONFIG"
+    log_success "Glance: Created minimal config at: $GLANCE_CONFIG"
 fi
 
 # Generate docker-compose for Glance

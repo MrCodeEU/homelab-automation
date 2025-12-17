@@ -100,7 +100,7 @@ pages:
             cache: 1m
             sites:
               - title: Nightscout
-                url: https://nightscout.example.com
+                url: https://nightscout.mljr.eu
                 icon: mdi:diabetes
               - title: GitHub
                 url: https://github.com

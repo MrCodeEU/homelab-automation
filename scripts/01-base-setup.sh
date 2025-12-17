@@ -54,7 +54,9 @@ case "$OS_TYPE" in
             ca-certificates \
             unzip \
             jq \
-            tar
+            tar \
+            python3 \
+            python3-pip
         ;;
         
     ubuntu|debian)
@@ -76,7 +78,9 @@ case "$OS_TYPE" in
             ca-certificates \
             unzip \
             jq \
-            tar
+            tar \
+            python3 \
+            python3-pip
         ;;
         
     slackware)

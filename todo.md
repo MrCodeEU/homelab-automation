@@ -1,5 +1,6 @@
 🚀 Next Steps (YOU NEED TO DO THIS)
 1. Add Secrets to GitHub ⚠️ REQUIRED
+   - Add `KUMA_USERNAME` and `KUMA_PASSWORD` for monitoring automation
 2. Test the Deployment
 Run a GitHub Actions workflow (e.g., Deploy VPS)
 Verify secrets are injected correctly

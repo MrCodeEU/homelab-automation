@@ -40,7 +40,7 @@ services:
     enabled: false
     host: mljr
     skip_deploy: false
-    domain: "status.mljr.eu"
+    domain: "uptime.mljr.eu"
 
   # Home Assistant
   - name: homeassistant

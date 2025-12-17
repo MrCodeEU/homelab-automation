@@ -174,3 +174,10 @@ docker compose pull
 docker compose up -d --remove-orphans
 
 log_success "$SERVICE_NAME deployed successfully"
+
+# Check for post-deployment script
+POST_SCRIPT="$SCRIPTS_DIR/post-setup-$SERVICE_NAME.sh"
+if [ -f "$POST_SCRIPT" ]; then
+    log_info "Found post-deployment script: $POST_SCRIPT"
+    bash "$POST_SCRIPT" "$SERVICE_NAME" "$SERVICES_FILE"
+fi

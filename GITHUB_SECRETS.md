@@ -38,6 +38,15 @@ These secrets are used for Bichon email archiver application:
 |------------|-------------|---------------|-------|
 | `BICHON_ENCRYPT_PASSWORD` | Encryption password for Bichon data | `MyStrongEncryptionKey456!` | Cannot be changed after initial setup without recreating data |
 
+### Uptime Kuma Secrets
+
+These secrets are used for Uptime Kuma monitoring automation:
+
+| Secret Name | Description | Example Value | Notes |
+|------------|-------------|---------------|-------|
+| `KUMA_USERNAME` | Admin username for Uptime Kuma | `admin` | Used for auto-provisioning monitors |
+| `KUMA_PASSWORD` | Admin password for Uptime Kuma | `SecurePassword123!` | Used for auto-provisioning monitors |
+
 ---
 
 ## 📋 How to Add GitHub Secrets

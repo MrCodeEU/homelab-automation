@@ -48,6 +48,8 @@ jobs:
           echo "NIGHTSCOUT_API_TOKEN=${{ secrets.NIGHTSCOUT_API_TOKEN }}" >> secrets.env
           echo "NIGHTSCOUT_DOMAIN=${{ secrets.NIGHTSCOUT_DOMAIN }}" >> secrets.env
           echo "BICHON_ENCRYPT_PASSWORD=${{ secrets.BICHON_ENCRYPT_PASSWORD }}" >> secrets.env
+          echo "KUMA_USERNAME=${{ secrets.KUMA_USERNAME }}" >> secrets.env
+          echo "KUMA_PASSWORD=${{ secrets.KUMA_PASSWORD }}" >> secrets.env
 
       - name: Copy deployment scripts
         run: |
