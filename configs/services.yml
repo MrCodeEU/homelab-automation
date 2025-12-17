@@ -71,6 +71,7 @@ services:
     port: 15630
     description: "Email archiver (Bichon)"
     icon: "mdi:email"
+    host: mljr
 
   # Mailcow (Mail Server)
   - name: mailcow
@@ -78,7 +79,7 @@ services:
     domain: "mail.mljr.eu"
     description: "Mail Server"
     icon: "mdi:email-server"
-    host: vps
+    host: mljr
 
   # Example: Service with custom upstream (no port needed if already in URL format)
   # - name: custom
