@@ -9,13 +9,9 @@ services:
     volumes:
       - /opt/caddy/logs:/logs:ro
       - /opt/goaccess:/goaccess:rw
-    working_dir: /goaccess
-    command: >
-      sh -c "
-      wget -q -O caddyLog.py https://raw.githubusercontent.com/DWiskow/CaddyGoAccessDataLoggerConverter/main/caddyLog.py &&
-      chmod +x caddyLog.py &&
-      python3 caddyLog.py -i /logs/access.log -t 10 -g /goaccess/access.goaccess.log
-      "
+      - /opt/goaccess/caddyLog.py:/app/caddyLog.py:ro
+    working_dir: /app
+    command: python3 caddyLog.py -i /logs/access.log -t 10 -g /goaccess/access.goaccess.log
   
   # GoAccess reads the converted log file
   goaccess:
@@ -32,8 +28,8 @@ services:
     command: >
       /goaccess/access.goaccess.log
       --log-format="%d %t %v %h %m %U %H %s %b %T %R %u"
-      --date-format=%F
-      --time-format=%H:%M:%S
+      --date-format="%Y-%m-%d"
+      --time-format="%H:%M:%S"
       -o /var/www/goaccess/index.html
       --real-time-html
       --ws-url=wss://logs.mljr.eu:443/ws
