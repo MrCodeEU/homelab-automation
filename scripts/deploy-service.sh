@@ -133,9 +133,9 @@ if [ "$EXPECTED_PORT" != "null" ] && [ -n "$EXPECTED_PORT" ]; then
     
     COMPOSE_FILE="$TARGET_DIR/docker-compose.yml"
     
-    # Check if port is exposed
-    # We look for "PORT:" or "PORT" in the ports list
-    PORT_FOUND=$(yq eval -r ".services[].ports[]" "$COMPOSE_FILE" 2>/dev/null | grep -E "^$EXPECTED_PORT(:|$)" || true)
+    # Check if port is exposed (including localhost-bound ports like 127.0.0.1:PORT:PORT)
+    # We look for "PORT:" or "PORT" in the ports list, or "127.0.0.1:PORT:"
+    PORT_FOUND=$(yq eval -r ".services[].ports[]" "$COMPOSE_FILE" 2>/dev/null | grep -E "^($EXPECTED_PORT(:|$)|127\.0\.0\.1:$EXPECTED_PORT:)" || true)
     
     if [ -z "$PORT_FOUND" ]; then
         log_warn "Port $EXPECTED_PORT is NOT exposed in docker-compose.yml"

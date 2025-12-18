@@ -37,12 +37,15 @@ services:
     description: "CGM Monitor"
     icon: "mdi:diabetes"
   
-  # Monitoring (prepared for future)
+  # Monitoring (Uptime Kuma)
   - name: kuma
-    enabled: false
+    enabled: true
     host: mljr
     skip_deploy: false
-    domain: "uptime.mljr.eu"
+    domain: "status.mljr.eu"
+    port: 3001
+    description: "Uptime Monitoring"
+    icon: "mdi:heart-pulse"
 
   # Access Logs (GoAccess)
   - name: goaccess
@@ -77,9 +80,11 @@ services:
   - name: mailcow
     enabled: true
     domain: "mail.mljr.eu"
+    port: 8080  # Mailcow nginx-mailcow container port
     description: "Mail Server"
     icon: "mdi:email-server"
     host: mljr
+    managed: false  # Deployed via dedicated setup script, not by deploy-service.sh
 
   # Example: Service with custom upstream (no port needed if already in URL format)
   # - name: custom
