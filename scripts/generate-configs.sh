@@ -289,9 +289,10 @@ else
 fi
 
 # Replace Tailscale hostname with localhost for local services
-TAILSCALE_HOSTNAME=$(hostname -f 2>/dev/null | grep '\.ts\.net' || echo "")
-if [ -n "$TAILSCALE_HOSTNAME" ] && grep -q "reverse_proxy ${TAILSCALE_HOSTNAME}:" "$CADDYFILE"; then
-    echo "Replacing Tailscale hostname with localhost..."
+# Extract the actual Tailscale hostname from the Caddyfile instead of system hostname
+TAILSCALE_HOSTNAME=$(grep -oP 'reverse_proxy \K[a-z0-9.-]+\.ts\.net(?=:)' "$CADDYFILE" | head -1 || echo "")
+if [ -n "$TAILSCALE_HOSTNAME" ]; then
+    echo "Replacing Tailscale hostname ($TAILSCALE_HOSTNAME) with localhost..."
     sed -i "s|reverse_proxy ${TAILSCALE_HOSTNAME}:|reverse_proxy 127.0.0.1:|g" "$CADDYFILE"
     echo "✓ Localhost addresses configured"
 fi
