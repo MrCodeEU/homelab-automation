@@ -133,7 +133,8 @@ EOF
 SERVICE_COUNT=$(yq eval '.services | length' "$CONFIG_FILE")
 for i in $(seq 0 $((SERVICE_COUNT - 1))); do
     NAME=$(yq eval ".services[$i].name" "$CONFIG_FILE")
-    DOMAIN_VAL=$(yq eval ".services[$i].domain" "$CONFIG_FILE")
+    # Extract first domain for link (handles both single domain and arrays)
+    DOMAIN_VAL=$(yq eval ".services[$i].domain | ([.] | flatten | .[0])" "$CONFIG_FILE")
     DESC=$(yq eval ".services[$i].description" "$CONFIG_FILE")
     ENABLED=$(yq eval ".services[$i].enabled // true" "$CONFIG_FILE")
     MANAGED=$(yq eval ".services[$i].managed // true" "$CONFIG_FILE")
@@ -285,6 +286,14 @@ if command -v docker &> /dev/null; then
   docker run --rm -v "$CADDY_OUTPUT_DIR:/etc/caddy" caddy:latest caddy fmt --overwrite /etc/caddy/Caddyfile || echo "⚠️  caddy fmt failed; continuing"
 else
   echo "⚠️  Docker not available; skipping caddy fmt"
+fi
+
+# Replace Tailscale hostname with localhost for local services
+TAILSCALE_HOSTNAME=$(hostname -f 2>/dev/null | grep '\.ts\.net' || echo "")
+if [ -n "$TAILSCALE_HOSTNAME" ] && grep -q "reverse_proxy ${TAILSCALE_HOSTNAME}:" "$CADDYFILE"; then
+    echo "Replacing Tailscale hostname with localhost..."
+    sed -i "s|reverse_proxy ${TAILSCALE_HOSTNAME}:|reverse_proxy 127.0.0.1:|g" "$CADDYFILE"
+    echo "✓ Localhost addresses configured"
 fi
 
 # Generate Glance configuration

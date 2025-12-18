@@ -168,4 +168,15 @@ if [ -f "$SCRIPT_DIR/post-deploy-fixes.sh" ]; then
     bash "$SCRIPT_DIR/post-deploy-fixes.sh"
 fi
 
+log_info "Restarting containers to apply configuration changes..."
+if command -v docker &> /dev/null; then
+    # Restart containers that need to pick up Caddyfile changes
+    for container in "goaccess" "uptime-kuma"; do
+        if docker ps --format '{{.Names}}' | grep -q "^${container}$"; then
+            docker restart "${container}" >/dev/null 2>&1
+            echo "  ✓ Restarted ${container}"
+        fi
+    done
+fi
+
 log_success "Docker Compose Deployment Complete!"
