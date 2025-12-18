@@ -89,7 +89,9 @@ $DOMAIN {
     file_server
     log {
         output file /opt/caddy/logs/access.log
-        format json
+        format filter {
+            wrap common_log
+        }
     }
 }
 
@@ -260,7 +262,9 @@ if [ "$SERVICE_COUNT" -gt 0 ]; then
 
         echo "    log {" >> "$CADDYFILE"
         echo "        output file /opt/caddy/logs/access.log" >> "$CADDYFILE"
-        echo "        format json" >> "$CADDYFILE"
+        echo "        format filter {" >> "$CADDYFILE"
+        echo "            wrap common_log" >> "$CADDYFILE"
+        echo "        }" >> "$CADDYFILE"
         echo "    }" >> "$CADDYFILE"
         echo "}" >> "$CADDYFILE"
         

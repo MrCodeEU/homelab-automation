@@ -119,6 +119,10 @@ deploy_to_device() {
         
         # Deploy all services (Caddy, Glance, etc.)
         ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/03-docker-compose-deploy.sh $os $REMOTE_CONFIGS/services.yml $REMOTE_CONFIGS"
+        
+        # Apply environment-specific fixes
+        log_info "Applying environment fixes..."
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$user@$hostname" "bash $REMOTE_SCRIPTS/post-deploy-fixes.sh"
     fi
     
     log_success "Deployment to $device_name completed successfully!"

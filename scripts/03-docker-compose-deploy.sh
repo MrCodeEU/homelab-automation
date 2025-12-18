@@ -162,4 +162,10 @@ fi
 log_info "Running containers:"
 docker ps
 
+# Apply post-deployment environment fixes (idempotent)
+if [ -f "$SCRIPT_DIR/post-deploy-fixes.sh" ]; then
+    log_info "Applying environment fixes..."
+    bash "$SCRIPT_DIR/post-deploy-fixes.sh"
+fi
+
 log_success "Docker Compose Deployment Complete!"

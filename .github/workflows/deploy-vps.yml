@@ -164,6 +164,23 @@ jobs:
             echo "❌ Service deployment failed"
             exit 1
           fi
+
+      - name: Apply environment fixes
+        id: apply-fixes
+        if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
+        continue-on-error: true
+        run: |
+          echo ""
+          echo "======================================"
+          echo "🔧 Applying Environment Fixes"
+          echo "======================================"
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "bash /tmp/homelab-deploy/scripts/post-deploy-fixes.sh"; then
+            echo "FIXES_STATUS=✅ Success" >> $GITHUB_ENV
+            echo "✅ Environment fixes applied"
+          else
+            echo "FIXES_STATUS=⚠️ Partial" >> $GITHUB_ENV
+            echo "⚠️ Some fixes may have failed (non-critical)"
+          fi
       
       - name: Validate deployment
         id: validate-deployment
@@ -231,6 +248,7 @@ jobs:
           echo "  Docker Setup:        ${DOCKER_STATUS:-⏭️  Skipped}"
           echo "  Config Generation:   ${CONFIG_STATUS:-⏭️  Skipped}"
           echo "  Service Deployment:  ${DEPLOY_STATUS:-⏭️  Skipped}"
+          echo "  Environment Fixes:   ${FIXES_STATUS:-⏭️  Skipped}"
           echo "  Deployment Validation: ${VALIDATION_STATUS:-⏭️  Skipped}"
           echo ""
           
@@ -252,6 +270,7 @@ jobs:
           echo "| Docker Setup | ${DOCKER_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Config Generation | ${CONFIG_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Service Deployment | ${DEPLOY_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Environment Fixes | ${FIXES_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "| Deployment Validation | ${VALIDATION_STATUS:-⏭️ Skipped} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           

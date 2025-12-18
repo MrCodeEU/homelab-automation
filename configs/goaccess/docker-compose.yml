@@ -17,7 +17,7 @@ services:
       echo 'Starting GoAccess loop...' && 
       while true; do 
         if [ -f /srv/logs/access.log ]; then
-          goaccess /srv/logs/access.log --log-format=CADDY -o /srv/report/index.html --no-global-config;
+          goaccess /srv/logs/access.log --log-format=COMBINED -o /srv/report/index.html || echo 'Waiting for valid logs...';
         else
           echo 'Waiting for logs...';
         fi;
