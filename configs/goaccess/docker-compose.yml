@@ -14,10 +14,10 @@ services:
     entrypoint: /bin/sh
     command: >
       -c "mkdir -p /srv/report && 
-      echo 'Starting GoAccess loop...' && 
+      echo 'Starting GoAccess with JSON parsing...' && 
       while true; do 
         if [ -f /srv/logs/access.log ]; then
-          goaccess /srv/logs/access.log --log-format=CADDY -o /srv/report/index.html || echo 'Waiting for valid logs...';
+          jq -r '. | \"\\(.request.remote_ip) - - [\\(.ts | strftime(\"%d/%b/%Y:%H:%M:%S %z\"))] \\\"\\(.request.method) \\(.request.uri) \\(.request.proto)\\\" \\(.status) \\(.size) \\\"-\\\" \\\"\\(.request.headers[\\\"User-Agent\\\"][0] // \\\"-\\\")\\\"\"' /srv/logs/access.log 2>/dev/null | goaccess - --log-format=COMBINED -o /srv/report/index.html || echo 'Waiting for valid logs...';
         else
           echo 'Waiting for logs...';
         fi;

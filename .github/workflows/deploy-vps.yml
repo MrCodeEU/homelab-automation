@@ -203,9 +203,19 @@ jobs:
             fi
           done
           echo ""
-          echo "=== Checking running Docker containers ==="
+          echo "=== Checking running services ==="
           CONTAINERS_OK=true
-          for container in "caddy" "glance" "nightscout"; do
+          
+          # Check system Caddy service
+          if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "systemctl is-active --quiet caddy"; then
+            echo "✅ caddy is running (system service)"
+          else
+            echo "⚠️  caddy is NOT running"
+            CONTAINERS_OK=false
+          fi
+          
+          # Check Docker containers
+          for container in "glance" "nightscout" "uptime-kuma" "bichon"; do
             if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "docker ps --format '{{.Names}}' | grep -q '^$container$'"; then
               echo "✅ $container is running"
             else
