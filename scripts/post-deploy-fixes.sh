@@ -49,33 +49,39 @@ else
     echo "2. ⊘ /opt/caddy not found, skipping"
 fi
 
-# Fix 3: Update Caddyfile to use localhost for local services (only if needed)
+# Fix 3: Regenerate Caddyfile with localhost (instead of sed replacement that breaks special configs)
 if [ -f /etc/caddy/Caddyfile ]; then
     echo "3. Checking Caddyfile for Tailscale hostname usage..."
     
-    # Check if file contains Tailscale hostnames for local services
-    if grep -q 'reverse_proxy.*\.tail.*\.ts\.net:' /etc/caddy/Caddyfile; then
-        echo "   Updating to use localhost..."
-        # Get the Tailscale hostname from inventory if possible
-        TAILSCALE_HOSTNAME=$(hostname -f 2>/dev/null | grep '\.ts\.net' || echo "")
+    # Check if file contains Tailscale hostnames for local services (excluding remote ones like pi.tail)
+    TAILSCALE_HOSTNAME=$(hostname -f 2>/dev/null | grep '\.ts\.net' || echo "")
+    
+    if [ -n "$TAILSCALE_HOSTNAME" ] && grep -q "reverse_proxy ${TAILSCALE_HOSTNAME}:" /etc/caddy/Caddyfile; then
+        echo "   Regenerating Caddyfile to use localhost..."
         
-        if [ -n "$TAILSCALE_HOSTNAME" ]; then
-            # Replace only the hostname part for local services (keep ports)
+        # Regenerate the Caddyfile if generate-configs.sh exists
+        if [ -f /tmp/homelab-deploy/scripts/generate-configs.sh ] && [ -f /tmp/homelab-deploy/configs/services.yml ]; then
+            bash /tmp/homelab-deploy/scripts/generate-configs.sh /tmp/homelab-deploy/configs/services.yml >/dev/null 2>&1
+            
+            # Reload Caddy if it's a system service
+            if systemctl is-active --quiet caddy 2>/dev/null; then
+                systemctl reload caddy
+                echo "   ✓ Caddyfile regenerated and reloaded"
+            else
+                echo "   ✓ Caddyfile regenerated"
+            fi
+        else
+            echo "   ⚠️  Cannot regenerate - config files not found, using sed fallback"
+            # Fallback to old method (but document the limitation)
             sed -i "s|reverse_proxy ${TAILSCALE_HOSTNAME}:|reverse_proxy 127.0.0.1:|g" /etc/caddy/Caddyfile
-        else
-            # Fallback: replace any .ts.net hostname
-            sed -i 's|reverse_proxy [^/]*\.ts\.net:\([0-9]*\)|reverse_proxy 127.0.0.1:\1|g' /etc/caddy/Caddyfile
-        fi
-        
-        # Reload Caddy if it's a system service
-        if systemctl is-active --quiet caddy 2>/dev/null; then
-            systemctl reload caddy
-            echo "   ✓ Caddyfile updated and reloaded"
-        else
-            echo "   ✓ Caddyfile updated"
+            
+            if systemctl is-active --quiet caddy 2>/dev/null; then
+                systemctl reload caddy
+                echo "   ⚠️  Caddyfile updated with sed (special configs may be lost)"
+            fi
         fi
     else
-        echo "   ⊘ Caddyfile already using localhost"
+        echo "   ⊘ Caddyfile already using localhost or no Tailscale hostname found"
     fi
 else
     echo "3. ⊘ /etc/caddy/Caddyfile not found, skipping"
