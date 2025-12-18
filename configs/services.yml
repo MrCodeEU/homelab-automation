@@ -47,9 +47,9 @@ services:
     description: "Uptime Monitoring"
     icon: "mdi:heart-pulse"
 
-  # Access Logs (GoAccess)
+  # Access Logs (GoAccess) - TODO: Fix JSON log parsing
   - name: goaccess
-    enabled: true
+    enabled: false
     domain: "logs.mljr.eu"
     port: 7890
     host: mljr
@@ -76,9 +76,9 @@ services:
     icon: "mdi:email"
     host: mljr
 
-  # Mailcow (Mail Server)
+  # Mailcow (Mail Server) - TODO: Requires manual configuration for reverse proxy
   - name: mailcow
-    enabled: true
+    enabled: false
     domain: "mail.mljr.eu"
     port: 8081  # Mailcow nginx-mailcow container port (8080 used by Glance)
     description: "Mail Server"
