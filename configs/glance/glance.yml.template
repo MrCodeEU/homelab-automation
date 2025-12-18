@@ -10,10 +10,10 @@ branding:
   hide-footer: false
 
 theme:
-  background-color: 240 8 9
+  background-color: 40 8 9
   primary-color: 43 50 70
   positive-color: 96 44 68
-  negative-color: 359 68 71
+  negative-color: 0 68 71
   contrast-multiplier: 1.2
 
 pages:
@@ -63,7 +63,7 @@ pages:
                     same-tab: false
 
               - title: Hosted Services
-                color: 24 144 255
+                color: 200 80 50
                 links:
 # GENERATED_SERVICES_MARKER
 

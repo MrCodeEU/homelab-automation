@@ -53,10 +53,10 @@ services:
     description: "Access Logs"
     icon: "mdi:chart-bar"
 
-  # Home Assistant
+  # Home Assistant (external service - not managed by this automation)
   - name: homeassistant
     enabled: true
-    managed: false
+    managed: false  # Set to false for services deployed elsewhere
     domain: "home.mljr.eu"
     port: 8123
     description: "Home Automation"

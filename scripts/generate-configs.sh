@@ -64,7 +64,14 @@ TIMEZONE=$(yq eval '.dashboard.timezone // "Europe/London"' "$CONFIG_FILE")
 
 # Generate Caddyfile
 log_info "Generating Caddyfile..."
-CADDYFILE="$CADDY_OUTPUT_DIR/Caddyfile"
+# Check if Caddy is installed as system service or Docker
+if systemctl is-active --quiet caddy 2>/dev/null; then
+    CADDYFILE="/etc/caddy/Caddyfile"
+    log_info "Detected system Caddy installation, using /etc/caddy/Caddyfile"
+else
+    CADDYFILE="$CADDY_OUTPUT_DIR/Caddyfile"
+    log_info "Using Docker Caddy, output to $CADDY_OUTPUT_DIR/Caddyfile"
+fi
 
 # Start Caddyfile
 cat > "$CADDYFILE" << EOF
@@ -240,6 +247,13 @@ if [ "$SERVICE_COUNT" -gt 0 ]; then
         if [ "$SERVICE_NAME" = "goaccess" ]; then
              echo "    root * /opt/goaccess/report" >> "$CADDYFILE"
              echo "    file_server" >> "$CADDYFILE"
+        elif [ "$SERVICE_NAME" = "homeassistant" ]; then
+             # Home Assistant needs specific headers for reverse proxy
+             echo "    reverse_proxy $TARGET {" >> "$CADDYFILE"
+             echo "        header_up Host {upstream_hostport}" >> "$CADDYFILE"
+             echo "        header_up X-Forwarded-Proto {scheme}" >> "$CADDYFILE"
+             echo "        header_up X-Forwarded-For {remote_host}" >> "$CADDYFILE"
+             echo "    }" >> "$CADDYFILE"
         else
              echo "    reverse_proxy $TARGET" >> "$CADDYFILE"
         fi
