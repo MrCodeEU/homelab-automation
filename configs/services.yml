@@ -78,7 +78,7 @@ services:
 
   # Mailcow (Mail Server) - Fully automated setup
   - name: mailcow
-    enabled: true
+    enabled: false  # Disabled - will configure later
     domain: "mail.mljr.eu"
     port: 8081  # Mailcow nginx-mailcow container port (8080 used by Glance)
     description: "Mail Server"
