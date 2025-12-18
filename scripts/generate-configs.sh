@@ -247,6 +247,8 @@ if [ "$SERVICE_COUNT" -gt 0 ]; then
         if [ "$SERVICE_NAME" = "goaccess" ]; then
              echo "    root * /opt/goaccess/report" >> "$CADDYFILE"
              echo "    file_server" >> "$CADDYFILE"
+             echo "    # WebSocket support for real-time updates" >> "$CADDYFILE"
+             echo "    reverse_proxy /ws 127.0.0.1:7890" >> "$CADDYFILE"
         elif [ "$SERVICE_NAME" = "homeassistant" ]; then
              # Home Assistant needs specific headers for reverse proxy
              echo "    reverse_proxy $TARGET {" >> "$CADDYFILE"

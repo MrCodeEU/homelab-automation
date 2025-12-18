@@ -42,14 +42,14 @@ services:
     enabled: true
     host: mljr
     skip_deploy: false
-    domain: "status.mljr.eu"
+    domain: "uptime.mljr.eu"
     port: 3001
     description: "Uptime Monitoring"
     icon: "mdi:heart-pulse"
 
-  # Access Logs (GoAccess) - TODO: Fix JSON log parsing
+  # Access Logs (GoAccess) - Real-time web analytics
   - name: goaccess
-    enabled: false
+    enabled: true
     domain: "logs.mljr.eu"
     port: 7890
     host: mljr
@@ -76,15 +76,15 @@ services:
     icon: "mdi:email"
     host: mljr
 
-  # Mailcow (Mail Server) - TODO: Requires manual configuration for reverse proxy
+  # Mailcow (Mail Server) - Fully automated setup
   - name: mailcow
-    enabled: false
+    enabled: true
     domain: "mail.mljr.eu"
     port: 8081  # Mailcow nginx-mailcow container port (8080 used by Glance)
     description: "Mail Server"
     icon: "mdi:email-server"
     host: mljr
-    managed: false  # Deployed via dedicated setup script, not by deploy-service.sh
+    managed: false  # Deployed via scripts/setup-mailcow.sh
 
   # Example: Service with custom upstream (no port needed if already in URL format)
   # - name: custom
