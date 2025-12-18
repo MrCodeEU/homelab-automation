@@ -80,7 +80,7 @@ services:
   - name: mailcow
     enabled: true
     domain: "mail.mljr.eu"
-    port: 8080  # Mailcow nginx-mailcow container port
+    port: 8081  # Mailcow nginx-mailcow container port (8080 used by Glance)
     description: "Mail Server"
     icon: "mdi:email-server"
     host: mljr
