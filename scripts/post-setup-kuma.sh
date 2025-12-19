@@ -33,7 +33,7 @@ fi
 # Install Python dependencies
 log_info "Installing Python dependencies..."
 if command -v pip3 &> /dev/null; then
-    pip3 install uptime-kuma-api pyyaml
+    pip3 install uptime-kuma-api-v2 pyyaml
 else
     log_error "pip3 not found. Cannot install dependencies."
     exit 1
