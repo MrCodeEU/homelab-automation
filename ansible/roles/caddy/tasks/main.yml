@@ -1,0 +1,36 @@
+---
+- name: Create Caddy directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /opt/caddy
+    - /opt/caddy/site
+    - /opt/caddy/logs
+
+- name: Generate Caddyfile
+  template:
+    src: Caddyfile.j2
+    dest: /opt/caddy/Caddyfile
+  notify: Reload Caddy
+
+- name: Generate index.html
+  template:
+    src: index.html.j2
+    dest: /opt/caddy/site/index.html
+
+- name: Ensure Caddy container is running
+  docker_container:
+    name: caddy
+    image: caddy:latest
+    restart_policy: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - /opt/caddy/site:/opt/caddy/site
+      - /opt/caddy/data:/data
+      - /opt/caddy/config:/config
+      - /opt/caddy/logs:/opt/caddy/logs

@@ -1,0 +1,26 @@
+theme:
+  background-color: 200 200 200
+  primary-color: 0 0 0
+
+pages:
+  - name: Home
+    columns:
+      - size: small
+        widgets:
+          - type: weather
+            location: {{ location }}
+          - type: clock
+            timezone: {{ timezone }}
+      - size: full
+        widgets:
+          - type: bookmarks
+            title: Services
+            groups:
+              - links:
+                {% for service in services %}
+                {% if service.enabled | default(true) %}
+                - title: {{ service.name }}
+                  url: https://{{ service.domain if service.domain is string else service.domain[0] }}
+                  icon: {{ service.icon | default('mdi:application') }}
+                {% endif %}
+                {% endfor %}

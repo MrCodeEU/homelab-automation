@@ -1,6 +1,6 @@
 # Homelab Automation
 
-This repository contains everything needed to automatically deploy and manage a complete homelab setup across multiple devices using SSH over Tailscale VPN.
+This repository contains everything needed to automatically deploy and manage a complete homelab setup across multiple devices using Ansible.
 
 ## ⚡ Quick Start
 
@@ -9,17 +9,23 @@ This repository contains everything needed to automatically deploy and manage a 
 git clone https://github.com/MrCodeEU/homelab-automation.git
 cd homelab-automation
 
-# 2. Configure your devices in inventory.yml (set hostnames and OS types)
-nano inventory.yml
+# 2. Install Ansible
+# On Linux/WSL:
+sudo apt update
+sudo apt install ansible
 
-# 3. Deploy to a Rocky Linux VPS
-./scripts/deploy-single.sh your-vps.tailnet-xxx.ts.net root rocky all
+# 3. Configure your inventory
+# Edit ansible/inventory/hosts.yml to match your Tailscale hostnames
+nano ansible/inventory/hosts.yml
 
-# 4. Deploy to Unraid NAS (uses community templates)
-./scripts/deploy-single.sh your-unraid.tailnet-xxx.ts.net root slackware all
+# 4. Configure services
+# Edit ansible/group_vars/all.yml to define your services and global settings
+nano ansible/group_vars/all.yml
+
+# 5. Deploy
+cd ansible
+ansible-playbook playbooks/site.yml
 ```
-
-📖 See [QUICKSTART.md](QUICKSTART.md) for a 5-minute setup guide or [SETUP.md](SETUP.md) for detailed instructions.
 
 ## 🏗️ Architecture
 
@@ -30,17 +36,24 @@ The automation supports deployment to three types of devices:
 
 All devices are connected via Tailscale VPN for secure SSH access.
 
+**Ansible Migration:**
+This project has been migrated from shell scripts to Ansible for better maintainability and idempotency.
+- **Inventory**: `ansible/inventory/hosts.yml`
+- **Configuration**: `ansible/group_vars/all.yml`
+- **Playbooks**: `ansible/playbooks/`
+- **Roles**: `ansible/roles/`
+
 **OS-Specific Handling:**
-- Rocky Linux servers use standard package managers (yum) and docker-compose
-- Unraid uses Docker via its built-in system and Community Applications templates
+- **Rocky/Debian**: Fully managed by Ansible roles (common, docker, caddy, glance).
+- **Unraid**: Managed via a wrapper role that executes custom deployment scripts (`scripts/03-unraid-deploy.sh`).
 
 ## 🚀 Features
 
-- **Automated Base Setup**: Installs essential packages (git, docker, curl, vim, htop, etc.)
-- **Rocky Linux Focus**: Streamlined deployment for Rocky Linux systems
-- **Docker Installation**: Sets up Docker and Docker Compose
-- **Caddy Reverse Proxy**: Auto-configured HTTPS reverse proxy from YAML config
-- **Glance Dashboard**: Beautiful self-hosted dashboard with:
+- **Automated Base Setup**: Installs essential packages (git, docker, curl, vim, htop, etc.) via `common` role.
+- **Docker Installation**: Sets up Docker and Docker Compose via `docker` role.
+- **Caddy Reverse Proxy**: Auto-configured HTTPS reverse proxy from YAML config via `caddy` role.
+- **Glance Dashboard**: Beautiful self-hosted dashboard generated from config via `glance` role.
+
   - 🌤️ Weather widget
   - 📅 Calendar integration
   - 🕐 Multiple timezone clocks

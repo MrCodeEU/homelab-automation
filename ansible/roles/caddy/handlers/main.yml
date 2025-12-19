@@ -1,0 +1,6 @@
+---
+- name: Reload Caddy
+  docker_container:
+    name: caddy
+    state: started
+    restart: yes

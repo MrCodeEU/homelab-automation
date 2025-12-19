@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ dashboard_name }}</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .service { margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        .service a { text-decoration: none; color: #333; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>{{ dashboard_name }}</h1>
+    <div class="deployment-info">
+        <strong>Deployment Info:</strong><br>
+        Generated: {{ ansible_date_time.iso8601 }}<br>
+        Domain: {{ domain }}<br>
+    </div>
+    <hr>
+    {% for service in services %}
+    {% if service.enabled | default(true) %}
+    <div class="service">
+        <a href="https://{{ service.domain if service.domain is string else service.domain[0] }}">
+            {{ service.name }} ({{ service.description }})
+        </a>
+    </div>
+    {% endif %}
+    {% endfor %}
+</body>
+</html>

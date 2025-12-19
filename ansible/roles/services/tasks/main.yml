@@ -1,0 +1,52 @@
+---
+- name: Ensure service directory exists
+  file:
+    path: "/opt/{{ item.name }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ services }}"
+  when: 
+    - item.enabled | default(true)
+    - item.managed | default(true)
+    - inventory_hostname == item.host
+
+- name: Copy docker-compose.yml
+  template:
+    src: "{{ playbook_dir }}/../../configs/{{ item.name }}/docker-compose.yml"
+    dest: "/opt/{{ item.name }}/docker-compose.yml"
+  loop: "{{ services }}"
+  when: 
+    - item.enabled | default(true)
+    - item.managed | default(true)
+    - inventory_hostname == item.host
+  ignore_errors: yes # Some services might not have a local config yet
+
+- name: Create .env file with secrets
+  template:
+    src: env.j2
+    dest: "/opt/{{ item.name }}/.env"
+  loop: "{{ services }}"
+  when: 
+    - item.enabled | default(true)
+    - item.managed | default(true)
+    - inventory_hostname == item.host
+  vars:
+    # Map secrets to variables used in the template
+    nightscout_api_secret: "{{ nightscout_api_secret | default('') }}"
+    link_up_username: "{{ link_up_username | default('') }}"
+    link_up_password: "{{ link_up_password | default('') }}"
+    nightscout_api_token: "{{ nightscout_api_token | default('') }}"
+    nightscout_domain: "{{ nightscout_domain | default('') }}"
+    bichon_encrypt_password: "{{ bichon_encrypt_password | default('') }}"
+
+- name: Deploy service via Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: "/opt/{{ item.name }}"
+    state: present
+  loop: "{{ services }}"
+  when: 
+    - item.enabled | default(true)
+    - item.managed | default(true)
+    - inventory_hostname == item.host
+    # Only run if docker-compose.yml exists
+    - query('file', '/opt/' + item.name + '/docker-compose.yml')
