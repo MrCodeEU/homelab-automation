@@ -172,7 +172,7 @@ cat >> "$CADDY_OUTPUT_DIR/site/index.html" << EOF
         </div>
 
         <div class="footer">
-            <p>Deployed via GitHub Actions &bull; <a href="https://github.com/mljr/homelab-automation" style="color: #666;">Source</a></p>
+            <p>Deployed via GitHub Actions &bull; <a href="https://github.com/MrCodeEU/homelab-automation" style="color: #666;">Source</a></p>
         </div>
     </div>
 </body>
