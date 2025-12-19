@@ -65,19 +65,30 @@ if [ "$MANAGED" = "false" ]; then
     exit 0
 fi
 
-# Check for custom setup script (legacy support)
-CUSTOM_SCRIPT="$SCRIPTS_DIR/setup-$SERVICE_NAME.sh"
-if [ -f "$CUSTOM_SCRIPT" ]; then
-    log_info "Found custom setup script: $CUSTOM_SCRIPT"
-    bash "$CUSTOM_SCRIPT" "$SERVICE_NAME" "$SERVICES_FILE"
+# Define service directories
+SERVICE_CONFIG_DIR="$CONFIGS_DIR/$SERVICE_NAME"
+HOOKS_DIR="$SERVICE_CONFIG_DIR/hooks"
+
+# Check for custom setup script in config folder (preferred)
+CONFIG_SETUP_SCRIPT="$HOOKS_DIR/setup.sh"
+if [ -f "$CONFIG_SETUP_SCRIPT" ]; then
+    log_info "Found service-specific setup script: $CONFIG_SETUP_SCRIPT"
+    chmod +x "$CONFIG_SETUP_SCRIPT"
+    bash "$CONFIG_SETUP_SCRIPT" "$SERVICE_NAME" "$SERVICES_FILE"
+    exit $?
+fi
+
+# Check for legacy setup script in scripts folder
+LEGACY_SETUP_SCRIPT="$SCRIPTS_DIR/setup-$SERVICE_NAME.sh"
+if [ -f "$LEGACY_SETUP_SCRIPT" ]; then
+    log_warn "Found legacy setup script: $LEGACY_SETUP_SCRIPT"
+    log_warn "Consider migrating to $CONFIG_SETUP_SCRIPT for better organization"
+    bash "$LEGACY_SETUP_SCRIPT" "$SERVICE_NAME" "$SERVICES_FILE"
     exit $?
 fi
 
 # Standard Docker Compose Deployment
 log_info "Starting standard Docker Compose deployment for $SERVICE_NAME..."
-
-SERVICE_CONFIG_DIR="$CONFIGS_DIR/$SERVICE_NAME"
-HOOKS_DIR="$SERVICE_CONFIG_DIR/hooks"
 
 if [ ! -d "$SERVICE_CONFIG_DIR" ]; then
     log_error "Configuration directory not found: $SERVICE_CONFIG_DIR"
