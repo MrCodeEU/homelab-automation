@@ -17,11 +17,15 @@
     state: absent
   when: caddy_compose.stat.exists
 
-- name: Ensure conflicting web servers are not running
-  service:
-    name: "{{ item }}"
-    state: stopped
-    enabled: no
+- name: Force remove existing Caddy container
+  docker_container:
+    name: caddy
+    state: absent
+    force_kill: yes
+  ignore_errors: yes
+
+- name: Stop conflicting web servers
+  shell: "systemctl stop {{ item }} || true"
   loop:
     - httpd
     - nginx

@@ -17,6 +17,13 @@
     state: absent
   when: glance_compose.stat.exists
 
+- name: Force remove existing Glance container
+  docker_container:
+    name: glance
+    state: absent
+    force_kill: yes
+  ignore_errors: yes
+
 - name: Create Glance directories
   file:
     path: /opt/glance

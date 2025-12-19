@@ -28,10 +28,18 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
+      - name: Cache Ansible
+        uses: actions/cache@v4
+        id: ansible-cache
+        with:
+            path: /usr/bin/ansible*
+            key: ansible-${{ runner.os }}-${{ hashFiles('.github/workflows/ansible-deploy.yml') }}
+
       - name: Install Ansible
+        if: steps.ansible-cache.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ansible
+            sudo apt-get update
+            sudo apt-get install -y ansible
 
       - name: Run Ansible Playbook
         env:
