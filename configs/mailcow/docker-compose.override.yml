@@ -1,0 +1,15 @@
+# Docker Compose Override for Mailcow behind Caddy reverse proxy
+# This file prevents mailcow nginx from binding to ports 80/443
+# since Caddy handles SSL termination and proxying
+
+version: '2.1'
+
+services:
+  nginx-mailcow:
+    ports:
+      # Remove external port bindings - Caddy will proxy to 127.0.0.1:8081
+      - "127.0.0.1:8081:80"
+      # - "443:443"  # Commented out - Caddy handles SSL
+    environment:
+      - SKIP_LETS_ENCRYPT=y
+      - ADDITIONAL_SERVER_NAMES=mail.mljr.eu

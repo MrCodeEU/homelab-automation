@@ -56,7 +56,7 @@ services:
       AUTH_DEFAULT_ROLES: readable
       
     ports:
-      - "1337:1337"  # Exposed locally for LibreLink-Up connector
+      - "127.0.0.1:1337:1337"  # Bind to localhost only (system Caddy can reach it)
     networks:
       - nightscout-internal
       - caddy_network
@@ -77,7 +77,8 @@ services:
       # LibreLink Up Credentials (from .env file)
       LINK_UP_USERNAME: ${LINK_UP_USERNAME}
       LINK_UP_PASSWORD: ${LINK_UP_PASSWORD}
-      LINK_UP_REGION: ${LINK_UP_REGION:-EU}
+      # Region: EU is standard, but try DE if you are in Austria/Germany and EU fails
+      LINK_UP_REGION: ${LINK_UP_REGION:-DE}
       LINK_UP_TIME_INTERVAL: ${LINK_UP_TIME_INTERVAL:-5}
       LINK_UP_VERSION: ${LINK_UP_VERSION:-4.16.0}
       

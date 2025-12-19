@@ -29,33 +29,38 @@ services:
   - name: nightscout
     enabled: true
     # skip_deploy: false
-    domain: "nightscout.mljr.eu"
+    domain: 
+      - "nightscout.mljr.eu"
+      - "ns.mljr.eu"
     port: 1337
     host: mljr
     description: "CGM Monitor"
     icon: "mdi:diabetes"
-    
-  # Container Management
-  - name: portainer
-    enabled: false
-    # skip_deploy: false
-    domain: "portainer.mljr.eu"
-    port: 9000
-    host: mljr
-    description: "Docker management"
-    icon: "si:portainer"
   
-  # Monitoring (prepared for future)
+  # Monitoring (Uptime Kuma)
   - name: kuma
-    enabled: false
+    enabled: true
     host: mljr
     skip_deploy: false
-    domain: "status.mljr.eu"
+    domain: "uptime.mljr.eu"
+    port: 3001
+    description: "Uptime Monitoring"
+    icon: "mdi:heart-pulse"
 
-  # Home Assistant
+  # Access Logs (GoAccess) - Real-time web analytics
+  - name: goaccess
+    enabled: true
+    domain: "logs.mljr.eu"
+    port: 7890
+    host: mljr
+    description: "Access Logs"
+    icon: "mdi:chart-bar"
+    caddy_auth: "basicauth"
+
+  # Home Assistant (external service - not managed by this automation)
   - name: homeassistant
     enabled: true
-    managed: false
+    managed: false  # Set to false for services deployed elsewhere
     domain: "home.mljr.eu"
     port: 8123
     description: "Home Automation"
@@ -70,6 +75,17 @@ services:
     port: 15630
     description: "Email archiver (Bichon)"
     icon: "mdi:email"
+    host: mljr
+
+  # Mailcow (Mail Server) - Fully automated setup
+  - name: mailcow
+    enabled: false  # Disabled - will configure later
+    domain: "mail.mljr.eu"
+    port: 8081  # Mailcow nginx-mailcow container port (8080 used by Glance)
+    description: "Mail Server"
+    icon: "mdi:email-server"
+    host: mljr
+    managed: false  # Deployed via scripts/setup-mailcow.sh
 
   # Example: Service with custom upstream (no port needed if already in URL format)
   # - name: custom
