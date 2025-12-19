@@ -37,12 +37,15 @@ if [ -z "$CADDY_AUTH_USER" ] || [ -z "$CADDY_AUTH_PASSWORD_HASH" ]; then
     exit 1
 fi
 
-# Escape special characters for sed
-ESCAPED_USER=$(printf '%s\n' "$CADDY_AUTH_USER" | sed -e 's/[\/&]/\\&/g')
-ESCAPED_HASH=$(printf '%s\n' "$CADDY_AUTH_PASSWORD_HASH" | sed -e 's/[\/&]/\\&/g')
-
-# Replace placeholders
-sed -i "s/__CADDY_AUTH_USER__/$ESCAPED_USER/g" "$CADDYFILE"
-sed -i "s/__CADDY_AUTH_PASSWORD_HASH__/$ESCAPED_HASH/g" "$CADDYFILE"
+# Use Python for safe replacement (handles all special characters reliably)
+python3 -c "
+import sys, os, re
+with open('$CADDYFILE', 'r') as f:
+    content = f.read()
+content = content.replace('__CADDY_AUTH_USER__', os.environ['CADDY_AUTH_USER'])
+content = content.replace('__CADDY_AUTH_PASSWORD_HASH__', os.environ['CADDY_AUTH_PASSWORD_HASH'])
+with open('$CADDYFILE', 'w') as f:
+    f.write(content)
+"
 
 log_success "Injected Caddy authentication credentials"
