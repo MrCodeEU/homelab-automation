@@ -64,15 +64,20 @@ jobs:
           echo "KUMA_USERNAME=${{ secrets.KUMA_USERNAME }}" >> secrets.env
           echo "KUMA_PASSWORD=${{ secrets.KUMA_PASSWORD }}" >> secrets.env
           echo "CADDY_AUTH_USER=${{ secrets.CADDY_AUTH_USER }}" >> secrets.env
-          # Use printf to safely write bcrypt hash (contains $ which bash would expand)
-          printf 'CADDY_AUTH_PASSWORD_HASH=%s\n' "${{ secrets.CADDY_AUTH_PASSWORD_HASH }}" >> secrets.env
+          # Use cat with heredoc to safely write bcrypt hash (contains $ which bash would expand)
+          cat >> secrets.env << 'CADDY_HASH_EOF'
+          CADDY_AUTH_PASSWORD_HASH=${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
+          CADDY_HASH_EOF
           
           # Validate Caddy auth secrets if they're set
           if [ -n "${{ secrets.CADDY_AUTH_USER }}" ]; then
             echo "✓ CADDY_AUTH_USER is set"
-            # Validate hash format (should start with $2a$, $2b$, or $2y$)
-            # Use printf to safely handle $ characters in bcrypt hash
-            if printf '%s' "${{ secrets.CADDY_AUTH_PASSWORD_HASH }}" | grep -qE '^\$2[aby]\$[0-9]{2}\$'; then
+            # Store hash in variable using heredoc to prevent expansion
+            HASH_TO_VALIDATE=$(cat << 'HASH_EOF'
+          ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
+          HASH_EOF
+          )
+            if printf '%s' "$HASH_TO_VALIDATE" | grep -qE '^\$2[aby]\$[0-9]{2}\$'; then
               echo "✓ CADDY_AUTH_PASSWORD_HASH appears to be valid bcrypt format"
             else
               echo "⚠️  WARNING: CADDY_AUTH_PASSWORD_HASH may not be valid bcrypt format"
