@@ -215,17 +215,28 @@ if [ "$SERVICE_COUNT" -gt 0 ]; then
           if [ "$IS_IN_INVENTORY" = "true" ]; then
              # Get primary hostname
              PRIMARY_HOST=$(yq eval ".devices.$EFFECTIVE_HOST.hostname" "$INVENTORY_FILE")
-             TARGET="$PRIMARY_HOST:$PORT"
              
-             # Get fallbacks
-             FALLBACK_COUNT=$(yq eval ".devices.$EFFECTIVE_HOST.fallbacks | length" "$INVENTORY_FILE")
-             if [ "$FALLBACK_COUNT" -gt 0 ] && [ "$FALLBACK_COUNT" != "null" ]; then
-                 for j in $(seq 0 $((FALLBACK_COUNT - 1))); do
-                     FB_HOST=$(yq eval ".devices.$EFFECTIVE_HOST.fallbacks[$j]" "$INVENTORY_FILE")
-                     TARGET="$TARGET $FB_HOST:$PORT"
-                 done
+             # Check if this is a remote service or local
+             # If service is on same host as Caddy, only use localhost (no fallbacks needed)
+             CURRENT_HOSTNAME=$(hostname -f 2>/dev/null || hostname)
+             if [ "$PRIMARY_HOST" = "$CURRENT_HOSTNAME" ] || echo "$PRIMARY_HOST" | grep -q "$(hostname)"; then
+                 # Local service - use localhost only
+                 TARGET="127.0.0.1:$PORT"
+                 echo "  - Local service $EFFECTIVE_HOST: using 127.0.0.1:$PORT"
+             else
+                 # Remote service - use primary + fallbacks
+                 TARGET="$PRIMARY_HOST:$PORT"
+                 
+                 # Get fallbacks
+                 FALLBACK_COUNT=$(yq eval ".devices.$EFFECTIVE_HOST.fallbacks | length" "$INVENTORY_FILE")
+                 if [ "$FALLBACK_COUNT" -gt 0 ] && [ "$FALLBACK_COUNT" != "null" ]; then
+                     for j in $(seq 0 $((FALLBACK_COUNT - 1))); do
+                         FB_HOST=$(yq eval ".devices.$EFFECTIVE_HOST.fallbacks[$j]" "$INVENTORY_FILE")
+                         TARGET="$TARGET $FB_HOST:$PORT"
+                     done
+                 fi
+                 echo "  - Remote service $EFFECTIVE_HOST: resolved to $TARGET"
              fi
-             echo "  - Resolved $EFFECTIVE_HOST to $TARGET"
           elif [ -z "$EFFECTIVE_HOST" ] || [ "$EFFECTIVE_HOST" = "localhost" ] || [ "$EFFECTIVE_HOST" = "null" ]; then
             # Default to localhost since Caddy is running in host mode
             # This REQUIRES the target service to expose its port to the host (e.g. ports: - "8080:8080")
