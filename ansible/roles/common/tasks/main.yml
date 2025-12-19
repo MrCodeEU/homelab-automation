@@ -12,6 +12,7 @@
       - unzip
       - jq
       - tar
+      - lsof
       - python3
       - python3-pip
     state: present
@@ -31,6 +32,7 @@
       - unzip
       - jq
       - tar
+      - lsof
       - python3
       - python3-pip
     state: present

@@ -1,42 +1,63 @@
 ---
-- name: Check for legacy Caddy docker-compose file
-  stat:
-    path: /opt/caddy/docker-compose.yml
-  register: caddy_compose
+- name: Install Caddy (Rocky/RedHat)
+  block:
+    - name: Install DNF plugins
+      dnf:
+        name: 'dnf-command(copr)'
+        state: present
 
-- name: Tear down legacy Caddy docker-compose
-  shell: docker compose down
-  args:
-    chdir: /opt/caddy
-  when: caddy_compose.stat.exists
-  ignore_errors: yes
+    - name: Enable Caddy COPR
+      command: dnf copr enable -y @caddy/caddy
+      args:
+        creates: /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:group_caddy:caddy.repo
 
-- name: Remove legacy Caddy docker-compose file
-  file:
-    path: /opt/caddy/docker-compose.yml
-    state: absent
-  when: caddy_compose.stat.exists
+    - name: Install Caddy
+      dnf:
+        name: caddy
+        state: present
+  when: ansible_facts['os_family'] == "RedHat"
 
-- name: Force remove existing Caddy container
-  docker_container:
-    name: caddy
-    state: absent
-    force_kill: yes
-  ignore_errors: yes
+- name: Install Caddy (Debian/Ubuntu)
+  block:
+    - name: Install prerequisites
+      apt:
+        name:
+          - debian-keyring
+          - debian-archive-keyring
+          - apt-transport-https
+          - curl
+        state: present
+        update_cache: yes
 
-- name: Stop conflicting web servers
-  shell: "systemctl stop {{ item }} || true"
-  loop:
-    - httpd
-    - nginx
-    - apache2
-  ignore_errors: yes
+    - name: Add Caddy GPG key
+      shell: |
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+      args:
+        creates: /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+
+    - name: Add Caddy repository
+      shell: |
+        curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+      args:
+        creates: /etc/apt/sources.list.d/caddy-stable.list
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install Caddy
+      apt:
+        name: caddy
+        state: present
+  when: ansible_facts['os_family'] == "Debian"
 
 - name: Create Caddy directories
   file:
     path: "{{ item }}"
     state: directory
     mode: '0755'
+    owner: caddy
+    group: caddy
   loop:
     - /opt/caddy
     - /opt/caddy/site
@@ -45,25 +66,41 @@
 - name: Generate Caddyfile
   template:
     src: Caddyfile.j2
-    dest: /opt/caddy/Caddyfile
+    dest: /etc/caddy/Caddyfile
+    owner: caddy
+    group: caddy
+    mode: '0644'
   notify: Reload Caddy
 
 - name: Generate index.html
   template:
     src: index.html.j2
     dest: /opt/caddy/site/index.html
+    owner: caddy
+    group: caddy
+    mode: '0644'
 
-- name: Ensure Caddy container is running
+- name: Ensure Caddy service is running
+  service:
+    name: caddy
+    state: started
+    enabled: yes
+
+- name: Stop conflicting web servers
+  service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+  loop:
+    - httpd
+    - nginx
+    - apache2
+  ignore_errors: yes
+
+- name: Remove legacy Caddy container
   docker_container:
     name: caddy
-    image: caddy:latest
-    restart_policy: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /opt/caddy/Caddyfile:/etc/caddy/Caddyfile
-      - /opt/caddy/site:/opt/caddy/site
-      - /opt/caddy/data:/data
-      - /opt/caddy/config:/config
-      - /opt/caddy/logs:/opt/caddy/logs
+    state: absent
+    force_kill: yes
+  ignore_errors: yes
+

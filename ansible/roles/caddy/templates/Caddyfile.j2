@@ -29,7 +29,11 @@
     {% if service.upstream is defined %}
     reverse_proxy {{ service.upstream }}
     {% else %}
+    {% if service.host == inventory_hostname %}
+    reverse_proxy localhost:{{ service.port }}
+    {% else %}
     reverse_proxy {{ hostvars[service.host]['ansible_host'] }}:{{ service.port }}
+    {% endif %}
     {% endif %}
 }
 {% endif %}
