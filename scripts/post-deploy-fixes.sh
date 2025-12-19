@@ -12,7 +12,7 @@ if command -v getenforce &> /dev/null && [ "$(getenforce)" = "Enforcing" ]; then
     echo "1. Checking SELinux context for Caddy logs..."
     
     # Check if context is already set
-    if ! semanage fcontext -l | grep -q '/opt/caddy/logs'; then
+    if ! semanage fcontext -l 2>/dev/null | grep -q '/opt/caddy/logs'; then
         echo "   Setting SELinux context..."
         semanage fcontext -a -t httpd_log_t '/opt/caddy/logs(/.*)?'
         restorecon -Rv /opt/caddy/logs

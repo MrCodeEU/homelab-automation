@@ -31,21 +31,27 @@ if [ -f "/tmp/homelab-deploy/secrets.env" ]; then
 fi
 
 # Check if authentication credentials are set
-if [ -z "$CADDY_AUTH_USER" ] || [ -z "$CADDY_AUTH_PASSWORD_HASH" ]; then
-    log_error "CADDY_AUTH_USER or CADDY_AUTH_PASSWORD_HASH not set in secrets"
-    log_info "Generate hash with: caddy hash-password --plaintext 'your-password'"
-    exit 1
+if [ -z "$CADDY_AUTH_USER" ] && [ -z "$CADDY_AUTH_PASSWORD_HASH" ]; then
+    log_error "Both CADDY_AUTH_USER and CADDY_AUTH_PASSWORD_HASH are not set in secrets"
+    log_info "Skipping injection (no credentials configured)"
+    exit 0  # Exit gracefully - auth not configured
 fi
 
-log_info "Found credentials: user='$CADDY_AUTH_USER' (hash length: ${#CADDY_AUTH_PASSWORD_HASH})"
+log_info "Found credentials:"
+log_info "  User: ${CADDY_AUTH_USER:-'<not set>'}"
+log_info "  Hash: ${CADDY_AUTH_PASSWORD_HASH:+<set, length ${#CADDY_AUTH_PASSWORD_HASH}>}"
 
 # Validate bcrypt hash format (should start with $2a$, $2b$, or $2y$)
-if [[ ! "$CADDY_AUTH_PASSWORD_HASH" =~ ^\$2[aby]\$[0-9]{2}\$ ]]; then
-    log_error "CADDY_AUTH_PASSWORD_HASH does not appear to be a valid bcrypt hash"
-    log_info "It should start with \$2a\$, \$2b\$, or \$2y\$"
-    log_info "Current value starts with: ${CADDY_AUTH_PASSWORD_HASH:0:10}..."
-    log_info "Generate with: docker run --rm caddy caddy hash-password --plaintext 'your-password'"
-    exit 1
+HASH_VALID=true
+if [ -n "$CADDY_AUTH_PASSWORD_HASH" ]; then
+    if [[ ! "$CADDY_AUTH_PASSWORD_HASH" =~ ^\$2[aby]\$[0-9]{2}\$ ]]; then
+        log_error "WARNING: CADDY_AUTH_PASSWORD_HASH does not appear to be a valid bcrypt hash"
+        log_info "  It should start with \$2a\$, \$2b\$, or \$2y\$"
+        log_info "  Current value starts with: ${CADDY_AUTH_PASSWORD_HASH:0:10}..."
+        log_info "  Generate with: docker run --rm caddy caddy hash-password --plaintext 'your-password'"
+        log_info "  Attempting injection anyway - Caddy will validate and provide better error"
+        HASH_VALID=false
+    fi
 fi
 
 # Export variables explicitly for Python subprocess
@@ -85,6 +91,10 @@ try:
     # Verify changes were made
     if content == original_content:
         print(f"WARNING: No changes made to Caddyfile", file=sys.stderr)
+    else:
+        # Show what was injected (safely)
+        print(f"Injected username: {username}")
+        print(f"Injected password hash: {password_hash[:15]}... (length: {len(password_hash)})")
     
     # Write back
     with open(caddyfile_path, 'w') as f:
