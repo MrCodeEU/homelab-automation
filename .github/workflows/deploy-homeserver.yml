@@ -48,11 +48,13 @@ jobs:
           echo "NIGHTSCOUT_API_TOKEN=${{ secrets.NIGHTSCOUT_API_TOKEN }}" >> secrets.env
           echo "NIGHTSCOUT_DOMAIN=${{ secrets.NIGHTSCOUT_DOMAIN }}" >> secrets.env
           echo "BICHON_ENCRYPT_PASSWORD=${{ secrets.BICHON_ENCRYPT_PASSWORD }}" >> secrets.env
+          echo "KUMA_USERNAME=${{ secrets.KUMA_USERNAME }}" >> secrets.env
+          echo "KUMA_PASSWORD=${{ secrets.KUMA_PASSWORD }}" >> secrets.env
 
       - name: Copy deployment scripts
         run: |
           tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "mkdir -p /tmp/homelab-deploy"
-          tar czf - scripts/ configs/ secrets.env | tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"
+          tar czf - scripts/ configs/ secrets.env inventory.yml | tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"
           echo "✓ Scripts and configs deployed"
 
       - name: Execute base setup
@@ -73,17 +75,11 @@ jobs:
           tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/generate-configs.sh /tmp/homelab-deploy/configs/services.yml"
           echo "✓ Configurations generated"
 
-      - name: Execute Caddy setup
+      - name: Deploy Services
         if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
         run: |
-          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/04-caddy-setup.sh"
-          echo "✓ Caddy setup completed"
-
-      - name: Execute Glance setup
-        if: contains(github.event.inputs.roles, 'caddy') || github.event.inputs.roles == 'all'
-        run: |
-          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/05-glance-setup.sh"
-          echo "✓ Glance setup completed"
+          tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "bash /tmp/homelab-deploy/scripts/03-docker-compose-deploy.sh rocky"
+          echo "✓ Services deployed"
 
       - name: Cleanup secrets
         if: always()

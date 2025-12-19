@@ -38,6 +38,24 @@ These secrets are used for Bichon email archiver application:
 |------------|-------------|---------------|-------|
 | `BICHON_ENCRYPT_PASSWORD` | Encryption password for Bichon data | `MyStrongEncryptionKey456!` | Cannot be changed after initial setup without recreating data |
 
+### Uptime Kuma Secrets
+
+These secrets are used for Uptime Kuma monitoring automation:
+
+| Secret Name | Description | Example Value | Notes |
+|------------|-------------|---------------|-------|
+| `KUMA_USERNAME` | Admin username for Uptime Kuma | `admin` | Used for auto-provisioning monitors |
+| `KUMA_PASSWORD` | Admin password for Uptime Kuma | `SecurePassword123!` | Used for auto-provisioning monitors |
+
+### Caddy Authentication Secrets
+
+These secrets are used for Caddy reverse proxy authentication (e.g., protecting GoAccess):
+
+| Secret Name | Description | Example Value | Notes |
+|------------|-------------|---------------|-------|
+| `CADDY_AUTH_USER` | Username for Caddy basic auth | `admin` | Used for protecting sensitive routes |
+| `CADDY_AUTH_PASSWORD_HASH` | Bcrypt hash of password | `$2a$14$...` | Generate with: `caddy hash-password --plaintext 'yourpassword'` or `docker run --rm caddy caddy hash-password --plaintext 'yourpassword'` |
+
 ---
 
 ## 📋 How to Add GitHub Secrets

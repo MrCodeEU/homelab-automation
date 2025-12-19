@@ -1,15 +1,28 @@
 #!/bin/bash
 # Helper script for testing deployment locally or to a single device
 
-set -e
-
+# Source common functions
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+if [ -f "$SCRIPT_DIR/common.sh" ]; then
+    source "$SCRIPT_DIR/common.sh"
+else
+    # Fallback
+    echo "Warning: common.sh not found"
+    log_info() { echo "[INFO] $1"; }
+    log_success() { echo "[SUCCESS] $1"; }
+    log_error() { echo "[ERROR] $1"; }
+    log_header() { echo "=== $1 ==="; }
+    set_error_trap() { set -e; }
+fi
 
-echo "========================================="
-echo "Homelab Deployment Helper"
-echo "========================================="
-echo ""
+set_error_trap
+
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+REMOTE_BASE="/tmp/homelab-deploy"
+REMOTE_SCRIPTS="$REMOTE_BASE/scripts"
+REMOTE_CONFIGS="$REMOTE_BASE/configs"
+
+log_header "Homelab Deployment Helper"
 
 # Function to show usage
 show_usage() {
@@ -52,52 +65,80 @@ fi
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_rsa}"
 SSH_OPTIONS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
-echo "Target: $USER@$HOSTNAME"
-echo "OS: $OS"
-echo "Roles: $ROLES"
-echo "SSH Key: $SSH_KEY"
-echo ""
+log_info "Target: $USER@$HOSTNAME"
+log_info "OS: $OS"
+log_info "Roles: $ROLES"
+log_info "SSH Key: $SSH_KEY"
 
 # Test SSH connectivity
-echo "Testing SSH connectivity..."
+log_info "Testing SSH connectivity..."
 if ! ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "echo 'SSH connection successful'" 2>/dev/null; then
-    echo "Error: Cannot connect to $HOSTNAME"
-    echo "Please check:"
-    echo "  1. Tailscale is running and connected"
-    echo "  2. SSH key is correct: $SSH_KEY"
-    echo "  3. Host is reachable: $HOSTNAME"
+    log_error "Cannot connect to $HOSTNAME"
+    log_info "Please check:"
+    log_info "  1. Tailscale is running and connected"
+    log_info "  2. SSH key is correct: $SSH_KEY"
+    log_info "  3. Host is reachable: $HOSTNAME"
     exit 1
 fi
-echo "SSH connection successful!"
-echo ""
+log_success "SSH connection successful!"
 
 # Copy scripts to remote host
-echo "Copying deployment scripts..."
-ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "mkdir -p /tmp/homelab-deploy"
-scp $SSH_OPTIONS -i "$SSH_KEY" -r "$SCRIPT_DIR"/*.sh "$USER@$HOSTNAME:/tmp/homelab-deploy/"
+log_info "Copying deployment scripts..."
+ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "mkdir -p $REMOTE_BASE"
+scp $SSH_OPTIONS -i "$SSH_KEY" -r "$SCRIPT_DIR" "$USER@$HOSTNAME:$REMOTE_BASE/"
 
 # Copy configs to remote host
 if [ -d "$PROJECT_ROOT/configs" ]; then
-    echo "Copying configuration files..."
-    scp $SSH_OPTIONS -i "$SSH_KEY" -r "$PROJECT_ROOT/configs" "$USER@$HOSTNAME:/tmp/homelab-deploy/"
+    log_info "Copying configuration files..."
+    scp $SSH_OPTIONS -i "$SSH_KEY" -r "$PROJECT_ROOT/configs" "$USER@$HOSTNAME:$REMOTE_BASE/"
 fi
 
-echo ""
-echo "========================================="
-echo "Starting Deployment"
-echo "========================================="
-echo ""
+# Copy inventory to remote host (needed for config generation)
+if [ -f "$PROJECT_ROOT/inventory.yml" ]; then
+    log_info "Copying inventory file..."
+    scp $SSH_OPTIONS -i "$SSH_KEY" "$PROJECT_ROOT/inventory.yml" "$USER@$HOSTNAME:$REMOTE_BASE/inventory.yml"
+fi
+
+# Copy secrets.env if it exists
+if [ -f "$PROJECT_ROOT/secrets.env" ]; then
+    log_info "Copying secrets.env..."
+    scp $SSH_OPTIONS -i "$SSH_KEY" "$PROJECT_ROOT/secrets.env" "$USER@$HOSTNAME:$REMOTE_BASE/secrets.env"
+elif [ -f "secrets.env" ]; then
+    log_info "Copying secrets.env..."
+    scp $SSH_OPTIONS -i "$SSH_KEY" "secrets.env" "$USER@$HOSTNAME:$REMOTE_BASE/secrets.env"
+fi
+
+log_header "Starting Deployment"
 
 # Execute deployment scripts based on roles
 if [[ "$ROLES" == *"base"* ]] || [ "$ROLES" = "all" ]; then
-    echo ">>> Executing base setup..."
-    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/01-base-setup.sh $OS"
-    echo ""
+    log_info ">>> Executing base setup..."
+    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash $REMOTE_SCRIPTS/01-base-setup.sh $OS"
 fi
 
 if [[ "$ROLES" == *"docker"* ]] || [ "$ROLES" = "all" ]; then
-    echo ">>> Executing Docker setup..."
-    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/02-docker-setup.sh $OS"
+    log_info ">>> Executing Docker setup..."
+    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash $REMOTE_SCRIPTS/02-docker-setup.sh $OS"
+    
+    if [ "$OS" = "slackware" ]; then
+        log_info "Deploying Docker containers for Unraid..."
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash $REMOTE_SCRIPTS/03-unraid-deploy.sh"
+    else
+        log_info "Deploying Docker Compose stacks..."
+        ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash $REMOTE_SCRIPTS/03-docker-compose-deploy.sh $OS $REMOTE_CONFIGS/services.yml $REMOTE_CONFIGS"
+    fi
+fi
+
+if [[ "$ROLES" == *"caddy"* ]] || [ "$ROLES" = "all" ]; then
+    log_info ">>> Executing Service Deployment..."
+    # Generate configs (Caddyfile, Glance)
+    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash $REMOTE_SCRIPTS/generate-configs.sh $REMOTE_CONFIGS/services.yml /opt/caddy /opt/glance $REMOTE_BASE/inventory.yml"
+    
+    # Deploy all services (Caddy, Glance, etc.)
+    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash $REMOTE_SCRIPTS/03-docker-compose-deploy.sh $OS $REMOTE_CONFIGS/services.yml $REMOTE_CONFIGS"
+fi
+
+log_success "Deployment to $HOSTNAME completed successfully!"
     echo ""
     
     # Use Unraid-specific deployment for Slackware/Unraid
@@ -112,22 +153,9 @@ if [[ "$ROLES" == *"docker"* ]] || [ "$ROLES" = "all" ]; then
 fi
 
 if [[ "$ROLES" == *"caddy"* ]] || [ "$ROLES" = "all" ]; then
-    echo ">>> Executing Caddy setup..."
-    CADDYFILE="/tmp/homelab-deploy/configs/caddy/Caddyfile"
-    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/04-caddy-setup.sh $OS $CADDYFILE"
-    echo ""
-fi
-# Deploy Glance dashboard (if Caddy role is included)
-if [[ "$ROLES" == *"caddy"* ]] || [ "$ROLES" = "all" ]; then
-    echo ">>> Deploying Glance dashboard..."
-    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/05-glance-setup.sh || echo 'Glance deployment skipped or failed'"
-    echo ""
-fi
-
-# Deploy Nightscout (if enabled in services.yml)
-if [[ "$ROLES" == *"nightscout"* ]] || [ "$ROLES" = "all" ]; then
-    echo ">>> Deploying Nightscout (if enabled)..."
-    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/06-nightscout-setup.sh || echo 'Nightscout deployment skipped or failed - check if enabled in services.yml and .env configured'"
+    echo ">>> Executing Service Deployment (Caddy, Glance, etc.)..."
+    # 03 handles Caddy and other services
+    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/03-docker-compose-deploy.sh $OS"
     echo ""
 fi
 echo "========================================="

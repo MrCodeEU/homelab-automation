@@ -48,11 +48,13 @@ jobs:
           echo "NIGHTSCOUT_API_TOKEN=${{ secrets.NIGHTSCOUT_API_TOKEN }}" >> secrets.env
           echo "NIGHTSCOUT_DOMAIN=${{ secrets.NIGHTSCOUT_DOMAIN }}" >> secrets.env
           echo "BICHON_ENCRYPT_PASSWORD=${{ secrets.BICHON_ENCRYPT_PASSWORD }}" >> secrets.env
+          echo "KUMA_USERNAME=${{ secrets.KUMA_USERNAME }}" >> secrets.env
+          echo "KUMA_PASSWORD=${{ secrets.KUMA_PASSWORD }}" >> secrets.env
 
       - name: Copy deployment scripts
         run: |
           tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p /tmp/homelab-deploy"
-          tar czf - scripts/ configs/ secrets.env | tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"
+          tar czf - scripts/ configs/ secrets.env inventory.yml | tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"
           echo "✓ Scripts and configs deployed"
 
       - name: Execute base setup
@@ -131,11 +133,13 @@ jobs:
           echo "NIGHTSCOUT_API_TOKEN=${{ secrets.NIGHTSCOUT_API_TOKEN }}" >> secrets.env
           echo "NIGHTSCOUT_DOMAIN=${{ secrets.NIGHTSCOUT_DOMAIN }}" >> secrets.env
           echo "BICHON_ENCRYPT_PASSWORD=${{ secrets.BICHON_ENCRYPT_PASSWORD }}" >> secrets.env
+          echo "KUMA_USERNAME=${{ secrets.KUMA_USERNAME }}" >> secrets.env
+          echo "KUMA_PASSWORD=${{ secrets.KUMA_PASSWORD }}" >> secrets.env
 
       - name: Copy deployment scripts
         run: |
           tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "mkdir -p /tmp/homelab-deploy"
-          tar czf - scripts/ configs/ secrets.env | tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"
+          tar czf - scripts/ configs/ secrets.env inventory.yml | tailscale ssh "${{ secrets.HOMESERVER_USER }}@${{ secrets.HOMESERVER_HOST }}" "cd /tmp/homelab-deploy && tar xzf -"
           echo "✓ Scripts and configs deployed"
 
       - name: Execute base setup
