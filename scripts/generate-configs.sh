@@ -248,36 +248,50 @@ if [ "$SERVICE_COUNT" -gt 0 ]; then
         echo "" >> "$CADDYFILE"
         echo "# $SERVICE_NAME" >> "$CADDYFILE"
         echo "$DOMAIN {" >> "$CADDYFILE"
-        
+
         # Check for authentication requirement
         AUTH_TYPE=$(yq eval ".services[$i].caddy_auth // \"\"" "$CONFIG_FILE")
-        if [ "$AUTH_TYPE" = "basicauth" ]; then
-            echo "    basicauth {" >> "$CADDYFILE"
-            echo "        __CADDY_AUTH_USER__ __CADDY_AUTH_PASSWORD_HASH__" >> "$CADDYFILE"
+
+        # Special handling for goaccess - WebSocket needs to bypass basicauth
+        if [ "$SERVICE_NAME" = "goaccess" ] && [ "$AUTH_TYPE" = "basicauth" ]; then
+            echo "    # WebSocket endpoint (no auth required for real-time updates)" >> "$CADDYFILE"
+            echo "    handle /ws {" >> "$CADDYFILE"
+            echo "        reverse_proxy 127.0.0.1:7890" >> "$CADDYFILE"
             echo "    }" >> "$CADDYFILE"
-        fi
-        
-        # Check for custom Caddy directives
-        CUSTOM_DIRECTIVES=$(yq eval ".services[$i].caddy_directives // \"\"" "$CONFIG_FILE")
-        if [ -n "$CUSTOM_DIRECTIVES" ] && [ "$CUSTOM_DIRECTIVES" != "null" ]; then
-            # Add custom directives with proper indentation
-            echo "$CUSTOM_DIRECTIVES" | sed 's/^/    /' >> "$CADDYFILE"
-        fi
-        
-        if [ "$SERVICE_NAME" = "goaccess" ]; then
-             echo "    root * /opt/goaccess/report" >> "$CADDYFILE"
-             echo "    file_server" >> "$CADDYFILE"
-             echo "    # WebSocket support for real-time updates" >> "$CADDYFILE"
-             echo "    reverse_proxy /ws 127.0.0.1:7890" >> "$CADDYFILE"
-        elif [ "$SERVICE_NAME" = "homeassistant" ]; then
-             # Home Assistant needs specific headers for reverse proxy
-             echo "    reverse_proxy $TARGET {" >> "$CADDYFILE"
-             echo "        header_up Host {upstream_hostport}" >> "$CADDYFILE"
-             echo "        header_up X-Forwarded-Proto {scheme}" >> "$CADDYFILE"
-             echo "        header_up X-Forwarded-For {remote_host}" >> "$CADDYFILE"
-             echo "    }" >> "$CADDYFILE"
+            echo "" >> "$CADDYFILE"
+            echo "    # Static files with basic auth" >> "$CADDYFILE"
+            echo "    handle {" >> "$CADDYFILE"
+            echo "        basicauth {" >> "$CADDYFILE"
+            echo "            __CADDY_AUTH_USER__ __CADDY_AUTH_PASSWORD_HASH__" >> "$CADDYFILE"
+            echo "        }" >> "$CADDYFILE"
+            echo "        root * /opt/goaccess/report" >> "$CADDYFILE"
+            echo "        file_server" >> "$CADDYFILE"
+            echo "    }" >> "$CADDYFILE"
         else
-             echo "    reverse_proxy $TARGET" >> "$CADDYFILE"
+            # Standard basic auth for other services
+            if [ "$AUTH_TYPE" = "basicauth" ]; then
+                echo "    basicauth {" >> "$CADDYFILE"
+                echo "        __CADDY_AUTH_USER__ __CADDY_AUTH_PASSWORD_HASH__" >> "$CADDYFILE"
+                echo "    }" >> "$CADDYFILE"
+            fi
+
+            # Check for custom Caddy directives
+            CUSTOM_DIRECTIVES=$(yq eval ".services[$i].caddy_directives // \"\"" "$CONFIG_FILE")
+            if [ -n "$CUSTOM_DIRECTIVES" ] && [ "$CUSTOM_DIRECTIVES" != "null" ]; then
+                # Add custom directives with proper indentation
+                echo "$CUSTOM_DIRECTIVES" | sed 's/^/    /' >> "$CADDYFILE"
+            fi
+
+            if [ "$SERVICE_NAME" = "homeassistant" ]; then
+                # Home Assistant needs specific headers for reverse proxy
+                echo "    reverse_proxy $TARGET {" >> "$CADDYFILE"
+                echo "        header_up Host {upstream_hostport}" >> "$CADDYFILE"
+                echo "        header_up X-Forwarded-Proto {scheme}" >> "$CADDYFILE"
+                echo "        header_up X-Forwarded-For {remote_host}" >> "$CADDYFILE"
+                echo "    }" >> "$CADDYFILE"
+            else
+                echo "    reverse_proxy $TARGET" >> "$CADDYFILE"
+            fi
         fi
 
         echo "    log {" >> "$CADDYFILE"
