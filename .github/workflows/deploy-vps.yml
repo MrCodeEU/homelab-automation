@@ -53,6 +53,8 @@ jobs:
           fi
 
       - name: Prepare secrets for injection
+        env:
+          CADDY_HASH: ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
         run: |
           # Export secrets as environment variables for the inject-secrets.sh script
           echo "NIGHTSCOUT_API_SECRET=${{ secrets.NIGHTSCOUT_API_SECRET }}" >> secrets.env
@@ -64,20 +66,14 @@ jobs:
           echo "KUMA_USERNAME=${{ secrets.KUMA_USERNAME }}" >> secrets.env
           echo "KUMA_PASSWORD=${{ secrets.KUMA_PASSWORD }}" >> secrets.env
           echo "CADDY_AUTH_USER=${{ secrets.CADDY_AUTH_USER }}" >> secrets.env
-          # Use cat with heredoc to safely write bcrypt hash (contains $ which bash would expand)
-          cat >> secrets.env << 'CADDY_HASH_EOF'
-          CADDY_AUTH_PASSWORD_HASH=${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
-          CADDY_HASH_EOF
+          # Write bcrypt hash from environment variable (prevents bash expansion of $)
+          printf 'CADDY_AUTH_PASSWORD_HASH=%s\n' "$CADDY_HASH" >> secrets.env
           
           # Validate Caddy auth secrets if they're set
           if [ -n "${{ secrets.CADDY_AUTH_USER }}" ]; then
             echo "✓ CADDY_AUTH_USER is set"
-            # Store hash in variable using heredoc to prevent expansion
-            HASH_TO_VALIDATE=$(cat << 'HASH_EOF'
-          ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
-          HASH_EOF
-          )
-            if printf '%s' "$HASH_TO_VALIDATE" | grep -qE '^\$2[aby]\$[0-9]{2}\$'; then
+            # Validate hash format (should start with $2a$, $2b$, or $2y$)
+            if printf '%s' "$CADDY_HASH" | grep -qE '^\$2[aby]\$[0-9]{2}\$'; then
               echo "✓ CADDY_AUTH_PASSWORD_HASH appears to be valid bcrypt format"
             else
               echo "⚠️  WARNING: CADDY_AUTH_PASSWORD_HASH may not be valid bcrypt format"
