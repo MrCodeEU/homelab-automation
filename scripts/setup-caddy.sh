@@ -67,6 +67,13 @@ fi
 echo "Linking Caddyfile..."
 ln -sf "$CADDY_DIR/Caddyfile" /etc/caddy/Caddyfile
 
+# Inject authentication secrets if script exists
+INJECT_SCRIPT="$(dirname "$0")/inject-caddy-secrets.sh"
+if [ -f "$INJECT_SCRIPT" ]; then
+    echo "Injecting Caddy authentication secrets..."
+    bash "$INJECT_SCRIPT" /etc/caddy/Caddyfile || echo "⚠️  Secret injection failed or not needed"
+fi
+
 # Validate Caddyfile
 echo "Validating Caddyfile..."
 caddy validate --config /etc/caddy/Caddyfile

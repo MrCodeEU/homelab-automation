@@ -55,6 +55,7 @@ services:
     host: mljr
     description: "Access Logs"
     icon: "mdi:chart-bar"
+    caddy_auth: "basicauth"  # Enable basic authentication
 
   # Home Assistant (external service - not managed by this automation)
   - name: homeassistant

@@ -63,6 +63,8 @@ jobs:
           echo "BICHON_ENCRYPT_PASSWORD=${{ secrets.BICHON_ENCRYPT_PASSWORD }}" >> secrets.env
           echo "KUMA_USERNAME=${{ secrets.KUMA_USERNAME }}" >> secrets.env
           echo "KUMA_PASSWORD=${{ secrets.KUMA_PASSWORD }}" >> secrets.env
+          echo "CADDY_AUTH_USER=${{ secrets.CADDY_AUTH_USER }}" >> secrets.env
+          echo "CADDY_AUTH_PASSWORD_HASH=${{ secrets.CADDY_AUTH_PASSWORD_HASH }}" >> secrets.env
 
       - name: Copy deployment scripts
         id: copy-scripts

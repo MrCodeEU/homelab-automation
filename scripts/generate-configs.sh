@@ -249,6 +249,21 @@ if [ "$SERVICE_COUNT" -gt 0 ]; then
         echo "# $SERVICE_NAME" >> "$CADDYFILE"
         echo "$DOMAIN {" >> "$CADDYFILE"
         
+        # Check for authentication requirement
+        AUTH_TYPE=$(yq eval ".services[$i].caddy_auth // \"\"" "$CONFIG_FILE")
+        if [ "$AUTH_TYPE" = "basicauth" ]; then
+            echo "    basicauth {" >> "$CADDYFILE"
+            echo "        __CADDY_AUTH_USER__ __CADDY_AUTH_PASSWORD_HASH__" >> "$CADDYFILE"
+            echo "    }" >> "$CADDYFILE"
+        fi
+        
+        # Check for custom Caddy directives
+        CUSTOM_DIRECTIVES=$(yq eval ".services[$i].caddy_directives // \"\"" "$CONFIG_FILE")
+        if [ -n "$CUSTOM_DIRECTIVES" ] && [ "$CUSTOM_DIRECTIVES" != "null" ]; then
+            # Add custom directives with proper indentation
+            echo "$CUSTOM_DIRECTIVES" | sed 's/^/    /' >> "$CADDYFILE"
+        fi
+        
         if [ "$SERVICE_NAME" = "goaccess" ]; then
              echo "    root * /opt/goaccess/report" >> "$CADDYFILE"
              echo "    file_server" >> "$CADDYFILE"
