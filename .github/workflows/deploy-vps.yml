@@ -65,6 +65,18 @@ jobs:
           echo "KUMA_PASSWORD=${{ secrets.KUMA_PASSWORD }}" >> secrets.env
           echo "CADDY_AUTH_USER=${{ secrets.CADDY_AUTH_USER }}" >> secrets.env
           echo "CADDY_AUTH_PASSWORD_HASH=${{ secrets.CADDY_AUTH_PASSWORD_HASH }}" >> secrets.env
+          
+          # Validate Caddy auth secrets if they're set
+          if [ -n "${{ secrets.CADDY_AUTH_USER }}" ]; then
+            echo "✓ CADDY_AUTH_USER is set"
+            # Validate hash format (should start with $2a$, $2b$, or $2y$)
+            if echo "${{ secrets.CADDY_AUTH_PASSWORD_HASH }}" | grep -qE '^\$2[aby]\$[0-9]{2}\$'; then
+              echo "✓ CADDY_AUTH_PASSWORD_HASH appears to be valid bcrypt format"
+            else
+              echo "⚠️  WARNING: CADDY_AUTH_PASSWORD_HASH may not be valid bcrypt format"
+              echo "Expected format: starts with \$2a\$, \$2b\$, or \$2y\$"
+            fi
+          fi
 
       - name: Copy deployment scripts
         id: copy-scripts

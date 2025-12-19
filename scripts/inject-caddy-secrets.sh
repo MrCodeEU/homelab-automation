@@ -37,6 +37,14 @@ if [ -z "$CADDY_AUTH_USER" ] || [ -z "$CADDY_AUTH_PASSWORD_HASH" ]; then
     exit 1
 fi
 
+# Validate bcrypt hash format (should start with $2a$, $2b$, or $2y$)
+if [[ ! "$CADDY_AUTH_PASSWORD_HASH" =~ ^\$2[aby]\$[0-9]{2}\$ ]]; then
+    log_error "CADDY_AUTH_PASSWORD_HASH does not appear to be a valid bcrypt hash"
+    log_info "It should start with \$2a\$, \$2b\$, or \$2y\$"
+    log_info "Generate with: docker run --rm caddy caddy hash-password --plaintext 'your-password'"
+    exit 1
+fi
+
 # Use Python for safe replacement (handles all special characters reliably)
 python3 -c "
 import sys, os, re
@@ -48,4 +56,15 @@ with open('$CADDYFILE', 'w') as f:
     f.write(content)
 "
 
-log_success "Injected Caddy authentication credentials"
+if [ $? -eq 0 ]; then
+    log_success "Injected Caddy authentication credentials"
+    log_info "Verifying Caddyfile syntax..."
+    # Quick validation - check if placeholders are gone
+    if grep -q "__CADDY_AUTH" "$CADDYFILE"; then
+        log_error "Placeholders still present in Caddyfile after injection!"
+        exit 1
+    fi
+else
+    log_error "Failed to inject secrets into Caddyfile"
+    exit 1
+fi
