@@ -54,7 +54,7 @@ jobs:
 
       - name: Prepare secrets for injection
         env:
-          CADDY_HASH: ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
+          CADDY_HASH_BASE64: ${{ secrets.CADDY_AUTH_PASSWORD_HASH_BASE64 }}
         run: |
           # Export secrets as environment variables for the inject-secrets.sh script
           echo "NIGHTSCOUT_API_SECRET=${{ secrets.NIGHTSCOUT_API_SECRET }}" >> secrets.env
@@ -66,17 +66,20 @@ jobs:
           echo "KUMA_USERNAME=${{ secrets.KUMA_USERNAME }}" >> secrets.env
           echo "KUMA_PASSWORD=${{ secrets.KUMA_PASSWORD }}" >> secrets.env
           echo "CADDY_AUTH_USER=${{ secrets.CADDY_AUTH_USER }}" >> secrets.env
-          # Write bcrypt hash from environment variable (prevents bash expansion of $)
-          printf 'CADDY_AUTH_PASSWORD_HASH=%s\n' "$CADDY_HASH" >> secrets.env
+          
+          # Decode base64-encoded bcrypt hash (avoids ALL special character issues)
+          DECODED_HASH=$(echo "$CADDY_HASH_BASE64" | base64 -d)
+          printf 'CADDY_AUTH_PASSWORD_HASH=%s\n' "$DECODED_HASH" >> secrets.env
           
           # Validate Caddy auth secrets if they're set
           if [ -n "${{ secrets.CADDY_AUTH_USER }}" ]; then
             echo "✓ CADDY_AUTH_USER is set"
             # Validate hash format (should start with $2a$, $2b$, or $2y$)
-            if printf '%s' "$CADDY_HASH" | grep -qE '^\$2[aby]\$[0-9]{2}\$'; then
-              echo "✓ CADDY_AUTH_PASSWORD_HASH appears to be valid bcrypt format"
+            if printf '%s' "$DECODED_HASH" | grep -qE '^\$2[aby]\$[0-9]{2}\$'; then
+              echo "✓ CADDY_AUTH_PASSWORD_HASH appears to be valid bcrypt format (decoded from base64)"
+              echo "  Hash length: ${#DECODED_HASH} characters"
             else
-              echo "⚠️  WARNING: CADDY_AUTH_PASSWORD_HASH may not be valid bcrypt format"
+              echo "⚠️  WARNING: CADDY_AUTH_PASSWORD_HASH may not be valid bcrypt format after decoding"
               echo "Expected format: starts with \$2a\$, \$2b\$, or \$2y\$"
             fi
           fi
