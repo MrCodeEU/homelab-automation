@@ -58,15 +58,3 @@ jobs:
           fi
           
           ansible-playbook playbooks/site.yml $ARGS --extra-vars "$ANSIBLE_EXTRA_VARS"
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-          # Inject secrets as extra vars
-          ANSIBLE_EXTRA_VARS: |
-            nightscout_api_secret: ${{ secrets.NIGHTSCOUT_API_SECRET }}
-            link_up_username: ${{ secrets.LINK_UP_USERNAME }}
-            link_up_password: ${{ secrets.LINK_UP_PASSWORD }}
-            nightscout_api_token: ${{ secrets.NIGHTSCOUT_API_TOKEN }}
-            nightscout_domain: ${{ secrets.NIGHTSCOUT_DOMAIN }}
-            bichon_encrypt_password: ${{ secrets.BICHON_ENCRYPT_PASSWORD }}
-        run: |
-          cd ansible
-          ansible-playbook playbooks/site.yml --extra-vars "$ANSIBLE_EXTRA_VARS"
