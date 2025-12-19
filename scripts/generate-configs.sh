@@ -290,11 +290,13 @@ fi
 
 # Replace Tailscale hostname with localhost for local services
 # Extract the actual Tailscale hostname from the Caddyfile instead of system hostname
-TAILSCALE_HOSTNAME=$(grep -oP 'reverse_proxy \K[a-z0-9.-]+\.ts\.net(?=:)' "$CADDYFILE" | head -1 || echo "")
+TAILSCALE_HOSTNAME=$(grep -oP 'reverse_proxy [^{]*?\K[a-z0-9.-]+\.ts\.net(?=:)' "$CADDYFILE" | head -1 || echo "")
 if [ -n "$TAILSCALE_HOSTNAME" ]; then
     echo "Replacing Tailscale hostname ($TAILSCALE_HOSTNAME) with localhost..."
-    sed -i "s|reverse_proxy ${TAILSCALE_HOSTNAME}:|reverse_proxy 127.0.0.1:|g" "$CADDYFILE"
-    echo "✓ Localhost addresses configured"
+    sed -i "s|${TAILSCALE_HOSTNAME}:|127.0.0.1:|g" "$CADDYFILE"
+    echo "✓ Localhost addresses configured for $TAILSCALE_HOSTNAME"
+else
+    echo "⚠️  No Tailscale hostname found in Caddyfile to replace"
 fi
 
 # Generate Glance configuration
