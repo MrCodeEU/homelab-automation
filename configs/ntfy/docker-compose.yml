@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: ntfy
+    restart: unless-stopped
+    ports:
+      - "2586:80"
+    volumes:
+      - ntfy-cache:/var/cache/ntfy
+      - ntfy-data:/var/lib/ntfy
+      - ./server.yml:/etc/ntfy/server.yml:ro
+    networks:
+      - caddy_network
+    environment:
+      - TZ=Europe/London
+    command: serve
+
+volumes:
+  ntfy-cache:
+  ntfy-data:
+
+networks:
+  caddy_network:
+    external: true

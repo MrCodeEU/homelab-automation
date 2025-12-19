@@ -61,3 +61,24 @@ detect_os() {
         echo "unknown"
     fi
 }
+
+# Send ntfy notification
+# Usage: send_ntfy "title" "message" "priority" "tags"
+send_ntfy() {
+    local title="$1"
+    local message="$2"
+    local priority="${3:-3}"
+    local tags="${4:-info}"
+    local ntfy_url="${NTFY_URL:-https://ntfy.mljr.eu}"
+    local ntfy_topic="${NTFY_TOPIC:-deployment}"
+
+    # Only send if ntfy is reachable
+    if command -v curl &> /dev/null; then
+        curl -s -X POST \
+            -H "Title: $title" \
+            -H "Priority: $priority" \
+            -H "Tags: $tags" \
+            -d "$message" \
+            "$ntfy_url/$ntfy_topic" >/dev/null 2>&1 || true
+    fi
+}

@@ -47,6 +47,15 @@ services:
     description: "Uptime Monitoring"
     icon: "mdi:heart-pulse"
 
+  # Notifications (ntfy)
+  - name: ntfy
+    enabled: true
+    host: mljr
+    domain: "ntfy.mljr.eu"
+    port: 2586
+    description: "Push Notifications"
+    icon: "mdi:bell-ring"
+
   # Access Logs (GoAccess) - Real-time web analytics
   - name: goaccess
     enabled: true
