@@ -37,24 +37,68 @@ if [ -z "$CADDY_AUTH_USER" ] || [ -z "$CADDY_AUTH_PASSWORD_HASH" ]; then
     exit 1
 fi
 
+log_info "Found credentials: user='$CADDY_AUTH_USER' (hash length: ${#CADDY_AUTH_PASSWORD_HASH})"
+
 # Validate bcrypt hash format (should start with $2a$, $2b$, or $2y$)
 if [[ ! "$CADDY_AUTH_PASSWORD_HASH" =~ ^\$2[aby]\$[0-9]{2}\$ ]]; then
     log_error "CADDY_AUTH_PASSWORD_HASH does not appear to be a valid bcrypt hash"
     log_info "It should start with \$2a\$, \$2b\$, or \$2y\$"
+    log_info "Current value starts with: ${CADDY_AUTH_PASSWORD_HASH:0:10}..."
     log_info "Generate with: docker run --rm caddy caddy hash-password --plaintext 'your-password'"
     exit 1
 fi
 
+# Export variables explicitly for Python subprocess
+export CADDY_AUTH_USER
+export CADDY_AUTH_PASSWORD_HASH
+
 # Use Python for safe replacement (handles all special characters reliably)
-python3 -c "
-import sys, os, re
-with open('$CADDYFILE', 'r') as f:
-    content = f.read()
-content = content.replace('__CADDY_AUTH_USER__', os.environ['CADDY_AUTH_USER'])
-content = content.replace('__CADDY_AUTH_PASSWORD_HASH__', os.environ['CADDY_AUTH_PASSWORD_HASH'])
-with open('$CADDYFILE', 'w') as f:
-    f.write(content)
-"
+python3 << 'PYTHON_SCRIPT'
+import sys
+import os
+
+try:
+    # Get environment variables
+    username = os.environ.get('CADDY_AUTH_USER')
+    password_hash = os.environ.get('CADDY_AUTH_PASSWORD_HASH')
+    caddyfile_path = os.environ.get('CADDYFILE', '/etc/caddy/Caddyfile')
+    
+    if not username or not password_hash:
+        print(f"ERROR: Missing credentials in Python environment", file=sys.stderr)
+        print(f"  CADDY_AUTH_USER: {'SET' if username else 'NOT SET'}", file=sys.stderr)
+        print(f"  CADDY_AUTH_PASSWORD_HASH: {'SET' if password_hash else 'NOT SET'}", file=sys.stderr)
+        sys.exit(1)
+    
+    # Read Caddyfile
+    with open(caddyfile_path, 'r') as f:
+        content = f.read()
+    
+    # Check if placeholders exist before replacement
+    if '__CADDY_AUTH_USER__' not in content and '__CADDY_AUTH_PASSWORD_HASH__' not in content:
+        print(f"WARNING: No placeholders found in {caddyfile_path}", file=sys.stderr)
+    
+    # Perform replacement
+    original_content = content
+    content = content.replace('__CADDY_AUTH_USER__', username)
+    content = content.replace('__CADDY_AUTH_PASSWORD_HASH__', password_hash)
+    
+    # Verify changes were made
+    if content == original_content:
+        print(f"WARNING: No changes made to Caddyfile", file=sys.stderr)
+    
+    # Write back
+    with open(caddyfile_path, 'w') as f:
+        f.write(content)
+    
+    print(f"SUCCESS: Replaced credentials in {caddyfile_path}")
+    sys.exit(0)
+    
+except Exception as e:
+    print(f"ERROR: {e}", file=sys.stderr)
+    import traceback
+    traceback.print_exc(file=sys.stderr)
+    sys.exit(1)
+PYTHON_SCRIPT
 
 if [ $? -eq 0 ]; then
     log_success "Injected Caddy authentication credentials"
@@ -62,8 +106,10 @@ if [ $? -eq 0 ]; then
     # Quick validation - check if placeholders are gone
     if grep -q "__CADDY_AUTH" "$CADDYFILE"; then
         log_error "Placeholders still present in Caddyfile after injection!"
+        grep "__CADDY_AUTH" "$CADDYFILE"
         exit 1
     fi
+    log_success "Placeholders successfully replaced"
 else
     log_error "Failed to inject secrets into Caddyfile"
     exit 1
