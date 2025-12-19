@@ -1,4 +1,22 @@
 ---
+- name: Check for legacy Glance docker-compose file
+  stat:
+    path: /opt/glance/docker-compose.yml
+  register: glance_compose
+
+- name: Tear down legacy Glance docker-compose
+  shell: docker compose down
+  args:
+    chdir: /opt/glance
+  when: glance_compose.stat.exists
+  ignore_errors: yes
+
+- name: Remove legacy Glance docker-compose file
+  file:
+    path: /opt/glance/docker-compose.yml
+    state: absent
+  when: glance_compose.stat.exists
+
 - name: Create Glance directories
   file:
     path: /opt/glance

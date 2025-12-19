@@ -1,4 +1,33 @@
 ---
+- name: Check for legacy Caddy docker-compose file
+  stat:
+    path: /opt/caddy/docker-compose.yml
+  register: caddy_compose
+
+- name: Tear down legacy Caddy docker-compose
+  shell: docker compose down
+  args:
+    chdir: /opt/caddy
+  when: caddy_compose.stat.exists
+  ignore_errors: yes
+
+- name: Remove legacy Caddy docker-compose file
+  file:
+    path: /opt/caddy/docker-compose.yml
+    state: absent
+  when: caddy_compose.stat.exists
+
+- name: Ensure conflicting web servers are not running
+  service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: no
+  loop:
+    - httpd
+    - nginx
+    - apache2
+  ignore_errors: yes
+
 - name: Create Caddy directories
   file:
     path: "{{ item }}"
