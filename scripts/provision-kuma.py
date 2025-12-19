@@ -54,6 +54,12 @@ def main():
         # Skip if disabled or no domain (unless it has a specific check url, which we don't support in yaml yet)
         if not enabled or not domain:
             continue
+        
+        # Handle domain as list (use first domain) or string
+        if isinstance(domain, list):
+            if not domain:  # Empty list
+                continue
+            domain = domain[0]
             
         # Determine URL
         # If domain starts with http, use it, else assume https
