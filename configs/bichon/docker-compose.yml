@@ -15,9 +15,6 @@ services:
       - ./.env
     volumes:
       - ./data:/data
-    networks:
-      - caddy_network
+    networks: []
 
-networks:
-  caddy_network:
-    external: true
+

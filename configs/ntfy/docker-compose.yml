@@ -11,8 +11,7 @@ services:
       - ntfy-cache:/var/cache/ntfy
       - ntfy-data:/var/lib/ntfy
       - ./server.yml:/etc/ntfy/server.yml:ro
-    networks:
-      - caddy_network
+    networks: []
     environment:
       - TZ=Europe/London
     command: serve
@@ -21,6 +20,4 @@ volumes:
   ntfy-cache:
   ntfy-data:
 
-networks:
-  caddy_network:
-    external: true
+

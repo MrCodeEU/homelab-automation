@@ -9,14 +9,11 @@ services:
       - "8888:80"
     volumes:
       - example-data:/usr/share/nginx/html
-    networks:
-      - caddy_network
+    networks: []
     environment:
       - TZ=Europe/London
 
 volumes:
   example-data:
 
-networks:
-  caddy_network:
-    external: true
+

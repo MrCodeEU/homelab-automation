@@ -9,14 +9,11 @@ services:
       - "3001:3001"
     volumes:
       - uptime-kuma-data:/app/data
-    networks:
-      - caddy_network
+    networks: []
     environment:
       - TZ=Europe/London
 
 volumes:
   uptime-kuma-data:
 
-networks:
-  caddy_network:
-    external: true
+
