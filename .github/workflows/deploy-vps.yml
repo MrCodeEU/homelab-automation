@@ -215,7 +215,7 @@ jobs:
           echo ""
           echo "=== Checking Caddyfile contains services ==="
           CADDYFILE_OK=true
-          for service in "dash.mljr.eu" "nightscout.mljr.eu"; do
+          for service in "dash.mljr.eu" "nightscout.mljr.eu" "ntfy.mljr.eu" "uptime.mljr.eu"; do
             if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "grep -q '$service' /opt/caddy/Caddyfile"; then
               echo "✅ $service found in Caddyfile"
             else
@@ -236,7 +236,7 @@ jobs:
           fi
           
           # Check Docker containers
-          for container in "glance" "nightscout" "uptime-kuma" "bichon"; do
+          for container in "glance" "nightscout" "uptime-kuma" "ntfy" "bichon"; do
             if tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "docker ps --format '{{.Names}}' | grep -q '^$container$'"; then
               echo "✅ $container is running"
             else
@@ -252,6 +252,62 @@ jobs:
             echo "VALIDATION_STATUS=⚠️ Issues" >> $GITHUB_ENV
             echo "⚠️  Some validations failed (check above)"
           fi
+
+      - name: Send deployment notification
+        if: always()
+        continue-on-error: true
+        run: |
+          echo ""
+          echo "======================================"
+          echo "📤 Sending Deployment Notification"
+          echo "======================================"
+
+          # Collect deployment stats
+          CONTAINER_COUNT=$(tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "docker ps --format '{{.Names}}' 2>/dev/null | wc -l" 2>/dev/null || echo "0")
+
+          # Determine overall status
+          if [[ "${{ job.status }}" == "success" ]]; then
+            STATUS_EMOJI="✅"
+            STATUS_TEXT="Deployment Successful"
+            PRIORITY="3"
+            TAGS="rocket,success"
+          else
+            STATUS_EMOJI="⚠️"
+            STATUS_TEXT="Deployment Completed with Warnings"
+            PRIORITY="4"
+            TAGS="warning"
+          fi
+
+          # Build notification message
+          NOTIFICATION_MSG="Host: VPS (${{ secrets.VPS_HOST }})
+          Roles: ${{ github.event.inputs.roles }}
+          Status: ${{ job.status }}
+          Containers: $CONTAINER_COUNT running
+
+          Components:
+          • SSH: ${SSH_STATUS:-⏭️ Skipped}
+          • Base: ${BASE_STATUS:-⏭️ Skipped}
+          • Docker: ${DOCKER_STATUS:-⏭️ Skipped}
+          • Services: ${DEPLOY_STATUS:-⏭️ Skipped}
+
+          Time: $(date '+%Y-%m-%d %H:%M:%S UTC')
+          Commit: ${{ github.sha }}
+          Workflow: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # Send notification
+          tailscale ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          if command -v curl &> /dev/null; then
+            curl -s -X POST \
+              -H 'Title: $STATUS_EMOJI $STATUS_TEXT' \
+              -H 'Priority: $PRIORITY' \
+              -H 'Tags: $TAGS' \
+              -H 'Click: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}' \
+              -d '$NOTIFICATION_MSG' \
+              https://ntfy.mljr.eu/deployment >/dev/null 2>&1 && echo '✅ Notification sent' || echo '⚠️ Failed to send notification'
+          else
+            echo '⚠️ curl not available, skipping notification'
+          fi
+          " || echo "⚠️ Could not send notification"
 
       - name: Cleanup secrets
         if: always()
