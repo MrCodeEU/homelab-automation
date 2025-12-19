@@ -22,6 +22,9 @@ REMOTE_BASE="/tmp/homelab-deploy"
 REMOTE_SCRIPTS="$REMOTE_BASE/scripts"
 REMOTE_CONFIGS="$REMOTE_BASE/configs"
 
+# Track deployment start time for notifications
+DEPLOYMENT_START_TIME=$(date +%s)
+
 log_header "Homelab Deployment Helper"
 
 # Function to show usage
@@ -139,31 +142,36 @@ if [[ "$ROLES" == *"caddy"* ]] || [ "$ROLES" = "all" ]; then
 fi
 
 log_success "Deployment to $HOSTNAME completed successfully!"
-    echo ""
-    
-    # Use Unraid-specific deployment for Slackware/Unraid
-    if [ "$OS" = "slackware" ]; then
-        echo ">>> Deploying Docker containers for Unraid..."
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/03-unraid-deploy.sh"
-    else
-        echo ">>> Deploying Docker Compose stacks..."
-        ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/03-docker-compose-deploy.sh $OS"
-    fi
-    echo ""
-fi
 
-if [[ "$ROLES" == *"caddy"* ]] || [ "$ROLES" = "all" ]; then
-    echo ">>> Executing Service Deployment (Caddy, Glance, etc.)..."
-    # 03 handles Caddy and other services
-    ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "bash /tmp/homelab-deploy/03-docker-compose-deploy.sh $OS"
-    echo ""
+# Send deployment notification via ntfy
+DEPLOYMENT_END_TIME=$(date +%s)
+DEPLOYMENT_DURATION=$((DEPLOYMENT_END_TIME - ${DEPLOYMENT_START_TIME:-$DEPLOYMENT_END_TIME}))
+DEPLOYMENT_DURATION_MIN=$((DEPLOYMENT_DURATION / 60))
+DEPLOYMENT_DURATION_SEC=$((DEPLOYMENT_DURATION % 60))
+
+# Get deployment stats
+CONTAINERS_COUNT=$(ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "docker ps --format '{{.Names}}' 2>/dev/null | wc -l" 2>/dev/null || echo "0")
+
+NOTIFICATION_MSG="Host: $HOSTNAME
+OS: $OS
+Roles: $ROLES
+Duration: ${DEPLOYMENT_DURATION_MIN}m ${DEPLOYMENT_DURATION_SEC}s
+Containers: $CONTAINERS_COUNT running
+Time: $(date '+%Y-%m-%d %H:%M:%S')"
+
+log_info "Sending deployment notification..."
+ssh $SSH_OPTIONS -i "$SSH_KEY" "$USER@$HOSTNAME" "
+if command -v curl &> /dev/null; then
+    curl -s -X POST \
+        -H 'Title: ✅ Deployment Complete' \
+        -H 'Priority: 3' \
+        -H 'Tags: rocket,success' \
+        -d '$NOTIFICATION_MSG' \
+        https://ntfy.mljr.eu/deployment >/dev/null 2>&1 || true
 fi
-echo "========================================="
-echo "Deployment Complete!"
-echo "========================================="
-echo ""
-echo "Next steps:"
-echo "  1. Verify services are running"
-echo "  2. Check logs for any errors"
-echo "  3. Access your services via web browser"
-echo ""
+"
+
+log_info "Next steps:"
+log_info "  1. Verify services are running"
+log_info "  2. Check logs for any errors"
+log_info "  3. Access your services via web browser"
