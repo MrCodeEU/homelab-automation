@@ -94,8 +94,7 @@ def main():
                     name=name,
                     url=target_url,
                     interval=60,
-                    retryInterval=60,
-                    conditions="[]"
+                    retryInterval=60
                 )
                 print(f"Created {name}")
             except Exception as e:
