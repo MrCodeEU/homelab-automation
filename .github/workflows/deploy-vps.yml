@@ -69,7 +69,8 @@ jobs:
           
           # Decode base64-encoded bcrypt hash (avoids ALL special character issues)
           DECODED_HASH=$(echo "$CADDY_HASH_BASE64" | base64 -d)
-          printf 'CADDY_AUTH_PASSWORD_HASH=%s\n' "$DECODED_HASH" >> secrets.env
+          # CRITICAL: Single-quote the hash to prevent bash expansion when sourced
+          printf "CADDY_AUTH_PASSWORD_HASH='%s'\n" "$DECODED_HASH" >> secrets.env
           
           # Validate Caddy auth secrets if they're set
           if [ -n "${{ secrets.CADDY_AUTH_USER }}" ]; then
