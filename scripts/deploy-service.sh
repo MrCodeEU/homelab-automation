@@ -65,7 +65,7 @@ if [ "$MANAGED" = "false" ]; then
     exit 0
 fi
 
-# Check for custom setup script
+# Check for custom setup script (legacy support)
 CUSTOM_SCRIPT="$SCRIPTS_DIR/setup-$SERVICE_NAME.sh"
 if [ -f "$CUSTOM_SCRIPT" ]; then
     log_info "Found custom setup script: $CUSTOM_SCRIPT"
@@ -77,6 +77,7 @@ fi
 log_info "Starting standard Docker Compose deployment for $SERVICE_NAME..."
 
 SERVICE_CONFIG_DIR="$CONFIGS_DIR/$SERVICE_NAME"
+HOOKS_DIR="$SERVICE_CONFIG_DIR/hooks"
 
 if [ ! -d "$SERVICE_CONFIG_DIR" ]; then
     log_error "Configuration directory not found: $SERVICE_CONFIG_DIR"
@@ -88,14 +89,32 @@ if [ ! -f "$SERVICE_CONFIG_DIR/docker-compose.yml" ]; then
     exit 1
 fi
 
+# === PRE-DEPLOY HOOK ===
+PRE_DEPLOY_HOOK="$HOOKS_DIR/pre-deploy.sh"
+if [ -f "$PRE_DEPLOY_HOOK" ]; then
+    log_info "Running pre-deploy hook..."
+    chmod +x "$PRE_DEPLOY_HOOK"
+    if bash "$PRE_DEPLOY_HOOK" "$SERVICE_NAME" "$SERVICES_FILE"; then
+        log_success "Pre-deploy hook completed successfully"
+    else
+        log_error "Pre-deploy hook failed"
+        exit 1
+    fi
+fi
+
 # Prepare target directory
 log_info "Preparing directory: $TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 
-# Copy configuration files
+# Copy configuration files (excluding hooks directory)
 log_info "Copying configuration files..."
 shopt -s dotglob nullglob
-cp -r "$SERVICE_CONFIG_DIR/"* "$TARGET_DIR/"
+for item in "$SERVICE_CONFIG_DIR/"*; do
+    # Skip hooks directory
+    if [ "$(basename "$item")" != "hooks" ]; then
+        cp -r "$item" "$TARGET_DIR/"
+    fi
+done
 shopt -u dotglob nullglob
 
 # Handle .env file
@@ -177,9 +196,33 @@ docker compose up -d --remove-orphans
 
 log_success "$SERVICE_NAME deployed successfully"
 
-# Check for post-deployment script
+# === POST-DEPLOY HOOK ===
+POST_DEPLOY_HOOK="$HOOKS_DIR/post-deploy.sh"
+if [ -f "$POST_DEPLOY_HOOK" ]; then
+    log_info "Running post-deploy hook..."
+    chmod +x "$POST_DEPLOY_HOOK"
+    if bash "$POST_DEPLOY_HOOK" "$SERVICE_NAME" "$SERVICES_FILE"; then
+        log_success "Post-deploy hook completed successfully"
+    else
+        log_warn "Post-deploy hook failed (non-critical)"
+    fi
+fi
+
+# Check for legacy post-deployment script
 POST_SCRIPT="$SCRIPTS_DIR/post-setup-$SERVICE_NAME.sh"
 if [ -f "$POST_SCRIPT" ]; then
-    log_info "Found post-deployment script: $POST_SCRIPT"
+    log_info "Found legacy post-deployment script: $POST_SCRIPT"
     bash "$POST_SCRIPT" "$SERVICE_NAME" "$SERVICES_FILE"
+fi
+
+# === VALIDATION HOOK ===
+VALIDATE_HOOK="$HOOKS_DIR/validate.sh"
+if [ -f "$VALIDATE_HOOK" ]; then
+    log_info "Running validation hook..."
+    chmod +x "$VALIDATE_HOOK"
+    if bash "$VALIDATE_HOOK" "$SERVICE_NAME" "$SERVICES_FILE"; then
+        log_success "Validation completed successfully"
+    else
+        log_warn "Validation failed (non-critical)"
+    fi
 fi

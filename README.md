@@ -62,6 +62,60 @@ All devices are connected via Tailscale VPN for secure SSH access.
 - **GitHub Workflows**: CI/CD pipeline with Tailscale SSH authentication
 - **YAML-Driven Configuration**: Single `services.yml` file generates all configs
 - **Tailscale Integration**: Secure VPN connectivity without SSH keys
+- **🆕 Hooks-Based Deployment**: Flexible service deployment with optional hooks
+  - **Pre-deploy hooks**: Run tasks before docker compose up (validation, preparation)
+  - **Post-deploy hooks**: Initialize services after deployment (setup, data migration)
+  - **Validation hooks**: Automated health checks and smoke tests
+  - Self-contained services with hooks in their own directories
+  - See [Service Development Guide](docs/SERVICE_DEVELOPMENT.md) for details
+
+## 🔌 Service Deployment Hooks
+
+Services support optional deployment hooks for customization:
+
+### Hook Types
+
+1. **pre-deploy.sh** - Runs before `docker compose up`
+   - Use for: validation, preparation, dependency checks
+   - Failure aborts deployment
+
+2. **post-deploy.sh** - Runs after `docker compose up`
+   - Use for: initialization, data migration, notifications
+   - Failure logged as warning
+
+3. **validate.sh** - Runs after post-deploy
+   - Use for: health checks, smoke tests, integration tests
+   - Failure logged as warning
+
+### Example Service Structure
+
+```
+configs/my-service/
+├── docker-compose.yml
+├── config.yml
+└── hooks/                  # Optional
+    ├── pre-deploy.sh
+    ├── post-deploy.sh
+    └── validate.sh
+```
+
+### Creating a Service with Hooks
+
+See [configs/example-service](configs/example-service/README.md) for a complete example with all hooks implemented.
+
+**Quick example:**
+
+```bash
+# 1. Create service directory
+mkdir -p configs/my-service/hooks
+
+# 2. Add docker-compose.yml
+# 3. (Optional) Add hooks
+# 4. Add to services.yml
+# 5. Deploy!
+```
+
+See the [Service Development Guide](docs/SERVICE_DEVELOPMENT.md) for detailed instructions.
 
 ## 📁 Repository Structure
 
