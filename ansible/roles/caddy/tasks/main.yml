@@ -86,6 +86,9 @@
     state: started
     enabled: yes
 
+- name: Check for conflicting web servers
+  service_facts:
+
 - name: Stop conflicting web servers
   service:
     name: "{{ item }}"
@@ -95,6 +98,7 @@
     - httpd
     - nginx
     - apache2
+  when: "'{{ item }}.service' in services or '{{ item }}' in services"
   ignore_errors: yes
 
 - name: Remove legacy Caddy container
