@@ -12,7 +12,7 @@
     <h1>{{ dashboard_name }}</h1>
     <div class="deployment-info">
         <strong>Deployment Info:</strong><br>
-        Generated: {{ ansible_date_time.iso8601 }}<br>
+        Generated: {{ ansible_facts['date_time']['iso8601'] }}<br>
         Domain: {{ domain }}<br>
     </div>
     <hr>
