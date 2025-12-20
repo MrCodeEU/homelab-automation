@@ -59,7 +59,6 @@ services:
       - "1337:1337"
     networks:
       - nightscout-internal
-      - caddy_network
     logging:
       driver: "json-file"
       options:
@@ -109,8 +108,6 @@ services:
 networks:
   nightscout-internal:
     driver: bridge
-  caddy_network:
-    external: true
 
 volumes:
   mongo-data:

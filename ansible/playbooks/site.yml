@@ -1,0 +1,31 @@
+---
+- name: Base Setup
+  hosts: rocky:debian
+  become: yes
+  roles:
+    - common
+    - docker
+
+- name: Caddy Setup
+  hosts: rocky
+  become: yes
+  roles:
+    - caddy
+
+- name: Glance Setup
+  hosts: mljr
+  become: yes
+  roles:
+    - glance
+
+- name: Services Setup
+  hosts: rocky:debian
+  become: yes
+  roles:
+    - services
+
+- name: Unraid Setup
+  hosts: unraid
+  gather_facts: no
+  roles:
+    - unraid

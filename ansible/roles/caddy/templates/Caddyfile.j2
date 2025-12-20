@@ -1,0 +1,40 @@
+{
+    email {{ email }}
+}
+
+{{ domain }} {
+    root * /opt/caddy/site
+    file_server
+    log {
+        output file /opt/caddy/logs/access.log
+        format json
+    }
+}
+
+{% for service in services %}
+{% if service.enabled | default(true) %}
+{% if service.domain is string %}
+{{ service.domain }} {
+{% else %}
+{{ service.domain | join(', ') }} {
+{% endif %}
+    {% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
+    basicauth {
+        # Replace with hashed password
+        # caddy hash-password --plaintext 'password'
+        admin $2a$14$12345678901234567890123456789012345678901234567890123
+    }
+    {% endif %}
+    
+    {% if service.upstream is defined %}
+    reverse_proxy {{ service.upstream }}
+    {% else %}
+    {% if service.host == inventory_hostname %}
+    reverse_proxy localhost:{{ service.port }}
+    {% else %}
+    reverse_proxy {{ hostvars[service.host]['ansible_host'] }}:{{ service.port }}
+    {% endif %}
+    {% endif %}
+}
+{% endif %}
+{% endfor %}

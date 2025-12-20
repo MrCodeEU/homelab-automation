@@ -1,23 +1,13 @@
 #!/bin/bash
-# Post-deployment setup for Uptime Kuma
+# Post-deployment hook for Uptime Kuma
 # Installs dependencies and provisions monitors
 
-# Source common functions
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ -f "$SCRIPT_DIR/common.sh" ]; then
-    source "$SCRIPT_DIR/common.sh"
-else
-    echo "Warning: common.sh not found"
-    log_info() { echo "[INFO] $1"; }
-    log_success() { echo "[SUCCESS] $1"; }
-    log_error() { echo "[ERROR] $1"; }
-    log_header() { echo "=== $1 ==="; }
-fi
+set -e
 
 SERVICE_NAME="$1"
 SERVICES_FILE="$2"
 
-log_header "Uptime Kuma Post-Setup"
+log_info "Running Uptime Kuma post-deployment setup..."
 
 # Check for secrets
 if [ -f "/tmp/homelab-deploy/secrets.env" ]; then
@@ -33,7 +23,8 @@ fi
 # Install Python dependencies
 log_info "Installing Python dependencies..."
 if command -v pip3 &> /dev/null; then
-    pip3 install uptime-kuma-api-v2 pyyaml
+    pip3 install uptime-kuma-api-v2 pyyaml --quiet
+    log_success "Dependencies installed"
 else
     log_error "pip3 not found. Cannot install dependencies."
     exit 1
@@ -52,25 +43,29 @@ while ! curl -s "$KUMA_URL" > /dev/null; do
         log_error "Timeout waiting for Uptime Kuma at $KUMA_URL"
         exit 1
     fi
-    echo -n "."
+    log_info "Waiting... ($COUNT/$MAX_RETRIES)"
 done
-echo ""
+
 log_success "Uptime Kuma is up!"
 
 # Run provisioning script
-PROVISION_SCRIPT="$SCRIPT_DIR/provision-kuma.py"
+PROVISION_SCRIPT="/opt/$SERVICE_NAME/hooks/provision-kuma.py"
 if [ -f "$PROVISION_SCRIPT" ]; then
     log_info "Running provisioning script..."
     export KUMA_URL
     export KUMA_USERNAME
     export KUMA_PASSWORD
-    
+
     if python3 "$PROVISION_SCRIPT" "$SERVICES_FILE"; then
         log_success "Uptime Kuma provisioning completed"
     else
-        log_warn "Uptime Kuma provisioning failed (likely due to fresh install/auth). Please configure monitors manually."
-        # Do not fail the deployment
+        log_warn "Uptime Kuma provisioning failed (likely due to fresh install/auth)"
+        log_warn "Please configure monitors manually via the web UI"
+        # Don't fail the deployment
     fi
 else
-    log_error "Provisioning script not found: $PROVISION_SCRIPT"
+    log_warn "Provisioning script not found: $PROVISION_SCRIPT"
+    log_warn "Monitors will need to be configured manually"
 fi
+
+log_success "Uptime Kuma post-deployment completed"
