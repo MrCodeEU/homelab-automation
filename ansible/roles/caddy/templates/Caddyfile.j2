@@ -28,18 +28,14 @@
     {% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
     handle @websocket {
         basicauth {
-            # Replace with hashed password
-            # caddy hash-password --plaintext 'password'
-            admin $2a$14$12345678901234567890123456789012345678901234567890123
+            admin {{ caddy_admin_hash | default('$2a$14$Zo8o.zRZF4lRZLj7J9yVVuMPvkHZKp7LcZhQsP2gQy5YZ9P8V9ZGe') }}
         }
         reverse_proxy localhost:{{ service.port }}
     }
     
     handle {
         basicauth {
-            # Replace with hashed password
-            # caddy hash-password --plaintext 'password'
-            admin $2a$14$12345678901234567890123456789012345678901234567890123
+            admin {{ caddy_admin_hash | default('$2a$14$Zo8o.zRZF4lRZLj7J9yVVuMPvkHZKp7LcZhQsP2gQy5YZ9P8V9ZGe') }}
         }
         reverse_proxy localhost:{{ service.port }}
     }
@@ -55,9 +51,7 @@
     {% else %}
     {% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
     basicauth {
-        # Replace with hashed password
-        # caddy hash-password --plaintext 'password'
-        admin $2a$14$12345678901234567890123456789012345678901234567890123
+        admin {{ caddy_admin_hash | default('$2a$14$Zo8o.zRZF4lRZLj7J9yVVuMPvkHZKp7LcZhQsP2gQy5YZ9P8V9ZGe') }}
     }
     {% endif %}
     

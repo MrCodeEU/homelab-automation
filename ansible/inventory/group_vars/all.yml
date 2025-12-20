@@ -65,7 +65,7 @@ services:
     host: pi
 
   - name: bichon
-    enabled: false
+    enabled: true
     domain: "mail-archive.mljr.eu"
     port: 15630
     description: "Email archiver (Bichon)"
