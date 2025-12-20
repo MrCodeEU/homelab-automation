@@ -335,7 +335,10 @@ fi
 # Generate Glance configuration
 echo ""
 log_info "Generating Glance configuration..."
-GLANCE_CONFIG="$GLANCE_OUTPUT_DIR/glance.yml"
+
+# Create config directory for v0.7.0+ compatibility
+mkdir -p "$GLANCE_OUTPUT_DIR/config"
+GLANCE_CONFIG="$GLANCE_OUTPUT_DIR/config/glance.yml"
 
 # Check if template exists
 TEMPLATE_PATH="/tmp/homelab-deploy/configs/glance/glance.yml.template"
@@ -455,7 +458,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./glance.yml:/app/config/glance.yml:ro
+      - ./config:/app/config:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - TZ=${TIMEZONE}
