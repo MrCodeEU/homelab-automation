@@ -5,20 +5,22 @@
     state: directory
     mode: '0755'
   loop: "{{ services }}"
-  when: 
+  when:
     - item.enabled | default(true)
     - item.managed | default(true)
     - inventory_hostname == item.host
+    - item.name not in services_excluded_from_generic_deployment
 
 - name: Copy docker-compose.yml
   template:
     src: "{{ playbook_dir }}/../../configs/{{ item.name }}/docker-compose.yml"
     dest: "/opt/{{ item.name }}/docker-compose.yml"
   loop: "{{ services }}"
-  when: 
+  when:
     - item.enabled | default(true)
     - item.managed | default(true)
     - inventory_hostname == item.host
+    - item.name not in services_excluded_from_generic_deployment
   ignore_errors: yes # Some services might not have a local config yet
 
 - name: Create .env file with secrets
@@ -26,27 +28,36 @@
     src: env.j2
     dest: "/opt/{{ item.name }}/.env"
   loop: "{{ services }}"
-  when: 
+  when:
     - item.enabled | default(true)
     - item.managed | default(true)
     - inventory_hostname == item.host
+    - item.name not in services_excluded_from_generic_deployment
   vars:
-    # Map secrets to variables used in the template
-    nightscout_api_secret: "{{ nightscout_api_secret | default('') }}"
-    link_up_username: "{{ link_up_username | default('') }}"
-    link_up_password: "{{ link_up_password | default('') }}"
-    nightscout_api_token: "{{ nightscout_api_token | default('') }}"
-    nightscout_domain: "{{ nightscout_domain | default('') }}"
-    bichon_encrypt_password: "{{ bichon_encrypt_password | default('') }}"
+    # Map secrets to template variables (renamed to avoid shadowing)
+    nightscout_api_secret_var: "{{ nightscout_api_secret | default('') }}"
+    link_up_username_var: "{{ link_up_username | default('') }}"
+    link_up_password_var: "{{ link_up_password | default('') }}"
+    nightscout_api_token_var: "{{ nightscout_api_token | default('') }}"
+    nightscout_domain_var: "{{ nightscout_domain | default('') }}"
+    bichon_encrypt_password_var: "{{ bichon_encrypt_password | default('') }}"
+
+- name: Check if docker-compose.yml exists for services
+  stat:
+    path: "/opt/{{ item.name }}/docker-compose.yml"
+  register: compose_file_stat
+  loop: "{{ services }}"
+  when:
+    - item.enabled | default(true)
+    - item.managed | default(true)
+    - inventory_hostname == item.host
+    - item.name not in services_excluded_from_generic_deployment
 
 - name: Deploy service via Docker Compose
   community.docker.docker_compose_v2:
-    project_src: "/opt/{{ item.name }}"
+    project_src: "/opt/{{ item.item.name }}"
     state: present
-  loop: "{{ services }}"
-  when: 
-    - item.enabled | default(true)
-    - item.managed | default(true)
-    - inventory_hostname == item.host
-    # Only run if docker-compose.yml exists
-    - query('file', '/opt/' + item.name + '/docker-compose.yml')
+  loop: "{{ compose_file_stat.results }}"
+  when:
+    - not item.skipped | default(false)
+    - item.stat.exists | default(false)
