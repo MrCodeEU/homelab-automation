@@ -38,7 +38,7 @@ Could not find the requested service apache2: host
     - httpd
     - nginx
     - apache2
-  when: "'{{ item }}.service' in services or '{{ item }}' in services"
+  when: "item + '.service' in services or item in services"
   ignore_errors: yes
 ```
 
