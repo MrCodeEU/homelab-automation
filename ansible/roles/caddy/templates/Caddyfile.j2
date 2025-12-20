@@ -25,14 +25,13 @@
         header Upgrade websocket
     }
     
-    {% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
+    # WebSocket connections pass through without auth
     handle @websocket {
-        basicauth {
-            admin {{ caddy_admin_hash | default('$2a$14$Zo8o.zRZF4lRZLj7J9yVVuMPvkHZKp7LcZhQsP2gQy5YZ9P8V9ZGe') }}
-        }
         reverse_proxy localhost:{{ service.port }}
     }
     
+    # Regular HTTP requests require basicauth
+    {% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
     handle {
         basicauth {
             admin {{ caddy_admin_hash | default('$2a$14$Zo8o.zRZF4lRZLj7J9yVVuMPvkHZKp7LcZhQsP2gQy5YZ9P8V9ZGe') }}
@@ -40,10 +39,6 @@
         reverse_proxy localhost:{{ service.port }}
     }
     {% else %}
-    handle @websocket {
-        reverse_proxy localhost:{{ service.port }}
-    }
-    
     handle {
         reverse_proxy localhost:{{ service.port }}
     }

@@ -57,7 +57,7 @@ jobs:
             nightscout_api_token: ${{ secrets.NIGHTSCOUT_API_TOKEN }}
             nightscout_domain: ${{ secrets.NIGHTSCOUT_DOMAIN }}
             bichon_encrypt_password: ${{ secrets.BICHON_ENCRYPT_PASSWORD }}
-            caddy_admin_hash: ${{ secrets.CADDY_ADMIN_HASH }}
+            caddy_admin_hash: ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
         run: |
           cd ansible
           
