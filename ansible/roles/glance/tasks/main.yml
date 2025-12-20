@@ -1,31 +1,32 @@
 ---
 - name: Check for legacy Glance docker-compose file
-  stat:
+  ansible.builtin.stat:
     path: /opt/glance/docker-compose.yml
   register: glance_compose
 
 - name: Tear down legacy Glance docker-compose
-  shell: docker compose down
+  ansible.builtin.command: docker compose down
   args:
     chdir: /opt/glance
   when: glance_compose.stat.exists
-  ignore_errors: yes
+  changed_when: true
+  failed_when: false
 
 - name: Remove legacy Glance docker-compose file
-  file:
+  ansible.builtin.file:
     path: /opt/glance/docker-compose.yml
     state: absent
   when: glance_compose.stat.exists
 
 - name: Force remove existing Glance container
-  docker_container:
+  community.docker.docker_container:
     name: glance
     state: absent
-    force_kill: yes
-  ignore_errors: yes
+    force_kill: true
+  failed_when: false
 
 - name: Create Glance directories
-  file:
+  ansible.builtin.file:
     path: "{{ item }}"
     state: directory
     mode: '0755'
@@ -34,13 +35,14 @@
     - /opt/glance/config
 
 - name: Generate Glance config
-  template:
+  ansible.builtin.template:
     src: glance.yml.j2
     dest: /opt/glance/config/glance.yml
+    mode: '0644'
   notify: Restart Glance
 
 - name: Ensure Glance container is running
-  docker_container:
+  community.docker.docker_container:
     name: glance
     image: glanceapp/glance
     restart_policy: unless-stopped

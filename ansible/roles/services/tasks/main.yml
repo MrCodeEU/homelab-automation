@@ -1,6 +1,6 @@
 ---
 - name: Ensure service directory exists
-  file:
+  ansible.builtin.file:
     path: "/opt/{{ item.name }}"
     state: directory
     mode: '0755'
@@ -12,21 +12,24 @@
     - item.name not in services_excluded_from_generic_deployment
 
 - name: Copy docker-compose.yml
-  template:
+  ansible.builtin.template:
     src: "{{ playbook_dir }}/../../configs/{{ item.name }}/docker-compose.yml"
     dest: "/opt/{{ item.name }}/docker-compose.yml"
+    mode: '0644'
   loop: "{{ services }}"
   when:
     - item.enabled | default(true)
     - item.managed | default(true)
     - inventory_hostname == item.host
     - item.name not in services_excluded_from_generic_deployment
-  ignore_errors: yes # Some services might not have a local config yet
+  # Some services might not have a local config yet
+  failed_when: false
 
 - name: Create .env file with secrets
-  template:
+  ansible.builtin.template:
     src: env.j2
     dest: "/opt/{{ item.name }}/.env"
+    mode: '0600'
   loop: "{{ services }}"
   when:
     - item.enabled | default(true)
@@ -43,9 +46,9 @@
     bichon_encrypt_password_var: "{{ bichon_encrypt_password | default('') }}"
 
 - name: Check if docker-compose.yml exists for services
-  stat:
+  ansible.builtin.stat:
     path: "/opt/{{ item.name }}/docker-compose.yml"
-  register: compose_file_stat
+  register: services_compose_file_stat
   loop: "{{ services }}"
   when:
     - item.enabled | default(true)
@@ -57,7 +60,7 @@
   community.docker.docker_compose_v2:
     project_src: "/opt/{{ item.item.name }}"
     state: present
-  loop: "{{ compose_file_stat.results }}"
+  loop: "{{ services_compose_file_stat.results }}"
   when:
     - not item.skipped | default(false)
     - item.stat.exists | default(false)
