@@ -26,14 +26,17 @@
 
 - name: Create Glance directories
   file:
-    path: /opt/glance
+    path: "{{ item }}"
     state: directory
     mode: '0755'
+  loop:
+    - /opt/glance
+    - /opt/glance/config
 
 - name: Generate Glance config
   template:
     src: glance.yml.j2
-    dest: /opt/glance/glance.yml
+    dest: /opt/glance/config/glance.yml
   notify: Restart Glance
 
 - name: Ensure Glance container is running
@@ -44,6 +47,6 @@
     ports:
       - "8080:8080"
     volumes:
-      - /opt/glance/glance.yml:/app/glance.yml
+      - /opt/glance/config:/app/config
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro

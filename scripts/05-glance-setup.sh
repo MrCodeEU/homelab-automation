@@ -11,7 +11,7 @@ echo "========================================="
 # Configuration
 GLANCE_DIR="/opt/glance"
 COMPOSE_FILE="$GLANCE_DIR/docker-compose.yml"
-CONFIG_FILE="$GLANCE_DIR/glance.yml"
+CONFIG_FILE="$GLANCE_DIR/config/glance.yml"
 
 # Check if Docker is running
 if ! systemctl is-active --quiet docker; then
