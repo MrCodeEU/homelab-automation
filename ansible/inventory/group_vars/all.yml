@@ -1,10 +1,12 @@
+---
 domain: "mljr.eu"
 email: "admin@mljr.eu"
 location: "Thaling, Austria"
 dashboard_name: "Homelab Dashboard"
 timezone: "Europe/London"
 
-# Services managed by dedicated Ansible roles (excluded from generic services role)
+# Services managed by dedicated Ansible roles (excluded from generic
+# services role)
 services_excluded_from_generic_deployment:
   - glance
 
@@ -19,7 +21,7 @@ services:
 
   - name: nightscout
     enabled: true
-    domain: 
+    domain:
       - "nightscout.mljr.eu"
       - "ns.mljr.eu"
     port: 1337
@@ -63,7 +65,7 @@ services:
     host: pi
 
   - name: bichon
-    enabled: false
+    enabled: true
     domain: "mail-archive.mljr.eu"
     port: 15630
     description: "Email archiver (Bichon)"

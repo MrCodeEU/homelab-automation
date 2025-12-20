@@ -41,6 +41,11 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y ansible
 
+      - name: Install Ansible collections
+        run: |
+          cd ansible
+          ansible-galaxy collection install -r requirements.yml
+
       - name: Run Ansible Playbook
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
@@ -52,6 +57,7 @@ jobs:
             nightscout_api_token: ${{ secrets.NIGHTSCOUT_API_TOKEN }}
             nightscout_domain: ${{ secrets.NIGHTSCOUT_DOMAIN }}
             bichon_encrypt_password: ${{ secrets.BICHON_ENCRYPT_PASSWORD }}
+            caddy_admin_hash: ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
         run: |
           cd ansible
           

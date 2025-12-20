@@ -34,3 +34,7 @@ secrets/
 /tmp/
 /dist/
 /build/
+
+# Ansible cache
+.ansible/
+

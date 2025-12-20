@@ -18,11 +18,35 @@
 {% else %}
 {{ service.domain | join(', ') }} {
 {% endif %}
+    {% if service.name == 'goaccess' %}
+    # WebSocket support for GoAccess real-time updates
+    @websocket {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    
+    # WebSocket connections pass through without auth
+    handle @websocket {
+        reverse_proxy localhost:{{ service.port }}
+    }
+    
+    # Regular HTTP requests require basicauth
+    {% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
+    handle {
+        basicauth {
+            admin {{ caddy_admin_hash | default('$2a$14$Zo8o.zRZF4lRZLj7J9yVVuMPvkHZKp7LcZhQsP2gQy5YZ9P8V9ZGe') }}
+        }
+        reverse_proxy localhost:{{ service.port }}
+    }
+    {% else %}
+    handle {
+        reverse_proxy localhost:{{ service.port }}
+    }
+    {% endif %}
+    {% else %}
     {% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
     basicauth {
-        # Replace with hashed password
-        # caddy hash-password --plaintext 'password'
-        admin $2a$14$12345678901234567890123456789012345678901234567890123
+        admin {{ caddy_admin_hash | default('$2a$14$Zo8o.zRZF4lRZLj7J9yVVuMPvkHZKp7LcZhQsP2gQy5YZ9P8V9ZGe') }}
     }
     {% endif %}
     
@@ -33,6 +57,7 @@
     reverse_proxy localhost:{{ service.port }}
     {% else %}
     reverse_proxy {{ hostvars[service.host]['ansible_host'] }}:{{ service.port }}
+    {% endif %}
     {% endif %}
     {% endif %}
 }
