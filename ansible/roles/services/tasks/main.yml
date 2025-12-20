@@ -5,7 +5,7 @@
     state: directory
     mode: '0755'
   loop: "{{ services }}"
-  when: 
+  when:
     - item.enabled | default(true)
     - item.managed | default(true)
     - inventory_hostname == item.host
@@ -16,7 +16,7 @@
     src: "{{ playbook_dir }}/../../configs/{{ item.name }}/docker-compose.yml"
     dest: "/opt/{{ item.name }}/docker-compose.yml"
   loop: "{{ services }}"
-  when: 
+  when:
     - item.enabled | default(true)
     - item.managed | default(true)
     - inventory_hostname == item.host
@@ -28,7 +28,7 @@
     src: env.j2
     dest: "/opt/{{ item.name }}/.env"
   loop: "{{ services }}"
-  when: 
+  when:
     - item.enabled | default(true)
     - item.managed | default(true)
     - inventory_hostname == item.host
@@ -47,7 +47,7 @@
     project_src: "/opt/{{ item.name }}"
     state: present
   loop: "{{ services }}"
-  when: 
+  when:
     - item.enabled | default(true)
     - item.managed | default(true)
     - inventory_hostname == item.host
