@@ -4,6 +4,10 @@ location: "Thaling, Austria"
 dashboard_name: "Homelab Dashboard"
 timezone: "Europe/London"
 
+# Services managed by dedicated Ansible roles (excluded from generic services role)
+services_excluded_from_generic_deployment:
+  - glance
+
 services:
   - name: glance
     enabled: true

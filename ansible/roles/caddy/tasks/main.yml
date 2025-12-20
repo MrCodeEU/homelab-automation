@@ -98,7 +98,7 @@
     - httpd
     - nginx
     - apache2
-  when: "'{{ item }}.service' in services or '{{ item }}' in services"
+  when: "'{{ item }}.service' in services"
   ignore_errors: yes
 
 - name: Remove legacy Caddy container

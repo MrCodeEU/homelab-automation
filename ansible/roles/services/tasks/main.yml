@@ -9,7 +9,7 @@
     - item.enabled | default(true)
     - item.managed | default(true)
     - inventory_hostname == item.host
-    - item.name not in ['glance']  # Skip services managed by dedicated roles
+    - item.name not in services_excluded_from_generic_deployment
 
 - name: Copy docker-compose.yml
   template:
@@ -20,7 +20,7 @@
     - item.enabled | default(true)
     - item.managed | default(true)
     - inventory_hostname == item.host
-    - item.name not in ['glance']  # Skip services managed by dedicated roles
+    - item.name not in services_excluded_from_generic_deployment
   ignore_errors: yes # Some services might not have a local config yet
 
 - name: Create .env file with secrets
@@ -32,7 +32,7 @@
     - item.enabled | default(true)
     - item.managed | default(true)
     - inventory_hostname == item.host
-    - item.name not in ['glance']  # Skip services managed by dedicated roles
+    - item.name not in services_excluded_from_generic_deployment
   vars:
     # Map secrets to template variables (renamed to avoid shadowing)
     nightscout_api_secret_var: "{{ nightscout_api_secret | default('') }}"
@@ -51,6 +51,6 @@
     - item.enabled | default(true)
     - item.managed | default(true)
     - inventory_hostname == item.host
-    - item.name not in ['glance']  # Skip services managed by dedicated roles
+    - item.name not in services_excluded_from_generic_deployment
     # Only run if docker-compose.yml exists
     - query('file', '/opt/' + item.name + '/docker-compose.yml')
