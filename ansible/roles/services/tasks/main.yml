@@ -12,7 +12,7 @@
     - item.name not in services_excluded_from_generic_deployment
 
 - name: Copy docker-compose.yml
-  ansible.builtin.template:
+  ansible.builtin.copy:
     src: "{{ playbook_dir }}/../../configs/{{ item.name }}/docker-compose.yml"
     dest: "/opt/{{ item.name }}/docker-compose.yml"
     mode: '0644'
