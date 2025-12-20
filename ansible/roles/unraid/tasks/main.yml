@@ -1,0 +1,5 @@
+---
+- name: Run Unraid deploy script
+  script: "{{ playbook_dir }}/../../scripts/03-unraid-deploy.sh"
+  args:
+    executable: /bin/bash

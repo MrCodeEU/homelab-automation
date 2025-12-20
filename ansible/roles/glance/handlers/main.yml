@@ -1,0 +1,6 @@
+---
+- name: Restart Glance
+  docker_container:
+    name: glance
+    state: started
+    restart: yes

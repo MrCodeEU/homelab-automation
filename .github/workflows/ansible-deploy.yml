@@ -1,0 +1,68 @@
+name: Ansible Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Limit to specific hosts (e.g., mljr, pi, rocky)'
+        required: false
+        default: 'all'
+        type: string
+      tags:
+        description: 'Run specific tags/roles (e.g., caddy, docker, services)'
+        required: false
+        default: 'all'
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Cache Ansible
+        uses: actions/cache@v4
+        id: ansible-cache
+        with:
+            path: /usr/bin/ansible*
+            key: ansible-${{ runner.os }}-${{ hashFiles('.github/workflows/ansible-deploy.yml') }}
+
+      - name: Install Ansible
+        if: steps.ansible-cache.outputs.cache-hit != 'true'
+        run: |
+            sudo apt-get update
+            sudo apt-get install -y ansible
+
+      - name: Run Ansible Playbook
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          # Inject secrets as extra vars
+          ANSIBLE_EXTRA_VARS: |
+            nightscout_api_secret: ${{ secrets.NIGHTSCOUT_API_SECRET }}
+            link_up_username: ${{ secrets.LINK_UP_USERNAME }}
+            link_up_password: ${{ secrets.LINK_UP_PASSWORD }}
+            nightscout_api_token: ${{ secrets.NIGHTSCOUT_API_TOKEN }}
+            nightscout_domain: ${{ secrets.NIGHTSCOUT_DOMAIN }}
+            bichon_encrypt_password: ${{ secrets.BICHON_ENCRYPT_PASSWORD }}
+        run: |
+          cd ansible
+          
+          # Construct arguments
+          ARGS=""
+          if [ "${{ inputs.limit }}" != "all" ] && [ -n "${{ inputs.limit }}" ]; then
+            ARGS="$ARGS --limit ${{ inputs.limit }}"
+          fi
+          
+          if [ "${{ inputs.tags }}" != "all" ] && [ -n "${{ inputs.tags }}" ]; then
+            ARGS="$ARGS --tags ${{ inputs.tags }}"
+          fi
+          
+          ansible-playbook playbooks/site.yml $ARGS --extra-vars "$ANSIBLE_EXTRA_VARS"

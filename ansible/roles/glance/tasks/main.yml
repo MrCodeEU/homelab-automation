@@ -1,0 +1,52 @@
+---
+- name: Check for legacy Glance docker-compose file
+  stat:
+    path: /opt/glance/docker-compose.yml
+  register: glance_compose
+
+- name: Tear down legacy Glance docker-compose
+  shell: docker compose down
+  args:
+    chdir: /opt/glance
+  when: glance_compose.stat.exists
+  ignore_errors: yes
+
+- name: Remove legacy Glance docker-compose file
+  file:
+    path: /opt/glance/docker-compose.yml
+    state: absent
+  when: glance_compose.stat.exists
+
+- name: Force remove existing Glance container
+  docker_container:
+    name: glance
+    state: absent
+    force_kill: yes
+  ignore_errors: yes
+
+- name: Create Glance directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /opt/glance
+    - /opt/glance/config
+
+- name: Generate Glance config
+  template:
+    src: glance.yml.j2
+    dest: /opt/glance/config/glance.yml
+  notify: Restart Glance
+
+- name: Ensure Glance container is running
+  docker_container:
+    name: glance
+    image: glanceapp/glance
+    restart_policy: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /opt/glance/config:/app/config
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
