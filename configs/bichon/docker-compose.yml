@@ -6,7 +6,7 @@ services:
     container_name: bichon
     restart: unless-stopped
     ports:
-      - "15630:15630"
+      - "0.0.0.0:15630:15630"
     environment:
       - BICHON_ROOT_DIR=/data
       - BICHON_ENABLE_ACCESS_TOKEN=true

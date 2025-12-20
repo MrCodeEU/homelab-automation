@@ -21,7 +21,7 @@ services:
     depends_on:
       - log-converter
     ports:
-      - "7890:7890"
+      - "0.0.0.0:7890:7890"
     volumes:
       - /opt/goaccess:/goaccess:ro
       - /opt/goaccess/report:/var/www/goaccess:rw

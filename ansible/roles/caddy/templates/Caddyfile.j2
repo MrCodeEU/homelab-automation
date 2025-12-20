@@ -26,6 +26,20 @@
     }
     {% endif %}
     
+    {% if service.name == 'goaccess' %}
+    # WebSocket support for GoAccess real-time updates
+    @websocket {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    handle @websocket {
+        reverse_proxy localhost:{{ service.port }}
+    }
+    
+    handle {
+        reverse_proxy localhost:{{ service.port }}
+    }
+    {% else %}
     {% if service.upstream is defined %}
     reverse_proxy {{ service.upstream }}
     {% else %}
@@ -33,6 +47,7 @@
     reverse_proxy localhost:{{ service.port }}
     {% else %}
     reverse_proxy {{ hostvars[service.host]['ansible_host'] }}:{{ service.port }}
+    {% endif %}
     {% endif %}
     {% endif %}
 }
