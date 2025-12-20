@@ -98,7 +98,7 @@
     - httpd
     - nginx
     - apache2
-  when: "(item + '.service') in services or item in services"
+  when: "(item + '.service') in ansible_facts.services or item in ansible_facts.services"
   ignore_errors: yes
 
 - name: Remove legacy Caddy container
