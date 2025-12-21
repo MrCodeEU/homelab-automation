@@ -31,7 +31,15 @@ def convertJSONtoGoAccess (JSONdata):
     virtualHost = JSONdata['request']['host']
 
     # Caddy's remote_ip is already IP-only, no port stripping needed
-    host = JSONdata['request']['remote_ip']
+    # But sometimes it might be remote_addr with port, so let's be safe
+    if 'remote_ip' in JSONdata['request']:
+        host = JSONdata['request']['remote_ip']
+    else:
+        host = JSONdata['request']['remote_addr']
+        if ':' in host:
+            host = host[0:host.rindex(':')]
+        if (len(host) > 0 and host[0] == '['):
+            host = host[1:host.rindex(']')]
 
     method = JSONdata['request']['method']
     uri = JSONdata['request']['uri']
