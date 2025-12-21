@@ -4,6 +4,8 @@ services:
     image: python:3.11-alpine
     container_name: goaccess-converter
     restart: unless-stopped
+    env_file:
+      - .env
     volumes:
       - /opt/caddy/logs:/logs:ro
       - /opt/goaccess:/goaccess:rw
@@ -18,6 +20,8 @@ services:
     restart: unless-stopped
     depends_on:
       - log-converter
+    env_file:
+      - .env
     ports:
       - "0.0.0.0:7890:7890"
     volumes:
