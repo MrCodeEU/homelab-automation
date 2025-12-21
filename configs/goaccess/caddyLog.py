@@ -75,11 +75,17 @@ def main():
                         while True:
                             line = j.readline()
                             if (line != ""):
-                                JSONdata = json.loads(line)
-                                goAccessData = convertJSONtoGoAccess(JSONdata)
-                                g.write(goAccessData+'\n')
-                                totalLogCount += 1
-                                batchLogCount += 1
+                                try:
+                                    JSONdata = json.loads(line)
+                                    goAccessData = convertJSONtoGoAccess(JSONdata)
+                                    g.write(goAccessData+'\n')
+                                    totalLogCount += 1
+                                    batchLogCount += 1
+                                except json.JSONDecodeError:
+                                    continue
+                                except Exception as e:
+                                    print(f"Error processing line: {e}")
+                                    continue
                             elif (timeInterval > 0):
                                 g.flush()
                                 if (batchLogCount):
