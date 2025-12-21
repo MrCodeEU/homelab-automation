@@ -34,7 +34,7 @@
     {% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
     handle {
         basicauth {
-            admin {{ caddy_admin_hash | default('$2a$14$Zo8o.zRZF4lRZLj7J9yVVuMPvkHZKp7LcZhQsP2gQy5YZ9P8V9ZGe') }}
+            {{ caddy_auth_user | default('admin', true) }} {{ caddy_admin_hash | default('$2a$12$mZT3tHnQr1gLXPnY8XMqVefFpEVSJIEEl3AGrBsslH.9OPzA0S8ta') }}
         }
         reverse_proxy localhost:{{ service.port }}
     }
@@ -46,7 +46,7 @@
     {% else %}
     {% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
     basicauth {
-        admin {{ caddy_admin_hash | default('$2a$14$Zo8o.zRZF4lRZLj7J9yVVuMPvkHZKp7LcZhQsP2gQy5YZ9P8V9ZGe') }}
+        {{ caddy_auth_user | default('admin', true) }} {{ caddy_admin_hash | default('$2a$14$Zo8o.zRZF4lRZLj7J9yVVuMPvkHZKp7LcZhQsP2gQy5YZ9P8V9ZGe') }}
     }
     {% endif %}
     
