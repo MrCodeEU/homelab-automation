@@ -11,11 +11,12 @@
     - inventory_hostname == item.host
     - item.name not in services_excluded_from_generic_deployment
 
-- name: Copy docker-compose.yml
+- name: Copy service configuration files
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../configs/{{ item.name }}/docker-compose.yml"
-    dest: "/opt/{{ item.name }}/docker-compose.yml"
+    src: "{{ playbook_dir }}/../../configs/{{ item.name }}/"
+    dest: "/opt/{{ item.name }}/"
     mode: '0644'
+    directory_mode: '0755'
   loop: "{{ services }}"
   when:
     - item.enabled | default(true)

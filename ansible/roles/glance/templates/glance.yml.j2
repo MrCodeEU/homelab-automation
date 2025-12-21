@@ -94,13 +94,13 @@ pages:
             title: Service Health
             cache: 1m
             sites:
-              {% for service in services %}
-              {% if service.enabled | default(true) %}
+{% for service in services %}
+{% if service.enabled | default(true) %}
               - title: {{ service.name | capitalize }}
                 url: https://{{ service.domain if service.domain is string else service.domain[0] }}
                 icon: {{ service.icon | default('mdi:application') }}
-              {% endif %}
-              {% endfor %}
+{% endif %}
+{% endfor %}
               - title: GitHub
                 url: https://github.com
                 icon: si:github
