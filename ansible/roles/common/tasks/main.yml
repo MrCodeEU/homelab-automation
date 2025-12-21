@@ -1,4 +1,7 @@
 ---
+# Common role - base package installation
+# Optimized: Uses cache_valid_time to reduce update frequency
+
 - name: Update cache and install packages (Rocky/RedHat)
   ansible.builtin.dnf:
     name:
@@ -37,9 +40,12 @@
       - python3-pip
     state: present
     update_cache: true
+    cache_valid_time: 3600  # Only update cache if older than 1 hour
   when: ansible_facts['os_family'] == "Debian"
 
 - name: Cleanup legacy deployment artifacts
   ansible.builtin.file:
     path: /tmp/homelab-deploy
     state: absent
+  changed_when: false  # Don't report change for cleanup
+

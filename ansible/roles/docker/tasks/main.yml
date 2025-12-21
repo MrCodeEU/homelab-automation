@@ -1,6 +1,17 @@
 ---
+# Docker role - optimized with conditional execution
+# Skips installation if Docker is already present
+
+- name: Check if Docker is installed
+  ansible.builtin.command: docker --version
+  register: docker_check
+  changed_when: false
+  failed_when: false
+
 - name: Install Docker (Rocky/RedHat)
-  when: ansible_facts['os_family'] == "RedHat"
+  when:
+    - ansible_facts['os_family'] == "RedHat"
+    - docker_check.rc != 0
   block:
     - name: Install yum-utils
       ansible.builtin.dnf:
@@ -13,6 +24,7 @@
         https://download.docker.com/linux/centos/docker-ce.repo
       args:
         creates: /etc/yum.repos.d/docker-ce.repo
+      changed_when: false
 
     - name: Install Docker packages
       ansible.builtin.dnf:
@@ -24,14 +36,10 @@
           - docker-compose-plugin
         state: present
 
-    - name: Start and enable Docker service
-      ansible.builtin.service:
-        name: docker
-        state: started
-        enabled: true
-
 - name: Install Docker (Debian/Ubuntu)
-  when: ansible_facts['os_family'] == "Debian"
+  when:
+    - ansible_facts['os_family'] == "Debian"
+    - docker_check.rc != 0
   block:
     - name: Install prerequisites
       ansible.builtin.apt:
@@ -40,7 +48,7 @@
           - curl
           - gnupg
         state: present
-        update_cache: true
+        cache_valid_time: 3600
 
     - name: Create keyrings directory
       ansible.builtin.file:
@@ -63,6 +71,7 @@
       args:
         creates: /etc/apt/keyrings/docker.gpg
         executable: /bin/bash
+      changed_when: false
 
     - name: Set permissions for GPG key
       ansible.builtin.file:
@@ -80,6 +89,7 @@
       args:
         creates: /etc/apt/sources.list.d/docker.list
         executable: /bin/bash
+      changed_when: false
 
     - name: Update apt cache
       ansible.builtin.apt:
@@ -95,22 +105,32 @@
           - docker-compose-plugin
         state: present
 
-    - name: Start and enable Docker service
-      ansible.builtin.service:
-        name: docker
-        state: started
-        enabled: true
+- name: Start and enable Docker service
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Check if Docker Python library is installed
+  ansible.builtin.command: python3 -c "import docker"
+  register: docker_py_check
+  changed_when: false
+  failed_when: false
 
 - name: Install Docker Python library
   ansible.builtin.pip:
     name: docker
     state: present
+  when: docker_py_check.rc != 0
 
 - name: Prune unused Docker objects
   community.docker.docker_prune:
     containers: true
     images: true
-    networks: false  # Prevent removing networks used by stopped containers
-    volumes: false  # Be careful with volumes
+    networks: false
+    volumes: false
     builder_cache: true
-  tags: prune
+  tags:
+    - prune
+    - never  # Only run when explicitly tagged
+
