@@ -80,3 +80,13 @@ services:
     icon: "mdi:email-server"
     host: mljr
     managed: false
+
+# Secrets (injected via environment variables)
+nightscout_api_secret: "{{ lookup('env', 'NIGHTSCOUT_API_SECRET') }}"
+link_up_username: "{{ lookup('env', 'LINK_UP_USERNAME') }}"
+link_up_password: "{{ lookup('env', 'LINK_UP_PASSWORD') }}"
+nightscout_api_token: "{{ lookup('env', 'NIGHTSCOUT_API_TOKEN') }}"
+nightscout_domain: "{{ lookup('env', 'NIGHTSCOUT_DOMAIN') }}"
+bichon_encrypt_password: "{{ lookup('env', 'BICHON_ENCRYPT_PASSWORD') }}"
+caddy_admin_hash: "{{ lookup('env', 'CADDY_AUTH_PASSWORD_HASH') }}"
+caddy_auth_user: "{{ lookup('env', 'CADDY_AUTH_USER') }}"

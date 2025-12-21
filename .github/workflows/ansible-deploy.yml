@@ -60,16 +60,15 @@ jobs:
       - name: Run Ansible Playbook
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
-          # Inject secrets as extra vars
-          ANSIBLE_EXTRA_VARS: |
-            nightscout_api_secret: "${{ secrets.NIGHTSCOUT_API_SECRET }}"
-            link_up_username: "${{ secrets.LINK_UP_USERNAME }}"
-            link_up_password: "${{ secrets.LINK_UP_PASSWORD }}"
-            nightscout_api_token: "${{ secrets.NIGHTSCOUT_API_TOKEN }}"
-            nightscout_domain: "${{ secrets.NIGHTSCOUT_DOMAIN }}"
-            bichon_encrypt_password: "${{ secrets.BICHON_ENCRYPT_PASSWORD }}"
-            caddy_admin_hash: "${{ secrets.CADDY_AUTH_PASSWORD_HASH }}"
-            caddy_auth_user: "${{ secrets.CADDY_AUTH_USER }}"
+          # Secrets for Ansible lookup
+          NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
+          LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
+          LINK_UP_PASSWORD: ${{ secrets.LINK_UP_PASSWORD }}
+          NIGHTSCOUT_API_TOKEN: ${{ secrets.NIGHTSCOUT_API_TOKEN }}
+          NIGHTSCOUT_DOMAIN: ${{ secrets.NIGHTSCOUT_DOMAIN }}
+          BICHON_ENCRYPT_PASSWORD: ${{ secrets.BICHON_ENCRYPT_PASSWORD }}
+          CADDY_AUTH_PASSWORD_HASH: ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
+          CADDY_AUTH_USER: ${{ secrets.CADDY_AUTH_USER }}
         run: |
           cd ansible
           
@@ -83,4 +82,4 @@ jobs:
             ARGS="$ARGS --tags ${{ inputs.tags }}"
           fi
           
-          ansible-playbook playbooks/site.yml $ARGS --extra-vars "$ANSIBLE_EXTRA_VARS"
+          ansible-playbook playbooks/site.yml $ARGS
