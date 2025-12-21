@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   ntfy:
     image: binwiederhier/ntfy:latest
@@ -11,7 +9,6 @@ services:
       - ntfy-cache:/var/cache/ntfy
       - ntfy-data:/var/lib/ntfy
       - ./server.yml:/etc/ntfy/server.yml:ro
-    networks: []
     environment:
       - TZ=Europe/London
     command: serve

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Python converter that reads Caddy JSON logs and converts to GoAccess format
   log-converter:
