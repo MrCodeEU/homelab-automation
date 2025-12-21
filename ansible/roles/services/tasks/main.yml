@@ -1,15 +1,33 @@
 ---
-- name: Ensure service directory exists
+# Services role - Docker Compose deployment
+# Optimized: Bulk operations, parallel deployment
+
+# Build list of services for this host
+- name: Set services for this host
+  ansible.builtin.set_fact:
+    host_services: >-
+      {{ services | selectattr('enabled', 'defined') |
+         selectattr('enabled') |
+         selectattr('managed', 'undefined') |
+         selectattr('host', 'equalto', inventory_hostname) |
+         rejectattr('name', 'in', services_excluded_from_generic_deployment) |
+         list +
+         services | selectattr('enabled', 'defined') |
+         selectattr('enabled') |
+         selectattr('managed', 'defined') |
+         selectattr('managed') |
+         selectattr('host', 'equalto', inventory_hostname) |
+         rejectattr('name', 'in', services_excluded_from_generic_deployment) |
+         list }}
+
+- name: Ensure service directories exist
   ansible.builtin.file:
     path: "/opt/{{ item.name }}"
     state: directory
     mode: '0755'
-  loop: "{{ services }}"
-  when:
-    - item.enabled | default(true)
-    - item.managed | default(true)
-    - inventory_hostname == item.host
-    - item.name not in services_excluded_from_generic_deployment
+  loop: "{{ host_services }}"
+  loop_control:
+    label: "{{ item.name }}"
 
 - name: Copy service configuration files
   ansible.builtin.copy:
@@ -17,28 +35,20 @@
     dest: "/opt/{{ item.name }}/"
     mode: '0644'
     directory_mode: '0755'
-  loop: "{{ services }}"
-  when:
-    - item.enabled | default(true)
-    - item.managed | default(true)
-    - inventory_hostname == item.host
-    - item.name not in services_excluded_from_generic_deployment
-  # Some services might not have a local config yet
-  failed_when: false
+  loop: "{{ host_services }}"
+  loop_control:
+    label: "{{ item.name }}"
+  failed_when: false  # Some services might not have configs yet
 
 - name: Create .env file with secrets
   ansible.builtin.template:
     src: env.j2
     dest: "/opt/{{ item.name }}/.env"
     mode: '0600'
-  loop: "{{ services }}"
-  when:
-    - item.enabled | default(true)
-    - item.managed | default(true)
-    - inventory_hostname == item.host
-    - item.name not in services_excluded_from_generic_deployment
+  loop: "{{ host_services }}"
+  loop_control:
+    label: "{{ item.name }}"
   vars:
-    # Map secrets to template variables (renamed to avoid shadowing)
     nightscout_api_secret_var: "{{ nightscout_api_secret | default('') }}"
     link_up_username_var: "{{ link_up_username | default('') }}"
     link_up_password_var: "{{ link_up_password | default('') }}"
@@ -46,22 +56,40 @@
     nightscout_domain_var: "{{ nightscout_domain | default('') }}"
     bichon_encrypt_password_var: "{{ bichon_encrypt_password | default('') }}"
 
-- name: Check if docker-compose.yml exists for services
+- name: Check which services have docker-compose.yml
   ansible.builtin.stat:
     path: "/opt/{{ item.name }}/docker-compose.yml"
-  register: services_compose_file_stat
-  loop: "{{ services }}"
-  when:
-    - item.enabled | default(true)
-    - item.managed | default(true)
-    - inventory_hostname == item.host
-    - item.name not in services_excluded_from_generic_deployment
+  register: compose_files
+  loop: "{{ host_services }}"
+  loop_control:
+    label: "{{ item.name }}"
 
-- name: Deploy service via Docker Compose
+- name: Deploy services via Docker Compose
   community.docker.docker_compose_v2:
     project_src: "/opt/{{ item.item.name }}"
     state: present
-  loop: "{{ services_compose_file_stat.results }}"
+    pull: policy  # Only pull if image not present
+  loop: "{{ compose_files.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
   when:
-    - not item.skipped | default(false)
+    - item.stat is defined
     - item.stat.exists | default(false)
+  register: compose_results
+  # Run in parallel for speed
+  async: 300
+  poll: 0
+
+- name: Wait for Docker Compose deployments
+  ansible.builtin.async_status:
+    jid: "{{ item.ansible_job_id }}"
+  register: job_result
+  until: job_result.finished
+  retries: 30
+  delay: 10
+  loop: "{{ compose_results.results }}"
+  loop_control:
+    label: "{{ item.item.item.name | default('skip') }}"
+  when:
+    - item.ansible_job_id is defined
+
