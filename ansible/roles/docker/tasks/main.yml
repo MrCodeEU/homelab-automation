@@ -110,7 +110,7 @@
   community.docker.docker_prune:
     containers: true
     images: true
-    networks: true
+    networks: false  # Prevent removing networks used by stopped containers
     volumes: false  # Be careful with volumes
     builder_cache: true
   tags: prune
