@@ -40,9 +40,16 @@ jobs:
       packages: write
   deploy:
     runs-on: ubuntu-latest
-    # needs: [build-librelink]
-    # if: always() && (needs.build-librelink.result == 'success' || needs.build-librelink.result == 'skipped')
+    needs: [build-librelink]
+    if: always() && (needs.build-librelink.result == 'success' || needs.build-librelink.result == 'skipped')
     steps:
+      - name: Wait for image to be available
+        if: ${{ inputs.build_librelink == true }}
+        run: |
+          echo "Waiting 30 seconds for image to be fully available in registry..."
+          sleep 30
+          echo "Image should now be available for deployment"
+      
       - name: Checkout repository
         uses: actions/checkout@v4
 
