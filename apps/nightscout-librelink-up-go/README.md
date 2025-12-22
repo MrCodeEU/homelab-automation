@@ -57,7 +57,7 @@ go build -o nightscout-librelink-up-go .
 
 ### Docker Build
 ```bash
-docker build -t ghcr.io/mrcodeu/nightscout-librelink-up-go:latest .
+docker build -t ghcr.io/mrcodeeu/nightscout-librelink-up-go:latest .
 ```
 
 ## Running
@@ -72,7 +72,7 @@ docker run -d \
   -e LINK_UP_TIME_INTERVAL="5" \
   -e NIGHTSCOUT_URL="nightscout:1337" \
   -e NIGHTSCOUT_API_TOKEN="your-api-token" \
-  ghcr.io/mrcodeu/nightscout-librelink-up-go:latest
+  ghcr.io/mrcodeeu/nightscout-librelink-up-go:latest
 ```
 
 ### Using Docker Compose
