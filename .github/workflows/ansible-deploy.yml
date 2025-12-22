@@ -24,10 +24,22 @@ on:
           - docker
           - caddy
           - services
+      build_librelink:
+        description: 'Build LibreLink Up Go image before deploying'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
+  build-librelink:
+    if: ${{ inputs.build_librelink == true }}
+    uses: ./.github/workflows/build-librelink-image.yml
+    secrets: inherit
+
   deploy:
     runs-on: ubuntu-latest
+    # needs: [build-librelink]
+    # if: always() && (needs.build-librelink.result == 'success' || needs.build-librelink.result == 'skipped')
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
