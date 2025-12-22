@@ -8,22 +8,22 @@ import (
 
 // Config holds all application configuration
 type Config struct {
-	LinkUpUsername      string
-	LinkUpPassword      string
-	LinkUpRegion        string
-	LinkUpTimeInterval  int
-	NightscoutURL       string
-	NightscoutAPIToken  string
+	LinkUpUsername     string
+	LinkUpPassword     string
+	LinkUpRegion       string
+	LinkUpTimeInterval int
+	NightscoutURL      string
+	NightscoutAPIToken string
 }
 
 // LoadConfig loads configuration from environment variables
 func LoadConfig() (*Config, error) {
 	cfg := &Config{
-		LinkUpUsername:     os.Getenv("LINK_UP_USERNAME"),
-		LinkUpPassword:     os.Getenv("LINK_UP_PASSWORD"),
+		LinkUpUsername:     getEnvOrDefault("LINK_UP_USERNAME", ""),
+		LinkUpPassword:     getEnvOrDefault("LINK_UP_PASSWORD", ""),
 		LinkUpRegion:       getEnvOrDefault("LINK_UP_REGION", "EU"),
-		NightscoutURL:      os.Getenv("NIGHTSCOUT_URL"),
-		NightscoutAPIToken: os.Getenv("NIGHTSCOUT_API_TOKEN"),
+		NightscoutURL:      getEnvOrDefault("NIGHTSCOUT_URL", ""),
+		NightscoutAPIToken: getEnvOrDefault("NIGHTSCOUT_API_TOKEN", ""),
 	}
 
 	// Parse interval with default
