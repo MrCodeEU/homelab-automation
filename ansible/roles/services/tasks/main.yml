@@ -2,6 +2,17 @@
 # Services role - Docker Compose deployment
 # Optimized: Bulk operations, parallel deployment
 
+# Login to GitHub Container Registry for private images
+- name: Log in to GitHub Container Registry
+  community.docker.docker_login:
+    registry: ghcr.io
+    username: "{{ github_username }}"
+    password: "{{ github_token }}"
+  when: 
+    - github_username is defined
+    - github_token is defined
+  no_log: true
+
 # Build list of services for this host
 - name: Set services for this host
   ansible.builtin.set_fact:
