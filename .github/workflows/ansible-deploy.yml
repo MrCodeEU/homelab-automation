@@ -93,6 +93,8 @@ jobs:
           CADDY_AUTH_USER: ${{ secrets.CADDY_AUTH_USER }}
           KUMA_USERNAME: ${{ secrets.KUMA_USERNAME }}
           KUMA_PASSWORD: ${{ secrets.KUMA_PASSWORD }}
+          GITHUB_USERNAME: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
         run: |
           cd ansible
           
