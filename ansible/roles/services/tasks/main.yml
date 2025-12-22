@@ -115,8 +115,10 @@
       sleep 5
     done
     
-    # Install dependencies and run provisioning
-    pip3 install uptime-kuma-api-v2 pyyaml --quiet
+    # Install dependencies using python3 -m pip to ensure correct path
+    python3 -m pip install uptime-kuma-api-v2 pyyaml --quiet --break-system-packages 2>/dev/null || \
+    python3 -m pip install uptime-kuma-api-v2 pyyaml --quiet
+    
     python3 /opt/kuma/hooks/provision-kuma.py /opt/kuma/services.yml
   args:
     executable: /bin/bash

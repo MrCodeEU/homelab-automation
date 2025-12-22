@@ -3,7 +3,7 @@ import os
 import sys
 import yaml
 import time
-from uptime_kuma_api_v2 import UptimeKumaApi, MonitorType
+from uptime_kuma_api import UptimeKumaApi, MonitorType
 
 def main():
     print("Starting Uptime Kuma provisioning...")
