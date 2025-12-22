@@ -43,14 +43,15 @@ jobs:
         uses: actions/cache@v4
         id: ansible-cache
         with:
-            path: /usr/bin/ansible*
-            key: ansible-${{ runner.os }}-${{ hashFiles('.github/workflows/ansible-deploy.yml') }}
+            path: |
+              ~/.local/bin/ansible*
+              ~/.local/lib/python*/site-packages/ansible*
+            key: ansible-${{ runner.os }}-v2
 
       - name: Install Ansible
         if: steps.ansible-cache.outputs.cache-hit != 'true'
         run: |
-            sudo apt-get update
-            sudo apt-get install -y ansible
+            pip install --user ansible
 
       - name: Install Ansible collections
         run: |
@@ -112,4 +113,4 @@ jobs:
                -H "Priority: ${PRIORITY}" \
                -H "Tags: ansible,homelab" \
                -d "${MESSAGE}" \
-               https://ntfy.mljr.eu/homelab-deploy || true
+               https://ntfy.mljr.eu/deployment || true
