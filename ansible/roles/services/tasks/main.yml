@@ -93,3 +93,44 @@
   when:
     - item.ansible_job_id is defined
 
+# Kuma Monitor Provisioning
+- name: Create services.yml for Kuma provisioning
+  ansible.builtin.copy:
+    content: "{{ {'services': services} | to_nice_yaml }}"
+    dest: "/opt/kuma/services.yml"
+    mode: '0644'
+  when: "'kuma' in host_services | map(attribute='name') | list"
+
+- name: Run Kuma provisioning script
+  ansible.builtin.shell: |
+    export KUMA_URL="http://localhost:3001"
+    export KUMA_USERNAME="{{ kuma_username }}"
+    export KUMA_PASSWORD="{{ kuma_password }}"
+    
+    # Wait for Kuma to be ready
+    for i in {1..30}; do
+      if curl -s http://localhost:3001 > /dev/null 2>&1; then
+        break
+      fi
+      sleep 5
+    done
+    
+    # Install dependencies and run provisioning
+    pip3 install uptime-kuma-api-v2 pyyaml --quiet
+    python3 /opt/kuma/hooks/provision-kuma.py /opt/kuma/services.yml
+  args:
+    executable: /bin/bash
+  when: 
+    - "'kuma' in host_services | map(attribute='name') | list"
+    - kuma_username is defined
+    - kuma_password is defined
+  register: kuma_provision
+  ignore_errors: true
+
+- name: Display Kuma provisioning result
+  ansible.builtin.debug:
+    msg: "{{ kuma_provision.stdout_lines }}"
+  when: 
+    - kuma_provision is defined
+    - kuma_provision.stdout_lines is defined
+

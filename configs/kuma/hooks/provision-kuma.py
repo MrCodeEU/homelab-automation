@@ -3,7 +3,7 @@ import os
 import sys
 import yaml
 import time
-from uptime_kuma_api import UptimeKumaApi, MonitorType
+from uptime_kuma_api_v2 import UptimeKumaApi, MonitorType
 
 def main():
     print("Starting Uptime Kuma provisioning...")
@@ -12,7 +12,7 @@ def main():
     url = os.environ.get("KUMA_URL", "http://localhost:3001")
     username = os.environ.get("KUMA_USERNAME")
     password = os.environ.get("KUMA_PASSWORD")
-    services_file = sys.argv[1] if len(sys.argv) > 1 else "/tmp/homelab-deploy/configs/services.yml"
+    services_file = sys.argv[1] if len(sys.argv) > 1 else "/opt/kuma/services.yml"
 
     if not username or not password:
         print("Error: KUMA_USERNAME and KUMA_PASSWORD environment variables must be set.")
@@ -27,13 +27,15 @@ def main():
         print("Login successful.")
     except Exception as e:
         print(f"Login failed: {e}")
-        # Try to see if we need to setup? 
-        # The API client doesn't support 'setup' easily, usually assumes setup is done.
         print("Ensure Uptime Kuma is set up and credentials are correct.")
         sys.exit(1)
 
     # Read services.yml
     print(f"Reading {services_file}...")
+    if not os.path.exists(services_file):
+        print(f"Error: {services_file} not found.")
+        sys.exit(1)
+        
     with open(services_file, 'r') as f:
         config = yaml.safe_load(f)
 
