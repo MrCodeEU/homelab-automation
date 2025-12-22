@@ -54,7 +54,7 @@ services:
       AUTH_DEFAULT_ROLES: readable
       
     ports:
-      - "0.0.0.0:1337:1337"
+      - "1337:1337"  # Exposed locally for LibreLink-Up connector
     networks:
       - nightscout-internal
     logging:
@@ -63,9 +63,9 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # LibreLink Up to Nightscout Connector
+  # LibreLink Up to Nightscout Connector (Custom Go Implementation)
   librelink-up:
-    image: timoschlueter/nightscout-librelink-up:latest
+    image: ghcr.io/mrcodeu/nightscout-librelink-up-go:latest
     container_name: nightscout-librelink-up
     restart: unless-stopped
     depends_on:
@@ -74,27 +74,12 @@ services:
       # LibreLink Up Credentials (from .env file)
       LINK_UP_USERNAME: ${LINK_UP_USERNAME}
       LINK_UP_PASSWORD: ${LINK_UP_PASSWORD}
-      # Region: EU is standard, but try DE if you are in Austria/Germany and EU fails
-      LINK_UP_REGION: ${LINK_UP_REGION:-DE}
+      LINK_UP_REGION: ${LINK_UP_REGION:-EU}
       LINK_UP_TIME_INTERVAL: ${LINK_UP_TIME_INTERVAL:-5}
-      LINK_UP_VERSION: ${LINK_UP_VERSION:-4.16.0}
-      
-      # Optional: specific patient connection
-      LINK_UP_CONNECTION: ${LINK_UP_CONNECTION:-}
-      
+
       # Nightscout Connection (uses internal container name)
       NIGHTSCOUT_URL: nightscout:1337
       NIGHTSCOUT_API_TOKEN: ${NIGHTSCOUT_API_TOKEN}
-      NIGHTSCOUT_DISABLE_HTTPS: "true"  # Internal connection doesn't need HTTPS
-      
-      # Logging
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      
-      # Fetch all available data
-      ALL_DATA: ${ALL_DATA:-true}
-      
-      # Timezone
-      TZ: ${TZ:-Europe/Berlin}
     networks:
       - nightscout-internal
     logging:

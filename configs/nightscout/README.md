@@ -6,7 +6,7 @@ This directory contains the configuration for running Nightscout CGM monitoring 
 
 - **Nightscout**: Web-based CGM (Continuous Glucose Monitor) viewer
 - **MongoDB**: Database for storing CGM readings
-- **LibreLink Up Connector**: Automatically fetches glucose readings from LibreLink Up and uploads to Nightscout
+- **LibreLink Up Connector**: Custom Go implementation that automatically fetches glucose readings from LibreLink Up and uploads to Nightscout
 
 ## Setup Instructions
 
