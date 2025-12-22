@@ -65,7 +65,7 @@ services:
 
   # LibreLink Up to Nightscout Connector (Custom Go Implementation)
   librelink-up:
-    image: ghcr.io/mrcodeu/nightscout-librelink-up-go:latest
+    image: ghcr.io/mrcodeeu/nightscout-librelink-up-go:latest
     container_name: nightscout-librelink-up
     restart: unless-stopped
     depends_on:
