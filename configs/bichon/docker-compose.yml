@@ -10,7 +10,7 @@ services:
       - BICHON_ENABLE_ACCESS_TOKEN=true
       - BICHON_LOG_LEVEL=${BICHON_LOG_LEVEL:-info}
     env_file:
-      - ./.env
+      - .env
     volumes:
       - ./data:/data
 

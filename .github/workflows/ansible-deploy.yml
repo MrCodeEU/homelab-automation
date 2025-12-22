@@ -43,14 +43,15 @@ jobs:
         uses: actions/cache@v4
         id: ansible-cache
         with:
-            path: /usr/bin/ansible*
-            key: ansible-${{ runner.os }}-${{ hashFiles('.github/workflows/ansible-deploy.yml') }}
+            path: |
+              ~/.local/bin/ansible*
+              ~/.local/lib/python*/site-packages/ansible*
+            key: ansible-${{ runner.os }}-v2
 
       - name: Install Ansible
         if: steps.ansible-cache.outputs.cache-hit != 'true'
         run: |
-            sudo apt-get update
-            sudo apt-get install -y ansible
+            pip install --user ansible
 
       - name: Install Ansible collections
         run: |
@@ -69,6 +70,8 @@ jobs:
           BICHON_ENCRYPT_PASSWORD: ${{ secrets.BICHON_ENCRYPT_PASSWORD }}
           CADDY_AUTH_PASSWORD_HASH: ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
           CADDY_AUTH_USER: ${{ secrets.CADDY_AUTH_USER }}
+          KUMA_USERNAME: ${{ secrets.KUMA_USERNAME }}
+          KUMA_PASSWORD: ${{ secrets.KUMA_PASSWORD }}
         run: |
           cd ansible
           
@@ -83,3 +86,31 @@ jobs:
           fi
           
           ansible-playbook playbooks/site.yml $ARGS
+
+      - name: Send deployment notification
+        if: always()
+        run: |
+          # Determine deployment status
+          if [ "${{ job.status }}" == "success" ]; then
+            EMOJI="✅"
+            PRIORITY="default"
+            TITLE="Deployment Successful"
+          else
+            EMOJI="❌"
+            PRIORITY="high"
+            TITLE="Deployment Failed"
+          fi
+          
+          # Construct message
+          MESSAGE="${EMOJI} Homelab deployment to ${{ inputs.limit || 'all' }} hosts"
+          if [ "${{ inputs.tags }}" != "all" ] && [ -n "${{ inputs.tags }}" ]; then
+            MESSAGE="${MESSAGE} (tags: ${{ inputs.tags }})"
+          fi
+          MESSAGE="${MESSAGE} - ${TITLE}"
+          
+          # Send to ntfy
+          curl -H "Title: ${TITLE}" \
+               -H "Priority: ${PRIORITY}" \
+               -H "Tags: ansible,homelab" \
+               -d "${MESSAGE}" \
+               https://ntfy.mljr.eu/deployment || true

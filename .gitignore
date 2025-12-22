@@ -4,6 +4,7 @@
 *.swp
 *.swo
 *~
+*.retry
 
 # OS files
 .DS_Store
@@ -35,6 +36,8 @@ secrets/
 /dist/
 /build/
 
-# Ansible cache
+# Ansible
 .ansible/
+*.retry
+/ansible_facts_cache/
 

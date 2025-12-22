@@ -1,6 +1,6 @@
 # Homelab Automation
 
-This repository contains everything needed to automatically deploy and manage a complete homelab setup across multiple devices using Ansible.
+Ansible-based automation for deploying and managing self-hosted services across multiple devices over Tailscale VPN.
 
 ## ⚡ Quick Start
 
@@ -10,319 +10,297 @@ git clone https://github.com/MrCodeEU/homelab-automation.git
 cd homelab-automation
 
 # 2. Install Ansible
-# On Linux/WSL:
-sudo apt update
-sudo apt install ansible
+sudo apt update && sudo apt install ansible   # Debian/Ubuntu
+# or
+brew install ansible                           # macOS
 
-# 3. Configure your inventory
-# Edit ansible/inventory/hosts.yml to match your Tailscale hostnames
+# 3. Install Ansible collections
+cd ansible && ansible-galaxy collection install -r requirements.yml
+
+# 4. Configure inventory
+# Edit ansible/inventory/hosts.yml with your Tailscale hostnames
 nano ansible/inventory/hosts.yml
 
-# 4. Configure services
-# Edit ansible/group_vars/all.yml to define your services and global settings
-nano ansible/group_vars/all.yml
+# 5. Configure services
+# Edit ansible/inventory/group_vars/all.yml
+nano ansible/inventory/group_vars/all.yml
 
-# 5. Deploy
-cd ansible
+# 6. Deploy
 ansible-playbook playbooks/site.yml
 ```
 
 ## 🏗️ Architecture
 
-The automation supports deployment to three types of devices:
-- **VPS**: Cloud-based Virtual Private Server (Rocky Linux)
-- **Home Server**: Linux server running at home (Rocky Linux)
-- **Unraid NAS**: Network Attached Storage running Unraid (Slackware-based)
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    GitHub Actions                           │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  ansible-deploy.yml                                  │   │
+│  │  - Sets up Tailscale VPN                            │   │
+│  │  - Runs ansible-playbook                            │   │
+│  └─────────────────────────────────────────────────────┘   │
+└────────────────────────┬────────────────────────────────────┘
+                         │ Tailscale VPN
+         ┌───────────────┼───────────────┬──────────────────┐
+         ▼               ▼               ▼                  ▼
+    ┌─────────┐    ┌─────────┐    ┌─────────┐       ┌─────────┐
+    │  mljr   │    │  nuc    │    │   pi    │       │   nas   │
+    │  (VPS)  │    │ (Home)  │    │  (RPi)  │       │(Unraid) │
+    │  Rocky  │    │  Rocky  │    │ Debian  │       │Slackware│
+    └─────────┘    └─────────┘    └─────────┘       └─────────┘
+```
 
-All devices are connected via Tailscale VPN for secure SSH access.
+### Supported Platforms
 
-**Ansible Migration:**
-This project has been migrated from shell scripts to Ansible for better maintainability and idempotency.
-- **Inventory**: `ansible/inventory/hosts.yml`
-- **Configuration**: `ansible/group_vars/all.yml`
-- **Playbooks**: `ansible/playbooks/`
-- **Roles**: `ansible/roles/`
-
-**OS-Specific Handling:**
-- **Rocky/Debian**: Fully managed by Ansible roles (common, docker, caddy, glance).
-- **Unraid**: Managed via a wrapper role that executes custom deployment scripts (`scripts/03-unraid-deploy.sh`).
+| Host | OS | Roles |
+|------|----|----|
+| VPS (mljr) | Rocky Linux | common, docker, caddy, glance, services |
+| Home Server | Rocky Linux | common, docker, caddy, services |
+| Raspberry Pi | Debian | common, docker, services |
+| NAS | Unraid (Slackware) | unraid (custom script) |
 
 ## 🚀 Features
 
-- **Automated Base Setup**: Installs essential packages (git, docker, curl, vim, htop, etc.) via `common` role.
-- **Docker Installation**: Sets up Docker and Docker Compose via `docker` role.
-- **Caddy Reverse Proxy**: Auto-configured HTTPS reverse proxy from YAML config via `caddy` role.
-- **Glance Dashboard**: Beautiful self-hosted dashboard generated from config via `glance` role.
-
-  - 🌤️ Weather widget
-  - 📅 Calendar integration
-  - 🕐 Multiple timezone clocks
-  - 🐳 Docker container monitoring
-  - 📊 Server stats (CPU, memory, disk)
-  - 📰 RSS feeds (Hacker News, The Verge, TechCrunch)
-  - 🔗 Service health monitoring
-  - 📱 Reddit, Lobsters feeds
-- **Nightscout CGM Monitoring**: Self-hosted continuous glucose monitoring with:
-  - 🩺 Nightscout web interface with HTTPS
-  - 🔄 Automatic LibreLink Up data sync
-  - 💾 MongoDB database for CGM readings
-  - 📊 Real-time glucose visualization
-  - 🚨 Configurable alarms and notifications
-  - 📱 Mobile-friendly interface
-  - 🔐 Secure internal network for data connector
-  - See [NIGHTSCOUT.md](docs/NIGHTSCOUT.md) for detailed setup
-- **Uptime Kuma Ready**: Prepared for service monitoring integration (see [Uptime Kuma README](configs/uptime-kuma/README.md))
-- **GitHub Workflows**: CI/CD pipeline with Tailscale SSH authentication
-- **YAML-Driven Configuration**: Single `services.yml` file generates all configs
-- **Tailscale Integration**: Secure VPN connectivity without SSH keys
-- **🆕 Hooks-Based Deployment**: Flexible service deployment with optional hooks
-  - **Pre-deploy hooks**: Run tasks before docker compose up (validation, preparation)
-  - **Post-deploy hooks**: Initialize services after deployment (setup, data migration)
-  - **Validation hooks**: Automated health checks and smoke tests
-  - Self-contained services with hooks in their own directories
-  - See [Service Development Guide](docs/SERVICE_DEVELOPMENT.md) for details
-
-## 🔌 Service Deployment Hooks
-
-Services support optional deployment hooks for customization:
-
-### Hook Types
-
-1. **pre-deploy.sh** - Runs before `docker compose up`
-   - Use for: validation, preparation, dependency checks
-   - Failure aborts deployment
-
-2. **post-deploy.sh** - Runs after `docker compose up`
-   - Use for: initialization, data migration, notifications
-   - Failure logged as warning
-
-3. **validate.sh** - Runs after post-deploy
-   - Use for: health checks, smoke tests, integration tests
-   - Failure logged as warning
-
-### Example Service Structure
-
-```
-configs/my-service/
-├── docker-compose.yml
-├── config.yml
-└── hooks/                  # Optional
-    ├── pre-deploy.sh
-    ├── post-deploy.sh
-    └── validate.sh
-```
-
-### Creating a Service with Hooks
-
-See [configs/example-service](configs/example-service/README.md) for a complete example with all hooks implemented.
-
-**Quick example:**
-
-```bash
-# 1. Create service directory
-mkdir -p configs/my-service/hooks
-
-# 2. Add docker-compose.yml
-# 3. (Optional) Add hooks
-# 4. Add to services.yml
-# 5. Deploy!
-```
-
-See the [Service Development Guide](docs/SERVICE_DEVELOPMENT.md) for detailed instructions.
+- **🔧 Automated Base Setup** - Installs essential packages via `common` role
+- **🐳 Docker Management** - Installs Docker/Compose via `docker` role
+- **🔒 Caddy Reverse Proxy** - Auto-configured HTTPS from Jinja2 templates
+- **📊 Glance Dashboard** - Beautiful dashboard with weather, feeds, monitoring
+- **🔌 Service Deployment** - Docker Compose services from `configs/` directory
+- **🔐 Secret Management** - Secrets injected via environment variables
+- **🌐 Tailscale VPN** - Secure deployment without exposing SSH
+- **⚡ GitHub Actions CI/CD** - One-click deployment via workflow dispatch
 
 ## 📁 Repository Structure
 
 ```
 homelab-automation/
-├── .github/
-│   ├── workflows/
-│   │   ├── deploy-all.yml      # Deploy to all devices sequentially
-│   │   ├── deploy-vps.yml      # Deploy VPS only
-│   │   ├── deploy-homeserver.yml  # Deploy home server only
-│   │   ├── deploy-unraid.yml   # Deploy Unraid only
-│   │   └── README.md           # Workflow documentation
-│   └── SECRETS_TEMPLATE.md     # GitHub Secrets setup guide
+├── ansible/
+│   ├── ansible.cfg                 # Ansible configuration
+│   ├── requirements.yml            # Galaxy collection dependencies
+│   ├── inventory/
+│   │   ├── hosts.yml               # Host definitions
+│   │   └── group_vars/
+│   │       └── all.yml             # Services, secrets, global vars
+│   ├── playbooks/
+│   │   └── site.yml                # Main orchestration playbook
+│   └── roles/
+│       ├── common/                 # Base package installation
+│       ├── docker/                 # Docker installation
+│       ├── caddy/                  # Caddy reverse proxy
+│       ├── glance/                 # Glance dashboard
+│       ├── services/               # Docker Compose deployment
+│       └── unraid/                 # Unraid-specific tasks
 ├── configs/
-│   ├── caddy/
-│   │   └── Caddyfile.example   # Example Caddy configuration
-│   └── docker/
-│       ├── portainer/          # Docker management UI
-│       ├── watchtower/         # Auto-update containers
-│       └── homepage/           # Application dashboard
+│   ├── nightscout/                 # Service configurations
+│   ├── kuma/
+│   ├── ntfy/
+│   └── ...
 ├── scripts/
-│   ├── deploy.sh               # Main deployment orchestration script
-│   ├── deploy-single.sh        # Single device deployment helper
-│   ├── generate-configs.sh     # Generate Caddy & Glance configs from YAML
-│   ├── 01-base-setup.sh        # Base system setup (OS-aware)
-│   ├── 02-docker-setup.sh      # Docker installation (OS-aware)
-│   ├── 03-docker-compose-deploy.sh  # Docker Compose deployment
-│   ├── 03-unraid-deploy.sh     # Unraid-specific Docker deployment
-│   ├── 04-caddy-setup.sh       # Caddy setup and configuration (OS-aware)
-│   ├── 05-glance-setup.sh      # Glance dashboard deployment
-│   └── 06-nightscout-setup.sh  # Nightscout + LibreLink Up deployment
-├── inventory.yml               # Device inventory with OS types
-└── README.md
+│   ├── common.sh                   # Shared shell functions
+│   └── 03-unraid-deploy.sh         # Unraid deployment script
+└── .github/
+    └── workflows/
+        └── ansible-deploy.yml      # GitHub Actions workflow
 ```
 
-## 🔧 Setup
+## 🔧 Configuration
 
-### Prerequisites
+### Inventory (`ansible/inventory/hosts.yml`)
 
-1. **Tailscale Account**: Set up at [tailscale.com](https://tailscale.com)
-2. **SSH Access**: Ensure SSH access to all target devices
-3. **SSH Key**: Generate an SSH key pair for authentication
+```yaml
+all:
+  children:
+    rocky:
+      hosts:
+        mljr:
+          ansible_host: mljr.tail33930.ts.net
+          ansible_user: root
+        homeserver:
+          ansible_host: nuc.tail33930.ts.net
+          ansible_user: root
+    debian:
+      hosts:
+        pi:
+          ansible_host: pi.tail33930.ts.net
+          ansible_user: pi
+    unraid:
+      hosts:
+        nas:
+          ansible_host: nas.tail33930.ts.net
+          ansible_user: root
+```
 
-### Configuration
+### Services (`ansible/inventory/group_vars/all.yml`)
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/MrCodeEU/homelab-automation.git
-   cd homelab-automation
-   ```
+```yaml
+services:
+  - name: nightscout
+    enabled: true
+    domain: ["nightscout.mljr.eu", "ns.mljr.eu"]
+    port: 1337
+    host: mljr
+    description: "CGM Monitor"
+    icon: "mdi:diabetes"
 
-2. **Configure inventory.yml**:
-   Edit `inventory.yml` and update with your actual Tailscale hostnames and OS types:
-   ```yaml
-   devices:
-     vps:
-       hostname: "your-vps.tailnet-xxx.ts.net"
-       user: "root"
-       os: "rocky"  # Rocky Linux
-     homeserver:
-       hostname: "your-homeserver.tailnet-xxx.ts.net"
-       user: "root"
-       os: "rocky"  # Rocky Linux
-     unraid:
-       hostname: "your-unraid.tailnet-xxx.ts.net"
-       user: "root"
-       os: "slackware"  # Unraid (Slackware-based)
-   ```
+  - name: homeassistant
+    enabled: true
+    managed: false          # External service, Caddy only
+    domain: "home.mljr.eu"
+    port: 8123
+    host: pi
 
-3. **Customize Caddy Configuration**:
-   - Copy `configs/caddy/Caddyfile.example` to `configs/caddy/Caddyfile`
-   - Update with your actual domain names and services
+  - name: goaccess
+    enabled: true
+    domain: "logs.mljr.eu"
+    port: 7890
+    host: mljr
+    caddy_auth: "basicauth" # Password protected
+```
 
-4. **Add Docker Compose Services**:
-   - Add your docker-compose.yml files to `configs/docker/`
-   - Each service should be in its own subdirectory
+### Service Fields
 
-### GitHub Secrets (for automated deployment)
-
-Configure the following secrets in your GitHub repository (see [.github/SECRETS_TEMPLATE.md](.github/SECRETS_TEMPLATE.md) for details):
-
-**Tailscale OAuth:**
-- `TS_OAUTH_CLIENT_ID`: Tailscale OAuth client ID
-- `TS_OAUTH_SECRET`: Tailscale OAuth secret (get from https://login.tailscale.com/admin/settings/oauth)
-
-**Device Credentials:**
-- `VPS_USER`: SSH username for VPS (usually `root`)
-- `VPS_HOST`: Tailscale hostname for VPS (e.g., `vps.tailnet-xxx.ts.net`)
-- `HOMESERVER_USER`: SSH username for home server
-- `HOMESERVER_HOST`: Tailscale hostname for home server
-- `UNRAID_USER`: SSH username for Unraid
-- `UNRAID_HOST`: Tailscale hostname for Unraid NAS
-
-**Note:** The new workflows use Tailscale SSH (no SSH keys needed!). See [.github/workflows/README.md](.github/workflows/README.md) for full setup instructions.
+| Field | Description |
+|-------|-------------|
+| `enabled` | If false, service is completely skipped |
+| `managed` | If false, Caddy configured but no deployment |
+| `host` | Must match inventory host name |
+| `domain` | String or array of domains |
+| `port` | Container port for reverse proxy |
+| `caddy_auth` | Set to `"basicauth"` for password protection |
 
 ## 📦 Usage
 
-### Manual Deployment
+### Deploy Everything
 
-Make scripts executable:
 ```bash
-chmod +x scripts/*.sh
+cd ansible
+ansible-playbook playbooks/site.yml
 ```
 
-Deploy to all devices:
+### Deploy to Specific Host
+
 ```bash
-./scripts/deploy.sh all all
+ansible-playbook playbooks/site.yml --limit mljr
 ```
 
-Deploy to a specific device with OS specified:
+### Deploy Specific Roles
+
 ```bash
-# VPS (Rocky Linux) - all roles
-./scripts/deploy-single.sh vps.tailnet-xxx.ts.net root rocky all
+# Only Caddy configuration
+ansible-playbook playbooks/site.yml --tags caddy
 
-# Home server (Rocky Linux) - docker and caddy only
-./scripts/deploy-single.sh homeserver.tailnet-xxx.ts.net root rocky docker,caddy
+# Only services
+ansible-playbook playbooks/site.yml --tags services
 
-# Unraid NAS (Slackware) - base and docker (uses community templates)
-./scripts/deploy-single.sh unraid.tailnet-xxx.ts.net root slackware docker
+# Multiple tags
+ansible-playbook playbooks/site.yml --tags "docker,services"
 ```
 
-Or use auto-detection (not recommended for Unraid):
+### Dry Run
+
 ```bash
-./scripts/deploy-single.sh vps.tailnet-xxx.ts.net root auto all
+ansible-playbook playbooks/site.yml --check
 ```
 
-### Automated Deployment via GitHub Actions
+### Verbose Output
 
-**New modular workflows** - Deploy individually or all at once!
+```bash
+ansible-playbook playbooks/site.yml -vvv
+```
 
-**Deploy all devices (sequential):**
-1. Go to the **Actions** tab in your GitHub repository
-2. Select **Deploy All Devices** workflow
-3. Click **Run workflow**, choose roles
-4. Deploys: VPS → Home Server → Unraid
+## 🌐 GitHub Actions Deployment
 
-**Deploy individual device (for testing):**
-1. Select **Deploy VPS**, **Deploy Home Server**, or **Deploy Unraid**
-2. Click **Run workflow**, choose roles
-3. Test changes without affecting other devices
+1. Go to **Actions** tab in your repository
+2. Select **Ansible Deploy** workflow
+3. Click **Run workflow**
+4. Choose:
+   - **limit**: Target hosts (`all`, `mljr`, `homeserver`, `unraid`)
+   - **tags**: Roles to run (`all`, `base`, `docker`, `caddy`, `services`)
 
-See [.github/workflows/README.md](.github/workflows/README.md) for detailed workflow documentation.
+### Required GitHub Secrets
 
-## 🛠️ Available Scripts
-
-| Script | Description |
+| Secret | Description |
 |--------|-------------|
-| `generate-configs.sh` | Generates Caddyfile and Glance config from services.yml |
-| `01-base-setup.sh` | Installs essential packages and utilities (OS-aware) |
-| `02-docker-setup.sh` | Installs Docker and Docker Compose (OS-aware) |
-| `03-docker-compose-deploy.sh` | Deploys Docker Compose stacks (Rocky Linux) |
-| `03-unraid-deploy.sh` | Deploys Docker containers on Unraid (Community Apps style) |
-| `04-caddy-setup.sh` | Installs and configures Caddy reverse proxy (OS-aware) |
-| `05-glance-setup.sh` | Deploys Glance dashboard with auto-generated config |
-| `06-nightscout-setup.sh` | Deploys Nightscout CGM monitor + LibreLink Up connector |
-| `deploy.sh` | Main orchestration script that runs all others |
-| `deploy-single.sh` | Single device deployment helper with OS parameter |
+| `TS_OAUTH_CLIENT_ID` | Tailscale OAuth client ID |
+| `TS_OAUTH_SECRET` | Tailscale OAuth secret |
+| `NIGHTSCOUT_API_SECRET` | Nightscout API secret |
+| `LINK_UP_USERNAME` | LibreLink Up username |
+| `LINK_UP_PASSWORD` | LibreLink Up password |
+| `CADDY_AUTH_PASSWORD_HASH` | Bcrypt hash for basicauth |
+| `CADDY_AUTH_USER` | Username for basicauth |
 
-## 🐳 Included Docker Services
+## ➕ Adding a New Service
 
-**Core Services (Rocky Linux):**
-- **Caddy**: Reverse proxy with automatic HTTPS (ports 80, 443)
-- **Glance**: Self-hosted dashboard (port 8080)
-- **Nightscout** *(optional)*: CGM monitoring (port 1337)
-  - MongoDB database
-  - LibreLink Up connector
-  - See [docs/NIGHTSCOUT.md](docs/NIGHTSCOUT.md) for setup
+1. **Add to services list** in `ansible/inventory/group_vars/all.yml`:
 
-**Additional Services (via docker-compose):**
-- **Portainer**: Web-based Docker management UI (port 9000)
-- **Watchtower**: Automatic container update service
-- **Homepage**: Application dashboard (port 3000)
+```yaml
+services:
+  - name: myservice
+    enabled: true
+    domain: "myservice.mljr.eu"
+    port: 8080
+    host: mljr
+    description: "My Service"
+    icon: "mdi:icon-name"
+```
 
-**For Unraid (via native Docker):**
-- **Portainer**: Docker management UI with Unraid appdata storage
-- **Watchtower**: Auto-updates for Unraid containers
-- **Homepage**: Dashboard with proper Unraid paths
+2. **Create service config** at `configs/myservice/docker-compose.yml`:
 
-**Add more services:**
-- Rocky Linux: Create docker-compose.yml files in `configs/docker/` or add to `services.yml`
-- Unraid: Use Community Applications UI or modify `03-unraid-deploy.sh`
+```yaml
+services:
+  myservice:
+    image: myimage:latest
+    container_name: myservice
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - TZ=${TZ}
+```
 
-## 🔒 Security Notes
+3. **Deploy**:
 
-- All SSH connections use Tailscale VPN for encryption
-- SSH host key checking is disabled in scripts (configure as needed)
-- Caddy automatically handles HTTPS with Let's Encrypt
-- Keep your SSH private keys and Tailscale credentials secure
-- Review and customize firewall rules for your environment
+```bash
+cd ansible && ansible-playbook playbooks/site.yml --limit mljr --tags services
+```
 
-## 🤝 Contributing
+## 🔌 Service Hooks (Optional)
 
-Feel free to submit issues and enhancement requests!
+Services can include deployment hooks in `configs/{service}/hooks/`:
 
-## 📝 License
+| Hook | When | Purpose |
+|------|------|---------|
+| `pre-deploy.sh` | Before `docker compose up` | Validation, preparation |
+| `post-deploy.sh` | After `docker compose up` | Initialization, setup |
+| `validate.sh` | After post-deploy | Health checks |
 
-This project is open source and available under the MIT License.
+## 🐳 Included Services
+
+| Service | Description | Port |
+|---------|-------------|------|
+| Glance | Dashboard with widgets | 8080 |
+| Nightscout | CGM monitoring | 1337 |
+| Uptime Kuma | Service monitoring | 3001 |
+| ntfy | Push notifications | 2586 |
+| GoAccess | Access log analytics | 7890 |
+| Bichon | Email archiver | 15630 |
+
+## 🔒 Security
+
+- All connections over Tailscale VPN (no public SSH)
+- Caddy handles automatic HTTPS via Let's Encrypt
+- Secrets stored in GitHub Secrets, injected at runtime
+- Optional basicauth for sensitive services
+
+## 🛠️ Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Host unreachable | Check Tailscale status, verify inventory hostname |
+| Permission denied | Check `ansible_user` and sudo permissions |
+| Service not deployed | Verify `enabled: true` and `host` matches inventory |
+| Module not found | Run `ansible-galaxy collection install -r requirements.yml` |
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) for details.
