@@ -1,7 +1,20 @@
 ---
+# Main site playbook - optimized for speed
+# Uses free strategy for parallel execution where possible
+
 - name: Base Setup
   hosts: rocky:debian
   become: true
+  gather_facts: true
+  gather_subset:
+    - min
+    - os_family
+    - distribution
+    - service_mgr
+  tags:
+    - base
+    - common
+    - docker
   roles:
     - common
     - docker
@@ -9,23 +22,35 @@
 - name: Caddy Setup
   hosts: rocky
   become: true
+  gather_facts: false  # Already gathered in base setup
+  tags:
+    - caddy
   roles:
     - caddy
 
 - name: Glance Setup
   hosts: mljr
   become: true
+  gather_facts: false  # Already gathered in base setup
+  tags:
+    - glance
   roles:
     - glance
 
 - name: Services Setup
   hosts: rocky:debian
   become: true
+  gather_facts: false  # Already gathered in base setup
+  strategy: free  # Run tasks in parallel across hosts
+  tags:
+    - services
   roles:
     - services
 
 - name: Unraid Setup
   hosts: unraid
   gather_facts: false
+  tags:
+    - unraid
   roles:
     - unraid

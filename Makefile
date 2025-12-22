@@ -1,4 +1,4 @@
-.PHONY: help check deploy-vps deploy-home deploy-unraid deploy-all
+.PHONY: help check deploy deploy-vps deploy-home deploy-pi deploy-all install lint
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -6,45 +6,66 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-check: ## Check prerequisites and configuration
+check: ## Check prerequisites and Ansible configuration
 	@echo "Checking prerequisites..."
-	@command -v ssh >/dev/null 2>&1 || { echo "❌ SSH is not installed"; exit 1; }
-	@command -v git >/dev/null 2>&1 || { echo "❌ Git is not installed"; exit 1; }
-	@[ -f inventory.yml ] || { echo "❌ inventory.yml not found"; exit 1; }
-	@[ -f ~/.ssh/id_rsa ] || [ -f ~/.ssh/id_ed25519 ] || { echo "⚠️  Warning: No SSH key found in ~/.ssh/"; }
+	@command -v ansible >/dev/null 2>&1 || { echo "❌ Ansible is not installed"; exit 1; }
+	@command -v ansible-playbook >/dev/null 2>&1 || { echo "❌ ansible-playbook is not installed"; exit 1; }
+	@[ -f ansible/inventory/hosts.yml ] || { echo "❌ ansible/inventory/hosts.yml not found"; exit 1; }
 	@echo "✅ All prerequisites met"
 	@echo ""
-	@echo "Configuration:"
-	@echo "  Inventory file: inventory.yml"
-	@echo "  Scripts directory: scripts/"
-	@echo "  Configs directory: configs/"
+	@echo "Testing Ansible inventory..."
+	@cd ansible && ansible-inventory --list > /dev/null && echo "✅ Inventory valid"
 
-scripts-executable: ## Make all scripts executable
-	@chmod +x scripts/*.sh
-	@echo "✅ All scripts are now executable"
+install: ## Install Ansible collections
+	@echo "Installing Ansible collections..."
+	@cd ansible && ansible-galaxy collection install -r requirements.yml
+	@echo "✅ Collections installed"
 
-deploy-vps: scripts-executable ## Deploy to VPS only
+lint: ## Lint Ansible playbooks
+	@echo "Linting Ansible playbooks..."
+	@cd ansible && ansible-playbook playbooks/site.yml --syntax-check
+	@echo "✅ Syntax check passed"
+
+ping: ## Test connectivity to all hosts
+	@echo "Testing connectivity..."
+	@cd ansible && ansible all -m ping
+
+deploy: ## Deploy to all hosts (all roles)
+	@echo "Deploying to all hosts..."
+	@cd ansible && ansible-playbook playbooks/site.yml
+
+deploy-vps: ## Deploy to VPS (mljr) only
 	@echo "Deploying to VPS..."
-	@./scripts/deploy.sh vps all
+	@cd ansible && ansible-playbook playbooks/site.yml --limit mljr
 
-deploy-home: scripts-executable ## Deploy to home server only
+deploy-home: ## Deploy to home server only
 	@echo "Deploying to home server..."
-	@./scripts/deploy.sh homeserver all
+	@cd ansible && ansible-playbook playbooks/site.yml --limit homeserver
 
-deploy-unraid: scripts-executable ## Deploy to Unraid NAS only
-	@echo "Deploying to Unraid NAS..."
-	@./scripts/deploy.sh unraid all
+deploy-pi: ## Deploy to Raspberry Pi only
+	@echo "Deploying to Raspberry Pi..."
+	@cd ansible && ansible-playbook playbooks/site.yml --limit pi
 
-deploy-all: scripts-executable ## Deploy to all devices
-	@echo "Deploying to all devices..."
-	@./scripts/deploy.sh all all
+deploy-caddy: ## Deploy only Caddy configuration
+	@echo "Deploying Caddy configuration..."
+	@cd ansible && ansible-playbook playbooks/site.yml --tags caddy
 
-test-ssh: ## Test SSH connectivity to all devices (requires inventory configuration)
-	@echo "Testing SSH connections..."
-	@echo "Note: Update this target with your actual hostnames from inventory.yml"
+deploy-services: ## Deploy only services
+	@echo "Deploying services..."
+	@cd ansible && ansible-playbook playbooks/site.yml --tags services
+
+dry-run: ## Run deployment in check mode (dry run)
+	@echo "Running dry run..."
+	@cd ansible && ansible-playbook playbooks/site.yml --check
+
+verbose: ## Deploy with verbose output
+	@echo "Deploying with verbose output..."
+	@cd ansible && ansible-playbook playbooks/site.yml -vvv
 
 clean: ## Remove temporary files
 	@echo "Cleaning temporary files..."
-	@find . -name "*.tmp" -delete
-	@find . -name "*.log" -delete
+	@find . -name "*.retry" -delete
+	@find . -name "*.pyc" -delete
+	@find . -name "__pycache__" -type d -delete
 	@echo "✅ Cleanup complete"
+

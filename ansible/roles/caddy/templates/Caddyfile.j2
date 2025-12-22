@@ -18,6 +18,10 @@
 {% else %}
 {{ service.domain | join(', ') }} {
 {% endif %}
+    log {
+        output file /opt/caddy/logs/access.log
+        format json
+    }
     {% if service.name == 'goaccess' %}
     # WebSocket support for GoAccess real-time updates
     @websocket {
