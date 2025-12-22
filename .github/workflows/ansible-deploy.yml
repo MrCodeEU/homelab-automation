@@ -69,6 +69,8 @@ jobs:
           BICHON_ENCRYPT_PASSWORD: ${{ secrets.BICHON_ENCRYPT_PASSWORD }}
           CADDY_AUTH_PASSWORD_HASH: ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
           CADDY_AUTH_USER: ${{ secrets.CADDY_AUTH_USER }}
+          KUMA_USERNAME: ${{ secrets.KUMA_USERNAME }}
+          KUMA_PASSWORD: ${{ secrets.KUMA_PASSWORD }}
         run: |
           cd ansible
           
@@ -83,3 +85,31 @@ jobs:
           fi
           
           ansible-playbook playbooks/site.yml $ARGS
+
+      - name: Send deployment notification
+        if: always()
+        run: |
+          # Determine deployment status
+          if [ "${{ job.status }}" == "success" ]; then
+            EMOJI="✅"
+            PRIORITY="default"
+            TITLE="Deployment Successful"
+          else
+            EMOJI="❌"
+            PRIORITY="high"
+            TITLE="Deployment Failed"
+          fi
+          
+          # Construct message
+          MESSAGE="${EMOJI} Homelab deployment to ${{ inputs.limit || 'all' }} hosts"
+          if [ "${{ inputs.tags }}" != "all" ] && [ -n "${{ inputs.tags }}" ]; then
+            MESSAGE="${MESSAGE} (tags: ${{ inputs.tags }})"
+          fi
+          MESSAGE="${MESSAGE} - ${TITLE}"
+          
+          # Send to ntfy
+          curl -H "Title: ${TITLE}" \
+               -H "Priority: ${PRIORITY}" \
+               -H "Tags: ansible,homelab" \
+               -d "${MESSAGE}" \
+               https://ntfy.mljr.eu/homelab-deploy || true
