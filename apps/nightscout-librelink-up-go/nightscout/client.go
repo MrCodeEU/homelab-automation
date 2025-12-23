@@ -61,10 +61,16 @@ func (c *Client) PostGlucoseReading(reading *librelink.GlucoseReading) error {
 		return fmt.Errorf("failed to marshal entry: %w", err)
 	}
 
-	// Add https:// if not present
+	// Add http:// or https:// if not present
 	baseURL := c.baseURL
 	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
-		baseURL = "https://" + baseURL
+		// Use http:// for internal Docker hostnames with ports (e.g., nightscout:1337)
+		// Use https:// for public domains (e.g., ns.mljr.eu)
+		if strings.Contains(baseURL, ":") {
+			baseURL = "http://" + baseURL
+		} else {
+			baseURL = "https://" + baseURL
+		}
 	}
 
 	url := fmt.Sprintf("%s/api/v1/entries", baseURL)
