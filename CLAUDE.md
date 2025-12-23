@@ -49,6 +49,9 @@ Key fields:
 - **host**: Must match a host name in inventory (e.g., `mljr`, `pi`)
 - **domain**: String or array (all domains get Caddy reverse proxy)
 - **caddy_auth**: Set to `"basicauth"` for password protection
+- **skip_deploy**: If true, service excluded from generic services role (use dedicated role instead)
+
+**Note**: Services like `glance` and `fail2ban-ui` use dedicated roles and are excluded from generic deployment via `services_excluded_from_generic_deployment` list.
 
 ### Ansible Roles
 
@@ -57,9 +60,17 @@ Key fields:
 | `common` | Install base packages (git, curl, vim, etc.) | rocky, debian |
 | `docker` | Install Docker and Docker Compose | rocky, debian |
 | `caddy` | Install Caddy, generate Caddyfile from templates | rocky |
+| `fail2ban` | Security monitoring with intrusion detection | rocky, debian |
 | `glance` | Deploy Glance dashboard container | mljr |
 | `services` | Deploy Docker Compose services from `configs/` | rocky, debian |
 | `unraid` | Run Unraid-specific deployment script | unraid |
+
+#### fail2ban Role (Security)
+- Monitors SSH, Caddy basicauth failures, and malicious bot requests
+- Bans IPs after repeated violations (5 attempts in 10 minutes)
+- Sends notifications via ntfy integration
+- Deploys fail2ban-ui for web-based monitoring
+- Custom filters for Caddy JSON log parsing
 
 ### Secret Management
 
@@ -104,6 +115,35 @@ cd ansible && ansible all -m ping
 
 # Run ad-hoc commands
 cd ansible && ansible mljr -m shell -a "docker ps"
+```
+
+### Using Makefile Shortcuts
+
+The repository includes a Makefile with convenient commands:
+
+```bash
+# Prerequisite checks
+make check              # Verify Ansible installation and inventory
+
+# Setup
+make install            # Install Ansible Galaxy collections
+make lint              # Syntax check all playbooks
+
+# Testing
+make ping              # Test connectivity to all hosts
+
+# Deployment
+make deploy            # Deploy to all hosts
+make deploy-vps        # Deploy to VPS (mljr) only
+make deploy-home       # Deploy to home server only
+make deploy-pi         # Deploy to Raspberry Pi only
+make deploy-caddy      # Deploy only Caddy configuration
+make deploy-services   # Deploy only services
+
+# Utilities
+make dry-run           # Run in check mode (no changes)
+make verbose           # Deploy with verbose output (-vvv)
+make clean             # Remove temporary files
 ```
 
 ## Adding a New Service
@@ -163,10 +203,11 @@ ansible/
 configs/
 ├── {service}/               # Service-specific configs
 │   ├── docker-compose.yml
-│   └── hooks/               # Optional deployment hooks
-│       ├── pre-deploy.sh
-│       ├── post-deploy.sh
-│       └── validate.sh
+│   └── hooks/               # Optional deployment hooks (not auto-executed)
+│       ├── pre-deploy.sh    # Example: validation, preparation
+│       ├── post-deploy.sh   # Example: initialization, setup
+│       └── validate.sh      # Example: health checks
+│   └── provision-*.py       # Custom provisioning scripts (e.g., kuma)
 
 scripts/
 ├── common.sh                # Shared shell functions
@@ -204,6 +245,11 @@ The workflow (`ansible-deploy.yml`):
 5. Runs playbook with specified limit/tags
 
 Secrets are passed as environment variables.
+
+### Workflow Inputs
+- **limit**: Target hosts (all, mljr, homeserver, unraid)
+- **tags**: Roles to run (all, base, docker, caddy, services, security, fail2ban)
+- **build_librelink**: Trigger LibreLink connector image build before deployment
 
 ## Troubleshooting
 
