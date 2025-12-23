@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/MrCodeEU/homelab-automation/apps/nightscout-librelink-up-go/librelink"
@@ -60,7 +61,13 @@ func (c *Client) PostGlucoseReading(reading *librelink.GlucoseReading) error {
 		return fmt.Errorf("failed to marshal entry: %w", err)
 	}
 
-	url := fmt.Sprintf("http://%s/api/v1/entries", c.baseURL)
+	// Add https:// if not present
+	baseURL := c.baseURL
+	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+		baseURL = "https://" + baseURL
+	}
+
+	url := fmt.Sprintf("%s/api/v1/entries", baseURL)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)

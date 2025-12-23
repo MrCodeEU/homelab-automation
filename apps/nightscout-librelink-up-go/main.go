@@ -10,9 +10,13 @@ import (
 	"github.com/MrCodeEU/homelab-automation/apps/nightscout-librelink-up-go/config"
 	"github.com/MrCodeEU/homelab-automation/apps/nightscout-librelink-up-go/librelink"
 	"github.com/MrCodeEU/homelab-automation/apps/nightscout-librelink-up-go/nightscout"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// Load .env file if it exists (for local development)
+	_ = godotenv.Load()
+
 	log.Println("Starting Nightscout LibreLink Up Go Connector...")
 
 	// Load configuration
