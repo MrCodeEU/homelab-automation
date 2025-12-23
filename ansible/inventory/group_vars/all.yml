@@ -3,7 +3,7 @@ domain: "mljr.eu"
 email: "admin@mljr.eu"
 location: "Thaling, Austria"
 dashboard_name: "Homelab Dashboard"
-timezone: "Europe/London"
+timezone: "Europe/Vienna"
 
 # Services managed by dedicated Ansible roles (excluded from generic
 # services role)
