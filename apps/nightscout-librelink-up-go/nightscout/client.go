@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -74,6 +75,7 @@ func (c *Client) PostGlucoseReading(reading *librelink.GlucoseReading) error {
 	}
 
 	url := fmt.Sprintf("%s/api/v1/entries", baseURL)
+	log.Printf("Posting glucose data to: %s", url)
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
