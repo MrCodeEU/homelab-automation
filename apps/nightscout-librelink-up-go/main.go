@@ -17,7 +17,7 @@ func main() {
 	// Load .env file if it exists (for local development)
 	_ = godotenv.Load()
 
-	log.Println("Starting Nightscout LibreLink Up Go Connector...") // v1.0.1
+	log.Println("Starting Nightscout LibreLink Up Go Connector...")
 
 	// Load configuration
 	cfg, err := config.LoadConfig()
@@ -30,7 +30,8 @@ func main() {
 		log.Fatalf("Invalid configuration: %v", err)
 	}
 
-	log.Printf("Configuration loaded - Region: %s, Interval: %d minutes", cfg.LinkUpRegion, cfg.LinkUpTimeInterval)
+	log.Printf("Configuration loaded - Region: %s, Interval: %d minutes, Nightscout URL: %s", 
+		cfg.LinkUpRegion, cfg.LinkUpTimeInterval, cfg.NightscoutURL)
 
 	// Create LibreLink client
 	llClient, err := librelink.NewClient(cfg.LinkUpRegion, cfg.LinkUpUsername, cfg.LinkUpPassword)
