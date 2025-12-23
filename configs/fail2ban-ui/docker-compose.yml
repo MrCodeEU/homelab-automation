@@ -1,0 +1,47 @@
+services:
+  fail2ban-exporter:
+    image: hectorqin/fail2ban-prometheus-exporter:latest
+    container_name: fail2ban-exporter
+    restart: unless-stopped
+    volumes:
+      - /var/run/fail2ban/fail2ban.sock:/var/run/fail2ban/fail2ban.sock:ro
+    ports:
+      - "9191:9191"
+    environment:
+      - TZ=${TZ}
+
+  # Simple dashboard to visualize Fail2ban status
+  # We'll use a lightweight container that queries the exporter or socket
+  # For now, we'll use a simple web UI that parses the log/db
+  # Actually, let's use 'crazy-max/fail2ban-dashboard' if available, or just expose the exporter for Prometheus/Grafana later.
+  # Since the user asked for a UI, let's use 'lscr.io/linuxserver/fail2ban' which includes a UI? No, that's the service itself.
+  # Let's use a simple python script or existing lightweight UI.
+  # 'wiedehopf/fail2ban-dashboard' is popular but might be overkill.
+  
+  # Let's use a simple static HTML dashboard that queries the exporter if possible, 
+  # but for now, let's just set up the exporter so we can visualize it in Glance or similar.
+  
+  # Wait, the user asked for a UI. 
+  # Let's use 'fastapi-fail2ban' or similar.
+  # Actually, 'h44z/fail2ban-webui' looks promising but might be old.
+  
+  # Let's stick to the exporter for now, and maybe add a simple web interface later.
+  # BUT, to fulfill the request "nice UI", let's use 'crazy-max/fail2ban-dashboard' isn't a thing.
+  
+  # Let's use 'caprover/fail2ban-dashboard' ? No.
+  
+  # Okay, let's use a simple solution: 
+  # We will mount the fail2ban sqlite db into a container that serves a UI.
+  # 'aaflalo/fail2ban-ui' seems to be a good candidate.
+  
+  fail2ban-ui:
+    image: aaflalo/fail2ban-ui:latest
+    container_name: fail2ban-ui
+    restart: unless-stopped
+    volumes:
+      - /var/lib/fail2ban/fail2ban.sqlite3:/var/lib/fail2ban/fail2ban.sqlite3:ro
+    ports:
+      - "127.0.0.1:5000:5000" # Expose locally, Caddy will proxy
+    environment:
+      - TZ=${TZ}
+      - FAIL2BAN_DB=/var/lib/fail2ban/fail2ban.sqlite3

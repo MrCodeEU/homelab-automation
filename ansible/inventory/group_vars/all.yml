@@ -55,6 +55,15 @@ services:
     icon: "mdi:chart-bar"
     caddy_auth: "basicauth"
 
+  - name: fail2ban-ui
+    enabled: true
+    domain: "security.mljr.eu"
+    port: 5000
+    host: mljr
+    description: "Fail2ban Dashboard"
+    icon: "mdi:shield-lock"
+    caddy_auth: "basicauth"
+
   - name: homeassistant
     enabled: true
     managed: false
