@@ -12,14 +12,14 @@ maxretry = 5
 ignoreip = 127.0.0.1/8 ::1 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12
 
 # Default action
-action = %(action_mwl)s
+action = %(action_)s
          ntfy
 
 [sshd]
 enabled = true
 port    = ssh
 logpath = %(sshd_log)s
-backend = %(sshd_backend)s
+backend = systemd
 
 [caddy-basicauth]
 enabled = true

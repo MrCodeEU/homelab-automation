@@ -39,7 +39,7 @@ services:
     container_name: fail2ban-ui
     restart: unless-stopped
     volumes:
-      - /var/lib/fail2ban/fail2ban.sqlite3:/var/lib/fail2ban/fail2ban.sqlite3:ro
+      - /var/lib/fail2ban/fail2ban.sqlite3:/var/lib/fail2ban/fail2ban.sqlite3:ro,z
     ports:
       - "127.0.0.1:5000:5000" # Expose locally, Caddy will proxy
     environment:
