@@ -10,7 +10,7 @@ services:
       - ntfy-data:/var/lib/ntfy
       - ./server.yml:/etc/ntfy/server.yml:ro
     environment:
-      - TZ=Europe/London
+      - TZ=${TZ}
     command: serve
 
 volumes:

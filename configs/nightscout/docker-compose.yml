@@ -77,6 +77,9 @@ services:
       LINK_UP_PASSWORD: ${LINK_UP_PASSWORD}
       LINK_UP_REGION: ${LINK_UP_REGION:-EU}
       LINK_UP_TIME_INTERVAL: ${LINK_UP_TIME_INTERVAL:-5}
+      
+      # Timezone
+      TZ: ${TZ:-Europe/Berlin}
 
       # Nightscout Connection (uses internal container name)
       NIGHTSCOUT_URL: http://nightscout:1337
