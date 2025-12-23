@@ -3,7 +3,9 @@
 
 - name: Install Fail2ban
   ansible.builtin.package:
-    name: fail2ban
+    name:
+      - fail2ban
+      - python3-systemd
     state: present
 
 - name: Ensure Fail2ban config directory exists
@@ -24,7 +26,8 @@
     dest: /etc/fail2ban/filter.d/caddy-basicauth.conf
     content: |
       [Definition]
-      failregex = ^.*"status":401.*"remote_ip":"<HOST>".*$
+      # Match remote_ip first, then status (Caddy JSON log order: request -> status)
+      failregex = ^.*"remote_ip":"<HOST>".*"status":401.*$
       ignoreregex =
     mode: '0644'
   notify: Restart Fail2ban
@@ -34,7 +37,8 @@
     dest: /etc/fail2ban/filter.d/caddy-badbots.conf
     content: |
       [Definition]
-      failregex = ^.*"status":404.*"remote_ip":"<HOST>".*"uri":"/.*(wp-admin|phpmyadmin|\.env|\.git|setup\.php|config\.php).*".*$
+      # Match remote_ip, then uri, then status
+      failregex = ^.*"remote_ip":"<HOST>".*"uri":"/.*(wp-admin|phpmyadmin|\.env|\.git|setup\.php|config\.php).*".*"status":404.*$
       ignoreregex =
     mode: '0644'
   notify: Restart Fail2ban
