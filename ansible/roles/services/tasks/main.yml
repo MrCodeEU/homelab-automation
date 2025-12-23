@@ -79,7 +79,7 @@
   community.docker.docker_compose_v2:
     project_src: "/opt/{{ item.item.name }}"
     state: present
-    pull: policy  # Only pull if image not present
+    pull: always
   loop: "{{ compose_files.results }}"
   loop_control:
     label: "{{ item.item.name }}"

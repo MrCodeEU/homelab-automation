@@ -49,3 +49,8 @@
     state: absent
   changed_when: false  # Don't report change for cleanup
 
+- name: Set timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+  when: timezone is defined
+
