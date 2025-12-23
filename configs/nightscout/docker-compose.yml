@@ -52,6 +52,7 @@ services:
       
       # Security
       AUTH_DEFAULT_ROLES: readable
+      INSECURE_USE_HTTP: 'true'
       
     ports:
       - "1337:1337"  # Exposed locally for LibreLink-Up connector
