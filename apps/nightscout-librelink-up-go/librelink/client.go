@@ -322,7 +322,8 @@ func parseLibreLinkTimestamp(timestamp string) (time.Time, error) {
 	}
 
 	for _, format := range formats {
-		if t, err := time.Parse(format, timestamp); err == nil {
+		// Parse in local timezone (container timezone)
+		if t, err := time.ParseInLocation(format, timestamp, time.Local); err == nil {
 			return t, nil
 		}
 	}

@@ -83,6 +83,8 @@ func (c *Client) PostGlucoseReading(reading *librelink.GlucoseReading) error {
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("api-secret", c.apiToken)
+	// Trick Nightscout into thinking this is a secure connection to avoid redirects
+	req.Header.Set("X-Forwarded-Proto", "https")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
