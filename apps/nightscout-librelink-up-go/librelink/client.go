@@ -2,16 +2,19 @@ package librelink
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"time"
 )
 
 const (
 	appVersion  = "4.17.0"
-	appProduct  = "llu.android"
+	appProduct  = "llu.ios"
 	contentType = "application/json"
 )
 
@@ -38,6 +41,7 @@ type Client struct {
 	username   string
 	password   string
 	authToken  string
+	accountID  string
 	httpClient *http.Client
 }
 
@@ -51,10 +55,10 @@ type Connection struct {
 
 // GlucoseReading represents a blood glucose measurement
 type GlucoseReading struct {
-	Value       float64
-	Unit        string
-	Timestamp   time.Time
-	TrendArrow  string
+	Value      float64
+	Unit       string
+	Timestamp  time.Time
+	TrendArrow string
 }
 
 // API request/response structures
@@ -71,8 +75,8 @@ type loginResponse struct {
 			Email string `json:"email"`
 		} `json:"user"`
 		AuthTicket struct {
-			Token     string    `json:"token"`
-			ExpiresAt time.Time `json:"expires"`
+			Token     string `json:"token"`
+			ExpiresAt int64  `json:"expires"`
 		} `json:"authTicket"`
 	} `json:"data"`
 }
@@ -95,10 +99,10 @@ type glucoseResponse struct {
 	Data   struct {
 		Connection struct {
 			GlucoseMeasurement struct {
-				Value         float64 `json:"Value"`
+				Value          float64 `json:"Value"`
 				ValueInMgPerDl float64 `json:"ValueInMgPerDl"`
-				TrendArrow    int     `json:"TrendArrow"`
-				Timestamp     string  `json:"Timestamp"`
+				TrendArrow     int     `json:"TrendArrow"`
+				Timestamp      string  `json:"Timestamp"`
 			} `json:"glucoseMeasurement"`
 		} `json:"connection"`
 	} `json:"data"`
@@ -111,12 +115,19 @@ func NewClient(region, username, password string) (*Client, error) {
 		return nil, fmt.Errorf("unsupported region: %s", region)
 	}
 
+	// Create cookie jar to maintain session state (like withCredentials in TypeScript)
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cookie jar: %w", err)
+	}
+
 	return &Client{
 		baseURL:  baseURL,
 		username: username,
 		password: password,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
+			Jar:     jar,
 		},
 	}, nil
 }
@@ -133,6 +144,9 @@ func (c *Client) Login() error {
 		return fmt.Errorf("failed to marshal login request: %w", err)
 	}
 
+	fmt.Printf("DEBUG: Attempting login to %s with email: %s\n", c.baseURL, c.username)
+	fmt.Printf("DEBUG: Request body: %s\n", string(reqBody))
+
 	req, err := http.NewRequest("POST", c.baseURL+"/llu/auth/login", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return fmt.Errorf("failed to create login request: %w", err)
@@ -140,27 +154,39 @@ func (c *Client) Login() error {
 
 	c.setHeaders(req)
 
+	fmt.Println("DEBUG: Request headers:")
+	for k, v := range req.Header {
+		fmt.Printf("  %s: %s\n", k, v)
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("login request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("DEBUG: Response status: %d\n", resp.StatusCode)
+	fmt.Printf("DEBUG: Response body: %s\n", string(body))
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("login failed with status %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("login failed with HTTP status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var loginResp loginResponse
-	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
+	if err := json.Unmarshal(body, &loginResp); err != nil {
 		return fmt.Errorf("failed to decode login response: %w", err)
 	}
 
 	if loginResp.Status != 0 {
+		fmt.Printf("DEBUG: Full login response: %+v\n", loginResp)
 		return fmt.Errorf("login failed with API status: %d", loginResp.Status)
 	}
 
 	c.authToken = loginResp.Data.AuthTicket.Token
+	c.accountID = loginResp.Data.User.ID
+	fmt.Printf("DEBUG: Successfully authenticated, token: %s...\n", c.authToken[:20])
+	fmt.Printf("DEBUG: Account ID: %s\n", c.accountID)
 	return nil
 }
 
@@ -170,6 +196,7 @@ func (c *Client) GetConnections() ([]Connection, error) {
 		return nil, fmt.Errorf("not authenticated, call Login() first")
 	}
 
+	// Always try to fetch connections list
 	req, err := http.NewRequest("GET", c.baseURL+"/llu/connections", nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create connections request: %w", err)
@@ -184,14 +211,29 @@ func (c *Client) GetConnections() ([]Connection, error) {
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("DEBUG: Connections response status: %d\n", resp.StatusCode)
+	fmt.Printf("DEBUG: Connections response body: %s\n", string(body))
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("connections request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var connResp connectionsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&connResp); err != nil {
+	if err := json.Unmarshal(body, &connResp); err != nil {
 		return nil, fmt.Errorf("failed to decode connections response: %w", err)
+	}
+
+	// If no connections found, patient account - return account ID as connection
+	if len(connResp.Data) == 0 {
+		fmt.Printf("DEBUG: No connections found - using patient account ID as connection: %s\n", c.accountID)
+		return []Connection{
+			{
+				PatientID: c.accountID,
+				FirstName: "Self",
+				LastName:  "",
+			},
+		}, nil
 	}
 
 	connections := make([]Connection, len(connResp.Data))
@@ -227,13 +269,16 @@ func (c *Client) GetLatestReading(patientID string) (*GlucoseReading, error) {
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("DEBUG: Graph response status: %d\n", resp.StatusCode)
+	fmt.Printf("DEBUG: Graph response body: %s\n", string(body))
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("glucose request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var glucoseResp glucoseResponse
-	if err := json.NewDecoder(resp.Body).Decode(&glucoseResp); err != nil {
+	if err := json.Unmarshal(body, &glucoseResp); err != nil {
 		return nil, fmt.Errorf("failed to decode glucose response: %w", err)
 	}
 
@@ -256,9 +301,16 @@ func (c *Client) GetLatestReading(patientID string) (*GlucoseReading, error) {
 func (c *Client) setHeaders(req *http.Request) {
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Accept", contentType)
-	req.Header.Set("Product", appProduct)
-	req.Header.Set("Version", appVersion)
-	req.Header.Set("User-Agent", "FreeStyle LibreLink Up/"+appVersion)
+	req.Header.Set("product", appProduct)
+	req.Header.Set("version", appVersion)
+
+	// Add SHA-256 hashed account-id if authenticated
+	if c.accountID != "" && c.authToken != "" {
+		hasher := sha256.New()
+		hasher.Write([]byte(c.accountID))
+		hashedAccountID := hex.EncodeToString(hasher.Sum(nil))
+		req.Header.Set("account-id", hashedAccountID)
+	}
 }
 
 func parseLibreLinkTimestamp(timestamp string) (time.Time, error) {

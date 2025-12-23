@@ -13,7 +13,7 @@ type Config struct {
 	LinkUpRegion       string
 	LinkUpTimeInterval int
 	NightscoutURL      string
-	NightscoutAPIToken string
+	NightscoutAPIToken string // This is the API_SECRET, not a hashed token
 }
 
 // LoadConfig loads configuration from environment variables
@@ -27,7 +27,7 @@ func LoadConfig() (*Config, error) {
 	}
 
 	// Parse interval with default
-	intervalStr := getEnvOrDefault("LINK_UP_TIME_INTERVAL", "5")
+	intervalStr := getEnvOrDefault("LINK_UP_TIME_INTERVAL", "1")
 	interval, err := strconv.Atoi(intervalStr)
 	if err != nil {
 		return nil, fmt.Errorf("invalid LINK_UP_TIME_INTERVAL: %v", err)
