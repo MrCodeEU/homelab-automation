@@ -17,7 +17,7 @@ func main() {
 	// Load .env file if it exists (for local development)
 	_ = godotenv.Load()
 
-	log.Println("Starting Nightscout LibreLink Up Go Connector...")
+	log.Println("Starting Nightscout LibreLink Up Go Connector...") // v1.0.1
 
 	// Load configuration
 	cfg, err := config.LoadConfig()
