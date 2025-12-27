@@ -25,7 +25,7 @@ backend = systemd
 enabled = true
 port    = http,https
 filter  = caddy-basicauth
-logpath = /opt/caddy/logs/access.log
+logpath = /var/log/caddy/access.log
 backend = auto
 maxretry = 5
 
@@ -33,7 +33,7 @@ maxretry = 5
 enabled = true
 port    = http,https
 filter  = caddy-badbots
-logpath = /opt/caddy/logs/access.log
+logpath = /var/log/caddy/access.log
 backend = auto
 maxretry = 2
 bantime = 172800 ; 48 hours for bad bots

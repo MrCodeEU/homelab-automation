@@ -7,7 +7,7 @@ services:
     env_file:
       - .env
     volumes:
-      - /opt/caddy/logs:/logs:ro
+      - /var/log/caddy:/logs:ro,z
       - /opt/goaccess:/goaccess:rw
       - /opt/goaccess/caddyLog.py:/app/caddyLog.py:ro
     working_dir: /app
