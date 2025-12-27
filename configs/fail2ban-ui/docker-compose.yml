@@ -1,6 +1,6 @@
 services:
   fail2ban-exporter:
-    image: hectorqin/fail2ban-prometheus-exporter:latest
+    image: registry.gitlab.com/hctrdev/fail2ban-prometheus-exporter:latest
     container_name: fail2ban-exporter
     restart: unless-stopped
     volumes:
