@@ -1,0 +1,83 @@
+---
+# Fail2ban Role - Security Monitoring
+
+- name: Install Fail2ban
+  ansible.builtin.package:
+    name:
+      - fail2ban
+      - python3-systemd
+    state: present
+
+- name: Ensure Fail2ban config directory exists
+  ansible.builtin.file:
+    path: /etc/fail2ban/jail.d
+    state: directory
+    mode: '0755'
+
+- name: Configure Fail2ban Jails
+  ansible.builtin.template:
+    src: jail.local.j2
+    dest: /etc/fail2ban/jail.local
+    mode: '0644'
+  notify: Restart Fail2ban
+
+- name: Configure Caddy Filter
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/filter.d/caddy-basicauth.conf
+    content: |
+      [Definition]
+      # Match remote_ip first, then status (Caddy JSON log order: request -> status)
+      failregex = ^.*"remote_ip":"<HOST>".*"status":401.*$
+      ignoreregex =
+    mode: '0644'
+  notify: Restart Fail2ban
+
+- name: Configure Caddy Bad Bots Filter
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/filter.d/caddy-badbots.conf
+    content: |
+      [Definition]
+      # Match remote_ip, then uri, then status
+      failregex = ^.*"remote_ip":"<HOST>".*"uri":"/.*(wp-admin|phpmyadmin|\.env|\.git|setup\.php|config\.php).*".*"status":404.*$
+      ignoreregex =
+    mode: '0644'
+  notify: Restart Fail2ban
+
+- name: Configure ntfy Action
+  ansible.builtin.template:
+    src: ntfy-action.conf.j2
+    dest: /etc/fail2ban/action.d/ntfy.conf
+    mode: '0644'
+  notify: Restart Fail2ban
+
+- name: Ensure Fail2ban is running and enabled
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true
+
+# Setup Fail2ban UI (using crazy-max/fail2ban-dashboard or similar)
+# We'll use a simple web UI that reads the fail2ban socket/db
+- name: Create Fail2ban UI directory
+  ansible.builtin.file:
+    path: /opt/fail2ban-ui
+    state: directory
+    mode: '0755'
+
+- name: Copy Fail2ban UI configuration
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../configs/fail2ban-ui/"
+    dest: "/opt/fail2ban-ui/"
+    mode: '0644'
+
+- name: Create .env file for Fail2ban UI
+  ansible.builtin.template:
+    src: env.j2
+    dest: "/opt/fail2ban-ui/.env"
+    mode: '0600'
+
+- name: Deploy Fail2ban UI
+  community.docker.docker_compose_v2:
+    project_src: /opt/fail2ban-ui
+    state: present
+    pull: always

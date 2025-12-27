@@ -1,0 +1,39 @@
+[DEFAULT]
+# Ban hosts for 24 hours:
+bantime = 86400
+
+# An ip is banned if it has generated "maxretry" during the last "findtime"
+findtime = 600
+
+# "maxretry" is the number of failures before a host get banned.
+maxretry = 5
+
+# Whitelist local IPs
+ignoreip = 127.0.0.1/8 ::1 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12
+
+# Default action
+action = %(action_)s
+         ntfy
+
+[sshd]
+enabled = true
+port    = ssh
+logpath = %(sshd_log)s
+backend = systemd
+
+[caddy-basicauth]
+enabled = true
+port    = http,https
+filter  = caddy-basicauth
+logpath = /var/log/caddy/access.log
+backend = auto
+maxretry = 5
+
+[caddy-badbots]
+enabled = true
+port    = http,https
+filter  = caddy-badbots
+logpath = /var/log/caddy/access.log
+backend = auto
+maxretry = 2
+bantime = 172800 ; 48 hours for bad bots

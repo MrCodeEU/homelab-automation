@@ -28,6 +28,16 @@
   roles:
     - caddy
 
+- name: Security Setup
+  hosts: rocky:debian
+  become: true
+  gather_facts: false
+  tags:
+    - security
+    - fail2ban
+  roles:
+    - fail2ban
+
 - name: Glance Setup
   hosts: mljr
   become: true
