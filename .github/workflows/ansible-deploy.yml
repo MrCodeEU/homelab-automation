@@ -62,34 +62,36 @@ jobs:
           echo "Checking connectivity to managed hosts..."
           
           # Get list of managed hosts (default to true if variable not set)
-          # We use ansible-inventory to dump json, then jq to filter hosts where managed_by_ansible != false
-          # This allows skipping connectivity checks for unmanaged hosts (e.g. external proxies)
-          MANAGED_HOSTS=$(ansible-inventory --list | jq -r '._meta.hostvars | to_entries | map(select(.value.managed_by_ansible // true != false)) | .[].key' | tr '\n' ',' | sed 's/,$//')
-          
+          # Use ansible-inventory to dump json, then jq to filter hosts where managed_by_ansible != false
+          MANAGED_HOSTS=$(ansible-inventory --list | jq -r '._meta.hostvars | to_entries | map(select(.value.managed_by_ansible // true != false)) | .[].key')
+
           if [ -z "$MANAGED_HOSTS" ]; then
-             echo "No managed hosts found in inventory."
-             echo "hosts=" >> $GITHUB_OUTPUT
-             exit 0
+            echo "No managed hosts found in inventory."
+            echo "hosts=" >> $GITHUB_OUTPUT
+            exit 0
           fi
-          
+
           echo "Managed hosts: $MANAGED_HOSTS"
-          
+
           # Run ICMP ping on managed hosts from the runner (no SSH)
           # We use -c local to run the ping command on the runner, targeting the remote host IP
-          PING_OUTPUT=$(ansible $MANAGED_HOSTS -m command -a "ping -c 1 -W 2 {{ ansible_host | default(inventory_hostname) }}" -c local 2>&1 || true)
-          echo "$PING_OUTPUT"
-          
-          # Parse successful hosts
-          # Output format for command module is typically: "hostname | CHANGED | rc=0 >>"
-          REACHABLE=$(echo "$PING_OUTPUT" | grep "rc=0" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')
-          
-          if [ -z "$REACHABLE" ]; then
+          REACHABLE_HOSTS=""
+          for host in $MANAGED_HOSTS; do
+            # Get ansible_host (IP or DNS) for this host
+            TARGET=$(ansible-inventory --host "$host" | jq -r '.ansible_host // .inventory_hostname')
+            if ping -c 1 -W 2 "$TARGET" > /dev/null 2>&1; then
+              REACHABLE_HOSTS+="$host,"
+            fi
+          done
+          REACHABLE_HOSTS=$(echo "$REACHABLE_HOSTS" | sed 's/,$//')
+
+          if [ -z "$REACHABLE_HOSTS" ]; then
             echo "No hosts are reachable."
           else
-            echo "Reachable hosts: $REACHABLE"
+            echo "Reachable hosts: $REACHABLE_HOSTS"
           fi
-          
-          echo "hosts=$REACHABLE" >> $GITHUB_OUTPUT
+
+          echo "hosts=$REACHABLE_HOSTS" >> $GITHUB_OUTPUT
 
   # 2. Detect changes to determine what to run
   detect-changes:
