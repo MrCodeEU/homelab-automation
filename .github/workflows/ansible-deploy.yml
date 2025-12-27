@@ -63,7 +63,7 @@ jobs:
           
           # Get list of managed hosts (default to true if variable not set)
           # Use ansible-inventory to dump json, then jq to filter hosts where managed_by_ansible != false
-          MANAGED_HOSTS=$(ansible-inventory --list | jq -r '._meta.hostvars | to_entries | map(select(.value.managed_by_ansible // true != false)) | .[].key')
+          MANAGED_HOSTS=$(ansible-inventory --list | jq -r '._meta.hostvars | to_entries | map(select(.value.managed_by_ansible // true != false)) | .[].key' | tr '\n' ' ')
 
           if [ -z "$MANAGED_HOSTS" ]; then
             echo "No managed hosts found in inventory."
@@ -73,8 +73,6 @@ jobs:
 
           echo "Managed hosts: $MANAGED_HOSTS"
 
-          # Run ICMP ping on managed hosts from the runner (no SSH)
-          # We use -c local to run the ping command on the runner, targeting the remote host IP
           REACHABLE_HOSTS=""
           for host in $MANAGED_HOSTS; do
             # Get ansible_host (IP or DNS) for this host
