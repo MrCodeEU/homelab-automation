@@ -41,3 +41,4 @@ secrets/
 *.retry
 /ansible_facts_cache/
 
+*syncthing*
