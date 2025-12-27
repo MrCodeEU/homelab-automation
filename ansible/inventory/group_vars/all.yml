@@ -89,6 +89,15 @@ services:
     icon: "mdi:image-multiple"
     host: nas
 
+  - name: fail2ban-ui
+    enabled: true
+    domain: "security.mljr.eu"
+    port: 5000
+    host: mljr
+    description: "Fail2ban Management UI"
+    icon: "mdi:shield-lock"
+    caddy_auth: "basicauth"
+
 # Secrets (injected via environment variables)
 nightscout_api_secret: "{{ lookup('env', 'NIGHTSCOUT_API_SECRET') }}"
 link_up_username: "{{ lookup('env', 'LINK_UP_USERNAME') }}"
