@@ -3,11 +3,6 @@ name: Build LibreLink Up Go Image
 on:
   workflow_dispatch:
   workflow_call:
-  push:
-    branches:
-      - main
-    paths:
-      - 'apps/nightscout-librelink-up-go/**'
 
 jobs:
   build-and-push:
