@@ -98,6 +98,14 @@ services:
     icon: "mdi:shield-lock"
     caddy_auth: "basicauth"
 
+  - name: nas
+    enabled: true
+    domain: "nas.mljr.eu"
+    port: 80
+    description: "Nas UnRaid Management UI"
+    icon: "mdi:server"
+    host: nas
+
 # Secrets (injected via environment variables)
 nightscout_api_secret: "{{ lookup('env', 'NIGHTSCOUT_API_SECRET') }}"
 link_up_username: "{{ lookup('env', 'LINK_UP_USERNAME') }}"
