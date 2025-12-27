@@ -56,18 +56,19 @@ jobs:
         id: get-hosts
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_FORCE_COLOR: "0"
         run: |
           cd ansible
           echo "Checking connectivity to all hosts..."
           
-          # Run ping on all hosts, ignore failure so we can process partial success
-          # We capture stderr too just in case
-          PING_OUTPUT=$(ansible all -m ping 2>&1 || true)
+          # Run ICMP ping on all hosts from the runner (no SSH)
+          # We use -c local to run the ping command on the runner, targeting the remote host IP
+          PING_OUTPUT=$(ansible all -m command -a "ping -c 1 -W 2 {{ ansible_host | default(inventory_hostname) }}" -c local 2>&1 || true)
           echo "$PING_OUTPUT"
           
           # Parse successful hosts
-          # Output format is typically: "hostname | SUCCESS => { ... }"
-          REACHABLE=$(echo "$PING_OUTPUT" | grep "| SUCCESS" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')
+          # Output format for command module is typically: "hostname | CHANGED | rc=0 >>"
+          REACHABLE=$(echo "$PING_OUTPUT" | grep "rc=0" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')
           
           if [ -z "$REACHABLE" ]; then
             echo "No hosts are reachable."
