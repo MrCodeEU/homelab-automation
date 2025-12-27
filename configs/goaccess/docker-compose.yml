@@ -29,11 +29,10 @@ services:
       - /opt/goaccess/report:/var/www/goaccess:rw
     command: >
       /goaccess/access.goaccess.log
-      --log-format="%d %t %v %h %m %U %H %s %b %T %R %u"
+      --log-format="%d %t %v %h %m %U %H %s %b %^ %R \"%u\""
       --date-format="%Y-%m-%d"
       --time-format="%H:%M:%S"
       -o /var/www/goaccess/index.html
       --real-time-html
       --ws-url=wss://logs.mljr.eu:443/ws
       --port=7890
-      --no-query-string
