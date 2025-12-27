@@ -81,6 +81,14 @@ services:
     host: mljr
     managed: false
 
+  - name: immich
+    enabled: true
+    domain: "immich.mljr.eu"
+    port: 8080
+    description: "Photo Management"
+    icon: "mdi:image-multiple"
+    host: nas
+
 # Secrets (injected via environment variables)
 nightscout_api_secret: "{{ lookup('env', 'NIGHTSCOUT_API_SECRET') }}"
 link_up_username: "{{ lookup('env', 'LINK_UP_USERNAME') }}"

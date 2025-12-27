@@ -9,7 +9,7 @@ Fail2ban monitors log files and automatically bans IPs that show malicious signs
 ## Features
 
 - **SSH Protection**: Monitors `/var/log/secure` for failed SSH login attempts
-- **Caddy Basic Auth Protection**: Monitors `/opt/caddy/logs/access.log` for failed basic authentication attempts (e.g., on logs.mljr.eu)
+- **Caddy Basic Auth Protection**: Monitors `/var/log/caddy/access.log` for failed basic authentication attempts (e.g., on logs.mljr.eu)
 - **ntfy Notifications**: Sends real-time notifications to your ntfy server when IPs are banned
 
 ## Configuration
@@ -30,13 +30,13 @@ This means if an IP fails 5 times within 10 minutes, it will be banned for 24 ho
    - Max retries: 5
 
 2. **Caddy Basic Auth (caddy-basicauth jail)**
-   - Monitors: `/opt/caddy/logs/access.log` (JSON format)
+   - Monitors: `/var/log/caddy/access.log` (JSON format)
    - Protects: Services with basic authentication (e.g., logs.mljr.eu)
    - Detects: HTTP 401 (Unauthorized) responses
    - Max retries: 5
 
 3. **Caddy Bad Bots (caddy-badbots jail)** *(disabled by default)*
-   - Monitors: `/opt/caddy/logs/access.log`
+   - Monitors: `/var/log/caddy/access.log`
    - Protects: Against common exploit attempts (wp-admin, phpmyadmin, .env, etc.)
    - Enable by uncommenting in `/etc/fail2ban/jail.d/homelab.conf`
 
@@ -118,7 +118,7 @@ sudo grep 'caddy-basicauth' /var/log/fail2ban.log
 sudo fail2ban-regex /var/log/secure /etc/fail2ban/filter.d/sshd.conf
 
 # Test Caddy basic auth filter
-sudo fail2ban-regex /opt/caddy/logs/access.log /etc/fail2ban/filter.d/caddy-basicauth.conf
+sudo fail2ban-regex /var/log/caddy/access.log /etc/fail2ban/filter.d/caddy-basicauth.conf
 ```
 
 ## Files
@@ -159,12 +159,12 @@ sudo fail2ban-client -t
 
 1. Check if the log file exists and is readable:
    ```bash
-   ls -l /opt/caddy/logs/access.log
+   ls -l /var/log/caddy/access.log
    ```
 
 2. Test the filter against the log:
    ```bash
-   sudo fail2ban-regex /opt/caddy/logs/access.log /etc/fail2ban/filter.d/caddy-basicauth.conf
+   sudo fail2ban-regex /var/log/caddy/access.log /etc/fail2ban/filter.d/caddy-basicauth.conf
    ```
 
 3. Check fail2ban logs for errors:

@@ -23,6 +23,8 @@ on:
           - base
           - docker
           - caddy
+          - security
+          - fail2ban
           - services
       build_librelink:
         description: 'Build LibreLink Up Go image before deploying'
