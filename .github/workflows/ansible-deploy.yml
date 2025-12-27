@@ -7,51 +7,190 @@ on:
         description: 'Limit to specific hosts (e.g., mljr, pi, rocky)'
         required: false
         default: 'all'
-        type: choice
-        options:
-          - all
-          - mljr
-          - homeserver
-          - unraid
+        type: string
       tags:
         description: 'Run specific tags/roles (e.g., caddy, docker, services)'
         required: false
         default: 'all'
-        type: choice
-        options:
-          - all
-          - base
-          - docker
-          - caddy
-          - security
-          - fail2ban
-          - services
+        type: string
       build_librelink:
-        description: 'Build LibreLink Up Go image before deploying'
+        description: 'Force build LibreLink Up Go image'
         required: false
         default: false
         type: boolean
+  push:
+    branches:
+      - main
+    paths:
+      - 'ansible/**'
+      - 'apps/**'
+      - 'configs/**'
+      - '.github/workflows/ansible-deploy.yml'
 
 jobs:
+  # 1. Check which hosts are online
+  check-hosts:
+    runs-on: ubuntu-latest
+    outputs:
+      reachable_hosts: ${{ steps.get-hosts.outputs.hosts }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Install Ansible collections
+        run: |
+          cd ansible
+          ansible-galaxy collection install -r requirements.yml
+
+      - name: Check host connectivity
+        id: get-hosts
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+        run: |
+          cd ansible
+          echo "Checking connectivity to all hosts..."
+          
+          # Run ping on all hosts, ignore failure so we can process partial success
+          # We capture stderr too just in case
+          PING_OUTPUT=$(ansible all -m ping 2>&1 || true)
+          echo "$PING_OUTPUT"
+          
+          # Parse successful hosts
+          # Output format is typically: "hostname | SUCCESS => { ... }"
+          REACHABLE=$(echo "$PING_OUTPUT" | grep "| SUCCESS" | awk '{print $1}' | tr '\n' ',' | sed 's/,$//')
+          
+          if [ -z "$REACHABLE" ]; then
+            echo "No hosts are reachable."
+          else
+            echo "Reachable hosts: $REACHABLE"
+          fi
+          
+          echo "hosts=$REACHABLE" >> $GITHUB_OUTPUT
+
+  # 2. Detect changes to determine what to run
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      tags: ${{ steps.set-tags.outputs.tags }}
+      build_librelink: ${{ steps.set-builds.outputs.librelink }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            ansible_core:
+              - 'ansible/*.cfg'
+              - 'ansible/inventory/**'
+              - 'ansible/playbooks/**'
+              - 'ansible/requirements.yml'
+            roles_caddy:
+              - 'ansible/roles/caddy/**'
+              - 'configs/caddy/**'
+            roles_docker:
+              - 'ansible/roles/docker/**'
+              - 'configs/docker/**'
+            roles_fail2ban:
+              - 'ansible/roles/fail2ban/**'
+              - 'configs/fail2ban/**'
+            roles_glance:
+              - 'ansible/roles/glance/**'
+              - 'configs/glance/**'
+            roles_unraid:
+              - 'ansible/roles/unraid/**'
+              - 'scripts/03-unraid-deploy.sh'
+            roles_services:
+              - 'ansible/roles/services/**'
+              - 'configs/**'
+            app_librelink:
+              - 'apps/nightscout-librelink-up-go/**'
+
+      - name: Determine Tags
+        id: set-tags
+        run: |
+          TAGS=""
+          
+          # If manual dispatch with tags specified, use those
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "all" ]; then
+            TAGS="${{ inputs.tags }}"
+          elif [ "${{ steps.changes.outputs.ansible_core }}" == "true" ]; then
+            # Core ansible changes -> run everything
+            TAGS="all"
+          else
+            # Build dynamic tag list
+            [ "${{ steps.changes.outputs.roles_caddy }}" == "true" ] && TAGS="${TAGS},caddy"
+            [ "${{ steps.changes.outputs.roles_docker }}" == "true" ] && TAGS="${TAGS},docker"
+            [ "${{ steps.changes.outputs.roles_fail2ban }}" == "true" ] && TAGS="${TAGS},fail2ban"
+            [ "${{ steps.changes.outputs.roles_glance }}" == "true" ] && TAGS="${TAGS},glance"
+            [ "${{ steps.changes.outputs.roles_unraid }}" == "true" ] && TAGS="${TAGS},unraid"
+            
+            # Services is a catch-all for configs
+            # If app_librelink changes, we also want to run services to redeploy it
+            if [ "${{ steps.changes.outputs.roles_services }}" == "true" ] || [ "${{ steps.changes.outputs.app_librelink }}" == "true" ]; then
+              TAGS="${TAGS},services"
+            fi
+            
+            # Clean up commas
+            TAGS=$(echo "$TAGS" | sed 's/^,//')
+            
+            if [ -z "$TAGS" ]; then
+              TAGS="none"
+            fi
+          fi
+          
+          echo "Calculated tags: $TAGS"
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+
+      - name: Determine Builds
+        id: set-builds
+        run: |
+          BUILD_LIBRELINK="false"
+          
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.build_librelink }}" == "true" ]; then
+            BUILD_LIBRELINK="true"
+          elif [ "${{ steps.changes.outputs.app_librelink }}" == "true" ]; then
+            BUILD_LIBRELINK="true"
+          fi
+          
+          echo "Build LibreLink: $BUILD_LIBRELINK"
+          echo "librelink=$BUILD_LIBRELINK" >> $GITHUB_OUTPUT
+
+  # 3. Build LibreLink if needed
   build-librelink:
-    if: ${{ inputs.build_librelink == true }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.build_librelink == 'true'
     uses: ./.github/workflows/build-librelink-image.yml
-    secrets: inherit    
+    secrets: inherit
     permissions:
       contents: read
       packages: write
+
+  # 4. Deploy
   deploy:
+    needs: [check-hosts, detect-changes, build-librelink]
+    # Run if we have reachable hosts AND (tags are not none OR we built something)
+    if: |
+      always() && 
+      needs.check-hosts.outputs.reachable_hosts != '' && 
+      (needs.detect-changes.outputs.tags != 'none' || needs.detect-changes.outputs.build_librelink == 'true') &&
+      (needs.build-librelink.result == 'success' || needs.build-librelink.result == 'skipped')
     runs-on: ubuntu-latest
-    needs: [build-librelink]
-    if: always() && (needs.build-librelink.result == 'success' || needs.build-librelink.result == 'skipped')
     steps:
-      - name: Wait for image to be available
-        if: ${{ inputs.build_librelink == true }}
-        run: |
-          echo "Waiting 30 seconds for image to be fully available in registry..."
-          sleep 30
-          echo "Image should now be available for deployment"
-      
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -73,8 +212,7 @@ jobs:
 
       - name: Install Ansible
         if: steps.ansible-cache.outputs.cache-hit != 'true'
-        run: |
-            pip install --user ansible
+        run: pip install --user ansible
 
       - name: Install Ansible collections
         run: |
@@ -100,17 +238,32 @@ jobs:
         run: |
           cd ansible
           
-          # Construct arguments
-          ARGS=""
-          if [ "${{ inputs.limit }}" != "all" ] && [ -n "${{ inputs.limit }}" ]; then
-            ARGS="$ARGS --limit ${{ inputs.limit }}"
+          # Calculate Limit
+          LIMIT_ARG=""
+          REACHABLE="${{ needs.check-hosts.outputs.reachable_hosts }}"
+          INPUT_LIMIT="${{ inputs.limit }}"
+          
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ -n "$INPUT_LIMIT" ] && [ "$INPUT_LIMIT" != "all" ]; then
+            LIMIT_ARG="--limit $INPUT_LIMIT"
+          else
+            LIMIT_ARG="--limit $REACHABLE"
           fi
           
-          if [ "${{ inputs.tags }}" != "all" ] && [ -n "${{ inputs.tags }}" ]; then
-            ARGS="$ARGS --tags ${{ inputs.tags }}"
+          # Calculate Tags
+          TAGS_ARG=""
+          DETECTED_TAGS="${{ needs.detect-changes.outputs.tags }}"
+          
+          if [ "$DETECTED_TAGS" != "none" ]; then
+             TAGS_ARG="--tags $DETECTED_TAGS"
           fi
           
-          ansible-playbook playbooks/site.yml $ARGS
+          echo "Running Ansible with: $LIMIT_ARG $TAGS_ARG"
+          
+          if [ -n "$TAGS_ARG" ]; then
+            ansible-playbook playbooks/site.yml $LIMIT_ARG $TAGS_ARG
+          else
+            echo "No tags to run. Skipping playbook."
+          fi
 
       - name: Send deployment notification
         if: always()
@@ -127,10 +280,14 @@ jobs:
           fi
           
           # Construct message
-          MESSAGE="${EMOJI} Homelab deployment to ${{ inputs.limit || 'all' }} hosts"
-          if [ "${{ inputs.tags }}" != "all" ] && [ -n "${{ inputs.tags }}" ]; then
-            MESSAGE="${MESSAGE} (tags: ${{ inputs.tags }})"
-          fi
+          MESSAGE="${EMOJI} Homelab deployment"
+          
+          # Add details
+          REACHABLE="${{ needs.check-hosts.outputs.reachable_hosts }}"
+          TAGS="${{ needs.detect-changes.outputs.tags }}"
+          
+          MESSAGE="${MESSAGE} to ${REACHABLE}"
+          MESSAGE="${MESSAGE} (tags: ${TAGS})"
           MESSAGE="${MESSAGE} - ${TITLE}"
           
           # Send to ntfy
