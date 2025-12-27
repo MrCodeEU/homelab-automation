@@ -9,7 +9,6 @@ timezone: "Europe/Vienna"
 # services role)
 services_excluded_from_generic_deployment:
   - glance
-  - fail2ban-ui
 
 services:
   - name: glance
@@ -47,17 +46,6 @@ services:
     description: "Push Notifications"
     icon: "mdi:bell-ring"
 
-  - name: fail2ban-ui
-    enabled: true
-    host: mljr
-    domain: "security.mljr.eu"
-    port: 5000
-    description: "Security Dashboard"
-    icon: "mdi:shield-account"
-    caddy_auth: basicauth
-    # Exclude from generic deployment because it's deployed by fail2ban role
-    skip_deploy: true
-
   - name: goaccess
     enabled: true
     domain: "logs.mljr.eu"
@@ -92,6 +80,14 @@ services:
     icon: "mdi:email-server"
     host: mljr
     managed: false
+
+  - name: immich
+    enabled: true
+    domain: "immich.mljr.eu"
+    port: 8080
+    description: "Photo Management"
+    icon: "mdi:image-multiple"
+    host: nas
 
 # Secrets (injected via environment variables)
 nightscout_api_secret: "{{ lookup('env', 'NIGHTSCOUT_API_SECRET') }}"
