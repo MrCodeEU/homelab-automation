@@ -110,12 +110,13 @@ jobs:
           filters: |
             ansible_core:
               - 'ansible/*.cfg'
-              - 'ansible/inventory/**'
+              - 'ansible/inventory/hosts.yml'
               - 'ansible/playbooks/**'
               - 'ansible/requirements.yml'
             roles_caddy:
               - 'ansible/roles/caddy/**'
               - 'configs/caddy/**'
+              - 'ansible/inventory/group_vars/all.yml'
             roles_docker:
               - 'ansible/roles/docker/**'
               - 'configs/docker/**'
@@ -131,6 +132,7 @@ jobs:
             roles_services:
               - 'ansible/roles/services/**'
               - 'configs/**'
+              - 'ansible/inventory/group_vars/all.yml'
             app_librelink:
               - 'apps/nightscout-librelink-up-go/**'
 
