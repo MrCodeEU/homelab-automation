@@ -106,7 +106,7 @@ services:
     icon: "mdi:server"
     host: nas
 
-- name: nextcloud
+  - name: nextcloud
     enabled: true
     domain: "cloud.mljr.eu"
     port: 11000
