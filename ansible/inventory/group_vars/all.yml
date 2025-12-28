@@ -106,6 +106,15 @@ services:
     icon: "mdi:server"
     host: nas
 
+- name: nextcloud
+    enabled: true
+    domain: "cloud.mljr.eu"
+    port: 11000
+    description: "Nextcloud Instance on Unraid NAS"
+    icon: "mdi:cloud"
+    host: nas
+
+
 # Secrets (injected via environment variables)
 nightscout_api_secret: "{{ lookup('env', 'NIGHTSCOUT_API_SECRET') }}"
 link_up_username: "{{ lookup('env', 'LINK_UP_USERNAME') }}"
