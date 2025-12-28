@@ -2,15 +2,23 @@
 # Main site playbook - optimized for speed
 # Uses free strategy for parallel execution where possible
 
-- name: Base Setup
-  hosts: rocky:debian
-  become: true
+# Gather facts first - always runs regardless of tags
+- name: Gather Facts
+  hosts: all
   gather_facts: true
   gather_subset:
     - min
     - os_family
     - distribution
     - service_mgr
+  tags:
+    - always
+  tasks: []
+
+- name: Base Setup
+  hosts: rocky:debian
+  become: true
+  gather_facts: false  # Already gathered above
   tags:
     - base
     - common
