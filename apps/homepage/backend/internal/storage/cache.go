@@ -3,6 +3,7 @@ package storage
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -64,7 +65,7 @@ func (c *FileCache) Get(key string) ([]byte, error) {
 	if err := json.Unmarshal(data, &entry); err != nil {
 		// Invalid cache file, delete it
 		if removeErr := os.Remove(filePath); removeErr != nil && !os.IsNotExist(removeErr) {
-			fmt.Printf("Warning: failed to remove invalid cache file: %v\n", removeErr)
+			log.Printf("Warning: failed to remove invalid cache file: %v", removeErr)
 		}
 		return nil, nil
 	}
@@ -74,7 +75,7 @@ func (c *FileCache) Get(key string) ([]byte, error) {
 		// Expired, delete it
 		if removeErr := os.Remove(filePath); removeErr != nil && !os.IsNotExist(removeErr) {
 			// Log but don't fail on cleanup error
-			fmt.Printf("Warning: failed to remove expired cache file: %v\n", removeErr)
+			log.Printf("Warning: failed to remove expired cache file: %v", removeErr)
 		}
 		return nil, nil
 	}

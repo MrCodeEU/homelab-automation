@@ -184,13 +184,25 @@ func TestCORSMiddleware(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
+	// Test with localhost origin (should be allowed)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
 
-	if w.Header().Get("Access-Control-Allow-Origin") != "*" {
-		t.Error("Expected CORS header to be set")
+	if w.Header().Get("Access-Control-Allow-Origin") != "http://localhost:5173" {
+		t.Errorf("Expected CORS header to be 'http://localhost:5173', got '%s'", w.Header().Get("Access-Control-Allow-Origin"))
+	}
+
+	// Test without origin (should not set CORS header)
+	req2 := httptest.NewRequest(http.MethodGet, "/", nil)
+	w2 := httptest.NewRecorder()
+
+	handler.ServeHTTP(w2, req2)
+
+	if w2.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Errorf("Expected no CORS header for same-origin request, got '%s'", w2.Header().Get("Access-Control-Allow-Origin"))
 	}
 }
 

@@ -1,27 +1,26 @@
-version: "2"
 linters:
   enable:
-    - misspell
-  settings:
-    errcheck:
-      check-type-assertions: true
-      check-blank: true
-    govet:
-      enable:
-        - shadow
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
-formatters:
-  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
     - gofmt
     - goimports
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
+    - misspell
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  govet:
+    enable:
+      - shadow
+
+issues:
+  exclude-use-default: false
+
+run:
+  timeout: 5m
