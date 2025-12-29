@@ -31,6 +31,11 @@ type GitHubScraper struct {
 
 // NewGitHubScraper creates a new GitHub scraper
 func NewGitHubScraper(username, token string, cache storage.Cache) *GitHubScraper {
+	// Validate username format (GitHub usernames are alphanumeric + hyphens)
+	if err := validateUsername(username); err != nil {
+		log.Printf("Warning: Invalid GitHub username format: %v", err)
+	}
+
 	return &GitHubScraper{
 		username: username,
 		token:    token,
@@ -40,6 +45,18 @@ func NewGitHubScraper(username, token string, cache storage.Cache) *GitHubScrape
 			Timeout: 30 * time.Second,
 		},
 	}
+}
+
+// validateUsername validates GitHub username format
+func validateUsername(username string) error {
+	if username == "" {
+		return fmt.Errorf("username cannot be empty")
+	}
+	matched, _ := regexp.MatchString(`^[a-zA-Z0-9-]+$`, username)
+	if !matched {
+		return fmt.Errorf("invalid GitHub username (must be alphanumeric with hyphens)")
+	}
+	return nil
 }
 
 // Name returns the scraper name
@@ -179,7 +196,7 @@ func (g *GitHubScraper) Refresh() (any, error) {
 
 	if err := g.cache.Set(cacheKeyGitHub, data, g.cacheTTL); err != nil {
 		// Log error but don't fail - we still have the data
-		fmt.Printf("Warning: failed to update cache: %v\n", err)
+		log.Printf("Warning: failed to update cache: %v", err)
 	}
 
 	return projects, nil
@@ -196,7 +213,7 @@ func (g *GitHubScraper) fetchRepositories() ([]GitHubRepo, error) {
 
 	// Add authentication if token is provided
 	if g.token != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("token %s", g.token))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", g.token))
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 
@@ -263,7 +280,7 @@ func (g *GitHubScraper) fetchFileContent(repoName, filePath string) (string, err
 	}
 
 	if g.token != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("token %s", g.token))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", g.token))
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3.raw")
 
