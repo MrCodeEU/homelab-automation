@@ -31,12 +31,12 @@ jobs:
 
       - name: Sync source code
         run: |
-          # Remove old files (except .git and .github)
+          # Remove old files (except .git)
           cd public-repo
-          find . -maxdepth 1 -not -name '.git' -not -name '.github' -not -name '.' -exec rm -rf {} +
+          find . -maxdepth 1 -not -name '.git' -not -name '.' -exec rm -rf {} +
 
-          # Copy all source files
-          cp -r ../apps/nightscout-librelink-up-go/* .
+          # Copy all source files including .github
+          cp -r ../apps/nightscout-librelink-up-go/. .
 
           # Remove private .env file if it exists
           rm -f .env
