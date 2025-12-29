@@ -2,10 +2,76 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/mrcodeeu/homepage/internal/scrapers"
 )
+
+// mockCache for testing
+type mockCache struct {
+	data map[string][]byte
+}
+
+func newMockCache() *mockCache {
+	return &mockCache{
+		data: make(map[string][]byte),
+	}
+}
+
+func (m *mockCache) Get(key string) ([]byte, error) {
+	data, ok := m.data[key]
+	if !ok {
+		return nil, nil
+	}
+	return data, nil
+}
+
+func (m *mockCache) Set(key string, data []byte, ttl time.Duration) error {
+	m.data[key] = data
+	return nil
+}
+
+func (m *mockCache) Delete(key string) error {
+	delete(m.data, key)
+	return nil
+}
+
+func (m *mockCache) Clear() error {
+	m.data = make(map[string][]byte)
+	return nil
+}
+
+// setupTestScraper initializes the global githubScraper for testing
+func setupTestScraper() {
+	cache := newMockCache()
+	githubScraper = scrapers.NewGitHubScraper("testuser", "", cache)
+
+	// Pre-populate cache with test data
+	testProjects := []scrapers.Project{
+		{
+			Name:        "test-project",
+			Description: "A test project",
+			URL:         "https://github.com/testuser/test-project",
+			Stars:       10,
+			Language:    "Go",
+			Topics:      []string{"test"},
+			Images:      []string{},
+			Featured:    false,
+		},
+	}
+
+	data, err := json.Marshal(testProjects)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to marshal test data: %v", err))
+	}
+	if err := cache.Set("github_projects", data, 1*time.Hour); err != nil {
+		panic(fmt.Sprintf("Failed to set cache: %v", err))
+	}
+}
 
 func TestHandleHealth(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
@@ -56,6 +122,9 @@ func TestHandleCV(t *testing.T) {
 }
 
 func TestHandleProjects(t *testing.T) {
+	// Setup test scraper with mock data
+	setupTestScraper()
+
 	req := httptest.NewRequest(http.MethodGet, "/api/projects", nil)
 	w := httptest.NewRecorder()
 

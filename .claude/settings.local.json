@@ -14,7 +14,16 @@
       "Bash(golangci-lint:*)",
       "WebFetch(domain:golangci-lint.run)",
       "Bash(make check-all:*)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "Bash(go test:*)",
+      "Bash(gofmt:*)",
+      "Bash(go run:*)",
+      "Bash(./homepage)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(make dev-backend:*)",
+      "Bash(curl:*)",
+      "Bash(jq:*)"
     ]
   }
 }

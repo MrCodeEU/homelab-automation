@@ -39,7 +39,7 @@ func Load() *Config {
 		LinkedInAPIKey:    os.Getenv("LINKEDIN_API_KEY"),
 		LinkedInAPISecret: os.Getenv("LINKEDIN_API_SECRET"),
 
-		CacheDir:      getEnv("CACHE_DIR", "/data/cache"),
+		CacheDir:      getEnv("CACHE_DIR", "./data/cache"),
 		CacheTTLHours: 24,
 	}
 }
