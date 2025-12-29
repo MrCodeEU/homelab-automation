@@ -6,7 +6,9 @@
       "Bash(test:*)",
       "Bash(git rm:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(cat:*)",
+      "Bash(xargs ls:*)"
     ]
   }
 }
