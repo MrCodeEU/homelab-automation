@@ -14,14 +14,32 @@ import (
 	"time"
 
 	"github.com/mrcodeeu/homepage/internal/config"
+	"github.com/mrcodeeu/homepage/internal/scrapers"
+	"github.com/mrcodeeu/homepage/internal/storage"
 )
 
 //go:embed all:static
 var staticFiles embed.FS
 
+// Global scrapers (initialized in main)
+var (
+	githubScraper *scrapers.GitHubScraper
+)
+
 func main() {
 	// Load configuration
 	cfg := config.Load()
+
+	// Initialize cache
+	cache, err := storage.NewFileCache(cfg.CacheDir)
+	if err != nil {
+		log.Fatalf("Failed to create cache: %v", err)
+	}
+	log.Printf("Cache initialized at %s", cfg.CacheDir)
+
+	// Initialize GitHub scraper
+	githubScraper = scrapers.NewGitHubScraper(cfg.GitHubUsername, cfg.GitHubToken, cache)
+	log.Printf("GitHub scraper initialized for user: %s", cfg.GitHubUsername)
 
 	// Create HTTP server
 	mux := http.NewServeMux()
@@ -163,29 +181,18 @@ func handleCV(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Projects endpoint (mock data for MVP)
+// Projects endpoint - uses GitHub scraper
 func handleProjects(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	projects := []map[string]interface{}{
-		{
-			"name":        "homelab-automation",
-			"description": "Automated homelab infrastructure with Ansible",
-			"url":         "https://github.com/mrcodeeu/homelab-automation",
-			"stars":       10,
-			"language":    "Ansible",
-			"topics":      []string{"automation", "ansible", "docker"},
-			"images":      []string{},
-		},
-		{
-			"name":        "nightscout-librelink-up-go",
-			"description": "Lightweight LibreLink Up to Nightscout sync in Go",
-			"url":         "https://github.com/mrcodeeu/nightscout-librelink-up-go",
-			"stars":       5,
-			"language":    "Go",
-			"topics":      []string{"nightscout", "diabetes", "go"},
-			"images":      []string{},
-		},
+
+	// Get projects from GitHub scraper (uses cache if available)
+	projects, err := githubScraper.GetCached()
+	if err != nil {
+		log.Printf("Error fetching projects: %v", err)
+		http.Error(w, "Failed to fetch projects", http.StatusInternalServerError)
+		return
 	}
+
 	if err := json.NewEncoder(w).Encode(projects); err != nil {
 		http.Error(w, "Failed to encode projects data", http.StatusInternalServerError)
 		log.Printf("Error encoding projects response: %v", err)

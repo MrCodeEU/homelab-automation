@@ -52,7 +52,7 @@ coverage.out
 
 # Cache
 .cache/
-/data/
+data/
 
 # Temporary files
 tmp/
