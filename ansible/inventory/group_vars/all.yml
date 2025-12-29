@@ -114,6 +114,94 @@ services:
     icon: "mdi:cloud"
     host: nas
 
+  - name: homeserver-ui
+    enabled: true
+    domain: "nuc.mljr.eu"
+    port: 80
+    description: "Home Server Management UI"
+    icon: "mdi:server"
+    host: homeserver
+
+  - name: stats
+    enabled: true
+    domain: "stats.mljr.eu"
+    port: 3000
+    description: "Statistics Dashboard"
+    icon: "mdi:chart-line"
+    host: nas
+
+  - name: dockge
+    enabled: true
+    domain: "dockge.mljr.eu"
+    port: 5001
+    description: "Docker Compose Manager"
+    icon: "mdi:docker"
+    host: mljr
+
+  - name: syncthing
+    enabled: true
+    domain: "sync.mljr.eu"
+    port: 8384
+    description: "File Synchronization"
+    icon: "mdi:sync"
+    host: nas
+
+  - name: wud
+    enabled: true
+    domain: "wud.mljr.eu"
+    port: 3000
+    description: "What's Up Docker"
+    icon: "mdi:docker"
+    host: mljr
+
+  - name: filebrowser
+    enabled: true
+    domain: "files.mljr.eu"
+    port: 5687
+    description: "File Browser"
+    icon: "mdi:folder"
+    host: nas
+
+  - name: sonarqube
+    enabled: true
+    domain: "sonarqube.mljr.eu"
+    port: 9000
+    description: "Code Quality Analysis"
+    icon: "mdi:code-braces"
+    host: homeserver
+
+  - name: projects
+    enabled: true
+    domain: "projects.mljr.eu"
+    port: 3456
+    description: "Project Management"
+    icon: "mdi:clipboard-list"
+    host: nas
+
+  - name: grafana
+    enabled: true
+    domain: "grafana.mljr.eu"
+    port: 3000
+    description: "Metrics & Monitoring"
+    icon: "mdi:chart-areaspline"
+    host: monitoring
+
+  - name: pairdrop
+    enabled: true
+    domain: "share.mljr.eu"
+    port: 3054
+    description: "File Sharing (PairDrop)"
+    icon: "mdi:share-variant"
+    host: nas
+
+  - name: jenkins
+    enabled: true
+    domain: "jenkins.mljr.eu"
+    port: 6857
+    description: "CI/CD Automation"
+    icon: "mdi:pipe"
+    host: homeserver
+
 
 # Secrets (injected via environment variables)
 nightscout_api_secret: "{{ lookup('env', 'NIGHTSCOUT_API_SECRET') }}"
