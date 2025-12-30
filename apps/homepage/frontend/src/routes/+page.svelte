@@ -86,7 +86,10 @@
 									src={project.images[0]}
 									alt={project.name}
 									class="project-image"
-									on:error={(e) => e.target.style.display = 'none'}
+									on:error={(e) => {
+										const target = e.currentTarget as HTMLImageElement;
+										target.style.display = 'none';
+									}}
 								/>
 								{#if project.featured}
 									<span class="featured-badge">Featured</span>

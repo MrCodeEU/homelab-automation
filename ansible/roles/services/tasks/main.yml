@@ -31,22 +31,45 @@
          rejectattr('name', 'in', services_excluded_from_generic_deployment) |
          list }}
 
+- name: Check for dev configuration folders
+  delegate_to: localhost
+  become: false
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/../../configs/{{ item.name }}/dev"
+  register: dev_config_check
+  loop: "{{ host_services }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Determine deployment paths and config sources
+  ansible.builtin.set_fact:
+    service_deployments: >-
+      {{ service_deployments | default([]) + [{
+        'name': item.0.name,
+        'is_dev': (env_suffix != '' and (item.0.source | default('') == 'apps' or item.1.stat.exists)),
+        'deploy_path': '/opt/dev/' + item.0.name if (env_suffix != '' and (item.0.source | default('') == 'apps' or item.1.stat.exists)) else '/opt/' + item.0.name,
+        'config_source': playbook_dir + '/../../configs/' + item.0.name + ('/dev' if (env_suffix != '' and item.1.stat.exists) else '')
+      }] }}
+  loop: "{{ host_services | zip(dev_config_check.results) | list }}"
+  loop_control:
+    label: "{{ item.0.name }}"
+
 - name: Ensure service directories exist
   ansible.builtin.file:
-    path: "/opt/{{ item.name }}"
+    path: "{{ item.deploy_path }}"
     state: directory
     mode: '0755'
-  loop: "{{ host_services }}"
+  loop: "{{ service_deployments }}"
   loop_control:
     label: "{{ item.name }}"
 
 - name: Copy service configuration files
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../configs/{{ item.name }}/"
-    dest: "/opt/{{ item.name }}/"
+    src: "{{ item.config_source }}/"
+    dest: "{{ item.deploy_path }}/"
     mode: '0644'
     directory_mode: '0755'
-  loop: "{{ host_services }}"
+  loop: "{{ service_deployments }}"
   loop_control:
     label: "{{ item.name }}"
   failed_when: false  # Some services might not have configs yet
@@ -54,9 +77,9 @@
 - name: Create .env file with secrets
   ansible.builtin.template:
     src: env.j2
-    dest: "/opt/{{ item.name }}/.env"
+    dest: "{{ item.deploy_path }}/.env"
     mode: '0600'
-  loop: "{{ host_services }}"
+  loop: "{{ service_deployments }}"
   loop_control:
     label: "{{ item.name }}"
   vars:
@@ -66,18 +89,20 @@
     nightscout_api_token_var: "{{ nightscout_api_token | default('') }}"
     nightscout_domain_var: "{{ nightscout_domain | default('') }}"
     bichon_encrypt_password_var: "{{ bichon_encrypt_password | default('') }}"
+    github_username_var: "{{ github_username | default('') }}"
+    github_token_var: "{{ github_token | default('') }}"
 
 - name: Check which services have docker-compose.yml
   ansible.builtin.stat:
-    path: "/opt/{{ item.name }}/docker-compose.yml"
+    path: "{{ item.deploy_path }}/docker-compose.yml"
   register: compose_files
-  loop: "{{ host_services }}"
+  loop: "{{ service_deployments }}"
   loop_control:
     label: "{{ item.name }}"
 
 - name: Deploy services via Docker Compose
   community.docker.docker_compose_v2:
-    project_src: "/opt/{{ item.item.name }}"
+    project_src: "{{ item.item.deploy_path }}"
     state: present
     pull: always
   loop: "{{ compose_files.results }}"

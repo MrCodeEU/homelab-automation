@@ -21,6 +21,7 @@ on:
   push:
     branches:
       - main
+      - '*dev*'  # Enable dev environment deployments for any branch containing 'dev'
     paths:
       - 'ansible/**'
       - 'apps/**'
@@ -28,8 +29,35 @@ on:
       - '.github/workflows/ansible-deploy.yml'
 
 jobs:
-  # 1. Check which hosts are online
+  # 1. Validate branch configuration
+  validate-branch:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check for dev configurations in main branch
+        run: |
+          echo "Checking for dev configuration folders in main branch..."
+          DEV_FOLDERS=$(find configs -type d -name "dev" 2>/dev/null || true)
+
+          if [ -n "$DEV_FOLDERS" ]; then
+            echo "ERROR: Dev configuration folders found in main branch!"
+            echo "The following dev folders should not exist in main:"
+            echo "$DEV_FOLDERS"
+            echo ""
+            echo "Dev configurations should only exist in feature branches."
+            echo "Please remove these folders before merging to main."
+            exit 1
+          fi
+
+          echo "✓ No dev configurations found in main branch."
+
+  # 2. Check which hosts are online
   check-hosts:
+    needs: [validate-branch]
+    if: always() && (needs.validate-branch.result == 'success' || needs.validate-branch.result == 'skipped')
     runs-on: ubuntu-latest
     outputs:
       reachable_hosts: ${{ steps.get-hosts.outputs.hosts }}
@@ -91,8 +119,10 @@ jobs:
 
           echo "hosts=$REACHABLE_HOSTS" >> $GITHUB_OUTPUT
 
-  # 2. Detect changes to determine what to run
+  # 3. Detect changes to determine what to run
   detect-changes:
+    needs: [validate-branch]
+    if: always() && (needs.validate-branch.result == 'success' || needs.validate-branch.result == 'skipped')
     runs-on: ubuntu-latest
     outputs:
       tags: ${{ steps.set-tags.outputs.tags }}
@@ -186,7 +216,7 @@ jobs:
           echo "Build LibreLink: $BUILD_LIBRELINK"
           echo "librelink=$BUILD_LIBRELINK" >> $GITHUB_OUTPUT
 
-  # 3. Build LibreLink if needed
+  # 4. Build LibreLink if needed
   build-librelink:
     needs: detect-changes
     if: needs.detect-changes.outputs.build_librelink == 'true'
@@ -196,19 +226,36 @@ jobs:
       contents: read
       packages: write
 
-  # 4. Deploy
+  # 5. Deploy
   deploy:
     needs: [check-hosts, detect-changes, build-librelink]
     # Run if we have reachable hosts AND (tags are not none OR we built something)
     if: |
-      always() && 
-      needs.check-hosts.outputs.reachable_hosts != '' && 
+      always() &&
+      needs.check-hosts.outputs.reachable_hosts != '' &&
       (needs.detect-changes.outputs.tags != 'none' || needs.detect-changes.outputs.build_librelink == 'true') &&
       (needs.build-librelink.result == 'success' || needs.build-librelink.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Detect Environment
+        id: detect-env
+        run: |
+          # Determine environment based on branch
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            ENV_SUFFIX=""
+            ENVIRONMENT="production"
+          else
+            ENV_SUFFIX=".dev"
+            ENVIRONMENT="development"
+          fi
+
+          echo "Environment: $ENVIRONMENT"
+          echo "Domain suffix: $ENV_SUFFIX"
+          echo "env_suffix=$ENV_SUFFIX" >> $GITHUB_OUTPUT
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
 
       - name: Set up Tailscale
         uses: tailscale/github-action@v3
@@ -238,6 +285,9 @@ jobs:
       - name: Run Ansible Playbook
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
+          # Environment configuration
+          ENV_SUFFIX: ${{ steps.detect-env.outputs.env_suffix }}
+          ENVIRONMENT: ${{ steps.detect-env.outputs.environment }}
           # Secrets for Ansible lookup
           NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
           LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
@@ -301,9 +351,10 @@ jobs:
           # Add details
           REACHABLE="${{ needs.check-hosts.outputs.reachable_hosts }}"
           TAGS="${{ needs.detect-changes.outputs.tags }}"
-          
+          ENVIRONMENT="${{ steps.detect-env.outputs.environment }}"
+
           MESSAGE="${MESSAGE} to ${REACHABLE}"
-          MESSAGE="${MESSAGE} (tags: ${TAGS})"
+          MESSAGE="${MESSAGE} (env: ${ENVIRONMENT}, tags: ${TAGS})"
           MESSAGE="${MESSAGE} - ${TITLE}"
           
           # Send to ntfy
