@@ -23,7 +23,8 @@
       "Bash(xargs kill:*)",
       "Bash(make dev-backend:*)",
       "Bash(curl:*)",
-      "Bash(jq:*)"
+      "Bash(jq:*)",
+      "Bash(docker build:*)"
     ]
   }
 }
