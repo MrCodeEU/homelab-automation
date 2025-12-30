@@ -21,6 +21,7 @@ on:
   push:
     branches:
       - main
+      - '*dev*'  # Enable dev environment deployments for any branch containing 'dev'
     paths:
       - 'ansible/**'
       - 'apps/**'
