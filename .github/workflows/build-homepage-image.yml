@@ -21,9 +21,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Determine image tag
+      - name: Determine image tag and repository
         id: tag
         run: |
+          # Convert repository owner to lowercase
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "repo_owner=$REPO_OWNER" >> $GITHUB_OUTPUT
+
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
             echo "tag=latest" >> $GITHUB_OUTPUT
             echo "environment=production" >> $GITHUB_OUTPUT
@@ -47,7 +51,7 @@ jobs:
         with:
           context: ./apps/homepage
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/homepage:${{ steps.tag.outputs.tag }}
+          tags: ghcr.io/${{ steps.tag.outputs.repo_owner }}/homepage:${{ steps.tag.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
