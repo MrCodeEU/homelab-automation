@@ -34,6 +34,7 @@ export interface Project {
 	language: string;
 	topics: string[];
 	images: string[];
+	featured: boolean;
 }
 
 export interface StravaStats {
