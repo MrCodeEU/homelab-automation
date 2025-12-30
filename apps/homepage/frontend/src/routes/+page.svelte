@@ -80,20 +80,35 @@
 			<div class="project-grid">
 				{#each projects as project}
 					<div class="project-card">
-						<h4>
-							<a href={project.url} target="_blank" rel="noopener noreferrer">
-								{project.name}
-							</a>
-						</h4>
-						<p class="description">{project.description}</p>
-						<div class="project-meta">
-							<span class="language">{project.language}</span>
-							<span class="stars">⭐ {project.stars}</span>
-						</div>
-						<div class="topics">
-							{#each project.topics as topic}
-								<span class="topic-tag">{topic}</span>
-							{/each}
+						{#if project.images && project.images.length > 0}
+							<div class="project-image-container">
+								<img
+									src={project.images[0]}
+									alt={project.name}
+									class="project-image"
+									on:error={(e) => e.target.style.display = 'none'}
+								/>
+								{#if project.featured}
+									<span class="featured-badge">Featured</span>
+								{/if}
+							</div>
+						{/if}
+						<div class="project-content">
+							<h4>
+								<a href={project.url} target="_blank" rel="noopener noreferrer">
+									{project.name}
+								</a>
+							</h4>
+							<p class="description">{project.description}</p>
+							<div class="project-meta">
+								<span class="language">{project.language}</span>
+								<span class="stars">⭐ {project.stars}</span>
+							</div>
+							<div class="topics">
+								{#each project.topics as topic}
+									<span class="topic-tag">{topic}</span>
+								{/each}
+							</div>
 						</div>
 					</div>
 				{/each}
@@ -290,14 +305,57 @@
 
 	.project-card {
 		border: 1px solid #e2e8f0;
-		padding: 1.5rem;
 		border-radius: 8px;
 		transition: transform 0.2s, box-shadow 0.2s;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.project-card:hover {
 		transform: translateY(-4px);
 		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+	}
+
+	.project-image-container {
+		position: relative;
+		width: 100%;
+		height: 200px;
+		overflow: hidden;
+		background: #f7fafc;
+	}
+
+	.project-image {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		transition: transform 0.3s ease;
+	}
+
+	.project-card:hover .project-image {
+		transform: scale(1.05);
+	}
+
+	.featured-badge {
+		position: absolute;
+		top: 12px;
+		right: 12px;
+		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		color: white;
+		padding: 0.4rem 0.8rem;
+		border-radius: 20px;
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+	}
+
+	.project-content {
+		padding: 1.5rem;
+		flex: 1;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.project-card h4 a {
@@ -307,6 +365,11 @@
 
 	.project-card h4 a:hover {
 		text-decoration: underline;
+	}
+
+	.project-content .description {
+		flex: 1;
+		margin-bottom: 1rem;
 	}
 
 	.project-meta {
@@ -322,6 +385,7 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.5rem;
+		margin-top: auto;
 	}
 
 	.topic-tag {
