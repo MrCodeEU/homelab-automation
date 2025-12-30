@@ -5,6 +5,10 @@ location: "Thaling, Austria"
 dashboard_name: "Homelab Dashboard"
 timezone: "Europe/Vienna"
 
+# Environment suffix for staging deployments
+# Empty for production (main branch), .dev for development (other branches)
+env_suffix: "{{ lookup('env', 'ENV_SUFFIX') | default('', true) }}"
+
 # Services managed by dedicated Ansible roles (excluded from generic
 # services role)
 services_excluded_from_generic_deployment:
@@ -137,6 +141,24 @@ services:
     description: "Docker Compose Manager"
     icon: "mdi:docker"
     host: mljr
+
+  - name: homepage
+    enabled: true
+    domain: "mljr.eu"
+    port: 8080
+    description: "Personal Homepage"
+    icon: "mdi:account-circle"
+    host: mljr
+    source: apps
+
+  - name: deployment-status
+    enabled: true
+    domain: "deployment-status.mljr.eu"
+    port: 8081
+    description: "Deployment Status Page"
+    icon: "mdi:information"
+    host: mljr
+    skip_deploy: true  # Handled by Caddy role
 
   - name: syncthing
     enabled: true

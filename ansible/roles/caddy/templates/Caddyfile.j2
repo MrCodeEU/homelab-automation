@@ -1,8 +1,36 @@
+{%- macro add_env_suffix(domain_name, service) -%}
+{%- set should_add_dev = false -%}
+{%- if env_suffix and env_suffix != "" -%}
+  {%- if service.managed is defined and service.managed == false -%}
+    {# Proxied services never get dev subdomain #}
+    {%- set should_add_dev = false -%}
+  {%- elif service.source is defined and service.source == 'apps' -%}
+    {# Apps always get dev subdomain #}
+    {%- set should_add_dev = true -%}
+  {%- elif service.name in services_with_dev | default([]) -%}
+    {# Services with dev config folder get dev subdomain #}
+    {%- set should_add_dev = true -%}
+  {%- endif -%}
+{%- endif -%}
+{%- if should_add_dev -%}
+  {%- set parts = domain_name.split('.') -%}
+  {%- if parts | length == 2 -%}
+    {# Root domain like mljr.eu becomes dev.mljr.eu #}
+    {{ env_suffix[1:] ~ '.' ~ domain_name }}
+  {%- else -%}
+    {# Subdomain like home.mljr.eu becomes home.dev.mljr.eu #}
+    {{ parts[0] ~ env_suffix ~ '.' ~ parts[1:] | join('.') }}
+  {%- endif -%}
+{%- else -%}
+{{ domain_name }}
+{%- endif -%}
+{%- endmacro -%}
+
 {
     email {{ email }}
 }
 
-{{ domain }} {
+deployment-status.{{ domain }} {
     root * /opt/caddy/site
     file_server
     log {
@@ -14,9 +42,13 @@
 {% for service in services %}
 {% if service.enabled | default(true) %}
 {% if service.domain is string %}
-{{ service.domain }} {
+{{ add_env_suffix(service.domain, service) }} {
 {% else %}
-{{ service.domain | join(', ') }} {
+{% set env_domains = [] %}
+{% for d in service.domain %}
+{% set _ = env_domains.append(add_env_suffix(d, service)) %}
+{% endfor %}
+{{ env_domains | join(', ') }} {
 {% endif %}
     log {
         output file /var/log/caddy/access.log
