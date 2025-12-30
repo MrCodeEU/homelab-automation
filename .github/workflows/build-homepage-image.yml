@@ -6,7 +6,7 @@ on:
   push:
     branches:
       - main
-      - 'add-dev-env'  # Add other feature branches as needed
+      - '*dev*'  # Build dev images for any branch containing 'dev'
     paths:
       - 'apps/homepage/**'
 
