@@ -37,6 +37,77 @@ jobs:
           rm -f .env 2>/dev/null || true
           rm -rf data/ 2>/dev/null || true
 
+      - name: Create .github directory structure
+        run: |
+          cd public-repo
+          mkdir -p .github/workflows
+
+      - name: Create build workflow for public repo
+        run: |
+          cd public-repo
+          cat > .github/workflows/build.yml << 'EOF'
+          name: Build and Push Docker Image
+
+          on:
+            workflow_dispatch:
+            push:
+              branches:
+                - main
+                - '*dev*'
+            repository_dispatch:
+              types: [sync-complete]
+
+          jobs:
+            build-and-push:
+              runs-on: ubuntu-latest
+              permissions:
+                contents: read
+                packages: write
+
+              steps:
+                - name: Checkout repository
+                  uses: actions/checkout@v4
+
+                - name: Determine image tag
+                  id: tag
+                  run: |
+                    # Convert repository owner to lowercase
+                    REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+                    echo "repo_owner=$REPO_OWNER" >> $GITHUB_OUTPUT
+
+                    if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+                      echo "tag=latest" >> $GITHUB_OUTPUT
+                      echo "environment=production" >> $GITHUB_OUTPUT
+                    else
+                      echo "tag=dev" >> $GITHUB_OUTPUT
+                      echo "environment=development" >> $GITHUB_OUTPUT
+                    fi
+
+                - name: Set up Docker Buildx
+                  uses: docker/setup-buildx-action@v3
+
+                - name: Log in to GitHub Container Registry
+                  uses: docker/login-action@v3
+                  with:
+                    registry: ghcr.io
+                    username: ${{ github.actor }}
+                    password: ${{ secrets.GITHUB_TOKEN }}
+
+                - name: Build and push Docker image
+                  uses: docker/build-push-action@v5
+                  with:
+                    context: .
+                    push: true
+                    tags: ghcr.io/${{ steps.tag.outputs.repo_owner }}/homepage:${{ steps.tag.outputs.tag }}
+                    cache-from: type=gha
+                    cache-to: type=gha,mode=max
+                    platforms: linux/amd64
+
+                - name: Image built successfully
+                  run: |
+                    echo "✅ Docker image built and pushed: ghcr.io/${{ steps.tag.outputs.repo_owner }}/homepage:${{ steps.tag.outputs.tag }}"
+          EOF
+
       - name: Create public README
         run: |
           cd public-repo
@@ -99,7 +170,7 @@ jobs:
           |----------|----------|-------------|
           | `GITHUB_USERNAME` | Yes | Your GitHub username for project discovery |
           | `GITHUB_TOKEN` | Yes | GitHub Personal Access Token (read-only) |
-          | `CACHE_DIR` | No | Cache directory (default: `/data/cache`) |
+          | `CACHE_DIR` | No | Cache directory (default: `./data/cache`) |
 
           ## Portfolio Markers
 
@@ -190,6 +261,33 @@ jobs:
           🤖 This repository is automatically synced from a private monorepo.
           EOF
 
+      - name: Create LICENSE
+        run: |
+          cd public-repo
+          cat > LICENSE << 'EOF'
+          MIT License
+
+          Copyright (c) 2024 MrCodeEU
+
+          Permission is hereby granted, free of charge, to any person obtaining a copy
+          of this software and associated documentation files (the "Software"), to deal
+          in the Software without restriction, including without limitation the rights
+          to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+          copies of the Software, and to permit persons to whom the Software is
+          furnished to do so, subject to the following conditions:
+
+          The above copyright notice and this permission notice shall be included in all
+          copies or substantial portions of the Software.
+
+          THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+          IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+          FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+          AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+          LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+          OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+          SOFTWARE.
+          EOF
+
       - name: Commit and push
         working-directory: public-repo
         run: |
@@ -204,6 +302,17 @@ jobs:
 
           git commit -m "sync: update from private repo ($(date -u '+%Y-%m-%d %H:%M:%S UTC'))"
           git push origin main
+
+      - name: Trigger build in public repository
+        env:
+          PUBLIC_REPO_TOKEN: ${{ secrets.PUBLIC_REPO_PAT }}
+        run: |
+          # Trigger the build workflow in the public repo using repository_dispatch
+          curl -X POST \
+            -H "Accept: application/vnd.github.v3+json" \
+            -H "Authorization: token ${PUBLIC_REPO_TOKEN}" \
+            https://api.github.com/repos/mrcodeeu/homepage/dispatches \
+            -d '{"event_type":"sync-complete"}'
 
       - name: Send notification
         if: always()

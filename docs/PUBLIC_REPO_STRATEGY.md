@@ -58,27 +58,31 @@ services:
 ### 1. Code Changes Flow
 
 ```
-Developer pushes to private repo
+Developer pushes to private repo (apps/homepage/)
   ↓
-GitHub Actions triggers (branch: main or *dev*)
-  ↓
-┌─────────────────────────────────────┐
-│  Build Homepage Image               │
-│  - Access to secrets for API calls  │
-│  - Builds Docker image              │
-│  - Tags: :latest (main) or :dev     │
-└─────────────────────────────────────┘
-  ↓
-Push to ghcr.io/mrcodeeu/homepage
+GitHub Actions: sync-homepage-to-public.yml (main branch only)
   ↓
 ┌─────────────────────────────────────┐
-│  Sync to Public Repo (main only)    │
+│  Sync to Public Repo                │
 │  - Copy source code                 │
-│  - Generate public README           │
+│  - Create build workflow            │
+│  - Generate public README & LICENSE │
 │  - Remove sensitive files (.env)    │
 └─────────────────────────────────────┘
   ↓
-Public repo updated (code visible, no secrets)
+Commit and push to public repo
+  ↓
+Trigger repository_dispatch event
+  ↓
+┌─────────────────────────────────────┐
+│  Build in Public Repo               │
+│  - GitHub Actions: build.yml        │
+│  - Builds Docker image              │
+│  - Tags: :latest (main) or :dev     │
+│  - Pushes to ghcr.io (public)       │
+└─────────────────────────────────────┘
+  ↓
+Public Docker image available (no auth needed)
 ```
 
 ### 2. Deployment Flow
@@ -107,9 +111,8 @@ apps/homepage/
 └── README.md          # Internal docs
 
 .github/workflows/
-├── build-homepage-image.yml       # Builds & pushes to ghcr.io
-├── sync-homepage-to-public.yml    # Syncs code to public repo
-└── ansible-deploy.yml             # Deploys with secrets
+├── sync-homepage-to-public.yml    # Syncs code to public repo (triggers build)
+└── ansible-deploy.yml             # Deploys with secrets from public images
 
 ansible/
 └── roles/services/templates/env.j2  # Runtime secrets
@@ -123,8 +126,10 @@ backend/           # Go server (synced)
 Dockerfile         # Multi-stage build (synced)
 README.md          # Public-facing docs (generated)
 PORTFOLIO.md       # Portfolio marker documentation (synced)
-LICENSE            # MIT License
-.github/           # Issue templates, contribution guide
+LICENSE            # MIT License (generated)
+.github/
+└── workflows/
+    └── build.yml  # Builds and pushes Docker images (generated)
 ```
 
 ## Docker Registry Details
@@ -249,15 +254,21 @@ git checkout main
 git merge feature-dev-stats
 git push origin main
 
-# 7. GitHub Actions (automatic)
-# - Builds ghcr.io/mrcodeeu/homepage:latest
+# 7. GitHub Actions (automatic - private repo)
 # - Syncs code to public repo
-# - Deploys to mljr.eu
-# - Public can now pull new image
+# - Triggers build in public repo
 
-# 8. Public repo updated
+# 8. GitHub Actions (automatic - public repo)
+# - Builds ghcr.io/mrcodeeu/homepage:latest
+# - Pushes to public registry
+
+# 9. Ansible Deploy (automatic)
+# - Pulls public image
+# - Deploys to mljr.eu with runtime secrets
+
+# 10. Public availability
 # - Source code visible at github.com/mrcodeeu/homepage
-# - README shows: docker pull ghcr.io/mrcodeeu/homepage:latest
+# - Docker image: docker pull ghcr.io/mrcodeeu/homepage:latest
 ```
 
 ## Benefits
@@ -271,21 +282,22 @@ git push origin main
 
 ## Comparison with Alternatives
 
-### Alternative 1: Build in Public Repo
-❌ Can't access secrets during build
-❌ Would need to fork deployment logic
-❌ Two build systems to maintain
+### Alternative 1: Build in Private Repo, Push to Public Registry
+❌ Images inherit private visibility from repo
+❌ Requires manual package visibility changes
+❌ More complex workflow
 
 ### Alternative 2: Private Registry
 ❌ Users can't pull images without authentication
 ❌ Less community visibility
 ❌ Harder to showcase
 
-### Our Approach: Build Private, Push Public
-✅ Best of both worlds
-✅ Secrets stay secure
-✅ Images are public
-✅ Code is visible
+### Our Approach: Build in Public Repo
+✅ Images automatically public
+✅ No secrets needed for build (secrets passed at runtime)
+✅ Community can see build process
+✅ Simpler workflow (sync → build → deploy)
+✅ Standard GitHub Actions pattern
 
 ## Troubleshooting
 
