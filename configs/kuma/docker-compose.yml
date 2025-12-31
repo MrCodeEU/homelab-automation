@@ -8,9 +8,7 @@ services:
     volumes:
       - uptime-kuma-data:/app/data
     environment:
-      - TZ=Europe/London
+      - TZ=${TZ:-Europe/Vienna}
 
 volumes:
   uptime-kuma-data:
-
-
