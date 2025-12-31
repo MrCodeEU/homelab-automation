@@ -1,0 +1,198 @@
+---
+# Mailcow Role - Idempotent Docker-based mail server deployment
+# Preserves existing data and configuration during redeployment
+
+- name: Get mailcow service config
+  ansible.builtin.set_fact:
+    mailcow_service: "{{ services | selectattr('name', 'equalto', 'mailcow') | first }}"
+
+- name: Check if mailcow is enabled
+  ansible.builtin.debug:
+    msg: "Mailcow is {{ 'enabled' if mailcow_service.enabled else 'disabled' }}"
+
+- name: Skip mailcow setup if disabled
+  ansible.builtin.meta: end_play
+  when: not mailcow_service.enabled
+
+# Check current state
+- name: Check if mailcow directory exists
+  ansible.builtin.stat:
+    path: "{{ mailcow_install_path }}"
+  register: mailcow_dir
+
+- name: Check if mailcow.conf exists
+  ansible.builtin.stat:
+    path: "{{ mailcow_install_path }}/mailcow.conf"
+  register: mailcow_conf
+
+- name: Check if git repo is initialized
+  ansible.builtin.stat:
+    path: "{{ mailcow_install_path }}/.git"
+  register: mailcow_git
+
+# Install prerequisites
+- name: Install required packages
+  ansible.builtin.package:
+    name:
+      - git
+      - curl
+    state: present
+
+# Clone or update mailcow repository
+- name: Create mailcow directory
+  ansible.builtin.file:
+    path: "{{ mailcow_install_path }}"
+    state: directory
+    mode: '0755'
+  when: not mailcow_dir.stat.exists
+
+- name: Clone mailcow repository
+  ansible.builtin.git:
+    repo: "{{ mailcow_repo_url }}"
+    dest: "{{ mailcow_install_path }}"
+    version: "{{ mailcow_version }}"
+    force: false
+    update: false
+  when: not mailcow_git.stat.exists
+  register: mailcow_cloned
+
+- name: Update mailcow repository (if already cloned)
+  ansible.builtin.git:
+    repo: "{{ mailcow_repo_url }}"
+    dest: "{{ mailcow_install_path }}"
+    version: "{{ mailcow_version }}"
+    force: false
+    update: true
+  when:
+    - mailcow_git.stat.exists
+    - mailcow_auto_update | default(false)
+  register: mailcow_updated
+  failed_when: false  # Don't fail if update fails (local changes)
+
+# Generate initial configuration (only if not exists)
+- name: Generate mailcow configuration
+  ansible.builtin.shell: |
+    cd {{ mailcow_install_path }}
+    if [ ! -f mailcow.conf ]; then
+      # Generate config with automated input
+      echo -e "{{ mailcow_hostname }}\n{{ mailcow_timezone }}" | ./generate_config.sh
+      echo "CONFIG_GENERATED"
+    else
+      echo "CONFIG_EXISTS"
+    fi
+  args:
+    executable: /bin/bash
+  register: mailcow_config_result
+  changed_when: "'CONFIG_GENERATED' in mailcow_config_result.stdout"
+
+# Read existing configuration to preserve generated secrets
+- name: Read existing mailcow.conf
+  ansible.builtin.slurp:
+    src: "{{ mailcow_install_path }}/mailcow.conf"
+  register: existing_mailcow_conf
+  when: mailcow_conf.stat.exists or mailcow_config_result.changed
+
+- name: Parse existing configuration
+  ansible.builtin.set_fact:
+    existing_config: "{{ (existing_mailcow_conf.content | b64decode).split('\n') | select('match', '^[A-Z]') | list }}"
+  when: existing_mailcow_conf is defined and existing_mailcow_conf.content is defined
+
+- name: Extract existing secrets from config
+  ansible.builtin.set_fact:
+    existing_dbpass: "{{ existing_config | select('match', '^DBPASS=') | list | first | default('DBPASS=') | regex_replace('^DBPASS=', '') }}"
+    existing_dbroot: "{{ existing_config | select('match', '^DBROOT=') | list | first | default('DBROOT=') | regex_replace('^DBROOT=', '') }}"
+    existing_redispass: "{{ existing_config | select('match', '^REDISPASS=') | list | first | default('REDISPASS=') | regex_replace('^REDISPASS=', '') }}"
+  when: existing_config is defined and existing_config | length > 0
+
+# Apply reverse proxy configuration
+# Note: HTTPS_PORT must be set to an unused port (not empty) because docker-compose.yml
+# uses ${HTTPS_PORT:-443} which defaults to 443 when empty, causing port conflicts with Caddy
+- name: Configure mailcow for reverse proxy mode
+  ansible.builtin.lineinfile:
+    path: "{{ mailcow_install_path }}/mailcow.conf"
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    backup: false
+  loop:
+    - { key: "HTTP_PORT", value: "{{ mailcow_http_port }}" }
+    - { key: "HTTP_BIND", value: "{{ mailcow_http_bind }}" }
+    - { key: "HTTPS_PORT", value: "{{ mailcow_https_port }}" }
+    - { key: "HTTPS_BIND", value: "{{ mailcow_http_bind }}" }
+    - { key: "SKIP_LETS_ENCRYPT", value: "y" }
+    - { key: "SKIP_HTTP_VERIFICATION", value: "y" }
+    - { key: "SNAT_TO_SOURCE", value: "" }
+  register: mailcow_conf_result
+  notify: Restart mailcow
+
+# Docker Compose uses .env file for variable substitution
+# Sync mailcow.conf to .env so docker compose picks up the configuration
+- name: Sync mailcow.conf to .env for Docker Compose
+  ansible.builtin.copy:
+    src: "{{ mailcow_install_path }}/mailcow.conf"
+    dest: "{{ mailcow_install_path }}/.env"
+    remote_src: true
+    mode: '0600'
+    backup: true
+  notify: Restart mailcow
+
+# Create docker-compose.override.yml
+- name: Create docker-compose.override.yml
+  ansible.builtin.template:
+    src: docker-compose.override.yml.j2
+    dest: "{{ mailcow_install_path }}/docker-compose.override.yml"
+    mode: '0644'
+    backup: true
+  notify: Restart mailcow
+
+# Pull Docker images
+- name: Pull mailcow Docker images
+  ansible.builtin.command:
+    cmd: docker compose pull
+    chdir: "{{ mailcow_install_path }}"
+  register: docker_pull
+  changed_when: "'Pulled' in docker_pull.stderr or 'Downloaded' in docker_pull.stderr"
+  when: mailcow_cloned.changed or mailcow_updated.changed | default(false)
+
+# Start or restart mailcow
+- name: Check if mailcow containers are running
+  ansible.builtin.command:
+    cmd: docker compose ps -q
+    chdir: "{{ mailcow_install_path }}"
+  register: mailcow_containers
+  changed_when: false
+  failed_when: false
+
+- name: Start mailcow services
+  ansible.builtin.command:
+    cmd: docker compose up -d --remove-orphans
+    chdir: "{{ mailcow_install_path }}"
+  register: mailcow_start
+  changed_when: "'Started' in mailcow_start.stderr or 'Creating' in mailcow_start.stderr"
+  when: mailcow_containers.stdout | length == 0
+
+# Ensure services are running
+- name: Ensure mailcow services are running
+  community.docker.docker_compose_v2:
+    project_src: "{{ mailcow_install_path }}"
+    state: present
+  register: mailcow_compose_result
+
+# Health check
+- name: Wait for mailcow nginx to be ready
+  ansible.builtin.uri:
+    url: "http://127.0.0.1:{{ mailcow_http_port }}"
+    status_code: [200, 301, 302]
+  register: mailcow_health
+  retries: 30
+  delay: 10
+  until: mailcow_health.status in [200, 301, 302]
+  failed_when: false
+
+- name: Display mailcow status
+  ansible.builtin.debug:
+    msg: |
+      Mailcow deployment complete!
+      - Internal URL: http://127.0.0.1:{{ mailcow_http_port }}
+      - Public URL: https://{{ mailcow_hostname }} (via Caddy)
+      - Admin URL: https://{{ mailcow_hostname }}/admin
+      - Health check: {{ 'OK' if mailcow_health.status | default(0) in [200, 301, 302] else 'PENDING' }}

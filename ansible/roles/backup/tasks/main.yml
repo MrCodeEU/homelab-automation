@@ -1,0 +1,148 @@
+---
+# Backup role - Automated backup to pCloud using rclone
+# Supports automatic data detection, versioned backups, and restore
+
+- name: Install rclone
+  ansible.builtin.package:
+    name: rclone
+    state: present
+  tags:
+    - backup
+    - backup-install
+
+- name: Create rclone config directory
+  ansible.builtin.file:
+    path: "{{ backup_rclone_config_path }}"
+    state: directory
+    mode: '0700'
+  tags:
+    - backup
+    - backup-install
+
+- name: Create backup directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0700'
+  loop:
+    - "{{ backup_local_path }}"
+    - "{{ backup_local_path }}/volumes"
+    - "{{ backup_local_path }}/scripts"
+    - "{{ backup_local_path }}/logs"
+  tags:
+    - backup
+    - backup-install
+
+- name: Configure rclone for pCloud
+  ansible.builtin.template:
+    src: rclone.conf.j2
+    dest: "{{ backup_rclone_config_path }}/rclone.conf"
+    mode: '0600'
+  when: backup_pcloud_token | length > 0
+  tags:
+    - backup
+    - backup-config
+  no_log: true
+
+- name: Check if rclone is configured
+  ansible.builtin.stat:
+    path: "{{ backup_rclone_config_path }}/rclone.conf"
+  register: rclone_config
+  tags:
+    - backup
+
+- name: Auto-detect Docker volumes for backup
+  ansible.builtin.shell: |
+    docker volume ls --format '{{"{{"}}.Name{{"}}"}}' 2>/dev/null || echo ""
+  register: docker_volumes_raw
+  changed_when: false
+  when: backup_auto_detect_volumes
+  tags:
+    - backup
+    - backup-detect
+
+- name: Parse Docker volumes
+  ansible.builtin.set_fact:
+    detected_volumes: "{{ docker_volumes_raw.stdout_lines | default([]) | select('match', '^[a-zA-Z]') | list }}"
+  when: backup_auto_detect_volumes
+  tags:
+    - backup
+    - backup-detect
+
+- name: Generate backup script
+  ansible.builtin.template:
+    src: backup.sh.j2
+    dest: "{{ backup_local_path }}/scripts/backup.sh"
+    mode: '0700'
+  when: rclone_config.stat.exists
+  tags:
+    - backup
+    - backup-config
+
+- name: Generate restore script
+  ansible.builtin.template:
+    src: restore.sh.j2
+    dest: "{{ backup_local_path }}/scripts/restore.sh"
+    mode: '0700'
+  when: rclone_config.stat.exists
+  tags:
+    - backup
+    - backup-config
+
+- name: Create systemd backup service
+  ansible.builtin.template:
+    src: backup.service.j2
+    dest: /etc/systemd/system/homelab-backup.service
+    mode: '0644'
+  when: rclone_config.stat.exists
+  notify: Reload systemd
+  tags:
+    - backup
+    - backup-config
+
+- name: Create systemd backup timer
+  ansible.builtin.template:
+    src: backup.timer.j2
+    dest: /etc/systemd/system/homelab-backup.timer
+    mode: '0644'
+  when: rclone_config.stat.exists
+  notify:
+    - Reload systemd
+    - Enable backup timer
+  tags:
+    - backup
+    - backup-config
+
+- name: Ensure backup timer is enabled
+  ansible.builtin.systemd:
+    name: homelab-backup.timer
+    enabled: true
+    state: started
+  when: rclone_config.stat.exists
+  tags:
+    - backup
+    - backup-config
+
+- name: Display backup status
+  ansible.builtin.debug:
+    msg: |
+      Backup configuration complete!
+      - Remote: {{ backup_remote_name }}:{{ backup_remote_path }}
+      - Schedule: {{ backup_schedule }}
+      - Retention: {{ backup_retention_days }} days
+      - Detected volumes: {{ detected_volumes | default([]) | length }}
+      - Manual backup: /opt/backups/scripts/backup.sh
+      - Manual restore: /opt/backups/scripts/restore.sh <service>
+  when: rclone_config.stat.exists
+  tags:
+    - backup
+
+- name: Warn if rclone not configured
+  ansible.builtin.debug:
+    msg: |
+      WARNING: Backup not configured!
+      Set PCLOUD_TOKEN environment variable.
+      To obtain token: run 'rclone config' and select pCloud provider.
+  when: not rclone_config.stat.exists
+  tags:
+    - backup

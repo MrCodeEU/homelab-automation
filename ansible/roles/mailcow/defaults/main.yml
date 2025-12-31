@@ -1,0 +1,29 @@
+---
+# Mailcow role defaults
+
+# Installation path
+mailcow_install_path: /opt/mailcow
+
+# Repository settings
+mailcow_repo_url: https://github.com/mailcow/mailcow-dockerized.git
+mailcow_version: master
+
+# Domain settings (overridden from services list)
+mailcow_hostname: "mail.mljr.eu"
+
+# Timezone for mailcow
+mailcow_timezone: "Europe/Vienna"
+
+# Reverse proxy settings
+# HTTP port for Caddy to proxy to
+mailcow_http_port: 8081
+mailcow_http_bind: "127.0.0.1"
+# HTTPS port - must be set to unused port (not empty) to prevent conflict with Caddy on 443
+# This is required because docker-compose.yml uses ${HTTPS_PORT:-443} default
+mailcow_https_port: 8443
+
+# Auto-update repository on deployment
+mailcow_auto_update: false
+
+# Docker compose project name (for volume naming)
+mailcow_compose_project: mailcowdockerized

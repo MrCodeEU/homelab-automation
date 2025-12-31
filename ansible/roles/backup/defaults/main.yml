@@ -1,0 +1,72 @@
+---
+# Backup role defaults
+
+# rclone configuration
+backup_rclone_config_path: /root/.config/rclone
+backup_remote_name: pcloud
+backup_remote_path: "homelab-backup/{{ inventory_hostname }}"
+
+# Local backup staging directory
+backup_local_path: /opt/backups
+
+# Backup schedule (systemd timer format)
+backup_schedule: "*-*-* 03:00:00"  # Daily at 3 AM
+
+# Retention policy (days to keep old backups)
+backup_retention_days: 30
+
+# pCloud OAuth token (from environment)
+# To get token: run `rclone config` interactively, copy the token JSON
+backup_pcloud_token: "{{ lookup('env', 'PCLOUD_TOKEN') }}"
+
+# Auto-detect Docker volumes for backup
+backup_auto_detect_volumes: true
+
+# Services with backup definitions
+# Each service can define:
+#   - backup_paths: list of local paths to backup
+#   - backup_volumes: list of Docker volume names
+#   - backup_pre_hook: command to run before backup (e.g., database dump)
+#   - backup_post_hook: command to run after backup
+#   - backup_critical: if true, backup failure is fatal
+backup_service_configs:
+  mailcow:
+    backup_volumes:
+      - mailcowdockerized_vmail-vol-1
+      - mailcowdockerized_mysql-vol-1
+    backup_pre_hook: |
+      cd /opt/mailcow && \
+      docker compose exec -T mysql-mailcow bash -c 'mysqldump -u${DBUSER} -p${DBPASS} ${DBNAME}' > /opt/backups/mailcow-mysql-dump.sql
+    backup_post_hook: |
+      rm -f /opt/backups/mailcow-mysql-dump.sql
+    backup_paths:
+      - /opt/mailcow/data
+    backup_critical: true
+
+  nightscout:
+    backup_volumes:
+      - nightscout_mongo-data
+    backup_pre_hook: |
+      docker exec nightscout-mongo mongodump --out=/data/backup --gzip 2>/dev/null || true
+    backup_critical: true
+
+  kuma:
+    backup_volumes:
+      - kuma_uptime-kuma-data
+    backup_critical: false
+
+  ntfy:
+    backup_volumes:
+      - ntfy_ntfy-data
+      - ntfy_ntfy-cache
+    backup_critical: false
+
+  bichon:
+    backup_paths:
+      - /opt/bichon/data
+    backup_critical: false
+
+  glance:
+    backup_paths:
+      - /opt/glance/data
+    backup_critical: false
