@@ -23,6 +23,8 @@ inventory.local.yml
 configs/caddy/Caddyfile
 !configs/caddy/Caddyfile.example
 
+.claude/
+
 # SSH keys (never commit these!)
 *.pem
 *.key
