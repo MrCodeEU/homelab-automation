@@ -238,3 +238,6 @@ kuma_username: "{{ lookup('env', 'KUMA_USERNAME') }}"
 kuma_password: "{{ lookup('env', 'KUMA_PASSWORD') }}"
 github_username: "{{ lookup('env', 'GITHUB_USERNAME') }}"
 github_token: "{{ lookup('env', 'GITHUB_TOKEN') }}"
+
+# Backup configuration (pCloud OAuth token - obtain via `rclone config`)
+backup_pcloud_token: "{{ lookup('env', 'PCLOUD_TOKEN') }}"

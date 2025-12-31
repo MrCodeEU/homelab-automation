@@ -1,0 +1,9 @@
+# rclone configuration for pCloud
+# Managed by Ansible - do not edit manually
+# Token must be obtained via: rclone config (interactive)
+# Then set PCLOUD_TOKEN environment variable with the token JSON
+
+[{{ backup_remote_name }}]
+type = pcloud
+hostname = eapi.pcloud.com
+token = {{ backup_pcloud_token }}

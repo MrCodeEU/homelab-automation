@@ -87,6 +87,15 @@
   roles:
     - mailcow
 
+- name: Backup Setup
+  hosts: mljr
+  become: true
+  gather_facts: false
+  tags:
+    - backup
+  roles:
+    - backup
+
 - name: Services Setup
   hosts: rocky:debian
   become: true
