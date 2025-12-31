@@ -46,9 +46,9 @@
     service_deployments: >-
       {{ service_deployments | default([]) + [{
         'name': item.0.name,
-        'is_dev': ((is_staging_deployment | bool) and (item.0.source | default('') == 'apps' or item.1.stat.exists)),
-        'deploy_path': '/opt/dev/' + item.0.name if ((is_staging_deployment | bool) and (item.0.source | default('') == 'apps' or item.1.stat.exists)) else '/opt/' + item.0.name,
-        'config_source': playbook_dir + '/../../configs/' + item.0.name + ('/dev' if ((is_staging_deployment | bool) and item.1.stat.exists) else '')
+        'is_dev': ((is_staging_deployment | default(false)) and (item.0.source | default('') == 'apps' or item.1.stat.exists)),
+        'deploy_path': '/opt/dev/' + item.0.name if ((is_staging_deployment | default(false)) and (item.0.source | default('') == 'apps' or item.1.stat.exists)) else '/opt/' + item.0.name,
+        'config_source': playbook_dir + '/../../configs/' + item.0.name + ('/dev' if ((is_staging_deployment | default(false)) and item.1.stat.exists) else '')
       }] }}
   loop: "{{ host_services | zip(dev_config_check.results) | list }}"
   loop_control:

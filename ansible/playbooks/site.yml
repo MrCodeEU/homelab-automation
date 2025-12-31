@@ -42,12 +42,12 @@
     - name: Build list of services for staging deployment
       ansible.builtin.set_fact:
         services_with_dev: "{{ (services | selectattr('staging', 'undefined') | map(attribute='name') | list) + (services | selectattr('staging', 'defined') | selectattr('staging') | map(attribute='name') | list) }}"
-      when: is_staging_deployment | bool
+      when: is_staging_deployment | default(false)
 
     - name: Set empty list for production deployment
       ansible.builtin.set_fact:
         services_with_dev: []
-      when: not (is_staging_deployment | bool)
+      when: not (is_staging_deployment | default(false))
   roles:
     - caddy
 
