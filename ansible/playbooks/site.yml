@@ -1,10 +1,15 @@
 ---
 # Main site playbook - optimized for speed
 # Uses free strategy for parallel execution where possible
+#
+# Host groups:
+#   - rocky: Fully managed Rocky Linux servers
+#   - unraid: Unraid NAS (managed via scripts)
+#   - proxy_only: Hosts only used for Caddy reverse proxy (no SSH access)
 
-# Gather facts first - always runs regardless of tags
+# Gather facts first - only from managed hosts
 - name: Gather Facts
-  hosts: all
+  hosts: rocky:unraid
   gather_facts: true
   gather_subset:
     - min
@@ -16,7 +21,7 @@
   tasks: []
 
 - name: Base Setup
-  hosts: rocky:debian
+  hosts: rocky
   become: true
   gather_facts: false  # Already gathered above
   tags:
@@ -58,7 +63,7 @@
     - caddy
 
 - name: Security Setup
-  hosts: rocky:debian
+  hosts: rocky
   become: true
   gather_facts: false
   tags:
@@ -97,9 +102,9 @@
     - backup
 
 - name: Services Setup
-  hosts: rocky:debian
+  hosts: rocky
   become: true
-  gather_facts: false  # Already gathered in base setup
+  gather_facts: false  # Already gathered above
   strategy: free  # Run tasks in parallel across hosts
   tags:
     - services

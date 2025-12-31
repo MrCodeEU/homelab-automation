@@ -15,6 +15,9 @@ Thumbs.db
 .idea/
 *.sublime-*
 
+# Claude Code
+.claude/settings.local.json
+
 # User-specific configurations
 inventory.local.yml
 configs/caddy/Caddyfile
@@ -35,10 +38,20 @@ secrets/
 /tmp/
 /dist/
 /build/
+*.bck.yml
+
+# Frontend build output
+apps/homepage/frontend/.svelte-kit/
+apps/homepage/frontend/node_modules/
+apps/homepage/frontend/build/
+
+# Backend cache
+apps/homepage/backend/data/cache/
 
 # Ansible
 .ansible/
 *.retry
 /ansible_facts_cache/
 
+# Misc
 *syncthing*
