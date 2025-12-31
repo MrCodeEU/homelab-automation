@@ -18,14 +18,18 @@ This allows you to test changes in a production-like environment before merging 
 The GitHub Actions workflow automatically detects the branch being deployed:
 
 ```yaml
-- name: Detect Environment
+- name: Set Environment
+  id: set-env
   run: |
-    if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-      ENV_SUFFIX=""        # Production
-      ENVIRONMENT="production"
-    else
-      ENV_SUFFIX=".dev"    # Staging
-      ENVIRONMENT="development"
+    IS_STAGING="false"
+    ENV_NAME="production"
+    # Staging if dispatched with staging=true or if on a non-main branch
+    if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.staging }}" == "true" ]; then
+      IS_STAGING="true"
+      ENV_NAME="staging"
+    elif [ "${{ github.ref }}" != "refs/heads/main" ]; then
+      IS_STAGING="true"
+      ENV_NAME="staging (from branch)"
     fi
 ```
 
@@ -111,11 +115,11 @@ dash.dev.mljr.eu  A  <your-server-ip>
 
 ## Environment Variables
 
-Environment variables are the same for both production and staging. They are injected via GitHub Secrets:
+Environment variables are the same for both production and staging.
 
-- `ENV_SUFFIX` - Set automatically by the workflow
-- `ENVIRONMENT` - Set automatically by the workflow (`production` or `development`)
-- All other secrets (GITHUB_TOKEN, NIGHTSCOUT_API_SECRET, etc.) remain the same
+- `is_staging_deployment` (Ansible variable) - Set to true for staging environments
+- `environment_name` (GitHub output) - Set to "production" or "staging"
+- All secrets (GITHUB_TOKEN, NIGHTSCOUT_API_SECRET, etc.) remain the same
 
 ## Example: Homepage Service
 
@@ -182,10 +186,10 @@ Staging services share the same Docker containers as production (just with diffe
 
 ## Advanced: Per-Environment Configuration
 
-If you need different configuration for staging vs production, you can use the `env_suffix` variable in templates:
+If you need different configuration for staging vs production, you can use the `is_staging_deployment` variable in templates:
 
 ```jinja2
-{% if env_suffix == '.dev' %}
+{% if is_staging_deployment | default(false) %}
 # Staging-specific configuration
 DEBUG=true
 {% else %}
@@ -207,9 +211,9 @@ DEBUG=false
 Check the GitHub Actions logs to see which environment was detected:
 
 ```
-Detect Environment
-Environment: development
-Domain suffix: .dev
+Set Environment
+is_staging_deployment=true
+environment_name=staging
 ```
 
 ### Certificate errors

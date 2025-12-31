@@ -54,3 +54,4 @@ apps/homepage/backend/data/cache/
 
 # Misc
 *syncthing*
+package-lock.json

@@ -5,10 +5,6 @@ location: "Thaling, Austria"
 dashboard_name: "Homelab Dashboard"
 timezone: "Europe/Vienna"
 
-# Environment suffix for staging deployments
-# Empty for production (main branch), .dev for development (other branches)
-env_suffix: "{{ lookup('env', 'ENV_SUFFIX') | default('', true) }}"
-
 # Services managed by dedicated Ansible roles (excluded from generic
 # services role)
 services_excluded_from_generic_deployment:
@@ -150,6 +146,7 @@ services:
     icon: "mdi:account-circle"
     host: mljr
     source: apps
+    staging: false
 
   - name: deployment-status
     enabled: true

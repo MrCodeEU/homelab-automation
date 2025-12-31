@@ -18,10 +18,14 @@ on:
         required: false
         default: false
         type: boolean
+      staging:
+        description: 'Deploy to staging environment'
+        required: false
+        default: false
+        type: boolean
   push:
     branches:
       - main
-      - '*dev*'  # Enable dev environment deployments for any branch containing 'dev'
     paths:
       - 'ansible/**'
       - 'apps/**'
@@ -29,35 +33,8 @@ on:
       - '.github/workflows/ansible-deploy.yml'
 
 jobs:
-  # 1. Validate branch configuration
-  validate-branch:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Check for dev configurations in main branch
-        run: |
-          echo "Checking for dev configuration folders in main branch..."
-          DEV_FOLDERS=$(find configs -type d -name "dev" 2>/dev/null || true)
-
-          if [ -n "$DEV_FOLDERS" ]; then
-            echo "ERROR: Dev configuration folders found in main branch!"
-            echo "The following dev folders should not exist in main:"
-            echo "$DEV_FOLDERS"
-            echo ""
-            echo "Dev configurations should only exist in feature branches."
-            echo "Please remove these folders before merging to main."
-            exit 1
-          fi
-
-          echo "✓ No dev configurations found in main branch."
-
-  # 2. Check which hosts are online
+  # 1. Check which hosts are online
   check-hosts:
-    needs: [validate-branch]
-    if: always() && (needs.validate-branch.result == 'success' || needs.validate-branch.result == 'skipped')
     runs-on: ubuntu-latest
     outputs:
       reachable_hosts: ${{ steps.get-hosts.outputs.hosts }}
@@ -121,10 +98,8 @@ jobs:
 
           echo "hosts=$REACHABLE_HOSTS" >> $GITHUB_OUTPUT
 
-  # 3. Detect changes to determine what to run
+  # 2. Detect changes to determine what to run
   detect-changes:
-    needs: [validate-branch]
-    if: always() && (needs.validate-branch.result == 'success' || needs.validate-branch.result == 'skipped')
     runs-on: ubuntu-latest
     outputs:
       tags: ${{ steps.set-tags.outputs.tags }}
@@ -225,7 +200,7 @@ jobs:
           echo "Build LibreLink: $BUILD_LIBRELINK"
           echo "librelink=$BUILD_LIBRELINK" >> $GITHUB_OUTPUT
 
-  # 4. Build LibreLink if needed
+  # 3. Build LibreLink if needed
   build-librelink:
     needs: detect-changes
     if: needs.detect-changes.outputs.build_librelink == 'true'
@@ -235,7 +210,7 @@ jobs:
       contents: read
       packages: write
 
-  # 5. Deploy
+  # 4. Deploy
   deploy:
     needs: [check-hosts, detect-changes, build-librelink]
     # Run if we have reachable hosts AND (tags are not none OR we built something)
@@ -249,22 +224,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Detect Environment
-        id: detect-env
+      - name: Set Environment
+        id: set-env
         run: |
-          # Determine environment based on branch
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            ENV_SUFFIX=""
-            ENVIRONMENT="production"
-          else
-            ENV_SUFFIX=".dev"
-            ENVIRONMENT="development"
+          IS_STAGING="false"
+          ENV_NAME="production"
+          # Staging if dispatched with staging=true or if on a non-main branch
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.staging }}" == "true" ]; then
+            IS_STAGING="true"
+            ENV_NAME="staging"
+          elif [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            IS_STAGING="true"
+            ENV_NAME="staging (from branch)"
           fi
-
-          echo "Environment: $ENVIRONMENT"
-          echo "Domain suffix: $ENV_SUFFIX"
-          echo "env_suffix=$ENV_SUFFIX" >> $GITHUB_OUTPUT
-          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "is_staging_deployment=${IS_STAGING}" >> $GITHUB_OUTPUT
+          echo "environment_name=${ENV_NAME}" >> $GITHUB_OUTPUT
 
       - name: Set up Tailscale
         uses: tailscale/github-action@v3
@@ -294,9 +268,6 @@ jobs:
       - name: Run Ansible Playbook
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
-          # Environment configuration
-          ENV_SUFFIX: ${{ steps.detect-env.outputs.env_suffix }}
-          ENVIRONMENT: ${{ steps.detect-env.outputs.environment }}
           # Secrets for Ansible lookup
           NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
           LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
@@ -331,11 +302,14 @@ jobs:
           if [ "$DETECTED_TAGS" != "none" ]; then
              TAGS_ARG="--tags $DETECTED_TAGS"
           fi
+
+          # Extra vars for playbook
+          EXTRA_VARS="is_staging_deployment=${{ steps.set-env.outputs.is_staging_deployment }}"
           
-          echo "Running Ansible with: $LIMIT_ARG $TAGS_ARG"
+          echo "Running Ansible with: $LIMIT_ARG $TAGS_ARG --extra-vars \"$EXTRA_VARS\""
           
           if [ -n "$TAGS_ARG" ]; then
-            ansible-playbook playbooks/site.yml $LIMIT_ARG $TAGS_ARG
+            ansible-playbook playbooks/site.yml $LIMIT_ARG $TAGS_ARG --extra-vars "$EXTRA_VARS"
           else
             echo "No tags to run. Skipping playbook."
           fi
@@ -360,7 +334,7 @@ jobs:
           # Add details
           REACHABLE="${{ needs.check-hosts.outputs.reachable_hosts }}"
           TAGS="${{ needs.detect-changes.outputs.tags }}"
-          ENVIRONMENT="${{ steps.detect-env.outputs.environment }}"
+          ENVIRONMENT="${{ steps.set-env.outputs.environment_name }}"
 
           MESSAGE="${MESSAGE} to ${REACHABLE}"
           MESSAGE="${MESSAGE} (env: ${ENVIRONMENT}, tags: ${TAGS})"

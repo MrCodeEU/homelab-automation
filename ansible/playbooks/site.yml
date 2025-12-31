@@ -39,26 +39,15 @@
   tags:
     - caddy
   pre_tasks:
-    - name: Check for dev configuration folders
-      delegate_to: localhost
-      become: false
-      ansible.builtin.stat:
-        path: "{{ playbook_dir }}/../../configs/{{ item.name }}/dev"
-      register: dev_config_check
-      loop: "{{ services }}"
-      loop_control:
-        label: "{{ item.name }}"
-      when: env_suffix != ""
-
-    - name: Build list of services with dev configs
+    - name: Build list of services for staging deployment
       ansible.builtin.set_fact:
-        services_with_dev: "{{ dev_config_check.results | default([]) | selectattr('stat', 'defined') | selectattr('stat.exists', 'equalto', true) | map(attribute='item.name') | list }}"
-      when: env_suffix != ""
+        services_with_dev: "{{ (services | selectattr('staging', 'undefined') | map(attribute='name') | list) + (services | selectattr('staging', 'defined') | selectattr('staging') | map(attribute='name') | list) }}"
+      when: is_staging_deployment | default(false)
 
-    - name: Set empty list if no dev environment
+    - name: Set empty list for production deployment
       ansible.builtin.set_fact:
         services_with_dev: []
-      when: env_suffix == ""
+      when: not (is_staging_deployment | default(false))
   roles:
     - caddy
 
