@@ -7,9 +7,9 @@
 #   - unraid: Unraid NAS (managed via scripts)
 #   - proxy_only: Hosts only used for Caddy reverse proxy (no SSH access)
 
-# Gather facts first - only from managed hosts
+# Gather facts first - from managed hosts and proxy_only (needed for Caddy template)
 - name: Gather Facts
-  hosts: rocky:unraid
+  hosts: rocky:unraid:proxy_only
   gather_facts: true
   gather_subset:
     - min

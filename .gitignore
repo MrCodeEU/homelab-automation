@@ -15,9 +15,6 @@ Thumbs.db
 .idea/
 *.sublime-*
 
-# Claude Code
-.claude/settings.local.json
-
 # User-specific configurations
 inventory.local.yml
 configs/caddy/Caddyfile
