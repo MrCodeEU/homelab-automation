@@ -1,25 +1,12 @@
 {%- macro add_env_suffix(domain_name, service) -%}
-{%- set should_add_dev = false -%}
-{%- if env_suffix and env_suffix != "" -%}
-  {%- if service.managed is defined and service.managed == false -%}
-    {# Proxied services never get dev subdomain #}
-    {%- set should_add_dev = false -%}
-  {%- elif service.source is defined and service.source == 'apps' -%}
-    {# Apps always get dev subdomain #}
-    {%- set should_add_dev = true -%}
-  {%- elif service.name in services_with_dev | default([]) -%}
-    {# Services with dev config folder get dev subdomain #}
-    {%- set should_add_dev = true -%}
-  {%- endif -%}
-{%- endif -%}
-{%- if should_add_dev -%}
+{%- if is_staging_deployment | default(false) and service.name in services_with_dev | default([]) -%}
   {%- set parts = domain_name.split('.') -%}
   {%- if parts | length == 2 -%}
-    {# Root domain like mljr.eu becomes dev.mljr.eu #}
-    {{ env_suffix[1:] ~ '.' ~ domain_name }}
+    {# Root domain like mljr.eu becomes <service.name>.dev.mljr.eu #}
+    {{ service.name ~ '.dev.' ~ domain_name }}
   {%- else -%}
     {# Subdomain like home.mljr.eu becomes home.dev.mljr.eu #}
-    {{ parts[0] ~ env_suffix ~ '.' ~ parts[1:] | join('.') }}
+    {{ parts[0] ~ '.dev.' ~ parts[1:] | join('.') }}
   {%- endif -%}
 {%- else -%}
 {{ domain_name }}
