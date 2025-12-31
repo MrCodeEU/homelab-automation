@@ -1,5 +1,5 @@
 {%- macro add_env_suffix(domain_name, service) -%}
-{%- if is_staging_deployment | default(false) and service.name in services_with_dev | default([]) -%}
+{%- if is_staging_deployment | bool and service.name in services_with_dev | default([]) -%}
   {%- set parts = domain_name.split('.') -%}
   {%- if parts | length == 2 -%}
     {# Root domain like mljr.eu becomes <service.name>.dev.mljr.eu #}
