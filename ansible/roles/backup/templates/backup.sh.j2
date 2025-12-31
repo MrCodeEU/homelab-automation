@@ -3,7 +3,7 @@
 # Managed by Ansible - do not edit manually
 # Generated: {{ ansible_date_time.iso8601 | default('N/A') }}
 
-set -euo pipefail
+set -uo pipefail
 
 # Configuration
 REMOTE="{{ backup_remote_name }}:{{ backup_remote_path }}"
@@ -36,10 +36,12 @@ log_warn() {
 
 backup_volume() {
     local volume_name="$1"
-    local volume_path="/var/lib/docker/volumes/${volume_name}/_data"
 
-    if [ ! -d "$volume_path" ]; then
-        log_warn "Volume $volume_name not found at $volume_path"
+    # Dynamically detect Docker volume path
+    local volume_path=$(docker volume inspect --format '{{.Mountpoint}}' "$volume_name" 2>/dev/null)
+
+    if [ -z "$volume_path" ] || [ ! -d "$volume_path" ]; then
+        log_warn "Volume $volume_name not found or invalid path: $volume_path"
         return 1
     fi
 
@@ -110,6 +112,20 @@ run_pre_hook() {
     return 0
 }
 
+run_post_hook() {
+    local service="$1"
+    local hook="$2"
+
+    if [ -n "$hook" ]; then
+        log "Running post-backup hook for $service"
+        bash -c "$hook" 2>> "$LOG_FILE" || {
+            log_warn "Post-backup hook for $service failed"
+            return 1
+        }
+    fi
+    return 0
+}
+
 cleanup_old_logs() {
     log "Cleaning up logs older than $RETENTION_DAYS days"
     find "${LOCAL_PATH}/logs" -name "backup-*.log" -mtime +${RETENTION_DAYS} -delete 2>/dev/null || true
@@ -145,6 +161,10 @@ main() {
 {% for path in config.backup_paths %}
     backup_path "{{ path }}" || service_failed=true
 {% endfor %}
+{% endif %}
+
+{% if config.backup_post_hook is defined %}
+    run_post_hook "{{ service }}" '{{ config.backup_post_hook | replace("'", "'\\''") }}' || service_failed=true
 {% endif %}
 
     if [ "$service_failed" = true ]; then

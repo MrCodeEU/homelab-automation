@@ -37,6 +37,8 @@ backup_service_configs:
     backup_pre_hook: |
       cd /opt/mailcow && \
       docker compose exec -T mysql-mailcow bash -c 'mysqldump -u${DBUSER} -p${DBPASS} ${DBNAME}' > /opt/backups/mailcow-mysql-dump.sql
+    backup_post_hook: |
+      rm -f /opt/backups/mailcow-mysql-dump.sql
     backup_paths:
       - /opt/mailcow/data
     backup_critical: true
