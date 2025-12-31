@@ -156,6 +156,9 @@ jobs:
             roles_glance:
               - 'ansible/roles/glance/**'
               - 'configs/glance/**'
+            roles_mailcow:
+              - 'ansible/roles/mailcow/**'
+              - 'configs/mailcow/**'
             roles_unraid:
               - 'ansible/roles/unraid/**'
               - 'scripts/03-unraid-deploy.sh'
@@ -183,6 +186,7 @@ jobs:
             [ "${{ steps.changes.outputs.roles_docker }}" == "true" ] && TAGS="${TAGS},docker"
             [ "${{ steps.changes.outputs.roles_fail2ban }}" == "true" ] && TAGS="${TAGS},fail2ban"
             [ "${{ steps.changes.outputs.roles_glance }}" == "true" ] && TAGS="${TAGS},glance"
+            [ "${{ steps.changes.outputs.roles_mailcow }}" == "true" ] && TAGS="${TAGS},mailcow"
             [ "${{ steps.changes.outputs.roles_unraid }}" == "true" ] && TAGS="${TAGS},unraid"
             
             # Services is a catch-all for configs

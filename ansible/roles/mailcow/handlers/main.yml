@@ -1,0 +1,9 @@
+---
+# Mailcow handlers
+
+- name: Restart mailcow
+  ansible.builtin.command:
+    cmd: docker compose up -d --remove-orphans
+    chdir: "{{ mailcow_install_path }}"
+  register: mailcow_restart
+  changed_when: "'Started' in mailcow_restart.stderr or 'Recreating' in mailcow_restart.stderr"

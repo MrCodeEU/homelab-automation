@@ -76,6 +76,17 @@
   roles:
     - glance
 
+- name: Mailcow Setup
+  hosts: mljr
+  become: true
+  gather_facts: false  # Already gathered in base setup
+  tags:
+    - mailcow
+  vars:
+    mailcow_hostname: "{{ (services | selectattr('name', 'equalto', 'mailcow') | first).domain }}"
+  roles:
+    - mailcow
+
 - name: Services Setup
   hosts: rocky:debian
   become: true
