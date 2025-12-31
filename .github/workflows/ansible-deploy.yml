@@ -88,10 +88,10 @@ jobs:
         run: |
           cd ansible
           echo "Checking connectivity to managed hosts..."
-          
-          # Get list of managed hosts (default to true if variable not set)
-          # Use ansible-inventory to dump json, then jq to filter hosts where managed_by_ansible != false
-          MANAGED_HOSTS=$(ansible-inventory --list | jq -r '._meta.hostvars | to_entries | map(select(.value.managed_by_ansible // true != false)) | .[].key' | tr '\n' ' ')
+
+          # Get hosts from managed groups (rocky and unraid)
+          # proxy_only group is excluded - those hosts are only for Caddy config
+          MANAGED_HOSTS=$(ansible-inventory --list | jq -r '.rocky.hosts + .unraid.hosts | .[]?' | tr '\n' ' ')
 
           if [ -z "$MANAGED_HOSTS" ]; then
             echo "No managed hosts found in inventory."
@@ -107,6 +107,8 @@ jobs:
             TARGET=$(ansible-inventory --host "$host" | jq -r '.ansible_host // .inventory_hostname')
             if ping -c 1 -W 2 "$TARGET" > /dev/null 2>&1; then
               REACHABLE_HOSTS+="$host,"
+            else
+              echo "Host $host ($TARGET) is not reachable - skipping"
             fi
           done
           REACHABLE_HOSTS=$(echo "$REACHABLE_HOSTS" | sed 's/,$//')

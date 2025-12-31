@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This is a homelab automation repository that deploys and manages self-hosted services across multiple devices via **Ansible** over Tailscale VPN. The system supports Rocky Linux servers, Debian/Raspberry Pi, and Unraid NAS, with automated deployment through GitHub Actions.
+This is a homelab automation repository that deploys and manages self-hosted services across multiple devices via **Ansible** over Tailscale VPN. The system supports Rocky Linux servers and Unraid NAS, with automated deployment through GitHub Actions. Additional hosts are configured as proxy-only targets for Caddy reverse proxy.
 
 ## Key Architecture
 
@@ -22,10 +22,10 @@ The deployment is managed entirely through Ansible:
 ```yaml
 all:
   children:
-    rocky:      # Rocky Linux hosts (mljr, homeserver)
-    debian:     # Debian hosts (pi)
+    rocky:      # Rocky Linux hosts (mljr)
     unraid:     # Unraid NAS (nas)
-    docker_hosts:  # Alias for rocky + debian
+    proxy_only: # Proxy-only hosts (pi, homeserver, monitoring)
+    docker_hosts:  # Alias for rocky + unraid
 ```
 
 ### Service Configuration
@@ -57,12 +57,12 @@ Key fields:
 
 | Role | Purpose | Hosts |
 |------|---------|-------|
-| `common` | Install base packages (git, curl, vim, etc.) | rocky, debian |
-| `docker` | Install Docker and Docker Compose | rocky, debian |
+| `common` | Install base packages (git, curl, vim, etc.) | rocky |
+| `docker` | Install Docker and Docker Compose | rocky |
 | `caddy` | Install Caddy, generate Caddyfile from templates | rocky |
-| `fail2ban` | Security monitoring with intrusion detection | rocky, debian |
+| `fail2ban` | Security monitoring with intrusion detection | rocky |
 | `glance` | Deploy Glance dashboard container | mljr |
-| `services` | Deploy Docker Compose services from `configs/` | rocky, debian |
+| `services` | Deploy Docker Compose services from `configs/` | rocky |
 | `unraid` | Run Unraid-specific deployment script | unraid |
 
 #### fail2ban Role (Security)

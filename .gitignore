@@ -20,6 +20,8 @@ inventory.local.yml
 configs/caddy/Caddyfile
 !configs/caddy/Caddyfile.example
 
+.claude/
+
 # SSH keys (never commit these!)
 *.pem
 *.key
@@ -35,10 +37,20 @@ secrets/
 /tmp/
 /dist/
 /build/
+*.bck.yml
+
+# Frontend build output
+apps/homepage/frontend/.svelte-kit/
+apps/homepage/frontend/node_modules/
+apps/homepage/frontend/build/
+
+# Backend cache
+apps/homepage/backend/data/cache/
 
 # Ansible
 .ansible/
 *.retry
 /ansible_facts_cache/
 
+# Misc
 *syncthing*
