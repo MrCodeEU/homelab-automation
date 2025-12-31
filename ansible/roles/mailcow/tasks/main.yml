@@ -75,7 +75,7 @@
     cd {{ mailcow_install_path }}
     if [ ! -f mailcow.conf ]; then
       # Generate config with automated input
-      echo -e "{{ mailcow_hostname }}\n{{ timezone }}" | ./generate_config.sh
+      echo -e "{{ mailcow_hostname }}\n{{ mailcow_timezone }}" | ./generate_config.sh
       echo "CONFIG_GENERATED"
     else
       echo "CONFIG_EXISTS"
@@ -99,10 +99,10 @@
 
 - name: Extract existing secrets from config
   ansible.builtin.set_fact:
-    existing_dbpass: "{{ existing_config | select('match', '^DBPASS=') | first | default('DBPASS=') | regex_replace('^DBPASS=', '') }}"
-    existing_dbroot: "{{ existing_config | select('match', '^DBROOT=') | first | default('DBROOT=') | regex_replace('^DBROOT=', '') }}"
-    existing_redispass: "{{ existing_config | select('match', '^REDISPASS=') | first | default('REDISPASS=') | regex_replace('^REDISPASS=', '') }}"
-  when: existing_config is defined
+    existing_dbpass: "{{ existing_config | select('match', '^DBPASS=') | list | first | default('DBPASS=') | regex_replace('^DBPASS=', '') }}"
+    existing_dbroot: "{{ existing_config | select('match', '^DBROOT=') | list | first | default('DBROOT=') | regex_replace('^DBROOT=', '') }}"
+    existing_redispass: "{{ existing_config | select('match', '^REDISPASS=') | list | first | default('REDISPASS=') | regex_replace('^REDISPASS=', '') }}"
+  when: existing_config is defined and existing_config | length > 0
 
 # Apply reverse proxy configuration
 # Note: HTTPS_PORT must be set to an unused port (not empty) because docker-compose.yml

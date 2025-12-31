@@ -102,7 +102,7 @@ run_pre_hook() {
 
     if [ -n "$hook" ]; then
         log "Running pre-backup hook for $service"
-        eval "$hook" 2>> "$LOG_FILE" || {
+        bash -c "$hook" 2>> "$LOG_FILE" || {
             log_warn "Pre-backup hook for $service failed"
             return 1
         }

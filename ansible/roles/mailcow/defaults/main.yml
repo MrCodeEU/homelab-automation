@@ -11,6 +11,9 @@ mailcow_version: master
 # Domain settings (overridden from services list)
 mailcow_hostname: "mail.mljr.eu"
 
+# Timezone for mailcow
+mailcow_timezone: "Europe/Vienna"
+
 # Reverse proxy settings
 # HTTP port for Caddy to proxy to
 mailcow_http_port: 8081

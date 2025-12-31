@@ -141,7 +141,8 @@
   ansible.builtin.debug:
     msg: |
       WARNING: Backup not configured!
-      Set PCLOUD_USERNAME and PCLOUD_PASSWORD environment variables.
+      Set PCLOUD_TOKEN environment variable.
+      To obtain token: run 'rclone config' and select pCloud provider.
   when: not rclone_config.stat.exists
   tags:
     - backup
