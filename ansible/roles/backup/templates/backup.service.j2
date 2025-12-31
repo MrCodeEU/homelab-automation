@@ -1,0 +1,17 @@
+[Unit]
+Description=Homelab Backup Service
+Documentation=file://{{ backup_local_path }}/scripts/backup.sh
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ backup_local_path }}/scripts/backup.sh
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=3600
+Nice=19
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,205 @@
+#!/bin/bash
+# Homelab Backup Script
+# Managed by Ansible - do not edit manually
+# Generated: {{ ansible_date_time.iso8601 | default('N/A') }}
+
+set -uo pipefail
+
+# Configuration
+REMOTE="{{ backup_remote_name }}:{{ backup_remote_path }}"
+LOCAL_PATH="{{ backup_local_path }}"
+LOG_FILE="${LOCAL_PATH}/logs/backup-$(date +%Y%m%d).log"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+RETENTION_DAYS={{ backup_retention_days }}
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+log_error() {
+    echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $1${NC}" | tee -a "$LOG_FILE"
+}
+
+log_success() {
+    echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] SUCCESS: $1${NC}" | tee -a "$LOG_FILE"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: $1${NC}" | tee -a "$LOG_FILE"
+}
+
+backup_volume() {
+    local volume_name="$1"
+
+    # Dynamically detect Docker volume path
+    local volume_path=$(docker volume inspect --format '{{.Mountpoint}}' "$volume_name" 2>/dev/null)
+
+    if [ -z "$volume_path" ] || [ ! -d "$volume_path" ]; then
+        log_warn "Volume $volume_name not found or invalid path: $volume_path"
+        return 1
+    fi
+
+    log "Backing up Docker volume: $volume_name"
+
+    # Create snapshot directory
+    local snapshot_dir="${LOCAL_PATH}/volumes/${volume_name}"
+    mkdir -p "$snapshot_dir"
+
+    # Use rsync for incremental backup
+    rsync -a --delete --info=progress2 "$volume_path/" "$snapshot_dir/" 2>> "$LOG_FILE" || {
+        log_error "Failed to rsync volume $volume_name"
+        return 1
+    }
+
+    # Sync to remote
+    rclone sync "$snapshot_dir" "${REMOTE}/volumes/${volume_name}" \
+        --progress \
+        --transfers 4 \
+        --checkers 8 \
+        --log-file="$LOG_FILE" \
+        --log-level INFO || {
+        log_error "Failed to sync volume $volume_name to remote"
+        return 1
+    }
+
+    log_success "Volume $volume_name backed up successfully"
+    return 0
+}
+
+backup_path() {
+    local source_path="$1"
+    local backup_name=$(basename "$source_path")
+
+    if [ ! -d "$source_path" ]; then
+        log_warn "Path $source_path not found"
+        return 1
+    fi
+
+    log "Backing up path: $source_path"
+
+    # Sync to remote
+    rclone sync "$source_path" "${REMOTE}/paths/${backup_name}" \
+        --progress \
+        --transfers 4 \
+        --checkers 8 \
+        --log-file="$LOG_FILE" \
+        --log-level INFO || {
+        log_error "Failed to sync path $source_path to remote"
+        return 1
+    }
+
+    log_success "Path $source_path backed up successfully"
+    return 0
+}
+
+run_pre_hook() {
+    local service="$1"
+    local hook="$2"
+
+    if [ -n "$hook" ]; then
+        log "Running pre-backup hook for $service"
+        bash -c "$hook" 2>> "$LOG_FILE" || {
+            log_warn "Pre-backup hook for $service failed"
+            return 1
+        }
+    fi
+    return 0
+}
+
+run_post_hook() {
+    local service="$1"
+    local hook="$2"
+
+    if [ -n "$hook" ]; then
+        log "Running post-backup hook for $service"
+        bash -c "$hook" 2>> "$LOG_FILE" || {
+            log_warn "Post-backup hook for $service failed"
+            return 1
+        }
+    fi
+    return 0
+}
+
+cleanup_old_logs() {
+    log "Cleaning up logs older than $RETENTION_DAYS days"
+    find "${LOCAL_PATH}/logs" -name "backup-*.log" -mtime +${RETENTION_DAYS} -delete 2>/dev/null || true
+}
+
+# Main backup function
+main() {
+    log "=========================================="
+    log "Starting homelab backup - $TIMESTAMP"
+    log "=========================================="
+
+    local failed_services=()
+    local success_count=0
+    local total_count=0
+
+{% for service, config in backup_service_configs.items() %}
+    # Backup {{ service }}
+    log "Processing service: {{ service }}"
+    total_count=$((total_count + 1))
+    service_failed=false
+
+{% if config.backup_pre_hook is defined %}
+    run_pre_hook "{{ service }}" '{{ config.backup_pre_hook | replace("'", "'\\''") }}' || service_failed=true
+{% endif %}
+
+{% if config.backup_volumes is defined %}
+{% for volume in config.backup_volumes %}
+    backup_volume "{{ volume }}" || service_failed=true
+{% endfor %}
+{% endif %}
+
+{% if config.backup_paths is defined %}
+{% for path in config.backup_paths %}
+    backup_path "{{ path }}" || service_failed=true
+{% endfor %}
+{% endif %}
+
+{% if config.backup_post_hook is defined %}
+    run_post_hook "{{ service }}" '{{ config.backup_post_hook | replace("'", "'\\''") }}' || service_failed=true
+{% endif %}
+
+    if [ "$service_failed" = true ]; then
+        failed_services+=("{{ service }}")
+{% if config.backup_critical | default(false) %}
+        log_error "Critical service {{ service }} backup failed!"
+{% else %}
+        log_warn "Non-critical service {{ service }} backup failed"
+{% endif %}
+    else
+        success_count=$((success_count + 1))
+        log_success "Service {{ service }} backup completed"
+    fi
+
+{% endfor %}
+
+    # Cleanup old logs
+    cleanup_old_logs
+
+    # Summary
+    log "=========================================="
+    log "Backup Summary"
+    log "=========================================="
+    log "Total services: $total_count"
+    log "Successful: $success_count"
+    log "Failed: ${#failed_services[@]}"
+
+    if [ ${#failed_services[@]} -gt 0 ]; then
+        log_error "Failed services: ${failed_services[*]}"
+        exit 1
+    fi
+
+    log_success "All backups completed successfully!"
+    exit 0
+}
+
+# Run main function
+main "$@"
