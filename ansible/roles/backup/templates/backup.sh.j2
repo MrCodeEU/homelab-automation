@@ -68,7 +68,7 @@ backup_volume() {
     local volume_name="$1"
 
     # Dynamically detect Docker volume path
-    local volume_path=$(docker volume inspect --format '{{.Mountpoint}}' "$volume_name" 2>/dev/null)
+    local volume_path=$(docker volume inspect --format '{{ '{{' }}.Mountpoint{{ '}}' }}' "$volume_name" 2>/dev/null)
 
     if [ -z "$volume_path" ] || [ ! -d "$volume_path" ]; then
         log_warn "Volume $volume_name not found or invalid path: $volume_path"
