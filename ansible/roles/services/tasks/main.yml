@@ -114,7 +114,7 @@
     is_staging: true
     deploy_path: "{{ base_path }}/staging/{{ service.name }}"
     service_port: "{{ service.port + staging_port_offset }}"
-  when: is_staging_deployment | default(false)
+  when: is_staging_deployment | default(false) | bool
 
 - name: Deploy staging services (Async)
   community.docker.docker_compose_v2:
@@ -129,7 +129,7 @@
   async: 300
   poll: 0
   when:
-    - is_staging_deployment | default(false)
+    - is_staging_deployment | default(false) | bool
     - not ansible_check_mode
 
 - name: Wait for staging services deployment
@@ -143,7 +143,7 @@
   retries: 30
   delay: 10
   when:
-    - is_staging_deployment | default(false)
+    - is_staging_deployment | default(false) | bool
     - not ansible_check_mode
     - item.ansible_job_id is defined
   failed_when: false  # Don't fail the play - collect errors instead
@@ -281,7 +281,7 @@
       {{ failed }}
   when:
     - not ansible_check_mode
-    - is_staging_deployment | default(false)
+    - is_staging_deployment | default(false) | bool
     - staging_job_result is defined
 
 - name: Display deployment summary
@@ -299,7 +299,7 @@
       {% else %}
       All production services deployed successfully!
       {% endif %}
-      {% if is_staging_deployment | default(false) %}
+      {% if is_staging_deployment | default(false) | bool %}
 
       Staging Services: {{ host_services | selectattr('staging', 'defined') | selectattr('staging') | list | length }} total
       {% if failed_staging_services | default([]) | length > 0 %}
