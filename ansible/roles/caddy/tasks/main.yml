@@ -90,6 +90,43 @@
   failed_when: false
   when: ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
 
+- name: Determine basicauth-enabled services
+  ansible.builtin.set_fact:
+    basicauth_enabled_services: >-
+      {%- set result = [] -%}
+      {%- for service in (services | default([])) -%}
+        {%- if service.enabled | default(true) and (service.caddy_auth | default('')) == 'basicauth' -%}
+          {%- set _ = result.append(service) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
+
+- name: Validate that all service hosts exist in inventory
+  ansible.builtin.assert:
+    that:
+      - service.host is defined
+      - service.host in hostvars
+    fail_msg: >-
+      Service '{{ service.name | default('unknown') }}' references host '{{ service.host | default('unset') }}'
+      which is not present in the inventory. Fix 'services' in group_vars or add the host to inventory.
+  loop: "{{ services | default([]) }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name | default('unknown') }}"
+  when: service.enabled | default(true)
+
+- name: Validate Caddy basicauth secrets when used
+  ansible.builtin.assert:
+    that:
+      - secrets is defined
+      - secrets.caddy is defined
+      - (secrets.caddy.auth_user | default('') | length) > 0
+      - (secrets.caddy.auth_hash | default('') | length) > 0
+    fail_msg: >-
+      One or more services use 'caddy_auth: basicauth' but Caddy auth secrets are missing.
+      Set CADDY_AUTH_USER and CADDY_AUTH_PASSWORD_HASH in the environment used for Ansible.
+  when: (basicauth_enabled_services | default([]) | length) > 0
+
 - name: Generate Caddyfile
   ansible.builtin.template:
     src: Caddyfile.j2

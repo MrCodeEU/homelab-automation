@@ -1,5 +1,5 @@
 ---
-# Deploy a single service
+# Prepare a single service (copy files, generate config)
 # Variables: service, is_staging, deploy_path, service_port
 
 - name: "{{ service.name }} - Ensure directory exists"
@@ -19,7 +19,7 @@
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../../services/{{ service.name }}/"
     dest: "{{ deploy_path }}/"
-    mode: '0644'
+    mode: preserve
     directory_mode: '0755'
   when: service_config.stat.exists
 
@@ -30,29 +30,4 @@
     mode: '0600'
   vars:
     service_name: "{{ service.name }}"
-
-- name: "{{ service.name }} - Check for docker-compose.yml"
-  ansible.builtin.stat:
-    path: "{{ deploy_path }}/docker-compose.yml"
-  register: compose_file
-
-- name: "{{ service.name }} - Deploy with Docker Compose"
-  community.docker.docker_compose_v2:
-    project_src: "{{ deploy_path }}"
-    state: present
-    pull: always
-  register: compose_result
-  when: compose_file.stat.exists
-  async: 300
-  poll: 0
-
-- name: "{{ service.name }} - Wait for deployment"
-  ansible.builtin.async_status:
-    jid: "{{ compose_result.ansible_job_id }}"
-  register: job_result
-  until: job_result.finished
-  retries: 30
-  delay: 10
-  when:
-    - compose_result is defined
-    - compose_result.ansible_job_id is defined
+  no_log: true

@@ -9,8 +9,9 @@
     username: "{{ secrets.github.username }}"
     password: "{{ secrets.github.token }}"
   when:
-    - secrets.github.username | length > 0
-    - secrets.github.token | length > 0
+    - not ansible_check_mode
+    - secrets.github.username | default('') | length > 0
+    - secrets.github.token | default('') | length > 0
   no_log: true
   failed_when: false
 
@@ -18,22 +19,16 @@
 - name: Filter services for this host
   ansible.builtin.set_fact:
     host_services: >-
-      {{ services
-         | selectattr('enabled', 'defined')
-         | selectattr('enabled')
-         | selectattr('host', 'equalto', inventory_hostname)
-         | rejectattr('managed', 'defined')
-         | rejectattr('skip_deploy', 'defined')
-         | list
-         +
-         services
-         | selectattr('enabled', 'defined')
-         | selectattr('enabled')
-         | selectattr('host', 'equalto', inventory_hostname)
-         | selectattr('managed', 'defined')
-         | selectattr('managed')
-         | rejectattr('skip_deploy', 'defined')
-         | list }}
+      {%- set result = [] -%}
+      {%- for service in services -%}
+        {%- if service.host == inventory_hostname 
+               and service.enabled | default(true) 
+               and service.managed | default(true) 
+               and not service.skip_deploy | default(false) -%}
+          {%- set _ = result.append(service) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
 
 - name: Display services to deploy
   ansible.builtin.debug:
@@ -43,8 +38,8 @@
 # Production Deployment
 # ============================================================================
 
-- name: Deploy production services
-  ansible.builtin.include_tasks: deploy_service.yml
+- name: Prepare production services
+  ansible.builtin.include_tasks: prepare_service.yml
   loop: "{{ host_services }}"
   loop_control:
     loop_var: service
@@ -54,12 +49,40 @@
     deploy_path: "/opt/{{ service.name }}"
     service_port: "{{ service.port }}"
 
+- name: Deploy production services (Async)
+  community.docker.docker_compose_v2:
+    project_src: "/opt/{{ service.name }}"
+    state: present
+    pull: always
+  loop: "{{ host_services }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}"
+  register: deploy_results
+  async: 300
+  poll: 0
+  when: not ansible_check_mode
+
+- name: Wait for production services deployment
+  ansible.builtin.async_status:
+    jid: "{{ item.ansible_job_id }}"
+  loop: "{{ (deploy_results.results | default([])) }}"
+  loop_control:
+    label: "{{ ((item.service | default(item.item)) | default({'name': 'unknown'})).name }}"
+  register: job_result
+  until: job_result.finished
+  retries: 30
+  delay: 10
+  when:
+    - not ansible_check_mode
+    - item.ansible_job_id is defined
+
 # ============================================================================
 # Staging Deployment (only when is_staging_deployment is true)
 # ============================================================================
 
-- name: Deploy staging services
-  ansible.builtin.include_tasks: deploy_service.yml
+- name: Prepare staging services
+  ansible.builtin.include_tasks: prepare_service.yml
   loop: "{{ host_services | selectattr('staging', 'defined') | selectattr('staging') | list }}"
   loop_control:
     loop_var: service
@@ -69,6 +92,37 @@
     deploy_path: "/opt/staging/{{ service.name }}"
     service_port: "{{ service.port + staging_port_offset }}"
   when: is_staging_deployment | default(false)
+
+- name: Deploy staging services (Async)
+  community.docker.docker_compose_v2:
+    project_src: "/opt/staging/{{ service.name }}"
+    state: present
+    pull: always
+  loop: "{{ host_services | selectattr('staging', 'defined') | selectattr('staging') | list }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}-staging"
+  register: staging_deploy_results
+  async: 300
+  poll: 0
+  when:
+    - is_staging_deployment | default(false)
+    - not ansible_check_mode
+
+- name: Wait for staging services deployment
+  ansible.builtin.async_status:
+    jid: "{{ item.ansible_job_id }}"
+  loop: "{{ staging_deploy_results.results | default([]) }}"
+  loop_control:
+    label: "{{ ((item.service | default(item.item)) | default({'name': 'unknown'})).name }}-staging"
+  register: staging_job_result
+  until: staging_job_result.finished
+  retries: 30
+  delay: 10
+  when:
+    - is_staging_deployment | default(false)
+    - not ansible_check_mode
+    - item.ansible_job_id is defined
 
 # ============================================================================
 # Kuma Provisioning (if Kuma is deployed)
@@ -81,9 +135,10 @@
 
 - name: Run Kuma provisioning
   when:
+    - not ansible_check_mode
     - kuma_deployed.stat.exists
-    - secrets.kuma.username | length > 0
-    - secrets.kuma.password | length > 0
+    - secrets.kuma.username | default('') | length > 0
+    - secrets.kuma.password | default('') | length > 0
   block:
     - name: Create services.yml for Kuma
       ansible.builtin.copy:

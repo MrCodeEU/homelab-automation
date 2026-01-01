@@ -66,18 +66,21 @@
 
 - name: Copy Fail2ban UI configuration
   ansible.builtin.copy:
-    src: "{{ playbook_dir }}/../../configs/fail2ban-ui/"
+    src: "{{ playbook_dir }}/../../services/fail2ban-ui/"
     dest: "/opt/fail2ban-ui/"
-    mode: '0644'
+    mode: preserve
+    directory_mode: '0755'
 
 - name: Create .env file for Fail2ban UI
   ansible.builtin.template:
     src: env.j2
     dest: "/opt/fail2ban-ui/.env"
     mode: '0600'
+  no_log: true
 
 - name: Deploy Fail2ban UI
   community.docker.docker_compose_v2:
     project_src: /opt/fail2ban-ui
     state: present
     pull: always
+  when: not ansible_check_mode
