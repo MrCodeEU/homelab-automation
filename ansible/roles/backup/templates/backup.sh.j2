@@ -222,9 +222,9 @@ main() {
     log "=========================================="
     log "Total services: $total_count"
     log "Successful: $success_count"
-    log "Failed: ${{ '{#' }}failed_services[@]}"
+    log "Failed: {% raw %}${#failed_services[@]}{% endraw %}"
 
-    if [ ${{ '{#' }}failed_services[@]} -gt 0 ]; then
+    if [ {% raw %}${#failed_services[@]}{% endraw %} -gt 0 ]; then
         log_error "Failed services: ${failed_services[*]}"
         send_notification "❌ Backup failed for: ${failed_services[*]}" "high"
         exit 1
