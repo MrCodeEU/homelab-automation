@@ -286,7 +286,7 @@ services:
 
 # Backup configuration
 backup_enabled: true
-backup_schedule: "0 3 * * *"  # Daily at 3 AM
+backup_schedule: "*-*-* 03:00:00"  # Daily at 3 AM (systemd calendar format)
 backup_retention_days: 30
 backup_remote_name: "pcloud"
 backup_remote_path: "homelab-backups"
