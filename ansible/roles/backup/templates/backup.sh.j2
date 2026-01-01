@@ -171,7 +171,8 @@ main() {
     local success_count=0
     local total_count=0
 
-{% for service, config in backup_service_configs.items() %}
+{% for service in backup_service_configs.keys() %}
+{% set config = backup_service_configs[service] %}
     # Backup {{ service }}
     log "Processing service: {{ service }}"
     total_count=$((total_count + 1))
