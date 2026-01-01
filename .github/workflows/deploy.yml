@@ -42,102 +42,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Check host connectivity
-  check-hosts:
-    runs-on: ubuntu-latest
-    outputs:
-      reachable: ${{ steps.check.outputs.hosts }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Tailscale
-        uses: tailscale/github-action@v3
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-
-      - name: Check connectivity
-        id: check
-        run: |
-          HOSTS=""
-          for host in mljr.tail33930.ts.net nas.tail33930.ts.net; do
-            if ping -c 1 -W 3 "$host" &>/dev/null; then
-              name="${host%%.*}"
-              HOSTS="${HOSTS}${name},"
-            fi
-          done
-          HOSTS="${HOSTS%,}"
-          echo "Reachable hosts: $HOSTS"
-          echo "hosts=$HOSTS" >> $GITHUB_OUTPUT
-
-  # Detect what changed
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      tags: ${{ steps.tags.outputs.tags }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Detect changes
-        id: changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            base: 'ansible/roles/base/**'
-            caddy: 'ansible/roles/caddy/**'
-            services: ['ansible/roles/services/**', 'services/**']
-            backup: 'ansible/roles/backup/**'
-            security: 'ansible/roles/fail2ban/**'
-            glance: 'ansible/roles/glance/**'
-            mailcow: 'ansible/roles/mailcow/**'
-            core: ['ansible/inventory/**', 'ansible/playbooks/**']
-
-      - name: Determine tags
-        id: tags
-        run: |
-          # Manual dispatch with specific tags
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "all" ]; then
-            echo "tags=${{ inputs.tags }}" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Repository dispatch (service update)
-          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
-            echo "tags=services,caddy" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Core changes -> run everything
-          if [ "${{ steps.changes.outputs.core }}" == "true" ]; then
-            echo "tags=all" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
-          # Build tag list from changes
-          TAGS=""
-          [ "${{ steps.changes.outputs.base }}" == "true" ] && TAGS="${TAGS}base,"
-          [ "${{ steps.changes.outputs.caddy }}" == "true" ] && TAGS="${TAGS}caddy,"
-          [ "${{ steps.changes.outputs.services }}" == "true" ] && TAGS="${TAGS}services,"
-          [ "${{ steps.changes.outputs.backup }}" == "true" ] && TAGS="${TAGS}backup,"
-          [ "${{ steps.changes.outputs.security }}" == "true" ] && TAGS="${TAGS}security,"
-          [ "${{ steps.changes.outputs.glance }}" == "true" ] && TAGS="${TAGS}glance,"
-          [ "${{ steps.changes.outputs.mailcow }}" == "true" ] && TAGS="${TAGS}mailcow,"
-
-          TAGS="${TAGS%,}"
-          [ -z "$TAGS" ] && TAGS="none"
-
-          echo "Detected tags: $TAGS"
-          echo "tags=$TAGS" >> $GITHUB_OUTPUT
-
   # Deploy
   deploy:
-    needs: [check-hosts, detect-changes]
-    if: |
-      needs.check-hosts.outputs.reachable != '' &&
-      needs.detect-changes.outputs.tags != 'none'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -194,13 +100,18 @@ jobs:
           cd ansible
 
           # Determine limit
-          LIMIT="${{ needs.check-hosts.outputs.reachable }}"
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "all" ]; then
+          LIMIT="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "" ]; then
             LIMIT="${{ inputs.limit }}"
           fi
 
           # Determine tags
-          TAGS="${{ needs.detect-changes.outputs.tags }}"
+          TAGS="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "" ]; then
+            TAGS="${{ inputs.tags }}"
+          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            TAGS="services,caddy"
+          fi
 
           # Extra vars
           EXTRA_VARS="is_staging_deployment=${{ steps.env.outputs.is_staging }}"
@@ -218,9 +129,21 @@ jobs:
           EMOJI=$([[ "$STATUS" == "success" ]] && echo "✅" || echo "❌")
           PRIORITY=$([[ "$STATUS" == "success" ]] && echo "default" || echo "high")
 
+          LIMIT="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "" ]; then
+            LIMIT="${{ inputs.limit }}"
+          fi
+
+          TAGS="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "" ]; then
+            TAGS="${{ inputs.tags }}"http://deploy.mljr.eu
+          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            TAGS="services,caddy"
+          fi
+
           curl -s \
             -H "Title: Deployment $STATUS" \
             -H "Priority: $PRIORITY" \
             -H "Tags: ansible,homelab" \
-            -d "$EMOJI Homelab deployed to ${{ needs.check-hosts.outputs.reachable }} (tags: ${{ needs.detect-changes.outputs.tags }})" \
+            -d "$EMOJI Homelab deployed (limit: $LIMIT, tags: $TAGS)" \
             https://ntfy.mljr.eu/deployment || true
