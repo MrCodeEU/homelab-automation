@@ -6,7 +6,7 @@
 # Check if this is a fresh installation
 - name: Check for initialization flag
   ansible.builtin.stat:
-    path: /opt/.homelab-initialized
+    path: "{{ base_path }}/.homelab-initialized"
   register: initialized_flag
 
 - name: Set fresh_install fact
@@ -164,7 +164,7 @@
       #
       # This file indicates that the host has been initialized.
       # Delete this file to trigger a restore from backup on next deployment.
-    dest: /opt/.homelab-initialized
+    dest: "{{ base_path }}/.homelab-initialized"
     mode: '0644'
 
 # ============================================================================

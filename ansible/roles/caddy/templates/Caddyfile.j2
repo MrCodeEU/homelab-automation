@@ -8,10 +8,10 @@
 
 # Deployment Status Page
 deploy.{{ domain }} {
-    root * /opt/caddy/site
+    root * {{ base_path }}/caddy/site
     file_server
     log {
-        output file /var/log/caddy/access.log
+        output file {{ log_path }}/caddy/access.log
         format json
     }
 }
@@ -33,7 +33,7 @@ deploy.{{ domain }} {
 {{ service.domain | join(', ') }} {
 {% endif %}
     log {
-        output file /var/log/caddy/access.log
+        output file {{ log_path }}/caddy/access.log
         format json
     }
 {% if service.name == 'goaccess' %}
@@ -96,7 +96,7 @@ deploy.{{ domain }} {
 {{ staging_domains | join(', ') }} {
 {% endif %}
     log {
-        output file /var/log/caddy/access.log
+        output file {{ log_path }}/caddy/access.log
         format json
     }
 {% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}

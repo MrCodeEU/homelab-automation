@@ -2,6 +2,27 @@
 # Services Role - Docker Compose deployment with staging support
 # ============================================================================
 
+# Validate service configuration
+- name: Validate service definitions
+  ansible.builtin.assert:
+    that:
+      - service.name is defined
+      - service.name | length > 0
+      - service.host is defined
+      - service.host | length > 0
+      - service.port is defined
+      - service.port | int > 0
+      - service.port | int < 65536
+    fail_msg: >-
+      Service validation failed for {{ service.name | default('unknown') }}:
+      Required fields: name, host, port (1-65535)
+    quiet: true
+  loop: "{{ services | default([]) }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name | default('unknown') }}"
+  when: service.enabled | default(true)
+
 # Login to GitHub Container Registry for private images
 - name: Login to GitHub Container Registry
   community.docker.docker_login:
@@ -46,12 +67,12 @@
     label: "{{ service.name }}"
   vars:
     is_staging: false
-    deploy_path: "/opt/{{ service.name }}"
+    deploy_path: "{{ base_path }}/{{ service.name }}"
     service_port: "{{ service.port }}"
 
 - name: Deploy production services (Async)
   community.docker.docker_compose_v2:
-    project_src: "/opt/{{ service.name }}"
+    project_src: "{{ base_path }}/{{ service.name }}"
     state: present
     pull: always
   loop: "{{ host_services }}"
@@ -76,6 +97,7 @@
   when:
     - not ansible_check_mode
     - item.ansible_job_id is defined
+  failed_when: job_result.failed | default(false)
 
 # ============================================================================
 # Staging Deployment (only when is_staging_deployment is true)
@@ -89,13 +111,13 @@
     label: "{{ service.name }}-staging"
   vars:
     is_staging: true
-    deploy_path: "/opt/staging/{{ service.name }}"
+    deploy_path: "{{ base_path }}/staging/{{ service.name }}"
     service_port: "{{ service.port + staging_port_offset }}"
   when: is_staging_deployment | default(false)
 
 - name: Deploy staging services (Async)
   community.docker.docker_compose_v2:
-    project_src: "/opt/staging/{{ service.name }}"
+    project_src: "{{ base_path }}/staging/{{ service.name }}"
     state: present
     pull: always
   loop: "{{ host_services | selectattr('staging', 'defined') | selectattr('staging') | list }}"
@@ -123,6 +145,40 @@
     - is_staging_deployment | default(false)
     - not ansible_check_mode
     - item.ansible_job_id is defined
+  failed_when: staging_job_result.failed | default(false)
+
+# ============================================================================
+# Health Checks
+# ============================================================================
+
+- name: Wait for services to be healthy
+  ansible.builtin.uri:
+    url: "http://localhost:{{ service.port }}"
+    status_code: [200, 301, 302, 401, 403]  # Accept redirects and auth pages
+    timeout: 5
+  loop: "{{ host_services }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}"
+  register: health_check
+  retries: 12
+  delay: 5
+  until: health_check.status is defined and health_check.status in [200, 301, 302, 401, 403]
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - service.port is defined
+
+- name: Display health check results
+  ansible.builtin.debug:
+    msg: "{{ service.name }}: {{ 'HEALTHY' if (health_check.results | selectattr('service.name', 'equalto', service.name) | first).status | default(0) in [200, 301, 302, 401, 403] else 'PENDING' }}"
+  loop: "{{ host_services }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}"
+  when:
+    - not ansible_check_mode
+    - health_check.results is defined
 
 # ============================================================================
 # Kuma Provisioning (if Kuma is deployed)
@@ -130,7 +186,7 @@
 
 - name: Check if Kuma is deployed
   ansible.builtin.stat:
-    path: /opt/kuma/docker-compose.yml
+    path: "{{ base_path }}/kuma/docker-compose.yml"
   register: kuma_deployed
 
 - name: Run Kuma provisioning
@@ -143,7 +199,7 @@
     - name: Create services.yml for Kuma
       ansible.builtin.copy:
         content: "{{ {'services': services} | to_nice_yaml }}"
-        dest: /opt/kuma/services.yml
+        dest: "{{ base_path }}/kuma/services.yml"
         mode: '0644'
 
     - name: Wait for Kuma to be ready
@@ -156,21 +212,35 @@
       until: kuma_health.status in [200, 302]
       failed_when: false
 
+    - name: Install Kuma provisioning dependencies
+      ansible.builtin.pip:
+        name:
+          - uptime-kuma-api-v2
+          - pyyaml
+        virtualenv: "{{ base_path }}/kuma/venv"
+        virtualenv_command: python3 -m venv
+        state: present
+      register: kuma_deps_install
+      when: kuma_health.status | default(0) in [200, 302]
+
     - name: Run Kuma provisioning script
       ansible.builtin.shell: |
         export KUMA_URL="http://localhost:3001"
         export KUMA_USERNAME="{{ secrets.kuma.username }}"
         export KUMA_PASSWORD="{{ secrets.kuma.password }}"
-        python3 -m pip install uptime-kuma-api-v2 pyyaml --quiet --break-system-packages 2>/dev/null || \
-        python3 -m pip install uptime-kuma-api-v2 pyyaml --quiet
-        python3 /opt/kuma/hooks/provision-kuma.py /opt/kuma/services.yml
+        {{ base_path }}/kuma/venv/bin/python3 {{ base_path }}/kuma/hooks/provision-kuma.py {{ base_path }}/kuma/services.yml
       args:
         executable: /bin/bash
       register: kuma_provision
-      failed_when: false
-      when: kuma_health.status | default(0) in [200, 302]
+      changed_when: "'Updated' in kuma_provision.stdout or 'Created' in kuma_provision.stdout"
+      failed_when: kuma_provision.rc != 0
+      when:
+        - kuma_health.status | default(0) in [200, 302]
+        - kuma_deps_install is succeeded
 
     - name: Display Kuma provisioning result
       ansible.builtin.debug:
-        msg: "{{ kuma_provision.stdout_lines | default(['Kuma provisioning skipped']) }}"
-      when: kuma_provision is defined
+        msg: "{{ kuma_provision.stdout_lines | default(['Kuma provisioning completed']) }}"
+      when:
+        - kuma_provision is defined
+        - kuma_provision is succeeded

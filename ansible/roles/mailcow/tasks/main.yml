@@ -84,6 +84,7 @@
     executable: /bin/bash
   register: mailcow_config_result
   changed_when: "'CONFIG_GENERATED' in mailcow_config_result.stdout"
+  failed_when: mailcow_config_result.rc != 0
   when: not ansible_check_mode
 
 # Read existing configuration to preserve generated secrets
@@ -106,6 +107,25 @@
     existing_dbroot: "{{ existing_config | select('match', '^DBROOT=') | list | first | default('DBROOT=') | regex_replace('^DBROOT=', '') }}"
     existing_redispass: "{{ existing_config | select('match', '^REDISPASS=') | list | first | default('REDISPASS=') | regex_replace('^REDISPASS=', '') }}"
   when: existing_config is defined and existing_config | length > 0
+
+- name: Validate extracted secrets are not empty
+  ansible.builtin.assert:
+    that:
+      - existing_dbpass is defined
+      - existing_dbpass | length > 0
+      - existing_dbroot is defined
+      - existing_dbroot | length > 0
+      - existing_redispass is defined
+      - existing_redispass | length > 0
+    fail_msg: >-
+      Failed to extract valid secrets from mailcow.conf.
+      This may indicate a configuration format change.
+      Please check {{ mailcow_install_path }}/mailcow.conf manually.
+    quiet: true
+  when:
+    - existing_config is defined
+    - existing_config | length > 0
+    - not ansible_check_mode
 
 # Apply reverse proxy configuration
 # Note: HTTPS_PORT must be set to an unused port (not empty) because docker-compose.yml
