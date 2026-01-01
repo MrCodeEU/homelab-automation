@@ -146,6 +146,29 @@
     daemon_reload: true
   when: rclone_config.stat.exists and (timer_created.changed or service_created.changed)
 
+- name: Debug - Show timer file content
+  ansible.builtin.command: cat /etc/systemd/system/homelab-backup.timer
+  register: timer_content
+  changed_when: false
+  when: rclone_config.stat.exists
+
+- name: Debug - Display timer content
+  ansible.builtin.debug:
+    var: timer_content.stdout_lines
+  when: rclone_config.stat.exists
+
+- name: Validate timer file
+  ansible.builtin.command: systemd-analyze verify /etc/systemd/system/homelab-backup.timer
+  register: timer_validation
+  failed_when: false
+  changed_when: false
+  when: rclone_config.stat.exists
+
+- name: Debug - Show validation result
+  ansible.builtin.debug:
+    var: timer_validation
+  when: rclone_config.stat.exists
+
 - name: Enable backup timer
   ansible.builtin.systemd:
     name: homelab-backup.timer
