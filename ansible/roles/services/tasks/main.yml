@@ -235,17 +235,29 @@
         executable: /bin/bash
       register: kuma_provision
       changed_when: "'Updated' in kuma_provision.stdout or 'Created' in kuma_provision.stdout"
-      failed_when: kuma_provision.rc != 0
+      failed_when: false  # Don't block deployment if Kuma provisioning fails
+      retries: 3
+      delay: 5
+      until: kuma_provision.rc == 0
       when:
         - kuma_health.status | default(0) in [200, 302]
         - kuma_deps_install is succeeded
 
     - name: Display Kuma provisioning result
       ansible.builtin.debug:
-        msg: "{{ kuma_provision.stdout_lines | default(['Kuma provisioning completed']) }}"
-      when:
-        - kuma_provision is defined
-        - kuma_provision is succeeded
+        msg: |
+          {% if kuma_provision is defined %}
+          {% if kuma_provision.rc == 0 %}
+          ✓ Kuma provisioning succeeded
+          {{ kuma_provision.stdout_lines | join('\n') }}
+          {% else %}
+          ⚠ Kuma provisioning failed (non-blocking):
+          {{ kuma_provision.stdout_lines | join('\n') }}
+          {% endif %}
+          {% else %}
+          Kuma provisioning skipped
+          {% endif %}
+      when: kuma_provision is defined
 
 # ============================================================================
 # Deployment Summary and Error Reporting
