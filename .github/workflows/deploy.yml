@@ -18,11 +18,6 @@ on:
         required: false
         default: false
         type: boolean
-      restore:
-        description: 'Force restore from backup'
-        required: false
-        default: false
-        type: boolean
 
   push:
     branches:
@@ -71,7 +66,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.local
-          key: ansible-${{ runner.os }}-v1
+          key: ansible-${{ runner.os }}-v2
 
       - name: Install Ansible
         run: pip install --user ansible
@@ -136,7 +131,7 @@ jobs:
 
           TAGS="all"
           if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "" ]; then
-            TAGS="${{ inputs.tags }}"http://deploy.mljr.eu
+            TAGS="${{ inputs.tags }}"
           elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
             TAGS="services,caddy"
           fi
