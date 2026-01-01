@@ -19,9 +19,10 @@
 #   - mailcow: Mail server
 # ============================================================================
 
-# Gather facts from all hosts (needed for Caddy template)
+# Gather facts from managed hosts only
+# Note: proxy_only hosts are not SSH-reachable, they only define services for Caddy
 - name: Gather Facts
-  hosts: managed:proxy_only
+  hosts: managed
   gather_facts: true
   gather_subset:
     - min

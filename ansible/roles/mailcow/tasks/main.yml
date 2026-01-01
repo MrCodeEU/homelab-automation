@@ -84,13 +84,16 @@
     executable: /bin/bash
   register: mailcow_config_result
   changed_when: "'CONFIG_GENERATED' in mailcow_config_result.stdout"
+  when: not ansible_check_mode
 
 # Read existing configuration to preserve generated secrets
 - name: Read existing mailcow.conf
   ansible.builtin.slurp:
     src: "{{ mailcow_install_path }}/mailcow.conf"
   register: existing_mailcow_conf
-  when: mailcow_conf.stat.exists or mailcow_config_result.changed
+  when:
+    - mailcow_conf.stat.exists or (mailcow_config_result.changed | default(false))
+    - not ansible_check_mode or mailcow_conf.stat.exists
 
 - name: Parse existing configuration
   ansible.builtin.set_fact:
@@ -121,6 +124,7 @@
     - { key: "SKIP_LETS_ENCRYPT", value: "y" }
     - { key: "SKIP_HTTP_VERIFICATION", value: "y" }
     - { key: "SNAT_TO_SOURCE", value: "" }
+  when: not ansible_check_mode
   register: mailcow_conf_result
   notify: Restart mailcow
 
@@ -133,6 +137,7 @@
     remote_src: true
     mode: '0600'
     backup: true
+  when: not ansible_check_mode
   notify: Restart mailcow
 
 # Create docker-compose.override.yml
@@ -151,7 +156,9 @@
     chdir: "{{ mailcow_install_path }}"
   register: docker_pull
   changed_when: "'Pulled' in docker_pull.stderr or 'Downloaded' in docker_pull.stderr"
-  when: mailcow_cloned.changed or mailcow_updated.changed | default(false)
+  when:
+    - not ansible_check_mode
+    - mailcow_cloned.changed or mailcow_updated.changed | default(false)
 
 # Start or restart mailcow
 - name: Check if mailcow containers are running
@@ -161,6 +168,7 @@
   register: mailcow_containers
   changed_when: false
   failed_when: false
+  when: not ansible_check_mode
 
 - name: Start mailcow services
   ansible.builtin.command:
@@ -168,13 +176,16 @@
     chdir: "{{ mailcow_install_path }}"
   register: mailcow_start
   changed_when: "'Started' in mailcow_start.stderr or 'Creating' in mailcow_start.stderr"
-  when: mailcow_containers.stdout | length == 0
+  when:
+    - not ansible_check_mode
+    - mailcow_containers.stdout | default('') | length == 0
 
 # Ensure services are running
 - name: Ensure mailcow services are running
   community.docker.docker_compose_v2:
     project_src: "{{ mailcow_install_path }}"
     state: present
+  when: not ansible_check_mode
   register: mailcow_compose_result
 
 # Health check
@@ -187,6 +198,7 @@
   delay: 10
   until: mailcow_health.status in [200, 301, 302]
   failed_when: false
+  when: not ansible_check_mode
 
 - name: Display mailcow status
   ansible.builtin.debug:

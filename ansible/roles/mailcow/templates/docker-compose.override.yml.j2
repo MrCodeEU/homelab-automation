@@ -1,6 +1,6 @@
 # Mailcow Docker Compose Override
 # Managed by Ansible - do not edit manually
-# Generated: {{ ansible_date_time.iso8601 | default('N/A') }}
+# Generated: {{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}
 #
 # Note: Port configuration is handled via mailcow.conf:
 #   HTTP_PORT={{ mailcow_http_port }}, HTTP_BIND={{ mailcow_http_bind }}

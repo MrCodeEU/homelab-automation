@@ -43,7 +43,9 @@
     src: rclone.conf.j2
     dest: "{{ backup_rclone_config_path }}/rclone.conf"
     mode: '0600'
-  when: secrets.backup.pcloud_token | length > 0
+  when:
+    - secrets.backup.pcloud_token | length > 0
+    - not ansible_check_mode
   no_log: true
 
 - name: Check if rclone is configured
@@ -59,6 +61,7 @@
   when:
     - is_fresh_install
     - rclone_config.stat.exists
+    - not ansible_check_mode
   block:
     - name: List available backups
       ansible.builtin.command:
@@ -156,7 +159,7 @@
   ansible.builtin.copy:
     content: |
       # Homelab Initialization Flag
-      # Created: {{ ansible_date_time.iso8601 }}
+      # Created: {{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}
       # Host: {{ inventory_hostname }}
       #
       # This file indicates that the host has been initialized.
