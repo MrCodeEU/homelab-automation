@@ -1,29 +1,325 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>{{ dashboard_name }}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployment Status - {{ domain }}</title>
     <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .service { margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
-        .service a { text-decoration: none; color: #333; font-weight: bold; }
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent: #3b82f6;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --border: #475569;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--accent), #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .info-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .info-card h3 {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .info-card .value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .info-card .value.success { color: var(--success); }
+        .info-card .value.warning { color: var(--warning); }
+        .info-card .value.staging { color: var(--warning); }
+
+        section {
+            margin-bottom: 3rem;
+        }
+
+        section h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--accent);
+            display: inline-block;
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .service-card {
+            background: var(--bg-secondary);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: transform 0.2s, border-color 0.2s;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .service-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+        }
+
+        .service-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .service-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .service-name {
+            font-weight: 600;
+            font-size: 1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .service-desc {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .service-host {
+            font-size: 0.75rem;
+            color: var(--accent);
+            background: rgba(59, 130, 246, 0.1);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        .service-card.staging .service-host {
+            color: var(--warning);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .host-section {
+            margin-bottom: 2rem;
+        }
+
+        .host-section h3 {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .host-badge {
+            font-size: 0.75rem;
+            background: var(--bg-card);
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            border-top: 1px solid var(--border);
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .staging-banner {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(234, 88, 12, 0.2));
+            border: 1px solid var(--warning);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+
+        .staging-banner strong {
+            color: var(--warning);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            h1 {
+                font-size: 1.75rem;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .services-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>{{ dashboard_name }}</h1>
-    <div class="deployment-info">
-        <strong>Deployment Info:</strong><br>
-        Generated: {{ ansible_facts['date_time']['iso8601'] }}<br>
-        Domain: {{ domain }}<br>
+    <div class="container">
+        <header>
+            <h1>{{ dashboard_name }}</h1>
+            <p class="subtitle">Deployment Status & Service Overview</p>
+        </header>
+
+{% if is_staging_deployment | default(false) %}
+        <div class="staging-banner">
+            <strong>STAGING ENVIRONMENT</strong> - Services are running in development mode
+        </div>
+{% endif %}
+
+        <div class="info-grid">
+            <div class="info-card">
+                <h3>Deployment Time</h3>
+                <div class="value">{{ ansible_date_time.iso8601 }}</div>
+            </div>
+            <div class="info-card">
+                <h3>Environment</h3>
+                <div class="value {% if is_staging_deployment | default(false) %}staging{% else %}success{% endif %}">
+                    {{ 'Staging' if is_staging_deployment | default(false) else 'Production' }}
+                </div>
+            </div>
+            <div class="info-card">
+                <h3>Total Services</h3>
+                <div class="value">{{ services | selectattr('enabled', 'defined') | selectattr('enabled') | list | length }}</div>
+            </div>
+            <div class="info-card">
+                <h3>Domain</h3>
+                <div class="value">{{ domain }}</div>
+            </div>
+        </div>
+
+        <section>
+            <h2>Services by Host</h2>
+
+{% set hosts = services | selectattr('enabled', 'defined') | selectattr('enabled') | map(attribute='host') | unique | list %}
+{% for host in hosts %}
+            <div class="host-section">
+                <h3>
+                    {{ host }}
+                    <span class="host-badge">{{ services | selectattr('enabled', 'defined') | selectattr('enabled') | selectattr('host', 'equalto', host) | list | length }} services</span>
+                </h3>
+                <div class="services-grid">
+{% for service in services | selectattr('enabled', 'defined') | selectattr('enabled') | selectattr('host', 'equalto', host) %}
+                    <a href="https://{{ service.domain if service.domain is string else service.domain[0] }}"
+                       class="service-card{% if service.staging | default(false) %} staging{% endif %}"
+                       target="_blank">
+                        <div class="service-icon">
+{% if service.icon is defined %}
+                            <span title="{{ service.icon }}">{{ service.icon.split(':')[1][:2] | upper }}</span>
+{% else %}
+                            <span>{{ service.name[:2] | upper }}</span>
+{% endif %}
+                        </div>
+                        <div class="service-info">
+                            <div class="service-name">{{ service.name }}</div>
+                            <div class="service-desc">{{ service.description | default('') }}</div>
+                        </div>
+                        <div class="service-host">
+{% if service.managed | default(true) == false %}
+                            external
+{% elif service.staging | default(false) %}
+                            staging
+{% else %}
+                            :{{ service.port }}
+{% endif %}
+                        </div>
+                    </a>
+{% endfor %}
+                </div>
+            </div>
+{% endfor %}
+        </section>
+
+        <footer>
+            <p>Managed by <a href="https://github.com/MrCodeEU/homelab-automation">homelab-automation</a></p>
+            <p>Powered by Ansible + Caddy + Tailscale</p>
+        </footer>
     </div>
-    <hr>
-    {% for service in services %}
-    {% if service.enabled | default(true) %}
-    <div class="service">
-        <a href="https://{{ service.domain if service.domain is string else service.domain[0] }}">
-            {{ service.name }} ({{ service.description }})
-        </a>
-    </div>
-    {% endif %}
-    {% endfor %}
 </body>
 </html>

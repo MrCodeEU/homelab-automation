@@ -1,56 +1,52 @@
 ---
-# Main site playbook - optimized for speed
-# Uses free strategy for parallel execution where possible
+# Homelab Automation - Main Playbook
+# ============================================================================
+# Deploys and configures all services across managed hosts
 #
-# Host groups:
-#   - rocky: Fully managed Rocky Linux servers
-#   - unraid: Unraid NAS (managed via scripts)
-#   - proxy_only: Hosts only used for Caddy reverse proxy (no SSH access)
+# Host Groups:
+#   - managed: Full Ansible deployment (base, docker, services)
+#   - rocky: Rocky Linux servers (subset of managed)
+#   - unraid: Unraid NAS hosts
+#   - proxy_only: Only used for Caddy configuration
+#
+# Tags:
+#   - base: System packages and Docker
+#   - caddy: Reverse proxy configuration
+#   - services: Docker Compose services
+#   - backup: Backup and restore
+#   - security: Fail2ban and security
+#   - glance: Dashboard
+#   - mailcow: Mail server
+# ============================================================================
 
-# Gather facts first - from managed hosts and proxy_only (needed for Caddy template)
+# Gather facts from all hosts (needed for Caddy template)
 - name: Gather Facts
-  hosts: rocky:unraid:proxy_only
+  hosts: managed:proxy_only
   gather_facts: true
   gather_subset:
     - min
     - os_family
     - distribution
     - service_mgr
+    - date_time
   tags:
     - always
-  tasks: []
 
+# ============================================================================
+# Base Setup (Rocky Linux hosts only)
+# ============================================================================
 - name: Base Setup
   hosts: rocky
   become: true
-  gather_facts: false  # Already gathered above
+  gather_facts: false
   tags:
     - base
-    - common
-    - docker
   roles:
-    - common
-    - docker
+    - base
 
-- name: Caddy Setup
-  hosts: rocky
-  become: true
-  gather_facts: false  # Already gathered in base setup
-  tags:
-    - caddy
-  pre_tasks:
-    - name: Build list of services for staging deployment
-      ansible.builtin.set_fact:
-        services_with_dev: "{{ (services | selectattr('staging', 'undefined') | map(attribute='name') | list) + (services | selectattr('staging', 'defined') | selectattr('staging') | map(attribute='name') | list) }}"
-      when: is_staging_deployment | default(false)
-
-    - name: Set empty list for production deployment
-      ansible.builtin.set_fact:
-        services_with_dev: []
-      when: not (is_staging_deployment | default(false))
-  roles:
-    - caddy
-
+# ============================================================================
+# Security
+# ============================================================================
 - name: Security Setup
   hosts: rocky
   become: true
@@ -61,19 +57,34 @@
   roles:
     - fail2ban
 
-- name: Glance Setup
+# ============================================================================
+# Backup (before services to enable restore on fresh install)
+# ============================================================================
+- name: Backup Setup
+  hosts: rocky
+  become: true
+  gather_facts: false
+  tags:
+    - backup
+  roles:
+    - backup
+
+# ============================================================================
+# Services
+# ============================================================================
+- name: Glance Dashboard
   hosts: mljr
   become: true
-  gather_facts: false  # Already gathered in base setup
+  gather_facts: false
   tags:
     - glance
   roles:
     - glance
 
-- name: Mailcow Setup
+- name: Mailcow Mail Server
   hosts: mljr
   become: true
-  gather_facts: false  # Already gathered in base setup
+  gather_facts: false
   tags:
     - mailcow
   vars:
@@ -81,29 +92,24 @@
   roles:
     - mailcow
 
-- name: Backup Setup
-  hosts: mljr
-  become: true
-  gather_facts: false
-  tags:
-    - backup
-  roles:
-    - backup
-
-- name: Services Setup
+- name: Docker Services
   hosts: rocky
   become: true
-  gather_facts: false  # Already gathered above
-  strategy: free  # Run tasks in parallel across hosts
+  gather_facts: false
+  strategy: free
   tags:
     - services
   roles:
     - services
 
-- name: Unraid Setup
-  hosts: unraid
+# ============================================================================
+# Caddy Reverse Proxy (always last)
+# ============================================================================
+- name: Caddy Setup
+  hosts: rocky
+  become: true
   gather_facts: false
   tags:
-    - unraid
+    - caddy
   roles:
-    - unraid
+    - caddy

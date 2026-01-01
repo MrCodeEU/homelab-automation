@@ -1,25 +1,51 @@
 ---
+# Homelab Automation - Global Configuration
+# ============================================================================
+
+# Domain and general settings
 domain: "mljr.eu"
 email: "admin@mljr.eu"
+timezone: "Europe/Vienna"
 location: "Thaling, Austria"
 dashboard_name: "Homelab Dashboard"
-timezone: "Europe/Vienna"
 
-# Services managed by dedicated Ansible roles (excluded from generic
-# services role)
-services_excluded_from_generic_deployment:
-  - glance
-  - mailcow
+# Staging configuration
+# When is_staging=true, services get deployed with:
+# - Port offset: port + 10000 (e.g., 8080 -> 18080)
+# - Domain prefix: <service>.dev.<domain> (e.g., dash.dev.mljr.eu)
+# - Separate deployment path: /opt/staging/<service>
+staging_port_offset: 10000
+staging_domain_prefix: "dev"
+
+# ============================================================================
+# Services Configuration
+# ============================================================================
+# Each service can have:
+#   name        - Service identifier (required)
+#   enabled     - Whether to deploy (default: true)
+#   domain      - Domain(s) for Caddy proxy (string or list)
+#   port        - Internal port
+#   host        - Target host from inventory
+#   description - Human-readable description
+#   icon        - Material Design Icon for dashboard
+#   managed     - If false, only configure Caddy (external service)
+#   staging     - If true, also deploy staging version (+10000 port)
+#   caddy_auth  - Set to "basicauth" for password protection
+#   skip_deploy - Skip generic deployment (uses dedicated role)
+# ============================================================================
 
 services:
+  # Dashboard
   - name: glance
     enabled: true
     domain: "dash.mljr.eu"
     port: 8080
     host: mljr
-    description: "Main dashboard"
+    description: "Main Dashboard"
     icon: "mdi:view-dashboard"
+    skip_deploy: true  # Uses dedicated role
 
+  # Health Monitoring
   - name: nightscout
     enabled: true
     domain:
@@ -29,24 +55,26 @@ services:
     host: mljr
     description: "CGM Monitor"
     icon: "mdi:diabetes"
+    staging: true  # Has staging environment
 
   - name: kuma
     enabled: true
-    host: mljr
-    skip_deploy: false
     domain: "uptime.mljr.eu"
     port: 3001
+    host: mljr
     description: "Uptime Monitoring"
     icon: "mdi:heart-pulse"
 
+  # Notifications
   - name: ntfy
     enabled: true
-    host: mljr
     domain: "ntfy.mljr.eu"
     port: 2586
+    host: mljr
     description: "Push Notifications"
     icon: "mdi:bell-ring"
 
+  # Analytics & Logs
   - name: goaccess
     enabled: true
     domain: "logs.mljr.eu"
@@ -56,185 +84,212 @@ services:
     icon: "mdi:chart-bar"
     caddy_auth: "basicauth"
 
+  # External Services (proxy only)
   - name: homeassistant
     enabled: true
     managed: false
     domain: "home.mljr.eu"
     port: 8123
+    host: pi
     description: "Home Automation"
     icon: "mdi:home-assistant"
-    host: pi
 
+  # Email
   - name: bichon
     enabled: true
     domain: "mail-archive.mljr.eu"
     port: 15630
-    description: "Email archiver (Bichon)"
-    icon: "mdi:email"
     host: mljr
+    description: "Email Archiver"
+    icon: "mdi:email"
 
   - name: mailcow
     enabled: true
     domain: "mail.mljr.eu"
     port: 8081
+    host: mljr
     description: "Mail Server"
     icon: "mdi:email-server"
-    host: mljr
+    skip_deploy: true  # Uses dedicated role
 
-  - name: immich
-    enabled: true
-    domain: "immich.mljr.eu"
-    port: 8080
-    description: "Photo Management"
-    icon: "mdi:image-multiple"
-    host: nas
-
+  # Security
   - name: fail2ban-ui
     enabled: true
     domain: "security.mljr.eu"
     port: 5000
     host: mljr
-    description: "Fail2ban Management UI"
+    description: "Security Monitor"
     icon: "mdi:shield-lock"
     caddy_auth: "basicauth"
 
-  - name: nas
-    enabled: true
-    domain: "nas.mljr.eu"
-    port: 80
-    description: "Nas UnRaid Management UI"
-    icon: "mdi:server"
-    host: nas
-
-  - name: nextcloud
-    enabled: true
-    domain: "cloud.mljr.eu"
-    port: 11000
-    description: "Nextcloud Instance on Unraid NAS"
-    icon: "mdi:cloud"
-    host: nas
-
-  - name: homeserver-ui
-    enabled: true
-    domain: "nuc.mljr.eu"
-    port: 80
-    description: "Home Server Management UI"
-    icon: "mdi:server"
-    host: homeserver
-
-  - name: stats
-    enabled: true
-    domain: "stats.mljr.eu"
-    port: 3000
-    description: "Statistics Dashboard"
-    icon: "mdi:chart-line"
-    host: nas
-
+  # Container Management
   - name: dockge
     enabled: true
     domain: "dockge.mljr.eu"
     port: 5001
-    description: "Docker Compose Manager"
+    host: mljr
+    description: "Docker Manager"
     icon: "mdi:docker"
-    host: mljr
-
-  - name: homepage
-    enabled: true
-    domain: "mljr.eu"
-    port: 8080
-    description: "Personal Homepage"
-    icon: "mdi:account-circle"
-    host: mljr
-    source: apps
-    staging: false
-
-  - name: deployment-status
-    enabled: true
-    domain: "deployment-status.mljr.eu"
-    port: 8081
-    description: "Deployment Status Page"
-    icon: "mdi:information"
-    host: mljr
-    skip_deploy: true  # Handled by Caddy role
-
-  - name: syncthing
-    enabled: true
-    domain: "sync.mljr.eu"
-    port: 8384
-    description: "File Synchronization"
-    icon: "mdi:sync"
-    host: nas
 
   - name: wud
     enabled: true
     domain: "wud.mljr.eu"
     port: 3000
-    description: "What's Up Docker"
-    icon: "mdi:docker"
     host: mljr
+    description: "Docker Updates"
+    icon: "mdi:update"
+
+  # Personal
+  - name: homepage
+    enabled: true
+    domain: "mljr.eu"
+    port: 8082
+    host: mljr
+    description: "Personal Homepage"
+    icon: "mdi:account-circle"
+    staging: true  # Has staging environment
+
+  # Deployment Status
+  - name: deployment-status
+    enabled: true
+    domain: "deploy.mljr.eu"
+    port: 8083
+    host: mljr
+    description: "Deployment Status"
+    icon: "mdi:information"
+    skip_deploy: true  # Generated by Caddy role
+
+  # NAS Services (Unraid)
+  - name: nas
+    enabled: true
+    managed: false
+    domain: "nas.mljr.eu"
+    port: 80
+    host: nas
+    description: "NAS Management"
+    icon: "mdi:server"
+
+  - name: immich
+    enabled: true
+    managed: false
+    domain: "immich.mljr.eu"
+    port: 8080
+    host: nas
+    description: "Photo Management"
+    icon: "mdi:image-multiple"
+
+  - name: nextcloud
+    enabled: true
+    managed: false
+    domain: "cloud.mljr.eu"
+    port: 11000
+    host: nas
+    description: "Cloud Storage"
+    icon: "mdi:cloud"
+
+  - name: syncthing
+    enabled: true
+    managed: false
+    domain: "sync.mljr.eu"
+    port: 8384
+    host: nas
+    description: "File Sync"
+    icon: "mdi:sync"
 
   - name: filebrowser
     enabled: true
+    managed: false
     domain: "files.mljr.eu"
     port: 5687
+    host: nas
     description: "File Browser"
     icon: "mdi:folder"
-    host: nas
 
-  - name: sonarqube
+  - name: stats
     enabled: true
-    domain: "sonarqube.mljr.eu"
-    port: 9000
-    description: "Code Quality Analysis"
-    icon: "mdi:code-braces"
-    host: homeserver
+    managed: false
+    domain: "stats.mljr.eu"
+    port: 3000
+    host: nas
+    description: "Statistics"
+    icon: "mdi:chart-line"
 
   - name: projects
     enabled: true
+    managed: false
     domain: "projects.mljr.eu"
     port: 3456
+    host: nas
     description: "Project Management"
     icon: "mdi:clipboard-list"
-    host: nas
-
-  - name: grafana
-    enabled: true
-    domain: "grafana.mljr.eu"
-    port: 3000
-    description: "Metrics & Monitoring"
-    icon: "mdi:chart-areaspline"
-    host: monitoring
 
   - name: pairdrop
     enabled: true
+    managed: false
     domain: "share.mljr.eu"
     port: 3054
-    description: "File Sharing (PairDrop)"
-    icon: "mdi:share-variant"
     host: nas
+    description: "File Sharing"
+    icon: "mdi:share-variant"
+
+  # Home Server (NUC - will be Rocky Linux)
+  - name: homeserver-ui
+    enabled: true
+    managed: false  # Will change to true when NUC runs Rocky
+    domain: "nuc.mljr.eu"
+    port: 80
+    host: nuc
+    description: "Home Server"
+    icon: "mdi:server"
+
+  - name: sonarqube
+    enabled: true
+    managed: false  # Will change to true when NUC runs Rocky
+    domain: "sonarqube.mljr.eu"
+    port: 9000
+    host: nuc
+    description: "Code Quality"
+    icon: "mdi:code-braces"
 
   - name: jenkins
     enabled: true
+    managed: false  # Will change to true when NUC runs Rocky
     domain: "jenkins.mljr.eu"
     port: 6857
-    description: "CI/CD Automation"
+    host: nuc
+    description: "CI/CD"
     icon: "mdi:pipe"
-    host: homeserver
 
+  # Monitoring Host
+  - name: grafana
+    enabled: true
+    managed: false
+    domain: "grafana.mljr.eu"
+    port: 3000
+    host: monitoring
+    description: "Metrics & Monitoring"
+    icon: "mdi:chart-areaspline"
 
-# Secrets (injected via environment variables)
-nightscout_api_secret: "{{ lookup('env', 'NIGHTSCOUT_API_SECRET') }}"
-link_up_username: "{{ lookup('env', 'LINK_UP_USERNAME') }}"
-link_up_password: "{{ lookup('env', 'LINK_UP_PASSWORD') }}"
-nightscout_api_token: "{{ lookup('env', 'NIGHTSCOUT_API_TOKEN') }}"
-nightscout_domain: "{{ lookup('env', 'NIGHTSCOUT_DOMAIN') }}"
-bichon_encrypt_password: "{{ lookup('env', 'BICHON_ENCRYPT_PASSWORD') }}"
-caddy_admin_hash: "{{ lookup('env', 'CADDY_AUTH_PASSWORD_HASH') }}"
-caddy_auth_user: "{{ lookup('env', 'CADDY_AUTH_USER') }}"
-kuma_username: "{{ lookup('env', 'KUMA_USERNAME') }}"
-kuma_password: "{{ lookup('env', 'KUMA_PASSWORD') }}"
-github_username: "{{ lookup('env', 'GITHUB_USERNAME') }}"
-github_token: "{{ lookup('env', 'GITHUB_TOKEN') }}"
+# ============================================================================
+# Role-specific variables
+# ============================================================================
 
-# Backup configuration (pCloud OAuth token - obtain via `rclone config`)
-backup_pcloud_token: "{{ lookup('env', 'PCLOUD_TOKEN') }}"
+# Backup configuration
+backup_enabled: true
+backup_schedule: "0 3 * * *"  # Daily at 3 AM
+backup_retention_days: 30
+backup_remote_name: "pcloud"
+backup_remote_path: "homelab-backups"
+backup_local_path: "/opt/backups"
+backup_rclone_config_path: "/root/.config/rclone"
+backup_auto_detect_volumes: true
+
+# Mailcow configuration
+mailcow_install_path: "/opt/mailcow-dockerized"
+mailcow_repo_url: "https://github.com/mailcow/mailcow-dockerized"
+mailcow_version: "master"
+mailcow_timezone: "{{ timezone }}"
+mailcow_http_port: 8081
+mailcow_https_port: 8443
+mailcow_http_bind: "127.0.0.1"
+mailcow_auto_update: false
