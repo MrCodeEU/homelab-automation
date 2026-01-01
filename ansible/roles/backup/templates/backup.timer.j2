@@ -5,6 +5,7 @@ Description=Homelab Backup Timer
 OnCalendar={{ backup_schedule }}
 Persistent=true
 RandomizedDelaySec=15min
+Unit=homelab-backup.service
 
 [Install]
 WantedBy=timers.target
