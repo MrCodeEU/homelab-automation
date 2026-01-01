@@ -1,6 +1,5 @@
 [Unit]
 Description=Homelab Backup Service
-Documentation=file://{{ backup_local_path }}/scripts/backup.sh
 After=network-online.target docker.service
 Wants=network-online.target
 
