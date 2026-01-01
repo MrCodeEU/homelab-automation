@@ -213,11 +213,12 @@
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ mailcow_http_port }}"
     status_code: [200, 301, 302]
+    timeout: 5
   register: mailcow_health
-  retries: 30
-  delay: 10
+  retries: 12
+  delay: 5
   until: mailcow_health.status in [200, 301, 302]
-  failed_when: false
+  failed_when: false  # Don't block deployment if mailcow is slow to start
   when: not ansible_check_mode
 
 - name: Display mailcow status
