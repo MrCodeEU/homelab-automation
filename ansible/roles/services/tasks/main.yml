@@ -97,7 +97,8 @@
   when:
     - not ansible_check_mode
     - item.ansible_job_id is defined
-  failed_when: job_result.failed | default(false)
+  failed_when: false  # Don't fail the play - collect errors instead
+  ignore_errors: true
 
 # ============================================================================
 # Staging Deployment (only when is_staging_deployment is true)
@@ -145,7 +146,8 @@
     - is_staging_deployment | default(false)
     - not ansible_check_mode
     - item.ansible_job_id is defined
-  failed_when: staging_job_result.failed | default(false)
+  failed_when: false  # Don't fail the play - collect errors instead
+  ignore_errors: true
 
 # ============================================================================
 # Health Checks
@@ -244,3 +246,80 @@
       when:
         - kuma_provision is defined
         - kuma_provision is succeeded
+
+# ============================================================================
+# Deployment Summary and Error Reporting
+# ============================================================================
+
+- name: Collect failed production deployments
+  ansible.builtin.set_fact:
+    failed_production_services: >-
+      {%- set failed = [] -%}
+      {%- for result in job_result.results | default([]) -%}
+        {%- if result.failed | default(false) or result.msg is defined and 'Error' in result.msg -%}
+          {%- set service_name = ((result.item.service | default(result.item.item)) | default({'name': 'unknown'})).name -%}
+          {%- set error_msg = result.msg | default('Unknown error') -%}
+          {%- set _ = failed.append({'name': service_name, 'error': error_msg}) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ failed }}
+  when:
+    - not ansible_check_mode
+    - job_result is defined
+
+- name: Collect failed staging deployments
+  ansible.builtin.set_fact:
+    failed_staging_services: >-
+      {%- set failed = [] -%}
+      {%- for result in staging_job_result.results | default([]) -%}
+        {%- if result.failed | default(false) or result.msg is defined and 'Error' in result.msg -%}
+          {%- set service_name = ((result.item.service | default(result.item.item)) | default({'name': 'unknown'})).name -%}
+          {%- set error_msg = result.msg | default('Unknown error') -%}
+          {%- set _ = failed.append({'name': service_name, 'error': error_msg}) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ failed }}
+  when:
+    - not ansible_check_mode
+    - is_staging_deployment | default(false)
+    - staging_job_result is defined
+
+- name: Display deployment summary
+  ansible.builtin.debug:
+    msg: |
+      ============================================================================
+      DEPLOYMENT SUMMARY
+      ============================================================================
+      Production Services: {{ host_services | length }} total
+      {% if failed_production_services | default([]) | length > 0 %}
+      Failed: {{ failed_production_services | length }}
+      {% for svc in failed_production_services %}
+        - {{ svc.name }}: {{ svc.error | regex_replace('\n', ' ') | truncate(100) }}
+      {% endfor %}
+      {% else %}
+      All production services deployed successfully!
+      {% endif %}
+      {% if is_staging_deployment | default(false) %}
+
+      Staging Services: {{ host_services | selectattr('staging', 'defined') | selectattr('staging') | list | length }} total
+      {% if failed_staging_services | default([]) | length > 0 %}
+      Failed: {{ failed_staging_services | length }}
+      {% for svc in failed_staging_services %}
+        - {{ svc.name }}: {{ svc.error | regex_replace('\n', ' ') | truncate(100) }}
+      {% endfor %}
+      {% else %}
+      All staging services deployed successfully!
+      {% endif %}
+      {% endif %}
+      ============================================================================
+  when: not ansible_check_mode
+
+- name: Fail if critical services failed
+  ansible.builtin.fail:
+    msg: "Critical services failed to deploy: {{ failed_production_services | selectattr('name', 'in', critical_services) | map(attribute='name') | join(', ') }}"
+  when:
+    - not ansible_check_mode
+    - critical_services | default([]) | length > 0
+    - failed_production_services | default([]) | selectattr('name', 'in', critical_services) | list | length > 0
+  vars:
+    critical_services: ['caddy', 'kuma', 'ntfy']  # Services that must succeed for deployment to pass

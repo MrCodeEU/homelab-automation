@@ -55,6 +55,17 @@ jobs:
           echo "is_staging=$IS_STAGING" >> $GITHUB_OUTPUT
           echo "Environment: $([ "$IS_STAGING" == "true" ] && echo 'staging' || echo 'production')"
 
+      - name: Cache Tailscale
+        id: cache-tailscale
+        uses: actions/cache@v4
+        with:
+          path: |
+            /usr/bin/tailscale
+            /usr/sbin/tailscaled
+          key: tailscale-${{ runner.os }}-${{ hashFiles('.github/workflows/deploy.yml') }}
+          restore-keys: |
+            tailscale-${{ runner.os }}-
+
       - name: Setup Tailscale
         uses: tailscale/github-action@v3
         with:
@@ -62,11 +73,15 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      - name: Cache Ansible
+      - name: Cache Ansible and Collections
         uses: actions/cache@v4
         with:
-          path: ~/.local
-          key: ansible-${{ runner.os }}-v2
+          path: |
+            ~/.local
+            ~/.ansible/collections
+          key: ansible-${{ runner.os }}-${{ hashFiles('ansible/requirements.yml') }}-v3
+          restore-keys: |
+            ansible-${{ runner.os }}-
 
       - name: Install Ansible
         run: pip install --user ansible
@@ -136,9 +151,17 @@ jobs:
             TAGS="services,caddy"
           fi
 
-          curl -s \
-            -H "Title: Deployment $STATUS" \
-            -H "Priority: $PRIORITY" \
-            -H "Tags: ansible,homelab" \
-            -d "$EMOJI Homelab deployed (limit: $LIMIT, tags: $TAGS)" \
-            https://ntfy.mljr.eu/deployment || true
+          # Check if ntfy is reachable first (3 second timeout)
+          if curl -s --connect-timeout 3 --max-time 3 https://ntfy.mljr.eu/deployment -o /dev/null; then
+            echo "Sending notification to ntfy..."
+            curl -s \
+              --connect-timeout 5 \
+              --max-time 10 \
+              -H "Title: Deployment $STATUS" \
+              -H "Priority: $PRIORITY" \
+              -H "Tags: ansible,homelab" \
+              -d "$EMOJI Homelab deployed (limit: $LIMIT, tags: $TAGS)" \
+              https://ntfy.mljr.eu/deployment || echo "Failed to send notification"
+          else
+            echo "⚠️  Ntfy service is not reachable, skipping notification"
+          fi
