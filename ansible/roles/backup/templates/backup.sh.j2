@@ -3,7 +3,7 @@
 # Managed by Ansible - do not edit manually
 # Generated: {{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}
 
-set -uo pipefail
+set -euo pipefail
 
 # Configuration
 REMOTE="{{ backup_remote_name }}:{{ backup_remote_path }}"
@@ -11,12 +11,28 @@ LOCAL_PATH="{{ backup_local_path }}"
 LOG_FILE="${LOCAL_PATH}/logs/backup-$(date +%Y%m%d).log"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RETENTION_DAYS={{ backup_retention_days }}
+{% if secrets.ntfy is defined and secrets.ntfy.url is defined %}
+NTFY_URL="{{ secrets.ntfy.url | default('https://ntfy.mljr.eu') }}"
+NTFY_TOPIC="{{ secrets.ntfy.topic | default('backup') }}"
+{% endif %}
 
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+
+# Error handler
+error_handler() {
+    local line_number=$1
+    local error_code=$2
+    log_error "Script failed at line $line_number with exit code $error_code"
+    send_notification "❌ Backup failed at line $line_number" "high"
+    exit "$error_code"
+}
+
+# Set error trap
+trap 'error_handler ${LINENO} $?' ERR
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
@@ -32,6 +48,20 @@ log_success() {
 
 log_warn() {
     echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: $1${NC}" | tee -a "$LOG_FILE"
+}
+
+send_notification() {
+    local message="$1"
+    local priority="${2:-default}"
+{% if secrets.ntfy is defined and secrets.ntfy.url is defined %}
+    curl -s -X POST "${NTFY_URL}/${NTFY_TOPIC}" \
+        -H "Title: Homelab Backup" \
+        -H "Priority: ${priority}" \
+        -H "Tags: backup,homelab" \
+        -d "$message" >/dev/null 2>&1 || log_warn "Failed to send notification"
+{% else %}
+    log "Notification: $message"
+{% endif %}
 }
 
 backup_volume() {
@@ -194,10 +224,12 @@ main() {
 
     if [ ${#failed_services[@]} -gt 0 ]; then
         log_error "Failed services: ${failed_services[*]}"
+        send_notification "❌ Backup failed for: ${failed_services[*]}" "high"
         exit 1
     fi
 
     log_success "All backups completed successfully!"
+    send_notification "✅ All backups completed successfully ($success_count/$total_count)" "default"
     exit 0
 }
 

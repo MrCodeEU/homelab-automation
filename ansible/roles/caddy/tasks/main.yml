@@ -71,12 +71,12 @@
     owner: caddy
     group: caddy
   loop:
-    - /opt/caddy
-    - /opt/caddy/site
+    - "{{ base_path }}/caddy"
+    - "{{ base_path }}/caddy/site"
 
 - name: Create Caddy log directory
   ansible.builtin.file:
-    path: /var/log/caddy
+    path: "{{ log_path }}/caddy"
     state: directory
     mode: '0755'
     owner: caddy
@@ -85,7 +85,7 @@
 
 - name: Ensure Caddy can write to log directory (SELinux)
   ansible.builtin.command:
-    cmd: restorecon -Rv /var/log/caddy
+    cmd: restorecon -Rv {{ log_path }}/caddy
   changed_when: false
   failed_when: false
   when: ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
@@ -130,7 +130,7 @@
 - name: Generate Caddyfile
   ansible.builtin.template:
     src: Caddyfile.j2
-    dest: /etc/caddy/Caddyfile
+    dest: "{{ config_path }}/caddy/Caddyfile"
     owner: caddy
     group: caddy
     mode: '0644'
@@ -139,7 +139,7 @@
 - name: Generate index.html
   ansible.builtin.template:
     src: index.html.j2
-    dest: /opt/caddy/site/index.html
+    dest: "{{ base_path }}/caddy/site/index.html"
     owner: caddy
     group: caddy
     mode: '0644'

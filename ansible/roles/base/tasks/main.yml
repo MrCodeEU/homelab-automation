@@ -145,12 +145,26 @@
   register: docker_python_pkg
   failed_when: false
 
-- name: Install Docker Python SDK (pip fallback)
-  ansible.builtin.pip:
-    name: docker
-    state: present
-    extra_args: "{{ '--break-system-packages' if ansible_facts['os_family'] == 'Debian' else omit }}"
+- name: Install Docker Python SDK (pip with venv fallback)
   when: docker_python_pkg is failed
+  block:
+    - name: Create virtual environment for Ansible
+      ansible.builtin.pip:
+        name:
+          - docker
+          - docker-compose
+        virtualenv: /opt/ansible-venv
+        virtualenv_command: python3 -m venv
+        state: present
+      register: docker_venv_install
+      failed_when: false
+
+    - name: Install Docker Python SDK (pip system-wide fallback)
+      ansible.builtin.pip:
+        name: docker
+        state: present
+      when: docker_venv_install is failed
+      # Note: This may require pip installed via OS package manager
 
 # ============================================================================
 # Docker Prune (only when explicitly tagged)
