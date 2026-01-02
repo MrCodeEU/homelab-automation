@@ -134,7 +134,7 @@
     owner: caddy
     group: caddy
     mode: '0644'
-    validate: caddy validate --config %s
+    validate: caddy validate --adapter caddyfile --config %s
   notify: Reload Caddy
 
 - name: Generate index.html
