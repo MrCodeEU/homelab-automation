@@ -8,7 +8,7 @@
   ansible.builtin.command: systemctl is-active caddy
   register: caddy_active_check
   changed_when: false
-  failed_when: caddy_active_check.stdout != 'active'
+  failed_when: caddy_active_check.rc != 0
   listen: Reload Caddy
 
 - name: Display Caddy reload status
