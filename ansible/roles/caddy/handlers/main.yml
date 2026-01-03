@@ -3,3 +3,15 @@
   ansible.builtin.service:
     name: caddy
     state: reloaded
+
+- name: Verify Caddy reloaded successfully
+  ansible.builtin.command: systemctl is-active caddy
+  register: caddy_active_check
+  changed_when: false
+  failed_when: caddy_active_check.rc != 0
+  listen: Reload Caddy
+
+- name: Display Caddy reload status
+  ansible.builtin.debug:
+    msg: "Caddy service reloaded and is {{ caddy_active_check.stdout }}"
+  listen: Reload Caddy
