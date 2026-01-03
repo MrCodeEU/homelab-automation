@@ -12,8 +12,9 @@ deploy.{{ domain }} {
     root * {{ base_path }}/caddy/site
     file_server
     log {
-        output file {{ log_path }}/caddy/access.log
-        format json
+        output file {{ log_path }}/caddy/deploy.log {
+            roll_disabled
+        }
     }
 }
 
@@ -34,8 +35,9 @@ deploy.{{ domain }} {
 {{ service.domain | join(', ') }} {
 {% endif %}
     log {
-        output file {{ log_path }}/caddy/access.log
-        format json
+        output file {{ log_path }}/caddy/{{ service.name }}.log {
+            roll_disabled
+        }
     }
 {% if service.name == 'goaccess' %}
     # WebSocket support for GoAccess real-time updates
@@ -97,8 +99,9 @@ deploy.{{ domain }} {
 {{ staging_domains | join(', ') }} {
 {% endif %}
     log {
-        output file {{ log_path }}/caddy/access.log
-        format json
+        output file {{ log_path }}/caddy/{{ service.name }}-staging.log {
+            roll_disabled
+        }
     }
 {% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
     basicauth {

@@ -83,6 +83,13 @@
     group: caddy
     setype: var_log_t
 
+- name: Ensure existing log files have correct permissions
+  ansible.builtin.shell: |
+    chown -R caddy:caddy {{ log_path }}/caddy
+    chmod -R 0755 {{ log_path }}/caddy
+  changed_when: false
+  failed_when: false
+
 - name: Ensure Caddy can write to log directory (SELinux)
   ansible.builtin.command:
     cmd: restorecon -Rv {{ log_path }}/caddy
@@ -150,6 +157,47 @@
     name: caddy
     state: started
     enabled: true
+
+- name: Wait for Caddy to be ready
+  ansible.builtin.wait_for:
+    port: 443
+    host: 0.0.0.0
+    timeout: 30
+    delay: 2
+  ignore_errors: true
+  register: caddy_port_check
+
+- name: Check Caddy service status
+  ansible.builtin.command: systemctl status caddy
+  register: caddy_status
+  changed_when: false
+  failed_when: false
+
+- name: Display Caddy status
+  ansible.builtin.debug:
+    msg: |
+      Caddy Service Status:
+      {{ caddy_status.stdout }}
+      
+      Port 443 Check: {{ 'OK' if caddy_port_check is succeeded else 'FAILED' }}
+
+- name: Verify Caddy configuration is loaded
+  ansible.builtin.uri:
+    url: "https://deploy.{{ domain }}"
+    validate_certs: false
+    return_content: false
+    status_code: [200, 301, 302]
+  register: caddy_test
+  ignore_errors: true
+  changed_when: false
+
+- name: Report Caddy configuration test result
+  ansible.builtin.debug:
+    msg: |
+      Caddy Configuration Test: {{ 'OK' if caddy_test is succeeded else 'FAILED - Caddy may not be properly configured' }}
+      {% if caddy_test is failed %}
+      Error: {{ caddy_test.msg | default('Unknown error') }}
+      {% endif %}
 
 - name: Check for conflicting web servers
   ansible.builtin.service_facts:
