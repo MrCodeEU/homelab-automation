@@ -193,11 +193,13 @@
 
 - name: Report Caddy configuration test result
   ansible.builtin.debug:
-    msg: |
-      Caddy Configuration Test: {{ 'OK' if caddy_test is succeeded else 'FAILED - Caddy may not be properly configured' }}
-      {% if caddy_test is failed %}
-      Error: {{ caddy_test.msg | default('Unknown error') }}
-      {% endif %}
+    msg: "Caddy Configuration Test: OK"
+  when: caddy_test is succeeded
+
+- name: Report Caddy configuration test failure
+  ansible.builtin.debug:
+    msg: "Caddy Configuration Test: FAILED - Caddy may not be properly configured. Error: {{ caddy_test.msg | default('Unknown error') }}"
+  when: caddy_test is failed
 
 - name: Check for conflicting web servers
   ansible.builtin.service_facts:
