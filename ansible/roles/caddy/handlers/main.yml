@@ -11,12 +11,49 @@
   ansible.builtin.command: systemctl is-active caddy
   register: caddy_active_check
   changed_when: false
-  failed_when: caddy_active_check.rc != 0
+  failed_when: false
   listen: Reload Caddy
   retries: 3
   delay: 2
 
-- name: Display Caddy reload status
+- name: Display Caddy reload status on success
   ansible.builtin.debug:
     msg: "Caddy service reloaded and is {{ caddy_active_check.stdout }}"
   listen: Reload Caddy
+  when: caddy_active_check.rc == 0
+
+- name: Get Caddy service status on reload failure
+  ansible.builtin.command: systemctl status caddy.service
+  register: caddy_reload_status
+  failed_when: false
+  changed_when: false
+  listen: Reload Caddy
+  when: caddy_active_check.rc != 0
+
+- name: Get Caddy journal logs on reload failure
+  ansible.builtin.command: journalctl -xeu caddy.service -n 50 --no-pager
+  register: caddy_reload_journal
+  failed_when: false
+  changed_when: false
+  listen: Reload Caddy
+  when: caddy_active_check.rc != 0
+
+- name: Display Caddy service status on reload failure
+  ansible.builtin.debug:
+    msg: "{{ caddy_reload_status.stdout_lines }}"
+  listen: Reload Caddy
+  when: caddy_active_check.rc != 0
+
+- name: Display Caddy journal logs on reload failure
+  ansible.builtin.debug:
+    msg: "{{ caddy_reload_journal.stdout_lines }}"
+  listen: Reload Caddy
+  when: caddy_active_check.rc != 0
+
+- name: Fail on Caddy reload error
+  ansible.builtin.fail:
+    msg: |
+      Caddy failed to reload successfully.
+      See the systemctl status and journalctl output above for details.
+  listen: Reload Caddy
+  when: caddy_active_check.rc != 0
