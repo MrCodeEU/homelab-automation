@@ -25,7 +25,7 @@ on:
   push:
     branches:
       - main
-      - v2
+      - '*V2*'
     paths:
       - 'ansible/**'
       - 'services/**'
