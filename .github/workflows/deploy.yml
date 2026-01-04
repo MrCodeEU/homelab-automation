@@ -26,6 +26,7 @@ on:
     branches:
       - main
       - '*V2*'
+      - '*v2*'
     paths:
       - 'ansible/**'
       - 'services/**'
