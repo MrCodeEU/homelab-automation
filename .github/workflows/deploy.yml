@@ -1,6 +1,8 @@
 name: Deploy Homelab
 
 on:
+  # Manual trigger - can be run from ANY branch via GitHub UI
+  # Non-main branches automatically deploy to staging environment
   workflow_dispatch:
     inputs:
       limit:
@@ -19,6 +21,7 @@ on:
         default: false
         type: boolean
 
+  # Automatic trigger - only on main/v2 branches
   push:
     branches:
       - main
