@@ -151,7 +151,7 @@ services:
 
   # Personal
   - name: homepage
-    enabled: true
+    enabled: false  # Disabled until image is built
     domain: "mljr.eu"
     port: 8082
     host: mljr

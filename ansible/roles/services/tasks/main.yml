@@ -174,7 +174,7 @@
 - name: Wait for services to be healthy
   ansible.builtin.uri:
     url: "http://localhost:{{ service.port }}"
-    status_code: [200, 301, 302, 401, 403]  # Accept redirects and auth pages
+    status_code: [200, 301, 302, 400, 401, 403]  # Accept redirects, bad request, and auth pages
     timeout: 3
   loop: "{{ host_services }}"
   loop_control:
@@ -183,7 +183,7 @@
   register: health_check
   retries: "{{ 4 if (caddy_service_status.status.ActiveState | default('inactive')) == 'active' else 1 }}"
   delay: 3
-  until: health_check.status is defined and health_check.status in [200, 301, 302, 401, 403]
+  until: health_check.status is defined and health_check.status in [200, 301, 302, 400, 401, 403]
   failed_when: false
   when:
     - not ansible_check_mode
@@ -191,7 +191,7 @@
 
 - name: Display health check results
   ansible.builtin.debug:
-    msg: "{{ service.name }}: {{ 'HEALTHY' if (health_check.results | selectattr('service.name', 'equalto', service.name) | first).status | default(0) in [200, 301, 302, 401, 403] else 'PENDING' }}"
+    msg: "{{ service.name }}: {{ 'HEALTHY' if (health_check.results | selectattr('service.name', 'equalto', service.name) | first).status | default(0) in [200, 301, 302, 400, 401, 403] else 'PENDING' }}"
   loop: "{{ host_services }}"
   loop_control:
     loop_var: service

@@ -215,7 +215,7 @@
     status_code: [200, 301, 302]
     timeout: 5
   register: mailcow_health
-  retries: 12
+  retries: 6
   delay: 5
   until: mailcow_health.status in [200, 301, 302]
   failed_when: false  # Don't block deployment if mailcow is slow to start

@@ -2,7 +2,7 @@ services:
   # MongoDB Database for Nightscout
   mongo:
     image: mongo:4.4
-    container_name: nightscout-mongo
+    container_name: ${COMPOSE_PROJECT_NAME:-nightscout}-mongo
     restart: unless-stopped
     volumes:
       - mongo-data:/data/db
@@ -17,7 +17,7 @@ services:
   # Nightscout CGM Web Monitor
   nightscout:
     image: nightscout/cgm-remote-monitor:latest
-    container_name: nightscout
+    container_name: ${COMPOSE_PROJECT_NAME:-nightscout}-app
     restart: unless-stopped
     depends_on:
       - mongo
@@ -67,7 +67,7 @@ services:
   # LibreLink Up to Nightscout Connector (Custom Go Implementation)
   librelink-up:
     image: ghcr.io/mrcodeeu/nightscout-librelink-up-go:latest
-    container_name: nightscout-librelink-up
+    container_name: ${COMPOSE_PROJECT_NAME:-nightscout}-librelink-up
     restart: unless-stopped
     depends_on:
       - nightscout
