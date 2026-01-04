@@ -105,7 +105,6 @@
     mode: '0755'
     owner: caddy
     group: caddy
-    setype: var_log_t
 
 - name: Ensure existing log files have correct permissions
   ansible.builtin.shell: |
@@ -116,7 +115,14 @@
   # Note: Using shell here to fix permissions on existing files
   # log_path is a trusted variable from group_vars
 
-- name: Ensure Caddy can write to log directory (SELinux)
+- name: Set SELinux file context policy for Caddy logs
+  community.general.sefcontext:
+    target: "{{ log_path }}/caddy(/.*)?"
+    setype: httpd_log_t
+    state: present
+  when: ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
+
+- name: Apply SELinux context to Caddy log directory
   ansible.builtin.command:
     cmd: restorecon -Rv {{ log_path }}/caddy
   changed_when: false

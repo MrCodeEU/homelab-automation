@@ -59,17 +59,6 @@ jobs:
           echo "is_staging=$IS_STAGING" >> $GITHUB_OUTPUT
           echo "Environment: $([ "$IS_STAGING" == "true" ] && echo 'staging' || echo 'production')"
 
-      - name: Cache Tailscale
-        id: cache-tailscale
-        uses: actions/cache@v4
-        with:
-          path: |
-            /usr/bin/tailscale
-            /usr/sbin/tailscaled
-          key: tailscale-${{ runner.os }}-${{ hashFiles('.github/workflows/deploy.yml') }}
-          restore-keys: |
-            tailscale-${{ runner.os }}-
-
       - name: Setup Tailscale
         uses: tailscale/github-action@v3
         with:

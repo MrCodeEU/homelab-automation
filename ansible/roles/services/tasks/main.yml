@@ -153,6 +153,13 @@
 # Health Checks
 # ============================================================================
 
+- name: Check if Caddy is running
+  ansible.builtin.systemd:
+    name: caddy
+  register: caddy_service_status
+  failed_when: false
+  when: not ansible_check_mode
+
 - name: Wait for services to be healthy
   ansible.builtin.uri:
     url: "http://localhost:{{ service.port }}"
@@ -163,7 +170,7 @@
     loop_var: service
     label: "{{ service.name }}"
   register: health_check
-  retries: 12
+  retries: "{{ 12 if (caddy_service_status.status.ActiveState | default('inactive')) == 'active' else 2 }}"
   delay: 5
   until: health_check.status is defined and health_check.status in [200, 301, 302, 401, 403]
   failed_when: false

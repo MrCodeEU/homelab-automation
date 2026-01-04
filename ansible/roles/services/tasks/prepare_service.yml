@@ -15,13 +15,25 @@
     path: "{{ playbook_dir }}/../../services/{{ service.name }}/docker-compose.yml"
   register: service_config
 
-- name: "{{ service.name }} - Copy service files"
-  ansible.builtin.copy:
+- name: "{{ service.name }} - Synchronize service files"
+  ansible.posix.synchronize:
     src: "{{ playbook_dir }}/../../services/{{ service.name }}/"
     dest: "{{ deploy_path }}/"
-    mode: preserve
-    directory_mode: '0755'
+    delete: false
+    recursive: true
+    rsync_opts:
+      - "--chmod=D0755,F0644"
+  delegate_to: localhost
   when: service_config.stat.exists
+
+- name: "{{ service.name }} - Update port mappings for staging"
+  ansible.builtin.replace:
+    path: "{{ deploy_path }}/docker-compose.yml"
+    regexp: '(\s+- ")\d+(:{{ service.port }}.*")'
+    replace: '\g<1>{{ service_port }}\g<2>'
+  when:
+    - service_config.stat.exists
+    - is_staging | default(false)
 
 - name: "{{ service.name }} - Generate .env file"
   ansible.builtin.template:
