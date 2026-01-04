@@ -1,0 +1,15 @@
+# Systemd override for Caddy
+# Ensures proper network setup and DNS resolution for Tailscale
+
+[Service]
+# Wait for network to be fully online (including Tailscale)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+# Restart on failure
+Restart=on-failure
+RestartSec=5s
+
+# Ensure DNS resolution works properly
+# This allows Caddy to resolve Tailscale hostnames
+Environment="GODEBUG=netdns=go"
