@@ -1,0 +1,160 @@
+name: Deploy Homelab
+
+on:
+  # Manual trigger - can be run from ANY branch via GitHub UI
+  # Non-main branches automatically deploy to staging environment
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Target hosts (all, mljr, rocky)'
+        required: false
+        default: 'all'
+        type: string
+      tags:
+        description: 'Ansible tags (all, base, caddy, services, backup, security)'
+        required: false
+        default: 'all'
+        type: string
+      staging:
+        description: 'Deploy staging environment'
+        required: false
+        default: false
+        type: boolean
+
+  # Automatic trigger - only on main/v2 branches
+  push:
+    branches:
+      - main
+      - '*V2*'
+      - '*v2*'
+    paths:
+      - 'ansible/**'
+      - 'services/**'
+      - '.github/workflows/deploy.yml'
+
+  repository_dispatch:
+    types: [service-update]
+
+# Prevent concurrent deployments
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Deploy
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set environment
+        id: env
+        run: |
+          IS_STAGING="false"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.staging }}" == "true" ]; then
+            IS_STAGING="true"
+          elif [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            IS_STAGING="true"
+          fi
+          echo "is_staging=$IS_STAGING" >> $GITHUB_OUTPUT
+          echo "Environment: $([ "$IS_STAGING" == "true" ] && echo 'staging' || echo 'production')"
+
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Cache Ansible and Collections
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local
+            ~/.ansible/collections
+          key: ansible-${{ runner.os }}-${{ hashFiles('ansible/requirements.yml') }}-v3
+          restore-keys: |
+            ansible-${{ runner.os }}-
+
+      - name: Install Ansible
+        run: pip install --user ansible
+
+      - name: Install collections
+        run: cd ansible && ansible-galaxy collection install -r requirements.yml
+
+      - name: Run Ansible
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          # Secrets
+          NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
+          LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
+          LINK_UP_PASSWORD: ${{ secrets.LINK_UP_PASSWORD }}
+          NIGHTSCOUT_API_TOKEN: ${{ secrets.NIGHTSCOUT_API_TOKEN }}
+          NIGHTSCOUT_DOMAIN: ${{ secrets.NIGHTSCOUT_DOMAIN }}
+          BICHON_ENCRYPT_PASSWORD: ${{ secrets.BICHON_ENCRYPT_PASSWORD }}
+          CADDY_AUTH_PASSWORD_HASH: ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
+          CADDY_AUTH_USER: ${{ secrets.CADDY_AUTH_USER }}
+          KUMA_USERNAME: ${{ secrets.KUMA_USERNAME }}
+          KUMA_PASSWORD: ${{ secrets.KUMA_PASSWORD }}
+          GITHUB_USERNAME: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
+          PCLOUD_TOKEN: ${{ secrets.PCLOUD_TOKEN }}
+        run: |
+          cd ansible
+
+          # Determine limit
+          LIMIT="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "" ]; then
+            LIMIT="${{ inputs.limit }}"
+          fi
+
+          # Determine tags
+          TAGS="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "" ]; then
+            TAGS="${{ inputs.tags }}"
+          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            TAGS="services,caddy"
+          fi
+
+          # Extra vars
+          EXTRA_VARS="is_staging_deployment=${{ steps.env.outputs.is_staging }}"
+
+          echo "Running: ansible-playbook site.yml --limit $LIMIT --tags $TAGS"
+          ansible-playbook playbooks/site.yml \
+            --limit "$LIMIT" \
+            --tags "$TAGS" \
+            --extra-vars "$EXTRA_VARS"
+
+      - name: Notify
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          EMOJI=$([[ "$STATUS" == "success" ]] && echo "✅" || echo "❌")
+          PRIORITY=$([[ "$STATUS" == "success" ]] && echo "default" || echo "high")
+
+          LIMIT="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "" ]; then
+            LIMIT="${{ inputs.limit }}"
+          fi
+
+          TAGS="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "" ]; then
+            TAGS="${{ inputs.tags }}"
+          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            TAGS="services,caddy"
+          fi
+
+          # Check if ntfy is reachable first (3 second timeout)
+          if curl -s --connect-timeout 3 --max-time 3 https://ntfy.mljr.eu/deployment -o /dev/null; then
+            echo "Sending notification to ntfy..."
+            curl -s \
+              --connect-timeout 5 \
+              --max-time 10 \
+              -H "Title: Deployment $STATUS" \
+              -H "Priority: $PRIORITY" \
+              -H "Tags: ansible,homelab" \
+              -d "$EMOJI Homelab deployed (limit: $LIMIT, tags: $TAGS)" \
+              https://ntfy.mljr.eu/deployment || echo "Failed to send notification"
+          else
+            echo "⚠️  Ntfy service is not reachable, skipping notification"
+          fi

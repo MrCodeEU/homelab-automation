@@ -1,0 +1,17 @@
+services:
+  bichon:
+    image: rustmailer/bichon:latest
+    container_name: bichon
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:15630:15630"
+    environment:
+      - BICHON_ROOT_DIR=/data
+      - BICHON_ENABLE_ACCESS_TOKEN=true
+      - BICHON_LOG_LEVEL=${BICHON_LOG_LEVEL:-info}
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+
+

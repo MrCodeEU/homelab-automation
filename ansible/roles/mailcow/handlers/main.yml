@@ -7,3 +7,4 @@
     chdir: "{{ mailcow_install_path }}"
   register: mailcow_restart
   changed_when: "'Started' in mailcow_restart.stderr or 'Recreating' in mailcow_restart.stderr"
+  when: not ansible_check_mode

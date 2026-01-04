@@ -1,174 +1,355 @@
 ---
-# Services role - Docker Compose deployment
-# Optimized: Bulk operations, parallel deployment
+# Services Role - Docker Compose deployment with staging support
+# ============================================================================
+
+# Validate service configuration
+- name: Validate service definitions
+  ansible.builtin.assert:
+    that:
+      - service.name is defined
+      - service.name | length > 0
+      - service.host is defined
+      - service.host | length > 0
+      - service.port is defined
+      - service.port | int > 0
+      - service.port | int < 65536
+    fail_msg: >-
+      Service validation failed for {{ service.name | default('unknown') }}:
+      Required fields: name, host, port (1-65535)
+    quiet: true
+  loop: "{{ services | default([]) }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name | default('unknown') }}"
+  when: service.enabled | default(true)
 
 # Login to GitHub Container Registry for private images
-- name: Log in to GitHub Container Registry
+- name: Login to GitHub Container Registry
   community.docker.docker_login:
     registry: ghcr.io
-    username: "{{ github_username }}"
-    password: "{{ github_token }}"
-  when: 
-    - github_username is defined
-    - github_token is defined
+    username: "{{ secrets.github.username }}"
+    password: "{{ secrets.github.token }}"
+  when:
+    - not ansible_check_mode
+    - secrets.github.username | default('') | length > 0
+    - secrets.github.token | default('') | length > 0
   no_log: true
+  failed_when: false
 
 # Build list of services for this host
-- name: Set services for this host
+- name: Filter services for this host
   ansible.builtin.set_fact:
     host_services: >-
-      {{ services | selectattr('enabled', 'defined') |
-         selectattr('enabled') |
-         selectattr('managed', 'undefined') |
-         selectattr('host', 'equalto', inventory_hostname) |
-         rejectattr('name', 'in', services_excluded_from_generic_deployment) |
-         list +
-         services | selectattr('enabled', 'defined') |
-         selectattr('enabled') |
-         selectattr('managed', 'defined') |
-         selectattr('managed') |
-         selectattr('host', 'equalto', inventory_hostname) |
-         rejectattr('name', 'in', services_excluded_from_generic_deployment) |
-         list }}
+      {%- set result = [] -%}
+      {%- for service in services -%}
+        {%- if service.host == inventory_hostname 
+               and service.enabled | default(true) 
+               and service.managed | default(true) 
+               and not service.skip_deploy | default(false) -%}
+          {%- set _ = result.append(service) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
 
-- name: Check for dev configuration folders
-  delegate_to: localhost
-  become: false
-  ansible.builtin.stat:
-    path: "{{ playbook_dir }}/../../configs/{{ item.name }}/dev"
-  register: dev_config_check
+- name: Display services to deploy
+  ansible.builtin.debug:
+    msg: "Deploying {{ host_services | length }} services: {{ host_services | map(attribute='name') | join(', ') }}"
+
+# ============================================================================
+# Production Deployment
+# ============================================================================
+
+- name: Prepare production services
+  ansible.builtin.include_tasks: prepare_service.yml
   loop: "{{ host_services }}"
   loop_control:
-    label: "{{ item.name }}"
-
-- name: Determine deployment paths and config sources
-  ansible.builtin.set_fact:
-    service_deployments: >-
-      {{ service_deployments | default([]) + [{
-        'name': item.0.name,
-        'is_dev': ((is_staging_deployment | default(false)) and (item.0.source | default('') == 'apps' or item.1.stat.exists)),
-        'deploy_path': '/opt/dev/' + item.0.name if ((is_staging_deployment | default(false)) and (item.0.source | default('') == 'apps' or item.1.stat.exists)) else '/opt/' + item.0.name,
-        'config_source': playbook_dir + '/../../configs/' + item.0.name + ('/dev' if ((is_staging_deployment | default(false)) and item.1.stat.exists) else '')
-      }] }}
-  loop: "{{ host_services | zip(dev_config_check.results) | list }}"
-  loop_control:
-    label: "{{ item.0.name }}"
-
-- name: Ensure service directories exist
-  ansible.builtin.file:
-    path: "{{ item.deploy_path }}"
-    state: directory
-    mode: '0755'
-  loop: "{{ service_deployments }}"
-  loop_control:
-    label: "{{ item.name }}"
-
-- name: Copy service configuration files
-  ansible.builtin.copy:
-    src: "{{ item.config_source }}/"
-    dest: "{{ item.deploy_path }}/"
-    mode: '0644'
-    directory_mode: '0755'
-  loop: "{{ service_deployments }}"
-  loop_control:
-    label: "{{ item.name }}"
-  failed_when: false  # Some services might not have configs yet
-
-- name: Create .env file with secrets
-  ansible.builtin.template:
-    src: env.j2
-    dest: "{{ item.deploy_path }}/.env"
-    mode: '0600'
-  loop: "{{ service_deployments }}"
-  loop_control:
-    label: "{{ item.name }}"
+    loop_var: service
+    label: "{{ service.name }}"
   vars:
-    nightscout_api_secret_var: "{{ nightscout_api_secret | default('') }}"
-    link_up_username_var: "{{ link_up_username | default('') }}"
-    link_up_password_var: "{{ link_up_password | default('') }}"
-    nightscout_api_token_var: "{{ nightscout_api_token | default('') }}"
-    nightscout_domain_var: "{{ nightscout_domain | default('') }}"
-    bichon_encrypt_password_var: "{{ bichon_encrypt_password | default('') }}"
-    github_username_var: "{{ github_username | default('') }}"
-    github_token_var: "{{ github_token | default('') }}"
+    is_staging: false
+    deploy_path: "{{ base_path }}/{{ service.name }}"
+    service_port: "{{ service.port }}"
 
-- name: Check which services have docker-compose.yml
-  ansible.builtin.stat:
-    path: "{{ item.deploy_path }}/docker-compose.yml"
-  register: compose_files
-  loop: "{{ service_deployments }}"
-  loop_control:
-    label: "{{ item.name }}"
-
-- name: Deploy services via Docker Compose
+- name: Deploy production services (Async)
   community.docker.docker_compose_v2:
-    project_src: "{{ item.item.deploy_path }}"
+    project_src: "{{ base_path }}/{{ service.name }}"
     state: present
     pull: always
-  loop: "{{ compose_files.results }}"
+  loop: "{{ host_services }}"
   loop_control:
-    label: "{{ item.item.name }}"
-  when:
-    - item.stat is defined
-    - item.stat.exists | default(false)
-  register: compose_results
-  # Run in parallel for speed
+    loop_var: service
+    label: "{{ service.name }}"
+  register: deploy_results
   async: 300
   poll: 0
+  when: not ansible_check_mode
 
-- name: Wait for Docker Compose deployments
+- name: Wait for production services deployment
   ansible.builtin.async_status:
     jid: "{{ item.ansible_job_id }}"
+  loop: "{{ (deploy_results.results | default([])) }}"
+  loop_control:
+    label: "{{ ((item.service | default(item.item)) | default({'name': 'unknown'})).name }}"
   register: job_result
   until: job_result.finished
   retries: 30
   delay: 10
-  loop: "{{ compose_results.results }}"
-  loop_control:
-    label: "{{ item.item.item.name | default('skip') }}"
   when:
+    - not ansible_check_mode
     - item.ansible_job_id is defined
-
-# Kuma Monitor Provisioning
-- name: Create services.yml for Kuma provisioning
-  ansible.builtin.copy:
-    content: "{{ {'services': services} | to_nice_yaml }}"
-    dest: "/opt/kuma/services.yml"
-    mode: '0644'
-  when: "'kuma' in host_services | map(attribute='name') | list"
-
-- name: Run Kuma provisioning script
-  ansible.builtin.shell: |
-    export KUMA_URL="http://localhost:3001"
-    export KUMA_USERNAME="{{ kuma_username }}"
-    export KUMA_PASSWORD="{{ kuma_password }}"
-    
-    # Wait for Kuma to be ready
-    for i in {1..30}; do
-      if curl -s http://localhost:3001 > /dev/null 2>&1; then
-        break
-      fi
-      sleep 5
-    done
-    
-    # Install dependencies using python3 -m pip to ensure correct path
-    python3 -m pip install uptime-kuma-api-v2 pyyaml --quiet --break-system-packages 2>/dev/null || \
-    python3 -m pip install uptime-kuma-api-v2 pyyaml --quiet
-    
-    python3 /opt/kuma/hooks/provision-kuma.py /opt/kuma/services.yml
-  args:
-    executable: /bin/bash
-  when: 
-    - "'kuma' in host_services | map(attribute='name') | list"
-    - kuma_username is defined
-    - kuma_password is defined
-  register: kuma_provision
+  failed_when: false  # Don't fail the play - collect errors instead
   ignore_errors: true
 
-- name: Display Kuma provisioning result
-  ansible.builtin.debug:
-    msg: "{{ kuma_provision.stdout_lines }}"
-  when: 
-    - kuma_provision is defined
-    - kuma_provision.stdout_lines is defined
+# ============================================================================
+# Staging Deployment (only when is_staging_deployment is true)
+# ============================================================================
 
+- name: Prepare staging services
+  ansible.builtin.include_tasks: prepare_service.yml
+  loop: "{{ host_services | selectattr('staging', 'defined') | selectattr('staging') | list }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}-staging"
+  vars:
+    is_staging: true
+    deploy_path: "{{ base_path }}/staging/{{ service.name }}"
+    service_port: "{{ service.port + staging_port_offset }}"
+  when: is_staging_deployment | default(false) | bool
+
+- name: Deploy staging services (Async)
+  community.docker.docker_compose_v2:
+    project_src: "{{ base_path }}/staging/{{ service.name }}"
+    state: present
+    pull: always
+  loop: "{{ host_services | selectattr('staging', 'defined') | selectattr('staging') | list }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}-staging"
+  register: staging_deploy_results
+  async: 300
+  poll: 0
+  when:
+    - is_staging_deployment | default(false) | bool
+    - not ansible_check_mode
+
+- name: Wait for staging services deployment
+  ansible.builtin.async_status:
+    jid: "{{ item.ansible_job_id }}"
+  loop: "{{ staging_deploy_results.results | default([]) }}"
+  loop_control:
+    label: "{{ ((item.service | default(item.item)) | default({'name': 'unknown'})).name }}-staging"
+  register: staging_job_result
+  until: staging_job_result.finished
+  retries: 30
+  delay: 10
+  when:
+    - is_staging_deployment | default(false) | bool
+    - not ansible_check_mode
+    - item.ansible_job_id is defined
+  failed_when: false  # Don't fail the play - collect errors instead
+  ignore_errors: true
+
+# ============================================================================
+# Health Checks
+# ============================================================================
+
+- name: Check if Caddy is running
+  ansible.builtin.command:
+    cmd: systemctl is-active caddy
+  register: caddy_service_check
+  failed_when: false
+  changed_when: false
+  when: not ansible_check_mode
+  timeout: 5
+
+- name: Set Caddy status fact
+  ansible.builtin.set_fact:
+    caddy_service_status:
+      status:
+        ActiveState: "{{ 'active' if caddy_service_check.rc == 0 else 'inactive' }}"
+  when:
+    - not ansible_check_mode
+    - caddy_service_check is defined
+
+- name: Wait for services to be healthy
+  ansible.builtin.uri:
+    url: "http://localhost:{{ service.port }}"
+    status_code: [200, 301, 302, 400, 401, 403]  # Accept redirects, bad request, and auth pages
+    timeout: 3
+  loop: "{{ host_services }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}"
+  register: health_check
+  retries: "{{ 4 if (caddy_service_status.status.ActiveState | default('inactive')) == 'active' else 1 }}"
+  delay: 3
+  until: health_check.status is defined and health_check.status in [200, 301, 302, 400, 401, 403]
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - service.port is defined
+
+- name: Display health check results
+  ansible.builtin.debug:
+    msg: "{{ service.name }}: {{ 'HEALTHY' if (health_check.results | selectattr('service.name', 'equalto', service.name) | first).status | default(0) in [200, 301, 302, 400, 401, 403] else 'PENDING' }}"
+  loop: "{{ host_services }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}"
+  when:
+    - not ansible_check_mode
+    - health_check.results is defined
+
+# ============================================================================
+# Kuma Provisioning (if Kuma is deployed)
+# ============================================================================
+
+- name: Check if Kuma is deployed
+  ansible.builtin.stat:
+    path: "{{ base_path }}/kuma/docker-compose.yml"
+  register: kuma_deployed
+
+- name: Run Kuma provisioning
+  when:
+    - not ansible_check_mode
+    - kuma_deployed.stat.exists
+    - secrets.kuma.username | default('') | length > 0
+    - secrets.kuma.password | default('') | length > 0
+  block:
+    - name: Create services.yml for Kuma
+      ansible.builtin.copy:
+        content: "{{ {'services': services} | to_nice_yaml }}"
+        dest: "{{ base_path }}/kuma/services.yml"
+        mode: '0644'
+
+    - name: Wait for Kuma to be ready
+      ansible.builtin.uri:
+        url: http://localhost:3001
+        status_code: [200, 302]
+      register: kuma_health
+      retries: 12
+      delay: 5
+      until: kuma_health.status in [200, 302]
+      failed_when: false
+
+    - name: Install Kuma provisioning dependencies
+      ansible.builtin.pip:
+        name:
+          - uptime-kuma-api-v2
+          - pyyaml
+        virtualenv: "{{ base_path }}/kuma/venv"
+        virtualenv_command: python3 -m venv
+        state: present
+      register: kuma_deps_install
+      when: kuma_health.status | default(0) in [200, 302]
+
+    - name: Run Kuma provisioning script
+      ansible.builtin.shell: |
+        export KUMA_URL="http://localhost:3001"
+        export KUMA_USERNAME="{{ secrets.kuma.username }}"
+        export KUMA_PASSWORD="{{ secrets.kuma.password }}"
+        {{ base_path }}/kuma/venv/bin/python3 {{ base_path }}/kuma/hooks/provision-kuma.py {{ base_path }}/kuma/services.yml
+      args:
+        executable: /bin/bash
+      register: kuma_provision
+      changed_when: "'Updated' in kuma_provision.stdout or 'Created' in kuma_provision.stdout"
+      failed_when: false  # Don't block deployment if Kuma provisioning fails
+      retries: 3
+      delay: 5
+      until: kuma_provision.rc == 0
+      when:
+        - kuma_health.status | default(0) in [200, 302]
+        - kuma_deps_install is succeeded
+
+    - name: Display Kuma provisioning result
+      ansible.builtin.debug:
+        msg: |
+          {% if kuma_provision is defined %}
+          {% if kuma_provision.rc == 0 %}
+          ✓ Kuma provisioning succeeded
+          {{ kuma_provision.stdout_lines | join('\n') }}
+          {% else %}
+          ⚠ Kuma provisioning failed (non-blocking):
+          {{ kuma_provision.stdout_lines | join('\n') }}
+          {% endif %}
+          {% else %}
+          Kuma provisioning skipped
+          {% endif %}
+      when: kuma_provision is defined
+
+# ============================================================================
+# Deployment Summary and Error Reporting
+# ============================================================================
+
+- name: Collect failed production deployments
+  ansible.builtin.set_fact:
+    failed_production_services: >-
+      {%- set failed = [] -%}
+      {%- for result in job_result.results | default([]) -%}
+        {%- if result.failed | default(false) or result.msg is defined and 'Error' in result.msg -%}
+          {%- set service_name = ((result.item.service | default(result.item.item)) | default({'name': 'unknown'})).name -%}
+          {%- set error_msg = result.msg | default('Unknown error') -%}
+          {%- set _ = failed.append({'name': service_name, 'error': error_msg}) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ failed }}
+  when:
+    - not ansible_check_mode
+    - job_result is defined
+
+- name: Collect failed staging deployments
+  ansible.builtin.set_fact:
+    failed_staging_services: >-
+      {%- set failed = [] -%}
+      {%- for result in staging_job_result.results | default([]) -%}
+        {%- if result.failed | default(false) or result.msg is defined and 'Error' in result.msg -%}
+          {%- set service_name = ((result.item.service | default(result.item.item)) | default({'name': 'unknown'})).name -%}
+          {%- set error_msg = result.msg | default('Unknown error') -%}
+          {%- set _ = failed.append({'name': service_name, 'error': error_msg}) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ failed }}
+  when:
+    - not ansible_check_mode
+    - is_staging_deployment | default(false) | bool
+    - staging_job_result is defined
+
+- name: Display deployment summary
+  ansible.builtin.debug:
+    msg: |
+      ============================================================================
+      DEPLOYMENT SUMMARY
+      ============================================================================
+      Production Services: {{ host_services | length }} total
+      {% if failed_production_services | default([]) | length > 0 %}
+      Failed: {{ failed_production_services | length }}
+      {% for svc in failed_production_services %}
+        - {{ svc.name }}: {{ svc.error | regex_replace('\n', ' ') | truncate(100) }}
+      {% endfor %}
+      {% else %}
+      All production services deployed successfully!
+      {% endif %}
+      {% if is_staging_deployment | default(false) | bool %}
+
+      Staging Services: {{ host_services | selectattr('staging', 'defined') | selectattr('staging') | list | length }} total
+      {% if failed_staging_services | default([]) | length > 0 %}
+      Failed: {{ failed_staging_services | length }}
+      {% for svc in failed_staging_services %}
+        - {{ svc.name }}: {{ svc.error | regex_replace('\n', ' ') | truncate(100) }}
+      {% endfor %}
+      {% else %}
+      All staging services deployed successfully!
+      {% endif %}
+      {% endif %}
+      ============================================================================
+  when: not ansible_check_mode
+
+- name: Fail if critical services failed
+  ansible.builtin.fail:
+    msg: "Critical services failed to deploy: {{ failed_production_services | selectattr('name', 'in', critical_services) | map(attribute='name') | join(', ') }}"
+  when:
+    - not ansible_check_mode
+    - critical_services | default([]) | length > 0
+    - failed_production_services | default([]) | selectattr('name', 'in', critical_services) | list | length > 0
+  vars:
+    critical_services: ['caddy', 'kuma', 'ntfy']  # Services that must succeed for deployment to pass
