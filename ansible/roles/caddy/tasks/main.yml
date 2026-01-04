@@ -179,10 +179,39 @@
   when: caddy_override_changed is changed
 
 - name: Restart Caddy if systemd override changed
-  ansible.builtin.service:
-    name: caddy
-    state: restarted
   when: caddy_override_changed is changed
+  block:
+    - name: Attempt to restart Caddy service
+      ansible.builtin.service:
+        name: caddy
+        state: restarted
+
+  rescue:
+    - name: Get Caddy service status
+      ansible.builtin.command: systemctl status caddy.service
+      register: caddy_status
+      failed_when: false
+      changed_when: false
+
+    - name: Get Caddy journal logs
+      ansible.builtin.command: journalctl -xeu caddy.service -n 50 --no-pager
+      register: caddy_journal
+      failed_when: false
+      changed_when: false
+
+    - name: Display Caddy service status
+      ansible.builtin.debug:
+        msg: "{{ caddy_status.stdout_lines }}"
+
+    - name: Display Caddy journal logs
+      ansible.builtin.debug:
+        msg: "{{ caddy_journal.stdout_lines }}"
+
+    - name: Fail with detailed error message
+      ansible.builtin.fail:
+        msg: |
+          Caddy failed to restart after systemd override change.
+          See the systemctl status and journalctl output above for details.
 
 - name: Generate Caddyfile
   ansible.builtin.template:
@@ -215,10 +244,39 @@
     mode: '0644'
 
 - name: Ensure Caddy service is running
-  ansible.builtin.service:
-    name: caddy
-    state: started
-    enabled: true
+  block:
+    - name: Start Caddy service
+      ansible.builtin.service:
+        name: caddy
+        state: started
+        enabled: true
+
+  rescue:
+    - name: Get Caddy service status after start failure
+      ansible.builtin.command: systemctl status caddy.service
+      register: caddy_start_status
+      failed_when: false
+      changed_when: false
+
+    - name: Get Caddy journal logs after start failure
+      ansible.builtin.command: journalctl -xeu caddy.service -n 50 --no-pager
+      register: caddy_start_journal
+      failed_when: false
+      changed_when: false
+
+    - name: Display Caddy service status after start failure
+      ansible.builtin.debug:
+        msg: "{{ caddy_start_status.stdout_lines }}"
+
+    - name: Display Caddy journal logs after start failure
+      ansible.builtin.debug:
+        msg: "{{ caddy_start_journal.stdout_lines }}"
+
+    - name: Fail with detailed start error message
+      ansible.builtin.fail:
+        msg: |
+          Caddy failed to start.
+          See the systemctl status and journalctl output above for details.
 
 - name: Wait for Caddy to be ready on HTTPS
   ansible.builtin.wait_for:
