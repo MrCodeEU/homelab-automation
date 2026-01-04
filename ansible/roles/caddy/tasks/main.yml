@@ -63,6 +63,30 @@
         name: caddy
         state: present
 
+- name: Check for conflicting web servers
+  ansible.builtin.service_facts:
+
+- name: Stop conflicting web servers
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - httpd
+    - nginx
+    - apache2
+  when: >-
+    (item + '.service') in ansible_facts.services or
+    item in ansible_facts.services
+  failed_when: false
+
+- name: Remove legacy Caddy container
+  community.docker.docker_container:
+    name: caddy
+    state: absent
+    force_kill: true
+  failed_when: false
+
 - name: Create Caddy directories
   ansible.builtin.file:
     path: "{{ item }}"
@@ -202,27 +226,3 @@
   ansible.builtin.debug:
     msg: "Caddy Configuration Test: FAILED - Caddy may not be properly configured. Error: {{ caddy_test.msg | default('Unknown error') }}"
   when: caddy_test is failed
-
-- name: Check for conflicting web servers
-  ansible.builtin.service_facts:
-
-- name: Stop conflicting web servers
-  ansible.builtin.service:
-    name: "{{ item }}"
-    state: stopped
-    enabled: false
-  loop:
-    - httpd
-    - nginx
-    - apache2
-  when: >-
-    (item + '.service') in ansible_facts.services or
-    item in ansible_facts.services
-  failed_when: false
-
-- name: Remove legacy Caddy container
-  community.docker.docker_container:
-    name: caddy
-    state: absent
-    force_kill: true
-  failed_when: false

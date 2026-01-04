@@ -1,8 +1,11 @@
 ---
 - name: Reload Caddy
-  ansible.builtin.service:
-    name: caddy
-    state: reloaded
+  ansible.builtin.command: timeout 30 systemctl reload caddy
+  register: caddy_reload_result
+  changed_when: caddy_reload_result.rc == 0
+  failed_when: false
+  async: 45
+  poll: 5
 
 - name: Verify Caddy reloaded successfully
   ansible.builtin.command: systemctl is-active caddy
@@ -10,6 +13,8 @@
   changed_when: false
   failed_when: caddy_active_check.rc != 0
   listen: Reload Caddy
+  retries: 3
+  delay: 2
 
 - name: Display Caddy reload status
   ansible.builtin.debug:
