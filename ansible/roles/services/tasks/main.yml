@@ -154,11 +154,22 @@
 # ============================================================================
 
 - name: Check if Caddy is running
-  ansible.builtin.systemd:
-    name: caddy
-  register: caddy_service_status
+  ansible.builtin.command:
+    cmd: systemctl is-active caddy
+  register: caddy_service_check
   failed_when: false
+  changed_when: false
   when: not ansible_check_mode
+  timeout: 5
+
+- name: Set Caddy status fact
+  ansible.builtin.set_fact:
+    caddy_service_status:
+      status:
+        ActiveState: "{{ 'active' if caddy_service_check.rc == 0 else 'inactive' }}"
+  when:
+    - not ansible_check_mode
+    - caddy_service_check is defined
 
 - name: Wait for services to be healthy
   ansible.builtin.uri:
