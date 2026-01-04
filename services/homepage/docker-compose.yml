@@ -1,0 +1,23 @@
+services:
+  homepage:
+    image: ghcr.io/mrcodeeu/homepage:${IMAGE_TAG:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-homepage}
+    restart: unless-stopped
+    ports:
+      - "8082:8080"
+    environment:
+      - GITHUB_USERNAME=${GITHUB_USERNAME}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - CACHE_DIR=/data/cache
+    volumes:
+      - homepage-data:/data
+    networks:
+      - homepage
+
+networks:
+  homepage:
+    driver: bridge
+
+volumes:
+  homepage-data:
+    driver: local

@@ -63,56 +63,6 @@
         name: caddy
         state: present
 
-- name: Create Caddy directories
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: directory
-    mode: '0755'
-    owner: caddy
-    group: caddy
-  loop:
-    - /opt/caddy
-    - /opt/caddy/site
-
-- name: Create Caddy log directory
-  ansible.builtin.file:
-    path: /var/log/caddy
-    state: directory
-    mode: '0755'
-    owner: caddy
-    group: caddy
-    setype: var_log_t
-
-- name: Ensure Caddy can write to log directory (SELinux)
-  ansible.builtin.command:
-    cmd: restorecon -Rv /var/log/caddy
-  changed_when: false
-  failed_when: false
-  when: ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
-
-- name: Generate Caddyfile
-  ansible.builtin.template:
-    src: Caddyfile.j2
-    dest: /etc/caddy/Caddyfile
-    owner: caddy
-    group: caddy
-    mode: '0644'
-  notify: Reload Caddy
-
-- name: Generate index.html
-  ansible.builtin.template:
-    src: index.html.j2
-    dest: /opt/caddy/site/index.html
-    owner: caddy
-    group: caddy
-    mode: '0644'
-
-- name: Ensure Caddy service is running
-  ansible.builtin.service:
-    name: caddy
-    state: started
-    enabled: true
-
 - name: Check for conflicting web servers
   ansible.builtin.service_facts:
 
@@ -136,3 +86,350 @@
     state: absent
     force_kill: true
   failed_when: false
+
+- name: Configure firewall for Caddy
+  when: ansible_facts['os_family'] == "RedHat"
+  block:
+    - name: Ensure firewalld is running
+      ansible.builtin.service:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Open HTTP port in firewall
+      ansible.posix.firewalld:
+        service: http
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Open HTTPS port in firewall
+      ansible.posix.firewalld:
+        service: https
+        permanent: true
+        immediate: true
+        state: enabled
+
+- name: Create Caddy directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: caddy
+    group: caddy
+  loop:
+    - "{{ base_path }}/caddy"
+    - "{{ base_path }}/caddy/site"
+
+- name: Create Caddy log directory
+  ansible.builtin.file:
+    path: "{{ log_path }}/caddy"
+    state: directory
+    mode: '0755'
+    owner: caddy
+    group: caddy
+
+- name: Ensure existing log files have correct permissions
+  ansible.builtin.shell: |
+    chown -R caddy:caddy {{ log_path }}/caddy
+    chmod -R 0755 {{ log_path }}/caddy
+  changed_when: false
+  failed_when: false
+  # Note: Using shell here to fix permissions on existing files
+  # log_path is a trusted variable from group_vars
+
+- name: Set SELinux file context policy for Caddy logs
+  community.general.sefcontext:
+    target: "{{ log_path }}/caddy(/.*)?"
+    setype: httpd_log_t
+    state: present
+  when: ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
+
+- name: Apply SELinux context to Caddy log directory
+  ansible.builtin.command:
+    cmd: restorecon -Rv {{ log_path }}/caddy
+  changed_when: false
+  failed_when: false
+  when: ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
+
+- name: Determine basicauth-enabled services
+  ansible.builtin.set_fact:
+    basicauth_enabled_services: >-
+      {%- set result = [] -%}
+      {%- for service in (services | default([])) -%}
+        {%- if service.enabled | default(true) and (service.caddy_auth | default('')) == 'basicauth' -%}
+          {%- set _ = result.append(service) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
+
+- name: Validate that all service hosts exist in inventory
+  ansible.builtin.assert:
+    that:
+      - service.host is defined
+      - service.host in hostvars
+    fail_msg: >-
+      Service '{{ service.name | default('unknown') }}' references host '{{ service.host | default('unset') }}'
+      which is not present in the inventory. Fix 'services' in group_vars or add the host to inventory.
+  loop: "{{ services | default([]) }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name | default('unknown') }}"
+  when: service.enabled | default(true)
+
+- name: Validate Caddy basicauth secrets when used
+  ansible.builtin.assert:
+    that:
+      - secrets is defined
+      - secrets.caddy is defined
+      - (secrets.caddy.auth_user | default('') | length) > 0
+      - (secrets.caddy.auth_hash | default('') | length) > 0
+    fail_msg: >-
+      One or more services use 'caddy_auth: basicauth' but Caddy auth secrets are missing.
+      Set CADDY_AUTH_USER and CADDY_AUTH_PASSWORD_HASH in the environment used for Ansible.
+  when: (basicauth_enabled_services | default([]) | length) > 0
+
+- name: Create systemd override directory for Caddy
+  ansible.builtin.file:
+    path: /etc/systemd/system/caddy.service.d
+    state: directory
+    mode: '0755'
+
+- name: Install Caddy systemd override for Tailscale DNS
+  ansible.builtin.template:
+    src: caddy-override.conf.j2
+    dest: /etc/systemd/system/caddy.service.d/override.conf
+    mode: '0644'
+  register: caddy_override_changed
+
+- name: Reload systemd daemon if override changed
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: caddy_override_changed is changed
+
+- name: Restart Caddy if systemd override changed
+  when: caddy_override_changed is changed
+  block:
+    - name: Attempt to restart Caddy service
+      ansible.builtin.service:
+        name: caddy
+        state: restarted
+
+  rescue:
+    - name: Get Caddy service status
+      ansible.builtin.command: systemctl status caddy.service
+      register: caddy_status
+      failed_when: false
+      changed_when: false
+
+    - name: Get Caddy journal logs
+      ansible.builtin.command: journalctl -xeu caddy.service -n 50 --no-pager
+      register: caddy_journal
+      failed_when: false
+      changed_when: false
+
+    - name: Display Caddy service status
+      ansible.builtin.debug:
+        msg: "{{ caddy_status.stdout_lines }}"
+
+    - name: Display Caddy journal logs
+      ansible.builtin.debug:
+        msg: "{{ caddy_journal.stdout_lines }}"
+
+    - name: Fail with detailed error message
+      ansible.builtin.fail:
+        msg: |
+          Caddy failed to restart after systemd override change.
+          See the systemctl status and journalctl output above for details.
+
+- name: Generate Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: "{{ config_path }}/caddy/Caddyfile"
+    owner: caddy
+    group: caddy
+    mode: '0644'
+    validate: caddy validate --adapter caddyfile --config %s
+  notify: Reload Caddy
+  register: caddyfile_changed
+
+- name: Display Caddyfile preview
+  ansible.builtin.shell: head -100 {{ config_path }}/caddy/Caddyfile
+  register: caddyfile_preview
+  changed_when: false
+  when: caddyfile_changed is changed
+
+- name: Show Caddyfile content
+  ansible.builtin.debug:
+    msg: "{{ caddyfile_preview.stdout_lines }}"
+  when: caddyfile_changed is changed
+
+- name: Generate index.html
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: "{{ base_path }}/caddy/site/index.html"
+    owner: caddy
+    group: caddy
+    mode: '0644'
+
+- name: Ensure Caddy service is running
+  block:
+    - name: Start Caddy service
+      ansible.builtin.service:
+        name: caddy
+        state: started
+        enabled: true
+
+  rescue:
+    - name: Get Caddy service status after start failure
+      ansible.builtin.command: systemctl status caddy.service
+      register: caddy_start_status
+      failed_when: false
+      changed_when: false
+
+    - name: Get Caddy journal logs after start failure
+      ansible.builtin.command: journalctl -xeu caddy.service -n 50 --no-pager
+      register: caddy_start_journal
+      failed_when: false
+      changed_when: false
+
+    - name: Display Caddy service status after start failure
+      ansible.builtin.debug:
+        msg: "{{ caddy_start_status.stdout_lines }}"
+
+    - name: Display Caddy journal logs after start failure
+      ansible.builtin.debug:
+        msg: "{{ caddy_start_journal.stdout_lines }}"
+
+    - name: Fail with detailed start error message
+      ansible.builtin.fail:
+        msg: |
+          Caddy failed to start.
+          See the systemctl status and journalctl output above for details.
+
+- name: Wait for Caddy to be ready on HTTPS
+  ansible.builtin.wait_for:
+    port: 443
+    host: 0.0.0.0
+    timeout: 30
+    delay: 2
+  ignore_errors: true
+  register: caddy_https_check
+
+- name: Wait for Caddy to be ready on HTTP
+  ansible.builtin.wait_for:
+    port: 80
+    host: 0.0.0.0
+    timeout: 30
+    delay: 2
+  ignore_errors: true
+  register: caddy_http_check
+
+- name: Check which ports Caddy is listening on
+  ansible.builtin.shell: ss -tlnp | grep caddy || echo "No Caddy processes listening"
+  register: caddy_ports
+  changed_when: false
+  failed_when: false
+
+- name: Test DNS resolution for Tailscale hosts
+  ansible.builtin.shell: |
+    echo "Testing DNS resolution for Tailscale hosts:"
+    for host in nuc.tail33930.ts.net nas.tail33930.ts.net pi.tail33930.ts.net; do
+      echo -n "$host: "
+      getent hosts $host || echo "FAILED"
+    done
+  register: dns_test
+  changed_when: false
+  failed_when: false
+
+- name: Check Caddy service status
+  ansible.builtin.command: systemctl status caddy --no-pager -l
+  register: caddy_status
+  changed_when: false
+  failed_when: false
+
+- name: Display Caddy diagnostics
+  ansible.builtin.debug:
+    msg: |
+      ===== Caddy Diagnostics =====
+      
+      Port 443 Check: {{ 'OK' if caddy_https_check is succeeded else 'FAILED' }}
+      Port 80 Check: {{ 'OK' if caddy_http_check is succeeded else 'FAILED' }}
+      
+      Listening Ports:
+      {{ caddy_ports.stdout }}
+      
+      DNS Resolution Test:
+      {{ dns_test.stdout }}
+      
+      Service Status:
+      {{ caddy_status.stdout }}
+
+- name: Check Caddy error logs
+  ansible.builtin.shell: journalctl -u caddy -n 50 --no-pager | grep -i "error\|fail\|refused" || echo "No errors found in recent logs"
+  register: caddy_errors
+  changed_when: false
+  failed_when: false
+
+- name: Display Caddy errors if any
+  ansible.builtin.debug:
+    msg: |
+      Recent Caddy Errors:
+      {{ caddy_errors.stdout }}
+  when: "'No errors found' not in caddy_errors.stdout"
+
+- name: Verify Caddy configuration is loaded (deploy page)
+  ansible.builtin.uri:
+    url: "https://deploy.{{ domain }}"
+    validate_certs: false  # Certs may still be provisioning immediately after config
+    return_content: false
+    status_code: [200, 301, 302]
+    timeout: 10
+  register: caddy_deploy_test
+  ignore_errors: true
+  changed_when: false
+
+- name: Test a local service endpoint
+  ansible.builtin.uri:
+    url: "https://dash.{{ domain }}"
+    validate_certs: false
+    return_content: false
+    status_code: [200, 301, 302, 502, 503]  # 502/503 means Caddy is working, service might not be
+    timeout: 10
+  register: caddy_local_service_test
+  ignore_errors: true
+  changed_when: false
+
+- name: Test a Tailscale proxied service endpoint
+  ansible.builtin.uri:
+    url: "https://home.{{ domain }}"
+    validate_certs: false
+    return_content: false
+    status_code: [200, 301, 302, 502, 503]  # 502/503 means Caddy is trying to proxy
+    timeout: 10
+  register: caddy_tailscale_test
+  ignore_errors: true
+  changed_when: false
+
+- name: Report Caddy verification results
+  ansible.builtin.debug:
+    msg: |
+      ===== Caddy Verification Results =====
+      
+      Deploy Page (https://deploy.{{ domain }}): {{ 'OK - ' ~ caddy_deploy_test.status if caddy_deploy_test is succeeded else 'FAILED - ' ~ (caddy_deploy_test.msg | default('Unknown error')) }}
+      
+      Local Service (https://dash.{{ domain }}): {{ 'OK - ' ~ caddy_local_service_test.status if caddy_local_service_test is succeeded else 'FAILED - ' ~ (caddy_local_service_test.msg | default('Unknown error')) }}
+      
+      Tailscale Service (https://home.{{ domain }}): {{ 'OK - ' ~ caddy_tailscale_test.status if caddy_tailscale_test is succeeded else 'FAILED - ' ~ (caddy_tailscale_test.msg | default('Unknown error')) }}
+      
+      Note: 502/503 status codes indicate Caddy is working but backend service may be down
+
+- name: Fail if Caddy is completely broken
+  ansible.builtin.fail:
+    msg: |
+      Caddy appears to be completely broken. Neither HTTP nor HTTPS ports are accessible,
+      and the deploy page cannot be reached. Please check the diagnostics above.
+  when:
+    - caddy_https_check is failed
+    - caddy_http_check is failed
+    - caddy_deploy_test is failed

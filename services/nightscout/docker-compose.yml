@@ -1,0 +1,101 @@
+services:
+  # MongoDB Database for Nightscout
+  mongo:
+    image: mongo:4.4
+    container_name: ${COMPOSE_PROJECT_NAME:-nightscout}-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - nightscout-internal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Nightscout CGM Web Monitor
+  nightscout:
+    image: nightscout/cgm-remote-monitor:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-nightscout}-app
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      # MongoDB Connection (internal network)
+      MONGODB_URI: mongodb://mongo:27017/nightscout
+      MONGO_COLLECTION: entries
+      
+      # API Secret (from .env file)
+      API_SECRET: ${API_SECRET}
+      
+      # Display Settings
+      DISPLAY_UNITS: ${DISPLAY_UNITS:-mg/dl}
+      TIME_FORMAT: ${TIME_FORMAT:-24}
+      THEME: ${THEME:-colors}
+      
+      # Enable Plugins
+      ENABLE: ${ENABLE:-careportal basal dbsize}
+      
+      # Alarm Settings (optional)
+      BG_HIGH: ${BG_HIGH:-260}
+      BG_TARGET_TOP: ${BG_TARGET_TOP:-180}
+      BG_TARGET_BOTTOM: ${BG_TARGET_BOTTOM:-80}
+      BG_LOW: ${BG_LOW:-55}
+      ALARM_TYPES: ${ALARM_TYPES:-simple}
+      
+      # Base URL (will be set by Caddy)
+      BASE_URL: https://${NIGHTSCOUT_DOMAIN:-nightscout.example.com}
+      
+      # Timezone
+      TZ: ${TZ:-Europe/Berlin}
+      
+      # Security
+      AUTH_DEFAULT_ROLES: readable
+      INSECURE_USE_HTTP: 'true'
+      
+    ports:
+      - "1337:1337"  # Exposed locally for LibreLink-Up connector
+    networks:
+      - nightscout-internal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # LibreLink Up to Nightscout Connector (Custom Go Implementation)
+  librelink-up:
+    image: ghcr.io/mrcodeeu/nightscout-librelink-up-go:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-nightscout}-librelink-up
+    restart: unless-stopped
+    depends_on:
+      - nightscout
+    environment:
+      # LibreLink Up Credentials (from .env file)
+      LINK_UP_USERNAME: ${LINK_UP_USERNAME}
+      LINK_UP_PASSWORD: ${LINK_UP_PASSWORD}
+      LINK_UP_REGION: ${LINK_UP_REGION:-EU}
+      LINK_UP_TIME_INTERVAL: ${LINK_UP_TIME_INTERVAL:-5}
+      
+      # Timezone
+      TZ: ${TZ:-Europe/Berlin}
+
+      # Nightscout Connection (uses internal container name)
+      NIGHTSCOUT_URL: http://nightscout:1337
+      NIGHTSCOUT_API_TOKEN: ${NIGHTSCOUT_API_TOKEN}
+    networks:
+      - nightscout-internal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  nightscout-internal:
+    driver: bridge
+
+volumes:
+  mongo-data:
+    driver: local
