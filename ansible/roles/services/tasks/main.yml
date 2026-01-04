@@ -175,14 +175,14 @@
   ansible.builtin.uri:
     url: "http://localhost:{{ service.port }}"
     status_code: [200, 301, 302, 401, 403]  # Accept redirects and auth pages
-    timeout: 5
+    timeout: 3
   loop: "{{ host_services }}"
   loop_control:
     loop_var: service
     label: "{{ service.name }}"
   register: health_check
-  retries: "{{ 12 if (caddy_service_status.status.ActiveState | default('inactive')) == 'active' else 2 }}"
-  delay: 5
+  retries: "{{ 4 if (caddy_service_status.status.ActiveState | default('inactive')) == 'active' else 1 }}"
+  delay: 3
   until: health_check.status is defined and health_check.status in [200, 301, 302, 401, 403]
   failed_when: false
   when:
