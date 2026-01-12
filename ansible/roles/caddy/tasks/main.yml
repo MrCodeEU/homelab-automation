@@ -1,67 +1,23 @@
 ---
-- name: Install Caddy (Rocky/RedHat)
-  when: ansible_facts['os_family'] == "RedHat"
-  block:
-    - name: Install DNF plugins
-      ansible.builtin.dnf:
-        name: 'dnf-command(copr)'
-        state: present
+# Caddy Role - Rocky Linux only
+# ============================================================================
 
-    - name: Enable Caddy COPR
-      ansible.builtin.command: dnf copr enable -y @caddy/caddy
-      args:
-        creates: >-
-          /etc/yum.repos.d/
-          _copr:copr.fedorainfracloud.org:group_caddy:caddy.repo
+- name: Install DNF plugins
+  ansible.builtin.dnf:
+    name: 'dnf-command(copr)'
+    state: present
 
-    - name: Install Caddy
-      ansible.builtin.dnf:
-        name: caddy
-        state: present
+- name: Enable Caddy COPR
+  ansible.builtin.command: dnf copr enable -y @caddy/caddy
+  args:
+    creates: >-
+      /etc/yum.repos.d/
+      _copr:copr.fedorainfracloud.org:group_caddy:caddy.repo
 
-- name: Install Caddy (Debian/Ubuntu)
-  when: ansible_facts['os_family'] == "Debian"
-  block:
-    - name: Install prerequisites
-      ansible.builtin.apt:
-        name:
-          - debian-keyring
-          - debian-archive-keyring
-          - apt-transport-https
-          - curl
-        state: present
-        update_cache: true
-
-    - name: Download Caddy GPG key
-      ansible.builtin.get_url:
-        url: https://dl.cloudsmith.io/public/caddy/stable/gpg.key
-        dest: /tmp/caddy.gpg
-        mode: '0644'
-
-    - name: Dearmor Caddy GPG key
-      ansible.builtin.shell: >-
-        set -o pipefail &&
-        gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-        /tmp/caddy.gpg
-      args:
-        creates: /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-        executable: /bin/bash
-
-    - name: Download Caddy repository configuration
-      ansible.builtin.get_url:
-        url: >-
-          https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt
-        dest: /etc/apt/sources.list.d/caddy-stable.list
-        mode: '0644'
-
-    - name: Update apt cache
-      ansible.builtin.apt:
-        update_cache: true
-
-    - name: Install Caddy
-      ansible.builtin.apt:
-        name: caddy
-        state: present
+- name: Install Caddy
+  ansible.builtin.dnf:
+    name: caddy
+    state: present
 
 - name: Check for conflicting web servers
   ansible.builtin.service_facts:
@@ -87,28 +43,25 @@
     force_kill: true
   failed_when: false
 
-- name: Configure firewall for Caddy
-  when: ansible_facts['os_family'] == "RedHat"
-  block:
-    - name: Ensure firewalld is running
-      ansible.builtin.service:
-        name: firewalld
-        state: started
-        enabled: true
+- name: Ensure firewalld is running
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
 
-    - name: Open HTTP port in firewall
-      ansible.posix.firewalld:
-        service: http
-        permanent: true
-        immediate: true
-        state: enabled
+- name: Open HTTP port in firewall
+  ansible.posix.firewalld:
+    service: http
+    permanent: true
+    immediate: true
+    state: enabled
 
-    - name: Open HTTPS port in firewall
-      ansible.posix.firewalld:
-        service: https
-        permanent: true
-        immediate: true
-        state: enabled
+- name: Open HTTPS port in firewall
+  ansible.posix.firewalld:
+    service: https
+    permanent: true
+    immediate: true
+    state: enabled
 
 - name: Create Caddy directories
   ansible.builtin.file:
