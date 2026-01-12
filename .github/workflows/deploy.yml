@@ -72,19 +72,27 @@ jobs:
           path: |
             ~/.local
             ~/.ansible/collections
-          key: ansible-${{ runner.os }}-${{ hashFiles('ansible/requirements.yml') }}-v3
+            ~/.cache/uv
+          key: ansible-${{ runner.os }}-${{ hashFiles('ansible/requirements.yml') }}-v4
           restore-keys: |
             ansible-${{ runner.os }}-
 
-      - name: Install Ansible
-        run: pip install --user ansible
+      - name: Install uv (fast Python package manager)
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install Ansible with uv
+        run: ~/.local/bin/uv pip install --system ansible
 
       - name: Install collections
-        run: cd ansible && ansible-galaxy collection install -r requirements.yml
+        run: cd ansible && ansible-galaxy collection install -r requirements.yml --force-with-deps
 
       - name: Run Ansible
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
+          # Performance optimizations
+          ANSIBLE_PIPELINING: "True"
+          ANSIBLE_SSH_PIPELINING: "True"
+          ANSIBLE_STDOUT_CALLBACK: "yaml"
           # Secrets
           NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
           LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
@@ -119,10 +127,11 @@ jobs:
           # Extra vars
           EXTRA_VARS="is_staging_deployment=${{ steps.env.outputs.is_staging }}"
 
-          echo "Running: ansible-playbook site.yml --limit $LIMIT --tags $TAGS"
+          echo "Running: ansible-playbook site.yml --limit $LIMIT --tags $TAGS --forks 20"
           ansible-playbook playbooks/site.yml \
             --limit "$LIMIT" \
             --tags "$TAGS" \
+            --forks 20 \
             --extra-vars "$EXTRA_VARS"
 
       - name: Notify

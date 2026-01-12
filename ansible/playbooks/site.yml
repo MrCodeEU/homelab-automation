@@ -40,6 +40,7 @@
   hosts: rocky
   become: true
   gather_facts: false
+  strategy: free
   tags:
     - base
   roles:
@@ -52,6 +53,7 @@
   hosts: rocky
   become: true
   gather_facts: false
+  strategy: free
   tags:
     - security
     - fail2ban
@@ -65,6 +67,7 @@
   hosts: rocky
   become: true
   gather_facts: false
+  strategy: free
   tags:
     - backup
   roles:
@@ -77,6 +80,7 @@
   hosts: mljr
   become: true
   gather_facts: false
+  strategy: free
   tags:
     - glance
   roles:
@@ -86,6 +90,7 @@
   hosts: mljr
   become: true
   gather_facts: false
+  strategy: free
   tags:
     - mailcow
   vars:
@@ -110,6 +115,7 @@
   hosts: rocky
   become: true
   gather_facts: false
+  strategy: free
   tags:
     - caddy
   roles:
