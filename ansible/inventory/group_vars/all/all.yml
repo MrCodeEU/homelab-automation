@@ -278,7 +278,7 @@ services:
     enabled: true
     managed: false
     domain: "nuc.mljr.eu"
-    port: "9090"
+    port: 9090
     host: nuc
     description: "NUC WebUI provided by Rocky"
     icon: "mdi:monitor-dashboard"
