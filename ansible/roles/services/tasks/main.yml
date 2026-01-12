@@ -150,55 +150,54 @@
   ignore_errors: true
 
 # ============================================================================
-# Health Checks
+# Health Checks (Parallel)
 # ============================================================================
 
-- name: Check if Caddy is running
-  ansible.builtin.command:
-    cmd: systemctl is-active caddy
-  register: caddy_service_check
-  failed_when: false
-  changed_when: false
-  when: not ansible_check_mode
-  timeout: 5
-
-- name: Set Caddy status fact
-  ansible.builtin.set_fact:
-    caddy_service_status:
-      status:
-        ActiveState: "{{ 'active' if caddy_service_check.rc == 0 else 'inactive' }}"
-  when:
-    - not ansible_check_mode
-    - caddy_service_check is defined
-
-- name: Wait for services to be healthy
+# Launch all health checks in parallel
+- name: Check service health (async)
   ansible.builtin.uri:
     url: "http://localhost:{{ service.port }}"
-    status_code: [200, 301, 302, 400, 401, 403]  # Accept redirects, bad request, and auth pages
-    timeout: 3
+    status_code: [200, 301, 302, 400, 401, 403]
+    timeout: 5
   loop: "{{ host_services }}"
   loop_control:
     loop_var: service
     label: "{{ service.name }}"
-  register: health_check
-  retries: "{{ 4 if (caddy_service_status.status.ActiveState | default('inactive')) == 'active' else 1 }}"
-  delay: 3
-  until: health_check.status is defined and health_check.status in [200, 301, 302, 400, 401, 403]
+  register: health_check_async
+  async: 30
+  poll: 0
   failed_when: false
   when:
     - not ansible_check_mode
     - service.port is defined
 
-- name: Display health check results
-  ansible.builtin.debug:
-    msg: "{{ service.name }}: {{ 'HEALTHY' if (health_check.results | selectattr('service.name', 'equalto', service.name) | first).status | default(0) in [200, 301, 302, 400, 401, 403] else 'PENDING' }}"
-  loop: "{{ host_services }}"
+# Wait for all health checks to complete (single wait instead of sequential)
+- name: Wait for health checks to complete
+  ansible.builtin.async_status:
+    jid: "{{ item.ansible_job_id }}"
+  loop: "{{ health_check_async.results | default([]) }}"
   loop_control:
-    loop_var: service
-    label: "{{ service.name }}"
+    label: "{{ item.service.name | default('unknown') }}"
+  register: health_check_results
+  until: health_check_results.finished
+  retries: 6
+  delay: 2
+  failed_when: false
   when:
     - not ansible_check_mode
-    - health_check.results is defined
+    - item.ansible_job_id is defined
+
+# Display consolidated health results
+- name: Display health check summary
+  ansible.builtin.debug:
+    msg: |
+      Service Health:
+      {% for result in health_check_results.results | default([]) %}
+      - {{ result.item.service.name | default('unknown') }}: {{ 'HEALTHY' if result.status | default(0) in [200, 301, 302, 400, 401, 403] else 'PENDING' }}
+      {% endfor %}
+  when:
+    - not ansible_check_mode
+    - health_check_results is defined
 
 # ============================================================================
 # Kuma Provisioning (if Kuma is deployed)

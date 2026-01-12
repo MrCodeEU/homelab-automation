@@ -208,15 +208,15 @@
   when: not ansible_check_mode
   register: mailcow_compose_result
 
-# Health check
+# Health check - quick validation, non-blocking
 - name: Wait for mailcow nginx to be ready
   ansible.builtin.uri:
     url: "http://127.0.0.1:{{ mailcow_http_port }}"
     status_code: [200, 301, 302]
-    timeout: 5
+    timeout: 3
   register: mailcow_health
-  retries: 6
-  delay: 5
+  retries: 3
+  delay: 3
   until: mailcow_health.status in [200, 301, 302]
   failed_when: false  # Don't block deployment if mailcow is slow to start
   when: not ansible_check_mode
