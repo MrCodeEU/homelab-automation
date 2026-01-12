@@ -51,13 +51,19 @@ jobs:
         id: env
         run: |
           IS_STAGING="false"
+          CHECK_MODE="false"
+
           if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.staging }}" == "true" ]; then
             IS_STAGING="true"
           elif [ "${{ github.ref }}" != "refs/heads/main" ]; then
             IS_STAGING="true"
+            CHECK_MODE="true"
           fi
+
           echo "is_staging=$IS_STAGING" >> $GITHUB_OUTPUT
+          echo "check_mode=$CHECK_MODE" >> $GITHUB_OUTPUT
           echo "Environment: $([ "$IS_STAGING" == "true" ] && echo 'staging' || echo 'production')"
+          echo "Check mode: $CHECK_MODE"
 
       - name: Setup Tailscale
         uses: tailscale/github-action@v3
@@ -95,7 +101,6 @@ jobs:
           # Performance optimizations
           ANSIBLE_PIPELINING: "True"
           ANSIBLE_SSH_PIPELINING: "True"
-          ANSIBLE_STDOUT_CALLBACK: "yaml"
           # Secrets
           NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
           LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
@@ -130,11 +135,19 @@ jobs:
           # Extra vars
           EXTRA_VARS="is_staging_deployment=${{ steps.env.outputs.is_staging }}"
 
-          echo "Running: ansible-playbook site.yml --limit $LIMIT --tags $TAGS --forks 20"
+          # Check mode for non-main branches (dry run)
+          CHECK_FLAG=""
+          if [ "${{ steps.env.outputs.check_mode }}" == "true" ]; then
+            CHECK_FLAG="--check --diff"
+            echo "Running in CHECK MODE (dry run) - no changes will be made"
+          fi
+
+          echo "Running: ansible-playbook site.yml --limit $LIMIT --tags $TAGS --forks 20 $CHECK_FLAG"
           ansible-playbook playbooks/site.yml \
             --limit "$LIMIT" \
             --tags "$TAGS" \
             --forks 20 \
+            $CHECK_FLAG \
             --extra-vars "$EXTRA_VARS"
 
       - name: Notify
@@ -156,16 +169,22 @@ jobs:
             TAGS="services,caddy"
           fi
 
+          # Check mode indicator
+          MODE=""
+          if [ "${{ steps.env.outputs.check_mode }}" == "true" ]; then
+            MODE=" [DRY RUN]"
+          fi
+
           # Check if ntfy is reachable first (3 second timeout)
           if curl -s --connect-timeout 3 --max-time 3 https://ntfy.mljr.eu/deployment -o /dev/null; then
             echo "Sending notification to ntfy..."
             curl -s \
               --connect-timeout 5 \
               --max-time 10 \
-              -H "Title: Deployment $STATUS" \
+              -H "Title: Deployment $STATUS$MODE" \
               -H "Priority: $PRIORITY" \
               -H "Tags: ansible,homelab" \
-              -d "$EMOJI Homelab deployed (limit: $LIMIT, tags: $TAGS)" \
+              -d "$EMOJI Homelab deployed (limit: $LIMIT, tags: $TAGS)$MODE" \
               https://ntfy.mljr.eu/deployment || echo "Failed to send notification"
           else
             echo "⚠️  Ntfy service is not reachable, skipping notification"
