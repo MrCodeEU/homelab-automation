@@ -93,7 +93,7 @@
   register: job_result
   until: job_result.finished
   retries: 30
-  delay: 10
+  delay: 5
   when:
     - not ansible_check_mode
     - item.ansible_job_id is defined
@@ -141,7 +141,7 @@
   register: staging_job_result
   until: staging_job_result.finished
   retries: 30
-  delay: 10
+  delay: 5
   when:
     - is_staging_deployment | default(false) | bool
     - not ansible_check_mode
