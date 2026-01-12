@@ -235,13 +235,14 @@ services:
     icon: "mdi:share-variant"
 
   # Home Server (NUC - will be Rocky Linux)
+  # Disabled in favor of nuc-webui (Rocky Linux Cockpit on port 9090)
   - name: homeserver-ui
-    enabled: true
-    managed: false  # Will change to true when NUC runs Rocky
+    enabled: false
+    managed: false
     domain: "nuc.mljr.eu"
     port: 80
     host: nuc
-    description: "Home Server"
+    description: "Home Server (deprecated - use nuc-webui)"
     icon: "mdi:server"
 
   - name: sonarqube
