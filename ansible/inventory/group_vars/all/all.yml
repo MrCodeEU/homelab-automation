@@ -272,6 +272,16 @@ services:
     description: "Metrics & Monitoring"
     icon: "mdi:chart-areaspline"
 
+  # NUC Rocky WebUI
+  - name: nuc-webui
+    enabled: true
+    managed: false
+    domain: "nuc.mljr.eu"
+    port: "9090"
+    host: nuc
+    description: "NUC WebUI provided by Rocky"
+    icon: "mdi:monitor-dashboard"
+
 # ============================================================================
 # Role-specific variables
 # ============================================================================
