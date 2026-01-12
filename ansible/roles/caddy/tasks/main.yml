@@ -307,129 +307,56 @@
           Caddy failed to start.
           See the systemctl status and journalctl output above for details.
 
-- name: Wait for Caddy to be ready on HTTPS
+# Quick port check with reduced timeout
+- name: Wait for Caddy to be ready
   ansible.builtin.wait_for:
     port: 443
     host: 0.0.0.0
-    timeout: 30
-    delay: 2
+    timeout: 15
+    delay: 1
   ignore_errors: true
   register: caddy_https_check
 
-- name: Wait for Caddy to be ready on HTTP
-  ansible.builtin.wait_for:
-    port: 80
-    host: 0.0.0.0
-    timeout: 30
-    delay: 2
-  ignore_errors: true
-  register: caddy_http_check
-
-- name: Check which ports Caddy is listening on
-  ansible.builtin.shell: ss -tlnp | grep caddy || echo "No Caddy processes listening"
-  register: caddy_ports
-  changed_when: false
-  failed_when: false
-
-- name: Test DNS resolution for Tailscale hosts
-  ansible.builtin.shell: |
-    echo "Testing DNS resolution for Tailscale hosts:"
-    for host in nuc.tail33930.ts.net nas.tail33930.ts.net pi.tail33930.ts.net; do
-      echo -n "$host: "
-      getent hosts $host || echo "FAILED"
-    done
-  register: dns_test
-  changed_when: false
-  failed_when: false
-
-- name: Check Caddy service status
-  ansible.builtin.command: systemctl status caddy --no-pager -l
-  register: caddy_status
-  changed_when: false
-  failed_when: false
-
-- name: Display Caddy diagnostics
-  ansible.builtin.debug:
-    msg: |
-      ===== Caddy Diagnostics =====
-      
-      Port 443 Check: {{ 'OK' if caddy_https_check is succeeded else 'FAILED' }}
-      Port 80 Check: {{ 'OK' if caddy_http_check is succeeded else 'FAILED' }}
-      
-      Listening Ports:
-      {{ caddy_ports.stdout }}
-      
-      DNS Resolution Test:
-      {{ dns_test.stdout }}
-      
-      Service Status:
-      {{ caddy_status.stdout }}
-
-- name: Check Caddy error logs
-  ansible.builtin.shell: journalctl -u caddy -n 50 --no-pager | grep -i "error\|fail\|refused" || echo "No errors found in recent logs"
-  register: caddy_errors
-  changed_when: false
-  failed_when: false
-
-- name: Display Caddy errors if any
-  ansible.builtin.debug:
-    msg: |
-      Recent Caddy Errors:
-      {{ caddy_errors.stdout }}
-  when: "'No errors found' not in caddy_errors.stdout"
-
-- name: Verify Caddy configuration is loaded (deploy page)
+# Combined health check - verify Caddy is working
+- name: Verify Caddy is serving requests
   ansible.builtin.uri:
     url: "https://deploy.{{ domain }}"
-    validate_certs: false  # Certs may still be provisioning immediately after config
+    validate_certs: false
     return_content: false
     status_code: [200, 301, 302]
-    timeout: 10
+    timeout: 5
   register: caddy_deploy_test
   ignore_errors: true
   changed_when: false
+  retries: 2
+  delay: 2
+  until: caddy_deploy_test is succeeded
 
-- name: Test a local service endpoint
-  ansible.builtin.uri:
-    url: "https://dash.{{ domain }}"
-    validate_certs: false
-    return_content: false
-    status_code: [200, 301, 302, 502, 503]  # 502/503 means Caddy is working, service might not be
-    timeout: 10
-  register: caddy_local_service_test
-  ignore_errors: true
-  changed_when: false
+# Consolidated diagnostics - only run on failure
+- name: Gather Caddy diagnostics on failure
+  when: caddy_deploy_test is failed
+  block:
+    - name: Check Caddy ports and status
+      ansible.builtin.shell: |
+        echo "=== Caddy Ports ==="
+        ss -tlnp | grep caddy || echo "No Caddy processes listening"
+        echo ""
+        echo "=== Service Status ==="
+        systemctl status caddy --no-pager -l 2>&1 | head -20
+        echo ""
+        echo "=== Recent Errors ==="
+        journalctl -u caddy -n 20 --no-pager | grep -i "error\|fail\|refused" || echo "No errors found"
+      register: caddy_diagnostics
+      changed_when: false
+      failed_when: false
 
-- name: Test a Tailscale proxied service endpoint
-  ansible.builtin.uri:
-    url: "https://home.{{ domain }}"
-    validate_certs: false
-    return_content: false
-    status_code: [200, 301, 302, 502, 503]  # 502/503 means Caddy is trying to proxy
-    timeout: 10
-  register: caddy_tailscale_test
-  ignore_errors: true
-  changed_when: false
-
-- name: Report Caddy verification results
-  ansible.builtin.debug:
-    msg: |
-      ===== Caddy Verification Results =====
-      
-      Deploy Page (https://deploy.{{ domain }}): {{ 'OK - ' ~ caddy_deploy_test.status if caddy_deploy_test is succeeded else 'FAILED - ' ~ (caddy_deploy_test.msg | default('Unknown error')) }}
-      
-      Local Service (https://dash.{{ domain }}): {{ 'OK - ' ~ caddy_local_service_test.status if caddy_local_service_test is succeeded else 'FAILED - ' ~ (caddy_local_service_test.msg | default('Unknown error')) }}
-      
-      Tailscale Service (https://home.{{ domain }}): {{ 'OK - ' ~ caddy_tailscale_test.status if caddy_tailscale_test is succeeded else 'FAILED - ' ~ (caddy_tailscale_test.msg | default('Unknown error')) }}
-      
-      Note: 502/503 status codes indicate Caddy is working but backend service may be down
+    - name: Display Caddy diagnostics
+      ansible.builtin.debug:
+        msg: "{{ caddy_diagnostics.stdout }}"
 
 - name: Fail if Caddy is completely broken
   ansible.builtin.fail:
-    msg: |
-      Caddy appears to be completely broken. Neither HTTP nor HTTPS ports are accessible,
-      and the deploy page cannot be reached. Please check the diagnostics above.
+    msg: "Caddy failed to start or serve requests. Check diagnostics above."
   when:
     - caddy_https_check is failed
-    - caddy_http_check is failed
     - caddy_deploy_test is failed
