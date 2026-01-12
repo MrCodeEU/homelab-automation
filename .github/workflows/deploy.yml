@@ -21,12 +21,19 @@ on:
         default: false
         type: boolean
 
-  # Automatic trigger - only on main/v2 branches
+  # Automatic deploy on main branch
   push:
     branches:
       - main
-      - '*V2*'
-      - '*v2*'
+    paths:
+      - 'ansible/**'
+      - 'services/**'
+      - '.github/workflows/deploy.yml'
+
+  # Check mode (dry run) on pull requests - use as required PR check
+  pull_request:
+    branches:
+      - main
     paths:
       - 'ansible/**'
       - 'services/**'
@@ -53,7 +60,12 @@ jobs:
           IS_STAGING="false"
           CHECK_MODE="false"
 
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.staging }}" == "true" ]; then
+          # Pull requests always run in check mode (dry run)
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            IS_STAGING="true"
+            CHECK_MODE="true"
+            echo "Pull request detected - running in CHECK MODE"
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.staging }}" == "true" ]; then
             IS_STAGING="true"
           elif [ "${{ github.ref }}" != "refs/heads/main" ]; then
             IS_STAGING="true"
