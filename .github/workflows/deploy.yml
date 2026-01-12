@@ -70,18 +70,21 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.local
+            ~/.local/bin
+            ~/.local/pipx
             ~/.ansible/collections
-            ~/.cache/uv
-          key: ansible-${{ runner.os }}-${{ hashFiles('ansible/requirements.yml') }}-v4
+          key: ansible-${{ runner.os }}-${{ hashFiles('ansible/requirements.yml') }}-v5
           restore-keys: |
             ansible-${{ runner.os }}-
 
-      - name: Install uv (fast Python package manager)
-        run: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-      - name: Install Ansible with uv
-        run: ~/.local/bin/uv pip install --system ansible
+      - name: Install Ansible with pipx
+        run: |
+          if ! command -v ansible-playbook &> /dev/null; then
+            pipx install ansible-core
+            pipx inject ansible-core docker
+          else
+            echo "Ansible already installed (from cache)"
+          fi
 
       - name: Install collections
         run: cd ansible && ansible-galaxy collection install -r requirements.yml --force-with-deps
