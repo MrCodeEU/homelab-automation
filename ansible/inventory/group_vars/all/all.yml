@@ -20,8 +20,10 @@ backup_path: "/opt/backups"
 # - Port offset: port + 10000 (e.g., 8080 -> 18080)
 # - Domain prefix: <service>.dev.<domain> (e.g., dash.dev.mljr.eu)
 # - Separate deployment path: /opt/staging/<service>
+# - All staging services deploy to staging_host
 staging_port_offset: 10000
 staging_domain_prefix: "dev"
+staging_host: "nuc"
 
 # ============================================================================
 # Services Configuration
