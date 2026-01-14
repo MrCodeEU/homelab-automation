@@ -76,6 +76,15 @@ services:
     icon: "mdi:heart-pulse"
     backup_critical: true  # Restore on fresh install
 
+  - name: beszel
+    enabled: true
+    domain: "monitor.mljr.eu"
+    port: 8090
+    host: mljr
+    description: "System Monitoring"
+    icon: "mdi:chart-line"
+    caddy_auth: "basicauth"
+
   # Notifications
   - name: ntfy
     enabled: true
@@ -144,12 +153,20 @@ services:
     icon: "mdi:docker"
 
   - name: wud
-    enabled: true
+    enabled: false  # Replaced by Diun (no UI, uses ntfy)
     domain: "wud.mljr.eu"
     port: 3000
     host: mljr
-    description: "Docker Updates"
+    description: "Docker Updates (deprecated)"
     icon: "mdi:update"
+
+  - name: diun
+    enabled: true
+    managed: true
+    port: 0  # No web UI - notification only via ntfy
+    host: mljr
+    description: "Docker Image Update Notifier"
+    icon: "mdi:docker"
 
   # Personal
   - name: homepage

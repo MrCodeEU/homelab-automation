@@ -1,0 +1,28 @@
+services:
+  diun:
+    image: crazymax/diun:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-diun}
+    restart: unless-stopped
+    command: serve
+    volumes:
+      - diun-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./diun.yml:/diun.yml:ro
+    environment:
+      TZ: ${TZ:-Europe/Vienna}
+      LOG_LEVEL: info
+      LOG_JSON: "false"
+    networks:
+      - default
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  diun-data:
+
+networks:
+  default:
+    driver: bridge

@@ -117,6 +117,8 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 | base | System packages, Docker |
 | caddy | Reverse proxy (always runs last) |
 | services | Docker Compose services |
+| beszel-agent | Beszel monitoring agent (all rocky hosts) |
+| monitoring | Alias for beszel-agent |
 | backup | Backup/restore configuration |
 | security | Fail2ban |
 | glance | Dashboard |

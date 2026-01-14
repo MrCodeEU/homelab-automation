@@ -109,6 +109,20 @@
     - services
 
 # ============================================================================
+# Beszel Agent (all Rocky hosts - system monitoring)
+# ============================================================================
+- name: Beszel Monitoring Agent
+  hosts: rocky
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - beszel-agent
+    - monitoring
+  roles:
+    - beszel-agent
+
+# ============================================================================
 # Caddy Reverse Proxy (mljr only - main ingress point)
 # ============================================================================
 - name: Caddy Setup
