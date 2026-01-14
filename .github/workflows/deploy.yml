@@ -16,9 +16,9 @@ on:
         default: 'all'
         type: string
       staging:
-        description: 'Deploy staging environment'
+        description: 'Deploy staging environment (to nuc)'
         required: false
-        default: false
+        default: true
         type: boolean
 
   # Automatic deploy on main branch
@@ -65,16 +65,26 @@ jobs:
             IS_STAGING="true"
             CHECK_MODE="true"
             echo "Pull request detected - running in CHECK MODE"
-          elif [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.staging }}" == "true" ]; then
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual dispatch: use the staging input (default: true)
+            IS_STAGING="${{ inputs.staging }}"
+          elif [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            # Push to main: deploy both production AND staging
             IS_STAGING="true"
+            echo "Push to main - deploying production + staging"
+          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            # External triggers: deploy both production AND staging
+            IS_STAGING="true"
+            echo "Repository dispatch - deploying production + staging"
           elif [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            # Non-main branches: check mode only
             IS_STAGING="true"
             CHECK_MODE="true"
           fi
 
           echo "is_staging=$IS_STAGING" >> $GITHUB_OUTPUT
           echo "check_mode=$CHECK_MODE" >> $GITHUB_OUTPUT
-          echo "Environment: $([ "$IS_STAGING" == "true" ] && echo 'staging' || echo 'production')"
+          echo "Environment: $([ "$IS_STAGING" == "true" ] && echo 'production + staging' || echo 'production only')"
           echo "Check mode: $CHECK_MODE"
 
       - name: Setup Tailscale
@@ -187,6 +197,12 @@ jobs:
             MODE=" [DRY RUN]"
           fi
 
+          # Staging indicator
+          STAGING_INFO=""
+          if [ "${{ steps.env.outputs.is_staging }}" == "true" ]; then
+            STAGING_INFO=" +staging"
+          fi
+
           # Check if ntfy is reachable first (3 second timeout)
           if curl -s --connect-timeout 3 --max-time 3 https://ntfy.mljr.eu/deployment -o /dev/null; then
             echo "Sending notification to ntfy..."
@@ -196,7 +212,7 @@ jobs:
               -H "Title: Deployment $STATUS$MODE" \
               -H "Priority: $PRIORITY" \
               -H "Tags: ansible,homelab" \
-              -d "$EMOJI Homelab deployed (limit: $LIMIT, tags: $TAGS)$MODE" \
+              -d "$EMOJI Homelab deployed (limit: $LIMIT, tags: $TAGS$STAGING_INFO)$MODE" \
               https://ntfy.mljr.eu/deployment || echo "Failed to send notification"
           else
             echo "⚠️  Ntfy service is not reachable, skipping notification"
