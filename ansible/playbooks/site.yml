@@ -5,18 +5,18 @@
 #
 # Host Groups:
 #   - managed: Full Ansible deployment (base, docker, services)
-#   - rocky: Rocky Linux servers (subset of managed)
+#   - rocky: Rocky Linux servers (mljr=production, nuc=staging)
 #   - unraid: Unraid NAS hosts
 #   - proxy_only: Only used for Caddy configuration
 #
-# Tags:
-#   - base: System packages and Docker
-#   - caddy: Reverse proxy configuration
-#   - services: Docker Compose services
-#   - backup: Backup and restore
-#   - security: Fail2ban and security
-#   - glance: Dashboard
-#   - mailcow: Mail server
+# Role Targeting:
+#   - base:     rocky (both)  - System packages and Docker
+#   - backup:   rocky (both)  - Backup and restore
+#   - services: rocky (both)  - Docker Compose (prod on mljr, staging on nuc)
+#   - caddy:    mljr only     - Reverse proxy (main ingress)
+#   - security: mljr only     - Fail2ban (nuc is Tailscale-only)
+#   - glance:   mljr only     - Dashboard
+#   - mailcow:  mljr only     - Mail server
 # ============================================================================
 
 # Gather facts from managed hosts only
@@ -47,10 +47,10 @@
     - base
 
 # ============================================================================
-# Security
+# Security (mljr only - nuc is Tailscale-only, not internet-exposed)
 # ============================================================================
 - name: Security Setup
-  hosts: rocky
+  hosts: mljr
   become: true
   gather_facts: false
   strategy: free
@@ -109,10 +109,10 @@
     - services
 
 # ============================================================================
-# Caddy Reverse Proxy (always last)
+# Caddy Reverse Proxy (mljr only - main ingress point)
 # ============================================================================
 - name: Caddy Setup
-  hosts: rocky
+  hosts: mljr
   become: true
   gather_facts: false
   strategy: free
