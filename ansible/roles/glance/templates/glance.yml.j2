@@ -95,7 +95,7 @@ pages:
             cache: 1m
             sites:
 {% for service in services %}
-{% if service.enabled | default(true) %}
+{% if service.enabled | default(true) and service.domain is defined %}
               - title: {{ service.name | capitalize }}
                 url: https://{{ service.domain if service.domain is string else service.domain[0] }}
                 icon: {{ service.icon | default('mdi:application') }}
