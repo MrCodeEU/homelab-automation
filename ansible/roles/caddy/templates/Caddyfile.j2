@@ -22,7 +22,7 @@ deploy.{{ domain }} {
 # Services
 # ============================================================================
 {% for service in services %}
-{% if service.enabled | default(true) %}
+{% if service.enabled | default(true) and service.domain is defined %}
 {# Determine the upstream target #}
 {% set is_local = service.host == inventory_hostname %}
 {% set target_host = 'localhost' if is_local else hostvars[service.host]['ansible_host'] %}
