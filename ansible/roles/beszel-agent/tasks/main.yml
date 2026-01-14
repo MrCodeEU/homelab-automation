@@ -51,6 +51,7 @@
             PORT: "45876"
             KEY: "{{ secrets.beszel.key }}"
             HUB_URL: "{{ beszel_hub_url }}"
+            TOKEN: "{{ secrets.beszel.token }}"
           logging:
             driver: "json-file"
             options:
