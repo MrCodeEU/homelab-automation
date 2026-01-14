@@ -5,13 +5,16 @@
 #
 # Required secrets:
 #   - BESZEL_KEY: Public SSH key from the Beszel hub (Settings > Copy Public Key)
+#   - BESZEL_TOKEN: Universal token from the Beszel hub (Settings > Tokens)
 #
-# The hub URL is constructed from the mljr host's Tailscale address.
+# The hub URL depends on where the agent runs:
+#   - On mljr (same host as hub): Uses localhost since agent uses host network
+#   - On other hosts: Uses mljr's Tailscale address
 # ============================================================================
 
-- name: Set Beszel hub URL
+- name: Set Beszel hub URL (local for mljr, remote for others)
   ansible.builtin.set_fact:
-    beszel_hub_url: "http://{{ hostvars['mljr']['ansible_host'] }}:8090"
+    beszel_hub_url: "{{ 'http://localhost:8090' if inventory_hostname == 'mljr' else 'http://' + hostvars['mljr']['ansible_host'] + ':8090' }}"
 
 - name: Check if Beszel key is configured
   ansible.builtin.assert:
@@ -25,6 +28,21 @@
       2. Open https://monitor.mljr.eu and create an admin account
       3. Go to Settings > Copy Public Key
       4. Add BESZEL_KEY to your GitHub secrets or environment
+    quiet: true
+  when: not ansible_check_mode
+
+- name: Check if Beszel token is configured
+  ansible.builtin.assert:
+    that:
+      - secrets.beszel.token | default('') | length > 0
+    fail_msg: |
+      Beszel token not configured!
+
+      To get the token:
+      1. Open https://monitor.mljr.eu and log in
+      2. Go to Settings > Tokens
+      3. Create a new universal token or copy an existing one
+      4. Add BESZEL_TOKEN to your GitHub secrets or environment
     quiet: true
   when: not ansible_check_mode
 
@@ -46,12 +64,14 @@
           restart: unless-stopped
           network_mode: host
           volumes:
+            - ./beszel_agent_data:/var/lib/beszel-agent
             - /var/run/docker.sock:/var/run/docker.sock:ro
           environment:
-            PORT: "45876"
+            LISTEN: "45876"
             KEY: "{{ secrets.beszel.key }}"
             HUB_URL: "{{ beszel_hub_url }}"
             TOKEN: "{{ secrets.beszel.token }}"
+            SYSTEM_NAME: "{{ inventory_hostname }}"
           logging:
             driver: "json-file"
             options:
