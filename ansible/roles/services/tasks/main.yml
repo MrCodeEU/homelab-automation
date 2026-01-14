@@ -10,12 +10,12 @@
       - service.name | length > 0
       - service.host is defined
       - service.host | length > 0
+      # Port validation: required unless port is 0 (no web UI, e.g., notification services)
       - service.port is defined
-      - service.port | int > 0
-      - service.port | int < 65536
+      - (service.port | int == 0) or (service.port | int > 0 and service.port | int < 65536)
     fail_msg: >-
       Service validation failed for {{ service.name | default('unknown') }}:
-      Required fields: name, host, port (1-65535)
+      Required fields: name, host, port (0 for no UI, or 1-65535)
     quiet: true
   loop: "{{ services | default([]) }}"
   loop_control:
@@ -200,6 +200,7 @@
   when:
     - not ansible_check_mode
     - service.port is defined
+    - service.port | int > 0  # Skip services without web UI
 
 # Wait for all health checks to complete (single wait instead of sequential)
 - name: Wait for health checks to complete
