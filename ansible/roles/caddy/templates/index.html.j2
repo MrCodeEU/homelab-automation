@@ -266,7 +266,7 @@
             </div>
             <div class="info-card">
                 <h3>Total Services</h3>
-                <div class="value">{{ services | selectattr('enabled', 'defined') | selectattr('enabled') | list | length }}</div>
+                <div class="value">{{ services | selectattr('enabled', 'defined') | selectattr('enabled') | selectattr('domain', 'defined') | list | length }}</div>
             </div>
             <div class="info-card">
                 <h3>Domain</h3>
@@ -277,15 +277,15 @@
         <section>
             <h2>Services by Host</h2>
 
-{% set hosts = services | selectattr('enabled', 'defined') | selectattr('enabled') | map(attribute='host') | unique | list %}
+{% set hosts = services | selectattr('enabled', 'defined') | selectattr('enabled') | selectattr('domain', 'defined') | map(attribute='host') | unique | list %}
 {% for host in hosts %}
             <div class="host-section">
                 <h3>
                     {{ host }}
-                    <span class="host-badge">{{ services | selectattr('enabled', 'defined') | selectattr('enabled') | selectattr('host', 'equalto', host) | list | length }} services</span>
+                    <span class="host-badge">{{ services | selectattr('enabled', 'defined') | selectattr('enabled') | selectattr('domain', 'defined') | selectattr('host', 'equalto', host) | list | length }} services</span>
                 </h3>
                 <div class="services-grid">
-{% for service in services | selectattr('enabled', 'defined') | selectattr('enabled') | selectattr('host', 'equalto', host) %}
+{% for service in services | selectattr('enabled', 'defined') | selectattr('enabled') | selectattr('domain', 'defined') | selectattr('host', 'equalto', host) %}
                     <a href="https://{{ service.domain if service.domain is string else service.domain[0] }}"
                        class="service-card{% if service.staging | default(false) %} staging{% endif %}"
                        target="_blank">
