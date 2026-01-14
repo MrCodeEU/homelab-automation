@@ -35,6 +35,41 @@
     - service_config.stat.exists
     - is_staging | default(false)
 
+# For staging: check if 'dev' tag exists, fall back to 'latest' if not
+- name: "{{ service.name }} - Extract image name from docker-compose"
+  ansible.builtin.shell: |
+    grep -oP 'image:\s*\K[^\s]+' "{{ deploy_path }}/docker-compose.yml" | head -1 | sed 's/\${[^}]*:-[^}]*}//g' | sed 's/\${[^}]*}//g' | sed 's/:.*$//'
+  register: extracted_image
+  changed_when: false
+  failed_when: false
+  when:
+    - service_config.stat.exists
+    - is_staging | default(false)
+
+- name: "{{ service.name }} - Check if dev tag exists"
+  ansible.builtin.command: docker manifest inspect "{{ extracted_image.stdout }}:dev"
+  register: dev_tag_check
+  changed_when: false
+  failed_when: false
+  when:
+    - service_config.stat.exists
+    - is_staging | default(false)
+    - extracted_image.stdout | default('') | length > 0
+    - not ansible_check_mode
+
+- name: "{{ service.name }} - Set image tag (dev if exists, else latest)"
+  ansible.builtin.set_fact:
+    resolved_image_tag: "{{ 'dev' if (dev_tag_check.rc | default(1)) == 0 else 'latest' }}"
+  when:
+    - is_staging | default(false)
+
+- name: "{{ service.name }} - Log image tag fallback"
+  ansible.builtin.debug:
+    msg: "Staging image tag: {{ resolved_image_tag }} (dev tag {{ 'exists' if resolved_image_tag == 'dev' else 'not found, using latest' }})"
+  when:
+    - is_staging | default(false)
+    - resolved_image_tag is defined
+
 - name: "{{ service.name }} - Generate .env file"
   ansible.builtin.template:
     src: env.j2
@@ -43,4 +78,5 @@
   vars:
     service_name: "{{ service.name }}"
     project_name: "{{ service.name if not is_staging else (service.name + '-staging') }}"
+    image_tag: "{{ resolved_image_tag | default('dev' if is_staging | default(false) else 'latest') }}"
   no_log: true
