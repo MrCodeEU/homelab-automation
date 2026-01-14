@@ -82,8 +82,10 @@ deploy.{{ domain }} {
 {% if service.domain is string %}
 {% set parts = service.domain.split('.') %}
 {% if parts | length == 2 %}
-{% set staging_domain = service.name ~ '.' ~ staging_domain_prefix ~ '.' ~ service.domain %}
+{# Root domain (e.g., mljr.eu) -> dev.mljr.eu #}
+{% set staging_domain = staging_domain_prefix ~ '.' ~ service.domain %}
 {% else %}
+{# Subdomain (e.g., nightscout.mljr.eu) -> nightscout.dev.mljr.eu #}
 {% set staging_domain = parts[0] ~ '.' ~ staging_domain_prefix ~ '.' ~ parts[1:] | join('.') %}
 {% endif %}
 {{ staging_domain }} {
@@ -92,8 +94,10 @@ deploy.{{ domain }} {
 {% for d in service.domain %}
 {% set parts = d.split('.') %}
 {% if parts | length == 2 %}
-{% set _ = staging_domains.append(service.name ~ '.' ~ staging_domain_prefix ~ '.' ~ d) %}
+{# Root domain (e.g., mljr.eu) -> dev.mljr.eu #}
+{% set _ = staging_domains.append(staging_domain_prefix ~ '.' ~ d) %}
 {% else %}
+{# Subdomain (e.g., ns.mljr.eu) -> ns.dev.mljr.eu #}
 {% set _ = staging_domains.append(parts[0] ~ '.' ~ staging_domain_prefix ~ '.' ~ parts[1:] | join('.')) %}
 {% endif %}
 {% endfor %}

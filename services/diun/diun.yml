@@ -1,0 +1,28 @@
+# Diun configuration
+# https://crazymax.dev/diun/
+
+watch:
+  workers: 10
+  schedule: "0 */6 * * *"  # Check every 6 hours
+  jitter: 30s
+  firstCheckNotif: false
+
+providers:
+  docker:
+    watchByDefault: true
+    watchStopped: false
+
+notif:
+  ntfy:
+    endpoint: https://ntfy.mljr.eu
+    topic: docker-updates
+    priority: 3
+    tags:
+      - whale
+      - docker
+    timeout: 10s
+    templateTitle: "{{ .Entry.Image.Path }} update available"
+    templateBody: |
+      Docker image {{ .Entry.Image }} has a new version available.
+      Current: {{ .Entry.Manifest.Digest | printf "%.12s" }}
+      Provider: {{ .Entry.Provider }}
