@@ -77,6 +77,7 @@ deploy.{{ domain }} {
 {# Staging environment - only for services with staging: true #}
 {% if service.staging | default(false) and is_staging_deployment | default(false) %}
 {% set staging_port = service.port + staging_port_offset %}
+{% set staging_target = hostvars[staging_host]['ansible_host'] %}
 {# Generate staging domain #}
 {% if service.domain is string %}
 {% set parts = service.domain.split('.') %}
@@ -108,7 +109,7 @@ deploy.{{ domain }} {
         {{ secrets.caddy.auth_user }} {{ secrets.caddy.auth_hash }}
     }
 {% endif %}
-    reverse_proxy {{ target_host }}:{{ staging_port }}
+    reverse_proxy {{ staging_target }}:{{ staging_port }}
 }
 {% endif %}
 {% endif %}
