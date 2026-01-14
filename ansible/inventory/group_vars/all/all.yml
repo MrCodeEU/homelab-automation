@@ -83,7 +83,7 @@ services:
     host: mljr
     description: "System Monitoring"
     icon: "mdi:chart-line"
-    caddy_auth: "basicauth"
+    # Note: Beszel has built-in authentication, don't use caddy_auth
 
   # Notifications
   - name: ntfy
