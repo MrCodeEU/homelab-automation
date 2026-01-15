@@ -1,6 +1,6 @@
 services:
   homepage:
-    image: ghcr.io/mrcodeeu/homepage:dev
+    image: ghcr.io/mrcodeeu/homepage:latest
     container_name: ${COMPOSE_PROJECT_NAME:-homepage-staging}
     restart: unless-stopped
     ports:
