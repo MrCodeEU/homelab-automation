@@ -1,6 +1,6 @@
 ---
 # Prepare a single service (copy files, generate config)
-# Variables: service, is_staging, deploy_path, service_port
+# Variables: service, is_staging, deploy_path
 
 - name: "{{ service.name }} - Ensure directory exists"
   ansible.builtin.file:
@@ -8,68 +8,48 @@
     state: directory
     mode: '0755'
 
-- name: "{{ service.name }} - Check for service config"
+# Check for staging (dev/) or production service config
+- name: "{{ service.name }} - Check for dev service config"
+  delegate_to: localhost
+  become: false
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/../../services/{{ service.name }}/dev/docker-compose.yml"
+  register: dev_config
+  when: is_staging | default(false)
+
+- name: "{{ service.name }} - Check for production service config"
   delegate_to: localhost
   become: false
   ansible.builtin.stat:
     path: "{{ playbook_dir }}/../../services/{{ service.name }}/docker-compose.yml"
-  register: service_config
+  register: prod_config
 
+# Determine source path: dev/ folder if staging and dev exists, otherwise root folder
+- name: "{{ service.name }} - Set source path"
+  ansible.builtin.set_fact:
+    service_source_path: >-
+      {{ playbook_dir }}/../../services/{{ service.name }}/{{
+        'dev' if (is_staging | default(false) and dev_config.stat.exists | default(false))
+        else ''
+      }}/
+
+- name: "{{ service.name }} - Log deployment type"
+  ansible.builtin.debug:
+    msg: "Deploying {{ service.name }} from {{ 'dev/' if (is_staging | default(false) and dev_config.stat.exists | default(false)) else 'production' }} config"
+
+# Synchronize service files from determined source path
 - name: "{{ service.name }} - Synchronize service files"
   ansible.posix.synchronize:
-    src: "{{ playbook_dir }}/../../services/{{ service.name }}/"
+    src: "{{ service_source_path }}"
     dest: "{{ deploy_path }}/"
     delete: false
     recursive: true
     rsync_opts:
       - "--chmod=D0755,F0644"
   delegate_to: localhost
-  when: service_config.stat.exists
+  when: (is_staging | default(false) and dev_config.stat.exists | default(false)) or prod_config.stat.exists
 
-- name: "{{ service.name }} - Update port mappings for staging"
-  ansible.builtin.replace:
-    path: "{{ deploy_path }}/docker-compose.yml"
-    regexp: '(\s+- ")\d+(:{{ service.port }}.*")'
-    replace: '\g<1>{{ service_port }}\g<2>'
-  when:
-    - service_config.stat.exists
-    - is_staging | default(false)
-
-# For staging: check if 'dev' tag exists, fall back to 'latest' if not
-- name: "{{ service.name }} - Extract image name from docker-compose"
-  ansible.builtin.shell: |
-    grep -oP 'image:\s*\K[^\s]+' "{{ deploy_path }}/docker-compose.yml" | head -1 | sed 's/\${[^}]*:-[^}]*}//g' | sed 's/\${[^}]*}//g' | sed 's/:.*$//'
-  register: extracted_image
-  changed_when: false
-  failed_when: false
-  when:
-    - service_config.stat.exists
-    - is_staging | default(false)
-
-- name: "{{ service.name }} - Check if dev tag exists"
-  ansible.builtin.command: docker manifest inspect "{{ extracted_image.stdout }}:dev"
-  register: dev_tag_check
-  changed_when: false
-  failed_when: false
-  when:
-    - service_config.stat.exists
-    - is_staging | default(false)
-    - extracted_image.stdout | default('') | length > 0
-    - not ansible_check_mode
-
-- name: "{{ service.name }} - Set image tag (dev if exists, else latest)"
-  ansible.builtin.set_fact:
-    resolved_image_tag: "{{ 'dev' if (dev_tag_check.rc | default(1)) == 0 else 'latest' }}"
-  when:
-    - is_staging | default(false)
-
-- name: "{{ service.name }} - Log image tag fallback"
-  ansible.builtin.debug:
-    msg: "Staging image tag: {{ resolved_image_tag }} (dev tag {{ 'exists' if resolved_image_tag == 'dev' else 'not found, using latest' }})"
-  when:
-    - is_staging | default(false)
-    - resolved_image_tag is defined
-
+# Generate .env file with secrets
 - name: "{{ service.name }} - Generate .env file"
   ansible.builtin.template:
     src: env.j2
@@ -78,5 +58,5 @@
   vars:
     service_name: "{{ service.name }}"
     project_name: "{{ service.name if not is_staging else (service.name + '-staging') }}"
-    image_tag: "{{ resolved_image_tag | default('dev' if is_staging | default(false) else 'latest') }}"
+    image_tag: "latest"  # Default, can be overridden in docker-compose.yml
   no_log: true

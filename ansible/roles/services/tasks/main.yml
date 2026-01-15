@@ -68,7 +68,6 @@
   vars:
     is_staging: false
     deploy_path: "{{ base_path }}/{{ service.name }}"
-    service_port: "{{ service.port }}"
 
 - name: Deploy production services (Async)
   community.docker.docker_compose_v2:
@@ -104,23 +103,39 @@
 # Staging Deployment (only on staging_host when is_staging_deployment is true)
 # ============================================================================
 
-# Build list of ALL staging-enabled services (not filtered by host)
+# Check for services with dev/ folders (auto-detect staging services)
+- name: Check for dev folders in services
+  delegate_to: localhost
+  become: false
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/../../services/{{ item.name }}/dev"
+  loop: "{{ services }}"
+  loop_control:
+    loop_var: item
+    label: "{{ item.name }}"
+  register: dev_folder_check
+  when:
+    - is_staging_deployment | default(false) | bool
+    - inventory_hostname == staging_host
+    - item.enabled | default(true)
+    - item.managed | default(true)
+    - not item.skip_deploy | default(false)
+
+# Build list of ALL staging-enabled services (services with dev/ folder)
 - name: Filter staging services
   ansible.builtin.set_fact:
     staging_services: >-
       {%- set result = [] -%}
-      {%- for service in services -%}
-        {%- if service.staging | default(false)
-               and service.enabled | default(true)
-               and service.managed | default(true)
-               and not service.skip_deploy | default(false) -%}
-          {%- set _ = result.append(service) -%}
+      {%- for check in dev_folder_check.results | default([]) -%}
+        {%- if check.stat.exists | default(false) and check.stat.isdir | default(false) -%}
+          {%- set _ = result.append(check.item) -%}
         {%- endif -%}
       {%- endfor -%}
       {{ result }}
   when:
     - is_staging_deployment | default(false) | bool
     - inventory_hostname == staging_host
+    - dev_folder_check.results is defined
 
 - name: Display staging services to deploy
   ansible.builtin.debug:
@@ -139,7 +154,6 @@
   vars:
     is_staging: true
     deploy_path: "{{ base_path }}/staging/{{ service.name }}"
-    service_port: "{{ service.port + staging_port_offset }}"
   when:
     - is_staging_deployment | default(false) | bool
     - inventory_hostname == staging_host
