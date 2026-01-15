@@ -23,7 +23,7 @@ ansible-playbook playbooks/site.yml --tags caddy,services
 # Dry run (what PRs and non-main branches do automatically)
 ansible-playbook playbooks/site.yml --check --diff
 
-# Staging deployment (port +10000, dev subdomain)
+# Staging deployment (deploys services with dev/ folder)
 ansible-playbook playbooks/site.yml -e is_staging_deployment=true
 
 # Install Ansible collections
@@ -62,7 +62,6 @@ services:
     domain: "nightscout.mljr.eu"  # Can be string or list
     port: 1337
     host: mljr                    # Must match inventory hostname
-    staging: true                 # Deploy staging version to staging_host
     caddy_auth: "basicauth"       # Password protection
     managed: false                # External service (proxy only, no docker-compose)
     skip_deploy: true             # Uses dedicated role instead of services role
@@ -71,11 +70,27 @@ services:
 
 ### Staging Environment
 
-- All staging services deploy to `staging_host` (nuc) regardless of their `host` property
-- Port offset: +10000 (e.g., 1337 → 11337)
-- Domain: `service.dev.mljr.eu`
-- Path: `/opt/staging/<service>`
-- Caddy on mljr proxies staging domains to nuc
+Staging is opt-in per service by creating a `dev/` subfolder:
+
+- **Structure**: `services/<name>/dev/docker-compose.yml`
+- **Auto-detection**: Services with `dev/` folder auto-deploy when `is_staging_deployment=true`
+- **Explicit config**: Ports, tags, and all settings explicitly defined in `dev/docker-compose.yml`
+- **Deployment**: All staging services deploy to `staging_host` (nuc) regardless of their `host` property
+- **Domain**: `<service>.dev.mljr.eu` (e.g., nightscout.dev.mljr.eu)
+- **Path**: `/opt/staging/<service>`
+- **Caddy**: Proxies staging domains from mljr to nuc
+
+Example `services/nightscout/dev/docker-compose.yml`:
+```yaml
+services:
+  nightscout:
+    image: nightscout/cgm-remote-monitor:latest
+    ports:
+      - "11337:1337"  # Staging port (production port + 10000)
+    # ... rest of config
+```
+
+**Port Convention**: Staging services should use `production_port + 10000` for Caddy routing to work correctly.
 
 ### Secrets Pattern
 
@@ -108,7 +123,8 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 1. Add service definition to `ansible/inventory/group_vars/all/all.yml`
 2. Create `services/<name>/docker-compose.yml`
 3. If service needs secrets, add env lookups to `secrets.yml` and GitHub Actions secrets
-4. Deploy: `ansible-playbook playbooks/site.yml --tags services`
+4. **(Optional) Create staging**: Create `services/<name>/dev/docker-compose.yml` with explicit staging config
+5. Deploy: `ansible-playbook playbooks/site.yml --tags services`
 
 ## Ansible Tags
 

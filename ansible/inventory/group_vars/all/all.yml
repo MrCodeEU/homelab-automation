@@ -16,12 +16,12 @@ log_path: "/var/log"
 backup_path: "/opt/backups"
 
 # Staging configuration
-# When is_staging=true, services get deployed with:
-# - Port offset: port + 10000 (e.g., 8080 -> 18080)
-# - Domain prefix: <service>.dev.<domain> (e.g., dash.dev.mljr.eu)
-# - Separate deployment path: /opt/staging/<service>
+# Services with a dev/ subfolder automatically get deployed to staging_host
+# when is_staging_deployment=true is set:
+# - Domain prefix: <service>.dev.<domain> (e.g., nightscout.dev.mljr.eu)
+# - Deployment path: /opt/staging/<service>
 # - All staging services deploy to staging_host
-staging_port_offset: 10000
+# - Ports, tags, and other config are explicitly defined in dev/docker-compose.yml
 staging_domain_prefix: "dev"
 staging_host: "nuc"
 
@@ -37,10 +37,14 @@ staging_host: "nuc"
 #   description     - Human-readable description
 #   icon            - Material Design Icon for dashboard
 #   managed         - If false, only configure Caddy (external service)
-#   staging         - If true, also deploy staging version (+10000 port)
 #   caddy_auth      - Set to "basicauth" for password protection
 #   skip_deploy     - Skip generic deployment (uses dedicated role)
 #   backup_critical - If true, restore this service on fresh install
+#
+# Staging environments:
+#   - Create a dev/ subfolder in services/<name>/ with docker-compose.yml
+#   - Service will auto-deploy to staging_host when is_staging_deployment=true
+#   - Explicitly define ports, tags, and config in dev/docker-compose.yml
 # ============================================================================
 
 services:
@@ -64,7 +68,6 @@ services:
     host: mljr
     description: "CGM Monitor"
     icon: "mdi:diabetes"
-    staging: true  # Has staging environment
     backup_critical: true  # Restore on fresh install
 
   - name: kuma
@@ -176,7 +179,6 @@ services:
     host: mljr
     description: "Personal Homepage"
     icon: "mdi:account-circle"
-    staging: true  # Has staging environment
 
 
 
