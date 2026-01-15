@@ -42,10 +42,11 @@
   ansible.posix.synchronize:
     src: "{{ service_source_path }}"
     dest: "{{ deploy_path }}/"
-    delete: false
+    delete: true  # Remove files not in source to prevent stale configs
     recursive: true
     rsync_opts:
       - "--chmod=D0755,F0644"
+      - "--exclude=.env"  # Don't delete .env file
   delegate_to: localhost
   when: (is_staging | default(false) and dev_config.stat.exists | default(false)) or prod_config.stat.exists
 
