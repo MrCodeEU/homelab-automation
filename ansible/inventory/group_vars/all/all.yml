@@ -241,9 +241,9 @@ services:
     enabled: true
     managed: false
     domain: "projects.mljr.eu"
-    port: 3456
+    port: 6528
     host: nas
-    description: "Project Management"
+    description: "Tasktrove Projects and TODOs"
     icon: "mdi:clipboard-list"
 
   - name: pairdrop
