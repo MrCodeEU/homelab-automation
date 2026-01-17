@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Homelab automation using **Ansible** to deploy and manage self-hosted services across multiple hosts connected via Tailscale VPN. The system supports Rocky Linux servers with automated deployment through GitHub Actions.
 
+## Initial Setup
+
+After cloning the repository, run:
+```bash
+# Enable pre-commit hooks (validates service configs before each commit)
+git config core.hooksPath .githooks
+```
+
 ## Commands
 
 ```bash

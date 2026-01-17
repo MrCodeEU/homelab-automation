@@ -1,0 +1,19 @@
+services:
+  speedtest:
+    image: ghcr.io/mrcodeeu/homelab-speedtest:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-speedtest-staging}
+    restart: unless-stopped
+    ports:
+      - "18089:8080"  # Staging port (+10000 offset from production port 8089)
+    volumes:
+      - speedtest-data:/app/data
+    networks:
+      - speedtest
+
+networks:
+  speedtest:
+    driver: bridge
+
+volumes:
+  speedtest-data:
+    driver: local
