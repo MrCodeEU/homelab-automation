@@ -119,14 +119,14 @@ jobs:
         run: |
           if ! command -v ansible-playbook &> /dev/null; then
             pipx install ansible-core
-            pipx inject ansible-core docker mitogen ansible-mitogen
+            pipx inject ansible-core docker mitogen
             echo "✓ Installed Ansible with Mitogen for faster execution"
           else
             echo "Ansible already installed (from cache)"
             # Ensure Mitogen is installed even when restoring from cache
             if ! python -c "import ansible_mitogen" 2>/dev/null; then
               echo "Installing Mitogen..."
-              pipx inject ansible-core mitogen ansible-mitogen
+              pipx inject ansible-core mitogen
               echo "✓ Mitogen installed"
             else
               echo "✓ Mitogen already available"
