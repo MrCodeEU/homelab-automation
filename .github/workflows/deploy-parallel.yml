@@ -1,0 +1,190 @@
+name: Deploy Homelab (Parallel)
+
+# This is an alternative deployment workflow that runs host deployments in parallel
+# Use this for faster deployments when you want to deploy to all hosts simultaneously
+# Each host gets its own job for better visibility and parallel execution
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Ansible tags (all, base, caddy, services, backup, security)'
+        required: false
+        default: 'all'
+        type: string
+      staging:
+        description: 'Deploy staging environment (to nuc)'
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: deploy-parallel-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Validate before deploying
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate service configurations
+        run: bash ./.githooks/pre-commit
+
+  # Detect changes for intelligent deployment
+  detect-changes:
+    runs-on: ubuntu-latest
+    needs: validate
+    outputs:
+      changed_services: ${{ steps.changes.outputs.changed_services }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed services
+        id: changes
+        run: |
+          CHANGED_SERVICES="all"
+          
+          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^services/" | cut -d/ -f2 | sort -u | tr '\n' ',' | sed 's/,$//')
+            
+            if [ -n "$CHANGED" ]; then
+              CHANGED_SERVICES="$CHANGED"
+              echo "📦 Changed services: $CHANGED_SERVICES"
+            fi
+          fi
+          
+          echo "changed_services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
+
+  # Deploy to mljr (production host)
+  deploy-mljr:
+    runs-on: ubuntu-latest
+    needs: [validate, detect-changes]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Install Ansible with Mitogen
+        run: |
+          pipx install ansible-core
+          pipx inject ansible-core docker mitogen ansible-mitogen
+
+      - name: Install collections
+        run: cd ansible && ansible-galaxy collection install -r requirements.yml --force-with-deps
+
+      - name: Deploy to mljr
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_PIPELINING: "True"
+          ANSIBLE_STRATEGY: "mitogen_linear"
+          NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
+          LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
+          LINK_UP_PASSWORD: ${{ secrets.LINK_UP_PASSWORD }}
+          NIGHTSCOUT_API_TOKEN: ${{ secrets.NIGHTSCOUT_API_TOKEN }}
+          NIGHTSCOUT_DOMAIN: ${{ secrets.NIGHTSCOUT_DOMAIN }}
+          BICHON_ENCRYPT_PASSWORD: ${{ secrets.BICHON_ENCRYPT_PASSWORD }}
+          CADDY_AUTH_PASSWORD_HASH: ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
+          CADDY_AUTH_USER: ${{ secrets.CADDY_AUTH_USER }}
+          KUMA_USERNAME: ${{ secrets.KUMA_USERNAME }}
+          KUMA_PASSWORD: ${{ secrets.KUMA_PASSWORD }}
+          BESZEL_KEY: ${{ secrets.BESZEL_KEY }}
+          BESZEL_TOKEN: ${{ secrets.BESZEL_TOKEN }}
+          GITHUB_USERNAME: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
+          PCLOUD_TOKEN: ${{ secrets.PCLOUD_TOKEN }}
+        run: |
+          cd ansible
+          TAGS="${{ inputs.tags }}"
+          EXTRA_VARS="is_staging_deployment=false"
+          
+          if [ "${{ needs.detect-changes.outputs.changed_services }}" != "all" ]; then
+            EXTRA_VARS="$EXTRA_VARS changed_services=${{ needs.detect-changes.outputs.changed_services }}"
+          fi
+          
+          echo "🚀 Deploying to mljr with tags: $TAGS"
+          ansible-playbook playbooks/site.yml \
+            --limit mljr \
+            --tags "$TAGS" \
+            --extra-vars "$EXTRA_VARS"
+
+  # Deploy staging to nuc
+  deploy-nuc-staging:
+    runs-on: ubuntu-latest
+    needs: [validate, detect-changes]
+    if: ${{ inputs.staging == true }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Install Ansible with Mitogen
+        run: |
+          pipx install ansible-core
+          pipx inject ansible-core docker mitogen ansible-mitogen
+
+      - name: Install collections
+        run: cd ansible && ansible-galaxy collection install -r requirements.yml --force-with-deps
+
+      - name: Deploy staging to nuc
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_PIPELINING: "True"
+          ANSIBLE_STRATEGY: "mitogen_linear"
+          GITHUB_USERNAME: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
+        run: |
+          cd ansible
+          TAGS="${{ inputs.tags }}"
+          
+          echo "🔵 Deploying staging environment to nuc"
+          ansible-playbook playbooks/site.yml \
+            --limit nuc \
+            --tags "$TAGS" \
+            --extra-vars "is_staging_deployment=true"
+
+  # Summary
+  deployment-summary:
+    runs-on: ubuntu-latest
+    needs: [deploy-mljr, deploy-nuc-staging]
+    if: always()
+    steps:
+      - name: Create summary
+        run: |
+          echo "## 🚀 Parallel Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**mljr (production):** ${{ needs.deploy-mljr.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**nuc (staging):** ${{ needs.deploy-nuc-staging.result == 'success' && '✅ Success' || (needs.deploy-nuc-staging.result == 'skipped' && '⏭️ Skipped' || '❌ Failed') }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tags:** \`${{ inputs.tags }}\`" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.detect-changes.outputs.changed_services }}" != "all" ]; then
+            echo "**Changed Services:** \`${{ needs.detect-changes.outputs.changed_services }}\`" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Notify
+        if: always()
+        run: |
+          STATUS="${{ (needs.deploy-mljr.result == 'success' && needs.deploy-nuc-staging.result != 'failure') && 'success' || 'failure' }}"
+          EMOJI=$([[ "$STATUS" == "success" ]] && echo "✅" || echo "❌")
+          
+          if curl -s --connect-timeout 3 --max-time 3 https://ntfy.mljr.eu/deployment -o /dev/null; then
+            curl -s \
+              -H "Title: Parallel Deployment $STATUS" \
+              -H "Priority: $([[ "$STATUS" == "success" ]] && echo 'default' || echo 'high')" \
+              -H "Tags: ansible,homelab,parallel" \
+              -d "$EMOJI Parallel deployment completed (tags: ${{ inputs.tags }})" \
+              https://ntfy.mljr.eu/deployment
+          fi
