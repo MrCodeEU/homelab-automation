@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Validate service configurations
-        run: ./.githooks/pre-commit
+        run: bash ./.githooks/pre-commit
 
   # Deploy
   deploy:
