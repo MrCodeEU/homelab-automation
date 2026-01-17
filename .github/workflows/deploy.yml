@@ -48,9 +48,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Validate service configurations before deployment
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate service configurations
+        run: ./.githooks/pre-commit
+
   # Deploy
   deploy:
     runs-on: ubuntu-latest
+    needs: validate
     steps:
       - uses: actions/checkout@v4
 
