@@ -14,6 +14,27 @@ After cloning the repository, run:
 git config core.hooksPath .githooks
 ```
 
+### Optional: Enable Mitogen (40-70% speed improvement)
+
+Mitogen significantly speeds up Ansible by using persistent Python interpreters:
+
+```bash
+pip install mitogen ansible-mitogen
+
+# Find the mitogen path
+python -c "import ansible_mitogen; import os; print(os.path.dirname(ansible_mitogen.__file__))"
+
+# Edit ansible/ansible.cfg and uncomment the mitogen lines, updating the path
+```
+
+For GitHub Actions, add to the workflow:
+```yaml
+- name: Install Ansible with Mitogen
+  run: |
+    pipx install ansible-core
+    pipx inject ansible-core mitogen ansible-mitogen
+```
+
 ## Commands
 
 ```bash
@@ -34,9 +55,28 @@ ansible-playbook playbooks/site.yml --check --diff
 # Staging deployment (deploys services with dev/ folder)
 ansible-playbook playbooks/site.yml -e is_staging_deployment=true
 
+# Deploy only changed services (detected automatically in CI)
+ansible-playbook playbooks/site.yml -e changed_services=nightscout,homepage
+
 # Install Ansible collections
 ansible-galaxy collection install -r requirements.yml
 ```
+
+## Deployment Workflows
+
+**Standard Deployment** (`.github/workflows/deploy.yml`):
+- Sequential deployment with Mitogen optimization
+- Auto-detects changed services on push
+- Supports manual triggers with custom limits/tags
+- Runs in check mode on PRs
+
+**Parallel Deployment** (`.github/workflows/deploy-parallel.yml`):
+- Deploys to mljr and nuc simultaneously
+- Each host in separate job for better visibility
+- Faster for multi-host deployments
+- Manual trigger only
+
+Use parallel deployment when deploying to multiple hosts for maximum speed.
 
 ## Architecture
 
