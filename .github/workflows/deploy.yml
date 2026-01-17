@@ -132,11 +132,13 @@ jobs:
             pipx inject ansible-core mitogen
           fi
           
-          # Verify installation
-          if pipx runpip ansible-core list | grep -q mitogen; then
-            echo "✓ Mitogen successfully installed"
+          # Find and export Mitogen strategy plugin path
+          MITOGEN_PATH=$(pipx runpip ansible-core show mitogen | grep "Location:" | cut -d' ' -f2)
+          if [ -n "$MITOGEN_PATH" ]; then
+            echo "MITOGEN_STRATEGY_PATH=${MITOGEN_PATH}/ansible_mitogen/plugins/strategy" >> $GITHUB_ENV
+            echo "✓ Mitogen successfully installed at: $MITOGEN_PATH"
           else
-            echo "⚠ Warning: Mitogen installation could not be verified, continuing anyway"
+            echo "⚠ Warning: Could not determine Mitogen path"
           fi
 
       - name: Install collections
@@ -151,6 +153,8 @@ jobs:
           # Performance optimizations
           ANSIBLE_PIPELINING: "True"
           ANSIBLE_SSH_PIPELINING: "True"
+          # Mitogen strategy plugin path
+          ANSIBLE_STRATEGY_PLUGINS: "${{ env.MITOGEN_STRATEGY_PATH }}"
           # Secrets
           NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
           LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
