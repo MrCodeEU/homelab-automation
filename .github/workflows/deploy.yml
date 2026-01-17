@@ -115,17 +115,55 @@ jobs:
           restore-keys: |
             ansible-${{ runner.os }}-
 
-      - name: Install Ansible with pipx
+      - name: Install Ansible with Mitogen
         run: |
           if ! command -v ansible-playbook &> /dev/null; then
             pipx install ansible-core
-            pipx inject ansible-core docker
+            pipx inject ansible-core docker mitogen ansible-mitogen
+            echo "✓ Installed Ansible with Mitogen for faster execution"
           else
             echo "Ansible already installed (from cache)"
           fi
 
       - name: Install collections
-        run: cd ansible && ansible-galaxy collection install -r requirements.yml --force-with-deps
+        run: |
+          echo "::group::Installing Ansible collections"
+          cd ansible && ansible-galaxy collection install -r requirements.yml --force-with-deps
+          echo "::endgroup::"
+
+      - name: Detect changed services
+        id: changes
+        run: |
+          echo "::group::Detecting changed services"
+          
+          # Default: deploy all services
+          CHANGED_SERVICES="all"
+          
+          # On push (not first commit), detect changed services
+          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            # Get changed service directories
+            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^services/" | cut -d/ -f2 | sort -u | tr '\n' ',' | sed 's/,$//')
+            
+            if [ -n "$CHANGED" ]; then
+              CHANGED_SERVICES="$CHANGED"
+              echo "📦 Changed services detected: $CHANGED_SERVICES"
+            else
+              echo "No service changes detected, checking for ansible changes..."
+              # Check if ansible configs changed
+              if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "^ansible/"; then
+                echo "Ansible configuration changed - deploying all services"
+                CHANGED_SERVICES="all"
+              else
+                echo "No relevant changes - skipping service deployment"
+                CHANGED_SERVICES="none"
+              fi
+            fi
+          else
+            echo "Full deployment (manual trigger, PR, or first commit)"
+          fi
+          
+          echo "changed_services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
+          echo "::endgroup::"
 
       - name: Run Ansible
         env:
@@ -133,6 +171,8 @@ jobs:
           # Performance optimizations
           ANSIBLE_PIPELINING: "True"
           ANSIBLE_SSH_PIPELINING: "True"
+          # Mitogen strategy for 40-70% speed improvement
+          ANSIBLE_STRATEGY: "mitogen_linear"
           # Secrets
           NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
           LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
@@ -168,6 +208,15 @@ jobs:
 
           # Extra vars
           EXTRA_VARS="is_staging_deployment=${{ steps.env.outputs.is_staging }}"
+          
+          # Add changed services if detected
+          if [ "${{ steps.changes.outputs.changed_services }}" != "all" ] && [ "${{ steps.changes.outputs.changed_services }}" != "none" ]; then
+            EXTRA_VARS="$EXTRA_VARS changed_services=${{ steps.changes.outputs.changed_services }}"
+            echo "🎯 Targeted deployment: only changed services will be updated"
+          elif [ "${{ steps.changes.outputs.changed_services }}" == "none" ]; then
+            echo "⏭️  No services to deploy - skipping ansible run"
+            exit 0
+          fi
 
           # Check mode for non-main branches (dry run)
           CHECK_FLAG=""
@@ -176,13 +225,75 @@ jobs:
             echo "Running in CHECK MODE (dry run) - no changes will be made"
           fi
 
-          echo "Running: ansible-playbook site.yml --limit $LIMIT --tags $TAGS --forks 20 $CHECK_FLAG"
+          echo "🚀 Running: ansible-playbook site.yml --limit $LIMIT --tags $TAGS --forks 20 $CHECK_FLAG"
+          echo "⚡ Using Mitogen strategy for faster execution"
+          echo "::group::Ansible Deployment"
+          
+          # Run with JSON output for parsing
+          export ANSIBLE_STDOUT_CALLBACK=yaml
+          export ANSIBLE_LOAD_CALLBACK_PLUGINS=true
+          
           ansible-playbook playbooks/site.yml \
             --limit "$LIMIT" \
             --tags "$TAGS" \
             --forks 20 \
             $CHECK_FLAG \
-            --extra-vars "$EXTRA_VARS"
+            --extra-vars "$EXTRA_VARS" \
+            2>&1 | tee /tmp/ansible-output.log
+          
+          ANSIBLE_EXIT_CODE=${PIPESTATUS[0]}
+          echo "::endgroup::"
+          
+          exit $ANSIBLE_EXIT_CODE
+
+      - name: Create deployment summary
+        if: always()
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ job.status == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode:** ${{ steps.env.outputs.check_mode == 'true' && '🧪 Dry Run (Check Mode)' || '🎯 Live Deployment' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ steps.env.outputs.is_staging == 'true' && '🔵 Production + Staging' || '🟢 Production Only' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          LIMIT="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "" ]; then
+            LIMIT="${{ inputs.limit }}"
+          fi
+          
+          TAGS="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "" ]; then
+            TAGS="${{ inputs.tags }}"
+          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            TAGS="services,caddy"
+          fi
+          
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Hosts:** \`$LIMIT\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tags:** \`$TAGS\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.changes.outputs.changed_services }}" != "all" ] && [ "${{ steps.changes.outputs.changed_services }}" != "" ]; then
+            echo "- **Changed Services:** \`${{ steps.changes.outputs.changed_services }}\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Parse timing from profile_tasks callback if available
+          if [ -f /tmp/ansible-output.log ]; then
+            echo "### 📊 Execution Details" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            tail -n 50 /tmp/ansible-output.log | head -n 30 >> $GITHUB_STEP_SUMMARY || echo "Output not available" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ job.status }}" != "success" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### ⚠️ Failure Information" >> $GITHUB_STEP_SUMMARY
+            echo "Check the Ansible Deployment section above for detailed error messages." >> $GITHUB_STEP_SUMMARY
+            echo "::error::Deployment failed - check logs for details"
+          fi
 
       - name: Notify
         if: always()

@@ -46,14 +46,23 @@
                and service.enabled | default(true) 
                and service.managed | default(true) 
                and not service.skip_deploy | default(false) -%}
-          {%- set _ = result.append(service) -%}
+          {%- if changed_services is defined and changed_services != 'all' -%}
+            {%- if service.name in changed_services.split(',') -%}
+              {%- set _ = result.append(service) -%}
+            {%- endif -%}
+          {%- else -%}
+            {%- set _ = result.append(service) -%}
+          {%- endif -%}
         {%- endif -%}
       {%- endfor -%}
       {{ result }}
 
-- name: Display services to deploy
+- name: Display deployment scope
   ansible.builtin.debug:
-    msg: "Deploying {{ host_services | length }} services: {{ host_services | map(attribute='name') | join(', ') }}"
+    msg: >-
+      {{ 'Targeted deployment: ' if changed_services is defined and changed_services != 'all' else 'Full deployment: ' }}
+      Deploying {{ host_services | length }} service{{ 's' if host_services | length != 1 else '' }}: 
+      {{ host_services | map(attribute='name') | join(', ') if host_services | length > 0 else 'none' }}
 
 # ============================================================================
 # Production Deployment
