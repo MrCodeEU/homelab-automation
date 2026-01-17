@@ -180,6 +180,15 @@ services:
     description: "Personal Homepage"
     icon: "mdi:account-circle"
 
+  # Network Testing
+  - name: speedtest
+    enabled: true
+    domain: "speedtest.mljr.eu"
+    port: 8089
+    host: mljr
+    description: "Internal Network Speed Test"
+    icon: "mdi:speedometer"
+
 
 
   # NAS Services (Unraid)
