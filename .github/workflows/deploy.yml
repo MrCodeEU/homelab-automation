@@ -118,19 +118,25 @@ jobs:
       - name: Install Ansible with Mitogen
         run: |
           if ! command -v ansible-playbook &> /dev/null; then
+            echo "Installing Ansible..."
             pipx install ansible-core
-            pipx inject ansible-core docker mitogen
-            echo "✓ Installed Ansible with Mitogen for faster execution"
+            pipx inject ansible-core docker
           else
             echo "Ansible already installed (from cache)"
-            # Ensure Mitogen is installed even when restoring from cache
-            if ! python -c "import ansible_mitogen" 2>/dev/null; then
-              echo "Installing Mitogen..."
-              pipx inject ansible-core mitogen
-              echo "✓ Mitogen installed"
-            else
-              echo "✓ Mitogen already available"
-            fi
+          fi
+          
+          # Always ensure Mitogen is installed
+          echo "Ensuring Mitogen is available..."
+          if ! pipx runpip ansible-core list | grep -q mitogen; then
+            echo "Installing Mitogen..."
+            pipx inject ansible-core mitogen
+          fi
+          
+          # Verify installation
+          if pipx runpip ansible-core list | grep -q mitogen; then
+            echo "✓ Mitogen successfully installed"
+          else
+            echo "⚠ Warning: Mitogen installation could not be verified, continuing anyway"
           fi
 
       - name: Install collections
@@ -139,48 +145,12 @@ jobs:
           cd ansible && ansible-galaxy collection install -r requirements.yml --force-with-deps
           echo "::endgroup::"
 
-      - name: Detect changed services
-        id: changes
-        run: |
-          echo "::group::Detecting changed services"
-          
-          # Default: deploy all services
-          CHANGED_SERVICES="all"
-          
-          # On push (not first commit), detect changed services
-          if [ "${{ github.event_name }}" == "push" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-            # Get changed service directories
-            CHANGED=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep "^services/" | cut -d/ -f2 | sort -u | tr '\n' ',' | sed 's/,$//')
-            
-            if [ -n "$CHANGED" ]; then
-              CHANGED_SERVICES="$CHANGED"
-              echo "📦 Changed services detected: $CHANGED_SERVICES"
-            else
-              echo "No service changes detected, checking for ansible changes..."
-              # Check if ansible configs changed
-              if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "^ansible/"; then
-                echo "Ansible configuration changed - deploying all services"
-                CHANGED_SERVICES="all"
-              else
-                echo "No relevant changes - skipping service deployment"
-                CHANGED_SERVICES="none"
-              fi
-            fi
-          else
-            echo "Full deployment (manual trigger, PR, or first commit)"
-          fi
-          
-          echo "changed_services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
-          echo "::endgroup::"
-
       - name: Run Ansible
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           # Performance optimizations
           ANSIBLE_PIPELINING: "True"
           ANSIBLE_SSH_PIPELINING: "True"
-          # Mitogen strategy for 40-70% speed improvement
-          ANSIBLE_STRATEGY: "mitogen_linear"
           # Secrets
           NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
           LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
@@ -216,15 +186,6 @@ jobs:
 
           # Extra vars
           EXTRA_VARS="is_staging_deployment=${{ steps.env.outputs.is_staging }}"
-          
-          # Add changed services if detected
-          if [ "${{ steps.changes.outputs.changed_services }}" != "all" ] && [ "${{ steps.changes.outputs.changed_services }}" != "none" ]; then
-            EXTRA_VARS="$EXTRA_VARS changed_services=${{ steps.changes.outputs.changed_services }}"
-            echo "🎯 Targeted deployment: only changed services will be updated"
-          elif [ "${{ steps.changes.outputs.changed_services }}" == "none" ]; then
-            echo "⏭️  No services to deploy - skipping ansible run"
-            exit 0
-          fi
 
           # Check mode for non-main branches (dry run)
           CHECK_FLAG=""
@@ -277,11 +238,6 @@ jobs:
           echo "- **Tags:** \`$TAGS\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "${{ steps.changes.outputs.changed_services }}" != "all" ] && [ "${{ steps.changes.outputs.changed_services }}" != "" ]; then
-            echo "- **Changed Services:** \`${{ steps.changes.outputs.changed_services }}\`" >> $GITHUB_STEP_SUMMARY
-          fi
-          
           echo "" >> $GITHUB_STEP_SUMMARY
           
           # Parse timing from profile_tasks callback if available
