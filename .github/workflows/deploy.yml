@@ -229,10 +229,6 @@ jobs:
           echo "⚡ Using Mitogen strategy for faster execution"
           echo "::group::Ansible Deployment"
           
-          # Run with JSON output for parsing
-          export ANSIBLE_STDOUT_CALLBACK=yaml
-          export ANSIBLE_LOAD_CALLBACK_PLUGINS=true
-          
           ansible-playbook playbooks/site.yml \
             --limit "$LIMIT" \
             --tags "$TAGS" \
