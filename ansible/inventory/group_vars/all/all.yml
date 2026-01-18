@@ -313,6 +313,16 @@ services:
     description: "NUC WebUI provided by Rocky"
     icon: "mdi:monitor-dashboard"
 
+
+  # Tempalet for future services
+  - name: template-service
+    enabled: false
+    domain: "template.mljr.eu"
+    port: 8181
+    host: mljr
+    description: "Template Service"
+    icon: "mdi:shape-outline"
+
 # ============================================================================
 # Role-specific variables
 # ============================================================================
