@@ -40,6 +40,7 @@ staging_host: "nuc"
 #   caddy_auth      - Set to "basicauth" for password protection
 #   skip_deploy     - Skip generic deployment (uses dedicated role)
 #   backup_critical - If true, restore this service on fresh install
+#   https_backend   - If true, proxy to HTTPS with self-signed cert (e.g., mailcow)
 #
 # Staging environments:
 #   - Create a dev/ subfolder in services/<name>/ with docker-compose.yml
@@ -129,12 +130,13 @@ services:
   - name: mailcow
     enabled: true
     domain: "mail.mljr.eu"
-    port: 8081
+    port: 8443
     host: mljr
     description: "Mail Server"
     icon: "mdi:email-server"
     skip_deploy: true  # Uses dedicated role
     backup_critical: true  # Restore on fresh install
+    https_backend: true  # Backend uses HTTPS with self-signed cert
 
   # Security
   - name: fail2ban-ui
