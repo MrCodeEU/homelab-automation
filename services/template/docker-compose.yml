@@ -1,6 +1,6 @@
 services:
   template:
-    image: ghcr.io/mrcodeu/service-template:latest
+    image: ghcr.io/mrcodreu/service-template:latest
     container_name: ${COMPOSE_PROJECT_NAME:-template}
     restart: unless-stopped
     environment:
