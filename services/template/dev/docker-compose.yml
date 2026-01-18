@@ -1,6 +1,6 @@
 services:
   template:
-    image: ghcr.io/mrcodeu/service-template:dev
+    image: ghcr.io/mrcodeeu/service-template:dev
     container_name: ${COMPOSE_PROJECT_NAME:-template-staging}
     restart: unless-stopped
     environment:
