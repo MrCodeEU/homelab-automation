@@ -14,26 +14,29 @@ After cloning the repository, run:
 git config core.hooksPath .githooks
 ```
 
-### Optional: Enable Mitogen (40-70% speed improvement)
+### Mitogen (Required)
 
-Mitogen significantly speeds up Ansible by using persistent Python interpreters:
+Mitogen is enabled by default in `ansible.cfg` (`strategy = mitogen_linear`) for 40-70% speed improvement. Install it locally:
 
 ```bash
 pip install mitogen ansible-mitogen
-
-# Find the mitogen path
-python -c "import ansible_mitogen; import os; print(os.path.dirname(ansible_mitogen.__file__))"
-
-# Edit ansible/ansible.cfg and uncomment the mitogen lines, updating the path
 ```
 
-For GitHub Actions, add to the workflow:
-```yaml
-- name: Install Ansible with Mitogen
-  run: |
-    pipx install ansible-core
-    pipx inject ansible-core mitogen ansible-mitogen
-```
+If Mitogen is not installed, Ansible will fail. To disable it temporarily, comment out `strategy = mitogen_linear` in `ansible/ansible.cfg`.
+
+## Pre-commit Validation
+
+The pre-commit hook (`.githooks/validate_services.py`) validates service configurations before each commit:
+
+- **Port uniqueness**: No two services on the same host can use the same port
+- **Domain uniqueness**: Each domain can only be assigned to one service
+- **Service name uniqueness**: No duplicate service names
+- **Host validation**: Service `host` must exist in inventory
+- **Required fields**: `host` and `port` required for enabled managed services
+- **Docker-compose exists**: Managed services must have `services/<name>/docker-compose.yml`
+- **Staging port convention**: Warns if staging port doesn't follow `production_port + 10000`
+
+Run manually: `python .githooks/validate_services.py`
 
 ## Commands
 
@@ -84,9 +87,9 @@ Use parallel deployment when deploying to multiple hosts for maximum speed.
 
 ```yaml
 managed:
-  rocky:       # Rocky Linux - full deployment (mljr)
+  rocky:       # Rocky Linux - full deployment (mljr=production, nuc=staging)
   unraid:      # Unraid NAS (nas) - limited management
-proxy_only:    # Caddy config only, not SSH-reachable (pi, nuc, monitoring)
+proxy_only:    # Caddy config only, not SSH-reachable (pi, monitoring)
 ```
 
 ### Key Files
@@ -108,7 +111,7 @@ services:
   - name: nightscout
     enabled: true
     domain: "nightscout.mljr.eu"  # Can be string or list
-    port: 1337
+    port: 1337                    # Required for managed services (use 0 for no web UI)
     host: mljr                    # Must match inventory hostname
     caddy_auth: "basicauth"       # Password protection
     managed: false                # External service (proxy only, no docker-compose)
@@ -184,7 +187,7 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 | beszel-agent | Beszel monitoring agent (all rocky hosts) |
 | monitoring | Alias for beszel-agent |
 | backup | Backup/restore configuration |
-| security | Fail2ban |
+| security, fail2ban | Fail2ban (mljr only) |
 | glance | Dashboard |
 | mailcow | Mail server |
 

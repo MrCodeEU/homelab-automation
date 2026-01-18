@@ -68,6 +68,12 @@ deploy.{{ domain }} {
 {% endif %}
 {% if service.upstream is defined %}
     reverse_proxy {{ service.upstream }}
+{% elif service.https_backend | default(false) %}
+    reverse_proxy https://{{ target_host }}:{{ target_port }} {
+        transport http {
+            tls_insecure_skip_verify
+        }
+    }
 {% else %}
     reverse_proxy {{ target_host }}:{{ target_port }}
 {% endif %}
