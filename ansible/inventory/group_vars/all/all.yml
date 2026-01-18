@@ -315,7 +315,7 @@ services:
 
 
   # Tempalet for future services
-  - name: template-service
+  - name: template
     enabled: false
     domain: "template.mljr.eu"
     port: 8181
