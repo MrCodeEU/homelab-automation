@@ -1,0 +1,27 @@
+services:
+  template:
+    image: ghcr.io/mrcodeu/service-template:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-template}
+    restart: unless-stopped
+    environment:
+      # Server Configuration
+      PORT: ${PORT:-8080}
+      DISPLAY_MESSAGE: ${DISPLAY_MESSAGE:-🚀 Production Service Running!}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      VERSION: ${VERSION:-1.0.0}
+      
+      # Timezone
+      TZ: ${TZ:-Europe/Vienna}
+
+    networks:
+      - default
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  default:
+    external: true
+    name: ${NETWORK_NAME:-caddy}
