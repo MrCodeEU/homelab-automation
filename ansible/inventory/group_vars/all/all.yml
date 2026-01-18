@@ -319,7 +319,7 @@ services:
     enabled: false
     domain: "template.mljr.eu"
     port: 8181
-    host: mljr
+    host: nuc
     description: "Template Service"
     icon: "mdi:shape-outline"
 
