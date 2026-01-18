@@ -316,7 +316,7 @@ services:
 
   # Tempalet for future services
   - name: template
-    enabled: false
+    enabled: true
     domain: "template.mljr.eu"
     port: 8181
     host: nuc
