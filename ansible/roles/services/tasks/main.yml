@@ -36,6 +36,28 @@
   no_log: true
   failed_when: false
 
+# Network connectivity check for container registries
+- name: Check network connectivity to ghcr.io
+  ansible.builtin.uri:
+    url: https://ghcr.io/v2/
+    method: HEAD
+    status_code: [200, 401]  # 401 is expected (requires auth), proves connectivity
+    timeout: 10
+  register: ghcr_connectivity
+  retries: 3
+  delay: 5
+  until: ghcr_connectivity is success
+  when: not ansible_check_mode
+  failed_when: false
+
+- name: Warn if ghcr.io is unreachable
+  ansible.builtin.debug:
+    msg: "WARNING: ghcr.io connectivity check failed. Image pulls may fail."
+  when:
+    - not ansible_check_mode
+    - ghcr_connectivity is defined
+    - ghcr_connectivity is failed
+
 # Build list of services for this host
 - name: Filter services for this host
   ansible.builtin.set_fact:
@@ -78,11 +100,26 @@
     is_staging: false
     deploy_path: "{{ base_path }}/{{ service.name }}"
 
+# Pull images with retry logic to handle transient network failures
+- name: Pull production service images (with retry)
+  community.docker.docker_compose_v2_pull:
+    project_src: "{{ base_path }}/{{ service.name }}"
+  loop: "{{ host_services }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}"
+  register: pull_result
+  retries: 3
+  delay: 10
+  until: pull_result is success
+  when: not ansible_check_mode
+  failed_when: false  # Don't fail - let compose try anyway
+
 - name: Deploy production services (Async)
   community.docker.docker_compose_v2:
     project_src: "{{ base_path }}/{{ service.name }}"
     state: present
-    pull: always
+    pull: never  # Images already pulled above with retry logic
   loop: "{{ host_services }}"
   loop_control:
     loop_var: service
@@ -167,11 +204,29 @@
     - is_staging_deployment | default(false) | bool
     - inventory_hostname == staging_host
 
+# Pull staging images with retry logic to handle transient network failures
+- name: Pull staging service images (with retry)
+  community.docker.docker_compose_v2_pull:
+    project_src: "{{ base_path }}/staging/{{ service.name }}"
+  loop: "{{ staging_services | default([]) }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}-staging"
+  register: staging_pull_result
+  retries: 3
+  delay: 10
+  until: staging_pull_result is success
+  when:
+    - is_staging_deployment | default(false) | bool
+    - inventory_hostname == staging_host
+    - not ansible_check_mode
+  failed_when: false  # Don't fail - let compose try anyway
+
 - name: Deploy staging services (Async)
   community.docker.docker_compose_v2:
     project_src: "{{ base_path }}/staging/{{ service.name }}"
     state: present
-    pull: always
+    pull: never  # Images already pulled above with retry logic
   loop: "{{ staging_services | default([]) }}"
   loop_control:
     loop_var: service
