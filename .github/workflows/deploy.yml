@@ -213,6 +213,18 @@ jobs:
           ANSIBLE_EXIT_CODE=${PIPESTATUS[0]}
           echo "::endgroup::"
           
+          # Parse and annotate errors/failures
+          if [ $ANSIBLE_EXIT_CODE -ne 0 ] || grep -q "FAILED - RETRYING\|fatal:\|failed:" /tmp/ansible-output.log; then
+            echo "::group::Deployment Errors"
+            # Extract and display failed tasks with context
+            grep -A 3 "TASK \[.*\]" /tmp/ansible-output.log | grep -B 1 -A 2 "fatal:\|failed:" || true
+            # Extract service deployment failures
+            grep -E "Failed: [1-9]|Error when processing image" /tmp/ansible-output.log | while read -r line; do
+              echo "::error::$line"
+            done || true
+            echo "::endgroup::"
+          fi
+          
           exit $ANSIBLE_EXIT_CODE
 
       - name: Create deployment summary

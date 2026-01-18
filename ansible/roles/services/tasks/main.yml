@@ -407,3 +407,19 @@
     - failed_production_services | default([]) | selectattr('name', 'in', critical_services) | list | length > 0
   vars:
     critical_services: ['caddy', 'kuma', 'ntfy']  # Services that must succeed for deployment to pass
+
+- name: Fail if any staging services failed
+  ansible.builtin.fail:
+    msg: |
+      Staging deployment failed!
+      Failed services: {{ failed_staging_services | map(attribute='name') | join(', ') }}
+      
+      Errors:
+      {% for svc in failed_staging_services %}
+        - {{ svc.name }}: {{ svc.error }}
+      {% endfor %}
+  when:
+    - not ansible_check_mode
+    - is_staging_deployment | default(false) | bool
+    - inventory_hostname == staging_host
+    - failed_staging_services | default([]) | length > 0
