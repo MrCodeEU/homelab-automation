@@ -1,0 +1,62 @@
+---
+# HetrixTools Agent Installation
+# ============================================================================
+# Installs and configures HetrixTools monitoring agent for external uptime
+# and server monitoring
+# ============================================================================
+
+- name: Check if HetrixTools agent is already installed
+  ansible.builtin.stat:
+    path: /etc/hetrixtools/hetrixtools_agent.sh
+  register: hetrixtools_installed
+
+- name: Download and install HetrixTools agent
+  when: not hetrixtools_installed.stat.exists
+  block:
+    - name: Validate HetrixTools API token is set
+      ansible.builtin.assert:
+        that:
+          - hetrixtools_api_token is defined
+          - hetrixtools_api_token | length > 0
+        fail_msg: "HetrixTools API token is not set. Please set HETRIXTOOLS_API_TOKEN environment variable."
+
+    - name: Download HetrixTools install script
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/hetrixtools/agent/master/hetrixtools_install.sh
+        bash -s {{ hetrixtools_api_token | quote }} \
+        {{ hetrixtools_check_type | quote }} \
+        {{ hetrixtools_server_type | quote }} \
+        {{ hetrixtools_collection_user | quote }} \
+        {{ hetrixtools_custom_services | quote }} \
+        {{ hetrixtools_disable_iptables | quote }} \
+        {{ hetrixtools_disable_rpm | quote }}
+        {{ hetrixtools_check_type }}
+        {{ hetrixtools_server_type }}
+        {{ hetrixtools_collection_user }}
+        {{ hetrixtools_custom_services }}
+        {{ hetrixtools_disable_iptables }}
+        {{ hetrixtools_disable_rpm }}
+      args:
+        creates: /etc/hetrixtools/hetrixtools_agent.sh
+      register: hetrixtools_install
+
+    - name: Display installation output
+      ansible.builtin.debug:
+        var: hetrixtools_install.stdout_lines
+      when: hetrixtools_install.changed
+
+- name: Verify HetrixTools agent is running
+  ansible.builtin.shell: crontab -l
+  register: hetrixtools_cron
+  changed_when: false
+  failed_when: hetrixtools_cron.rc not in [0, 1]
+
+- name: Display agent status
+  ansible.builtin.debug:
+    msg: "HetrixTools agent is installed and cron job is {{ 'configured' if 'hetrixtools_agent.sh' in (hetrixtools_cron.stdout | default('')) else 'NOT configured' }}"
+  register: hetrixtools_cron
+  changed_when: false
+
+- name: Display agent status
+  ansible.builtin.debug:
+    msg: "HetrixTools agent is installed and cron job is {{ 'configured' if hetrixtools_cron.stdout | int > 0 else 'NOT configured' }}"
