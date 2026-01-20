@@ -20,22 +20,17 @@
           - hetrixtools_api_token | length > 0
         fail_msg: "HetrixTools API token is not set. Please set HETRIXTOOLS_API_TOKEN environment variable."
 
-    - name: Download HetrixTools install script
-      ansible.builtin.get_url:
-        url: https://raw.githubusercontent.com/hetrixtools/agent/master/hetrixtools_install.sh
-        bash -s {{ hetrixtools_api_token | quote }} \
-        {{ hetrixtools_check_type | quote }} \
-        {{ hetrixtools_server_type | quote }} \
-        {{ hetrixtools_collection_user | quote }} \
-        {{ hetrixtools_custom_services | quote }} \
-        {{ hetrixtools_disable_iptables | quote }} \
+    - name: Download and run HetrixTools install script
+      ansible.builtin.shell: >
+        curl -s https://raw.githubusercontent.com/hetrixtools/agent/master/hetrixtools_install.sh
+        | bash -s
+        {{ hetrixtools_api_token | quote }}
+        {{ hetrixtools_check_type | quote }}
+        {{ hetrixtools_server_type | quote }}
+        {{ hetrixtools_collection_user | quote }}
+        {{ hetrixtools_custom_services | quote }}
+        {{ hetrixtools_disable_iptables | quote }}
         {{ hetrixtools_disable_rpm | quote }}
-        {{ hetrixtools_check_type }}
-        {{ hetrixtools_server_type }}
-        {{ hetrixtools_collection_user }}
-        {{ hetrixtools_custom_services }}
-        {{ hetrixtools_disable_iptables }}
-        {{ hetrixtools_disable_rpm }}
       args:
         creates: /etc/hetrixtools/hetrixtools_agent.sh
       register: hetrixtools_install
@@ -59,4 +54,5 @@
 
 - name: Display agent status
   ansible.builtin.debug:
-    msg: "HetrixTools agent is installed and cron job is {{ 'configured' if hetrixtools_cron.stdout | int > 0 else 'NOT configured' }}"
+
+    msg: "HetrixTools agent is installed and cron job is {{ 'configured' if 'hetrixtools_agent.sh' in (hetrixtools_cron.stdout | default('')) else 'NOT configured' }}"
