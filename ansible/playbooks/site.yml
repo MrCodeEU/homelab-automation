@@ -61,6 +61,20 @@
     - fail2ban
 
 # ============================================================================
+# HetrixTools Agent (mljr only - external uptime monitoring)
+# ============================================================================
+- name: HetrixTools Monitoring Agent
+  hosts: mljr
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - monitoring
+    - hetrixtools
+  roles:
+    - hetrixtools-agent
+
+# ============================================================================
 # Backup (before services to enable restore on fresh install)
 # ============================================================================
 - name: Backup Setup
