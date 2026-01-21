@@ -146,6 +146,118 @@
   ignore_errors: true
 
 # ============================================================================
+# Post-Deploy Hooks (Production)
+# ============================================================================
+
+- name: Check for post-deploy hooks (production)
+  ansible.builtin.stat:
+    path: "{{ base_path }}/{{ service.name }}/hooks/post-deploy.sh"
+  loop: "{{ host_services }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}"
+  register: post_deploy_hooks
+  when: not ansible_check_mode
+
+- name: Run post-deploy hooks (production)
+  ansible.builtin.shell: |
+    set -e
+    export SERVICE_NAME="{{ service.name }}"
+    export SERVICE_PATH="{{ base_path }}/{{ service.name }}"
+    source {{ base_path }}/{{ service.name }}/.env 2>/dev/null || true
+    bash {{ base_path }}/{{ service.name }}/hooks/post-deploy.sh "{{ service.name }}" "{{ base_path }}/{{ service.name }}"
+  args:
+    executable: /bin/bash
+    chdir: "{{ base_path }}/{{ service.name }}"
+  loop: "{{ host_services }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}"
+  when:
+    - not ansible_check_mode
+    - post_deploy_hooks.results | selectattr('item.name', 'equalto', service.name) | map(attribute='stat.exists') | first | default(false)
+  register: post_deploy_results
+  changed_when: "'SUCCESS' in post_deploy_results.stdout | default('') or 'CHANGED' in post_deploy_results.stdout | default('')"
+  failed_when: false  # Don't fail deployment if hook fails
+  async: 600  # 10 minute timeout for hooks
+  poll: 0
+
+- name: Wait for post-deploy hooks to complete
+  ansible.builtin.async_status:
+    jid: "{{ item.ansible_job_id }}"
+  loop: "{{ post_deploy_results.results | default([]) }}"
+  loop_control:
+    label: "{{ item.service.name | default('unknown') }}"
+  register: hook_job_result
+  until: hook_job_result.finished
+  retries: 60
+  delay: 10
+  when:
+    - not ansible_check_mode
+    - item.ansible_job_id is defined
+  failed_when: false
+
+- name: Display post-deploy hook results
+  ansible.builtin.debug:
+    msg: |
+      Post-deploy hook for {{ item.service.name | default('unknown') }}:
+      {% if item.rc | default(0) == 0 %}SUCCESS{% else %}FAILED (rc={{ item.rc }}){% endif %}
+      {{ item.stdout_lines | default([]) | join('\n') }}
+  loop: "{{ hook_job_result.results | default([]) }}"
+  loop_control:
+    label: "{{ item.service.name | default('unknown') }}"
+  when:
+    - not ansible_check_mode
+    - item.finished | default(false)
+
+- name: Collect failed post-deploy hooks
+  ansible.builtin.set_fact:
+    failed_hooks: >-
+      {%- set failed = [] -%}
+      {%- for result in hook_job_result.results | default([]) -%}
+        {%- if result.finished | default(false) and result.rc | default(0) != 0 -%}
+          {%- set _ = failed.append({
+            'name': result.service.name | default('unknown'),
+            'rc': result.rc,
+            'stderr': result.stderr_lines | default([]) | join('\n') | truncate(200)
+          }) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ failed }}
+  when: not ansible_check_mode
+
+- name: Warn about failed post-deploy hooks
+  ansible.builtin.debug:
+    msg: |
+      ⚠️  WARNING: {{ failed_hooks | length }} post-deploy hook(s) FAILED!
+      ============================================================================
+      {% for hook in failed_hooks %}
+      Service: {{ hook.name }}
+      Exit code: {{ hook.rc }}
+      Error: {{ hook.stderr }}
+      {% endfor %}
+      ============================================================================
+      Some services may not be fully configured. Check the logs above.
+  when:
+    - not ansible_check_mode
+    - failed_hooks | default([]) | length > 0
+
+- name: Fail if critical hooks failed (optional)
+  ansible.builtin.fail:
+    msg: |
+      Post-deploy hook failed for critical service: {{ item.name }}
+      Exit code: {{ item.rc }}
+
+      To ignore hook failures, set 'fail_on_hook_error: false' in your playbook.
+  loop: "{{ failed_hooks | default([]) }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - not ansible_check_mode
+    - fail_on_hook_error | default(false)
+    - item.name in critical_hook_services | default(['keycloak'])
+
+# ============================================================================
 # Staging Deployment (only on staging_host when is_staging_deployment is true)
 # ============================================================================
 
@@ -325,8 +437,15 @@
     - secrets.kuma.password | default('') | length > 0
   block:
     - name: Create services.yml for Kuma
+      vars:
+        kuma_hosts: >-
+          {{
+            groups['all'] | map('extract', hostvars) | list | map('dict2items')
+            | map('selectattr', 'key', 'in', ['inventory_hostname', 'ansible_host'])
+            | map('items2dict') | list
+          }}
       ansible.builtin.copy:
-        content: "{{ {'services': services} | to_nice_yaml }}"
+        content: "{{ {'services': services, 'hosts': kuma_hosts} | to_nice_yaml }}"
         dest: "{{ base_path }}/kuma/services.yml"
         mode: '0644'
 

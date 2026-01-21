@@ -172,6 +172,18 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
           PCLOUD_TOKEN: ${{ secrets.PCLOUD_TOKEN }}
           HETRIXTOOLS_API_TOKEN: ${{ secrets.HETRIXTOOLS_API_TOKEN }}
+          # Keycloak SSO
+          KEYCLOAK_ADMIN_PASSWORD: ${{ secrets.KEYCLOAK_ADMIN_PASSWORD }}
+          KEYCLOAK_DB_PASSWORD: ${{ secrets.KEYCLOAK_DB_PASSWORD }}
+          # OAuth2 Proxy
+          OAUTH2_PROXY_COOKIE_SECRET: ${{ secrets.OAUTH2_PROXY_COOKIE_SECRET }}
+          OAUTH2_PROXY_CLIENT_ID: ${{ secrets.OAUTH2_PROXY_CLIENT_ID }}
+          OAUTH2_PROXY_CLIENT_SECRET: ${{ secrets.OAUTH2_PROXY_CLIENT_SECRET }}
+          # Google OAuth (for Keycloak social login)
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          # SonarQube
+          SONARQUBE_DB_PASSWORD: ${{ secrets.SONARQUBE_DB_PASSWORD }}
         run: |
           cd ansible
 
