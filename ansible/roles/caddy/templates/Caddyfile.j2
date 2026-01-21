@@ -3,6 +3,35 @@
 # NOTE: This file is validated with 'caddy validate --adapter caddyfile' before deployment
 # ============================================================================
 
+{# ============================================================================ #}
+{# Authentication Macros                                                        #}
+{# ============================================================================ #}
+
+{# Macro: Basic authentication block #}
+{% macro basicauth_block() %}
+    basicauth {
+        {{ secrets.caddy.auth_user }} {{ secrets.caddy.auth_hash }}
+    }
+{% endmacro %}
+
+{# Macro: Keycloak SSO authentication via oauth2-proxy #}
+{% macro keycloak_auth() %}
+    # OAuth2 proxy callback routes
+    route /oauth2/* {
+        reverse_proxy localhost:4180
+    }
+    # Forward authentication to oauth2-proxy
+    forward_auth localhost:4180 {
+        uri /oauth2/auth
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-Uri {uri}
+        header_up X-Forwarded-Host {host}
+        copy_headers X-Auth-Request-User X-Auth-Request-Email
+    }
+{% endmacro %}
+
+{# ============================================================================ #}
+
 {
     email {{ email }}
 }
@@ -27,6 +56,7 @@ deploy.{{ domain }} {
 {% set is_local = service.host == inventory_hostname %}
 {% set target_host = 'localhost' if is_local else hostvars[service.host]['ansible_host'] %}
 {% set target_port = service.port %}
+{% set auth_type = service.caddy_auth | default('') %}
 
 {# Handle single domain or list of domains #}
 {% if service.domain is string %}
@@ -48,11 +78,14 @@ deploy.{{ domain }} {
     handle @websocket {
         reverse_proxy {{ target_host }}:{{ target_port }}
     }
-{% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
+{% if auth_type == 'basicauth' %}
     handle {
-        basicauth {
-            {{ secrets.caddy.auth_user }} {{ secrets.caddy.auth_hash }}
-        }
+{{ basicauth_block() }}
+        reverse_proxy {{ target_host }}:{{ target_port }}
+    }
+{% elif auth_type == 'keycloak' %}
+{{ keycloak_auth() }}
+    handle {
         reverse_proxy {{ target_host }}:{{ target_port }}
     }
 {% else %}
@@ -61,10 +94,10 @@ deploy.{{ domain }} {
     }
 {% endif %}
 {% else %}
-{% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
-    basicauth {
-        {{ secrets.caddy.auth_user }} {{ secrets.caddy.auth_hash }}
-    }
+{% if auth_type == 'basicauth' %}
+{{ basicauth_block() }}
+{% elif auth_type == 'keycloak' %}
+{{ keycloak_auth() }}
 {% endif %}
 {% if service.upstream is defined %}
     reverse_proxy {{ service.upstream }}
@@ -115,10 +148,10 @@ deploy.{{ domain }} {
             roll_disabled
         }
     }
-{% if service.caddy_auth is defined and service.caddy_auth == 'basicauth' %}
-    basicauth {
-        {{ secrets.caddy.auth_user }} {{ secrets.caddy.auth_hash }}
-    }
+{% if auth_type == 'basicauth' %}
+{{ basicauth_block() }}
+{% elif auth_type == 'keycloak' %}
+{{ keycloak_auth() }}
 {% endif %}
     reverse_proxy {{ staging_target }}:{{ staging_port }}
 }
