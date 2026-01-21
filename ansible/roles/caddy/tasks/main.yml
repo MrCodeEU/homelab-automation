@@ -195,6 +195,28 @@
           Caddy failed to restart after systemd override change.
           See the systemctl status and journalctl output above for details.
 
+- name: Build list of Caddy log files to pre-create
+  ansible.builtin.set_fact:
+    caddy_log_files: >-
+      {%- set files = ['deploy'] -%}
+      {%- for service in (services | default([])) -%}
+        {%- if service.enabled | default(true) and service.domain is defined -%}
+          {%- set _ = files.append(service.name) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ files }}
+
+- name: Pre-create Caddy log files with correct ownership
+  ansible.builtin.file:
+    path: "{{ log_path }}/caddy/{{ item }}.log"
+    state: touch
+    owner: caddy
+    group: caddy
+    mode: '0755'
+    modification_time: preserve
+    access_time: preserve
+  loop: "{{ caddy_log_files }}"
+
 - name: Generate Caddyfile
   ansible.builtin.template:
     src: Caddyfile.j2
