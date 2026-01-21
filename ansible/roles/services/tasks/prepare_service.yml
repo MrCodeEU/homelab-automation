@@ -8,6 +8,24 @@
     state: directory
     mode: '0755'
 
+# ============================================================================
+# Sysctl Configuration (for services requiring kernel parameters)
+# Supports both string ("key=value") and list (["key1=value1", "key2=value2"]) formats
+# ============================================================================
+- name: "{{ service.name }} - Configure sysctl requirements"
+  ansible.posix.sysctl:
+    name: "{{ item.split('=')[0] }}"
+    value: "{{ item.split('=')[1] }}"
+    sysctl_set: true
+    state: present
+    reload: true
+  loop: "{{ [service.requires_sysctl] if service.requires_sysctl is string else service.requires_sysctl }}"
+  loop_control:
+    label: "{{ item }}"
+  when:
+    - service.requires_sysctl is defined
+    - not ansible_check_mode
+
 # Check for staging (dev/) or production service config
 - name: "{{ service.name }} - Check for dev service config"
   delegate_to: localhost
@@ -61,3 +79,28 @@
     project_name: "{{ service.name if not is_staging else (service.name + '-staging') }}"
     image_tag: "latest"  # Default, can be overridden in docker-compose.yml
   no_log: true
+
+# ============================================================================
+# Pre-Deploy Hooks
+# ============================================================================
+- name: "{{ service.name }} - Check for pre-deploy hook"
+  ansible.builtin.stat:
+    path: "{{ deploy_path }}/hooks/pre-deploy.sh"
+  register: pre_deploy_hook
+
+- name: "{{ service.name }} - Run pre-deploy hook"
+  ansible.builtin.shell: |
+    set -e
+    export SERVICE_NAME="{{ service.name }}"
+    export SERVICE_PATH="{{ deploy_path }}"
+    source {{ deploy_path }}/.env 2>/dev/null || true
+    bash {{ deploy_path }}/hooks/pre-deploy.sh "{{ service.name }}" "{{ deploy_path }}"
+  args:
+    executable: /bin/bash
+    chdir: "{{ deploy_path }}"
+  when:
+    - not ansible_check_mode
+    - pre_deploy_hook.stat.exists | default(false)
+  register: pre_deploy_result
+  changed_when: "'CHANGED' in pre_deploy_result.stdout | default('')"
+  failed_when: pre_deploy_result.rc != 0
