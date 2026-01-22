@@ -137,6 +137,20 @@
     - beszel-agent
 
 # ============================================================================
+# Dozzle Agent (mljr only - nuc runs main instance with local docker.sock)
+# ============================================================================
+- name: Dozzle Log Agent
+  hosts: mljr
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - dozzle-agent
+    - monitoring
+  roles:
+    - dozzle-agent
+
+# ============================================================================
 # Caddy Reverse Proxy (mljr only - main ingress point)
 # ============================================================================
 - name: Caddy Setup

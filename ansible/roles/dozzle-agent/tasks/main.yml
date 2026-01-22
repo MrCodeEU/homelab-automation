@@ -1,0 +1,56 @@
+---
+# Dozzle Agent Role - Deploys log streaming agent to all managed hosts
+# ============================================================================
+# The agent exposes the local Docker socket to the main Dozzle instance.
+# Communication happens over Tailscale for security.
+#
+# Architecture:
+#   - Agent runs on each host, exposes port 7007
+#   - Main Dozzle instance connects to agents via Tailscale IPs
+#   - No authentication needed (Tailscale provides network-level security)
+# ============================================================================
+
+- name: Ensure Dozzle agent directory exists
+  ansible.builtin.file:
+    path: "{{ base_path }}/dozzle-agent"
+    state: directory
+    mode: '0755'
+
+- name: Deploy Dozzle agent docker-compose
+  ansible.builtin.copy:
+    dest: "{{ base_path }}/dozzle-agent/docker-compose.yml"
+    mode: '0644'
+    content: |
+      services:
+        dozzle-agent:
+          image: amir20/dozzle:latest
+          container_name: dozzle-agent
+          command: agent
+          restart: unless-stopped
+          ports:
+            # Only bind to Tailscale interface for security
+            - "{{ ansible_host }}:7007:7007"
+          volumes:
+            - /var/run/docker.sock:/var/run/docker.sock:ro
+          environment:
+            TZ: {{ timezone | default('Europe/Vienna') }}
+          logging:
+            driver: "json-file"
+            options:
+              max-size: "10m"
+              max-file: "3"
+
+- name: Deploy Dozzle agent
+  community.docker.docker_compose_v2:
+    project_src: "{{ base_path }}/dozzle-agent"
+    state: present
+    pull: always
+  when: not ansible_check_mode
+  register: dozzle_agent_result
+
+- name: Display Dozzle agent status
+  ansible.builtin.debug:
+    msg: |
+      Dozzle agent deployed on {{ inventory_hostname }}
+      Agent endpoint: {{ ansible_host }}:7007
+  when: dozzle_agent_result is changed or ansible_check_mode
