@@ -113,11 +113,43 @@ services:
     domain: "nightscout.mljr.eu"  # Can be string or list
     port: 1337                    # Required for managed services (use 0 for no web UI)
     host: mljr                    # Must match inventory hostname
-    caddy_auth: "basicauth"       # Password protection
+    caddy_auth: "basicauth"       # "basicauth" or "keycloak" for SSO
     managed: false                # External service (proxy only, no docker-compose)
     skip_deploy: true             # Uses dedicated role instead of services role
     backup_critical: true         # Restore on fresh install
+    requires_sysctl: "key=value"  # System tuning (e.g., vm.max_map_count=262144)
 ```
+
+### Authentication
+
+Two authentication methods are available via `caddy_auth`:
+
+| Value | Description |
+|-------|-------------|
+| `basicauth` | Username/password from `CADDY_AUTH_USER` and `CADDY_AUTH_PASSWORD_HASH` |
+| `keycloak` | SSO via Keycloak + oauth2-proxy (requires Keycloak service) |
+
+**Keycloak SSO Architecture:**
+```
+User → Caddy → forward_auth → oauth2-proxy → Keycloak → User authenticated
+```
+
+Services using `caddy_auth: "keycloak"`: goaccess, fail2ban-ui, sonarqube
+
+**Setup**: See `docs/KEYCLOAK_SONARQUBE_SETUP.md` for deployment steps and secret generation.
+
+### Post-Deploy Hooks
+
+Services can have post-deploy scripts that run after docker-compose up:
+
+```
+services/<name>/hooks/post-deploy.sh
+```
+
+- Receives `SERVICE_NAME` and `SERVICE_PATH` environment variables
+- `.env` file is sourced before execution
+- Runs asynchronously with 10-minute timeout
+- Used by Keycloak to auto-provision realm, client, and Google IdP
 
 ### Staging Environment
 
@@ -174,8 +206,9 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 1. Add service definition to `ansible/inventory/group_vars/all/all.yml`
 2. Create `services/<name>/docker-compose.yml`
 3. If service needs secrets, add env lookups to `secrets.yml` and GitHub Actions secrets
-4. **(Optional) Create staging**: Create `services/<name>/dev/docker-compose.yml` with explicit staging config
-5. Deploy: `ansible-playbook playbooks/site.yml --tags services`
+4. **(Optional)** Create `services/<name>/hooks/post-deploy.sh` for post-deployment configuration
+5. **(Optional) Create staging**: Create `services/<name>/dev/docker-compose.yml` with explicit staging config
+6. Deploy: `ansible-playbook playbooks/site.yml --tags services`
 
 ## Ansible Tags
 
@@ -190,6 +223,26 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 | security, fail2ban | Fail2ban (mljr only) |
 | glance | Dashboard |
 | mailcow | Mail server |
+
+## Key Services
+
+### Keycloak (SSO Identity Provider)
+- **Domain**: auth.mljr.eu
+- **Port**: 9732 (mljr)
+- **Post-deploy hook**: Auto-provisions `homelab` realm, `oauth2-proxy` client, and Google IdP
+- **Client secret**: Saved to `/opt/keycloak/client-secret.txt` after first deploy
+- **Dependencies**: oauth2-proxy must be deployed after Keycloak
+
+### OAuth2-Proxy
+- **Port**: 4180 (mljr, internal only)
+- **Purpose**: Handles forward_auth for Keycloak-protected services
+- **No domain**: Accessed internally by Caddy via `forward_auth localhost:4180`
+
+### SonarQube (Code Quality)
+- **Domain**: sonarqube.mljr.eu
+- **Port**: 9000 (nuc)
+- **System requirement**: `vm.max_map_count=262144` (auto-configured via `requires_sysctl`)
+- **Default login**: admin/admin (change on first login)
 
 ## Triggering Deployment from External Repos
 
