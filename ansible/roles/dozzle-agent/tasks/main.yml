@@ -29,7 +29,7 @@
           restart: unless-stopped
           ports:
             # Only bind to Tailscale interface for security
-            - "{{ ansible_host }}:7007:7007"
+            - "{{ tailscale_ip }}:7007:7007"
           volumes:
             - /var/run/docker.sock:/var/run/docker.sock:ro
           environment:
@@ -52,5 +52,5 @@
   ansible.builtin.debug:
     msg: |
       Dozzle agent deployed on {{ inventory_hostname }}
-      Agent endpoint: {{ ansible_host }}:7007
+      Agent endpoint: {{ tailscale_ip }}:7007
   when: dozzle_agent_result is changed or ansible_check_mode
