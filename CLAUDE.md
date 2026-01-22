@@ -26,8 +26,9 @@ If Mitogen is not installed, Ansible will fail. To disable it temporarily, comme
 
 ## Pre-commit Validation
 
-The pre-commit hook (`.githooks/validate_services.py`) validates service configurations before each commit:
+The pre-commit hook validates service configurations before each commit. It uses a Python virtual environment at `.githooks/.venv` (auto-created on first run).
 
+**Validations performed:**
 - **Port uniqueness**: No two services on the same host can use the same port
 - **Domain uniqueness**: Each domain can only be assigned to one service
 - **Service name uniqueness**: No duplicate service names
@@ -36,7 +37,7 @@ The pre-commit hook (`.githooks/validate_services.py`) validates service configu
 - **Docker-compose exists**: Managed services must have `services/<name>/docker-compose.yml`
 - **Staging port convention**: Warns if staging port doesn't follow `production_port + 10000`
 
-Run manually: `python .githooks/validate_services.py`
+**Run manually:** `./.githooks/pre-commit` (sets up venv automatically, do NOT run `validate_services.py` directly)
 
 ## Commands
 
@@ -191,7 +192,7 @@ Reference in templates: `{{ secrets.nightscout.api_secret }}`
 
 1. **GitHub Actions** triggers on push to main, PRs (check mode), or repository dispatch
 2. **Tailscale VPN** connects runner to hosts
-3. **Playbook execution**: base → security → backup → glance → mailcow → services → caddy
+3. **Playbook execution**: base → security → backup → glance → mailcow → keycloak → services → caddy
 
 ### Async Deployment
 
@@ -223,13 +224,15 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 | security, fail2ban | Fail2ban (mljr only) |
 | glance | Dashboard |
 | mailcow | Mail server |
+| keycloak | SSO Identity Provider (mljr only) |
 
 ## Key Services
 
 ### Keycloak (SSO Identity Provider)
 - **Domain**: auth.mljr.eu
 - **Port**: 9732 (mljr)
-- **Post-deploy hook**: Auto-provisions `homelab` realm, `oauth2-proxy` client, and Google IdP
+- **Dedicated role**: Uses `ansible/roles/keycloak/` (not generic services role)
+- **Provisioning**: Ansible tasks auto-provision `homelab` realm, `oauth2-proxy` client, and Google IdP
 - **Client secret**: Saved to `/opt/keycloak/client-secret.txt` after first deploy
 - **Dependencies**: oauth2-proxy must be deployed after Keycloak
 

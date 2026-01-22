@@ -56,7 +56,7 @@
     msg: "Deploying {{ service.name }} from {{ 'dev/' if (is_staging | default(false) and dev_config.stat.exists | default(false)) else 'production' }} config"
 
 # Synchronize service files from determined source path
-# Note: connection: ssh bypasses Mitogen which doesn't handle synchronize correctly
+# Note: mitogen_task_isolation: fork is required because Mitogen doesn't handle synchronize correctly
 - name: "{{ service.name }} - Synchronize service files"
   ansible.posix.synchronize:
     src: "{{ service_source_path }}"
@@ -69,7 +69,9 @@
       - "--exclude=venv/"   # Don't delete Python venv (created by hooks)
       - "--quiet"           # Reduce log verbosity
   delegate_to: localhost
-  connection: ssh  # Required: Mitogen doesn't support synchronize correctly
+  vars:
+    # Fork a subprocess for this task to bypass Mitogen (which breaks synchronize)
+    mitogen_task_isolation: fork
   when: (is_staging | default(false) and dev_config.stat.exists | default(false)) or prod_config.stat.exists
 
 # Generate .env file with secrets
