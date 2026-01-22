@@ -112,6 +112,19 @@
   roles:
     - mailcow
 
+# ============================================================================
+# Keycloak Identity Provider (mljr only)
+# ============================================================================
+- name: Keycloak Identity Provider
+  hosts: mljr
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - keycloak
+  roles:
+    - keycloak
+
 - name: Docker Services
   hosts: rocky
   become: true
@@ -135,6 +148,20 @@
     - monitoring
   roles:
     - beszel-agent
+
+# ============================================================================
+# Dozzle Agent (mljr only - nuc runs main instance with local docker.sock)
+# ============================================================================
+- name: Dozzle Log Agent
+  hosts: mljr
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - dozzle-agent
+    - monitoring
+  roles:
+    - dozzle-agent
 
 # ============================================================================
 # Caddy Reverse Proxy (mljr only - main ingress point)

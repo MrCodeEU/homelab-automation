@@ -175,7 +175,7 @@
     label: "{{ service.name }}"
   when:
     - not ansible_check_mode
-    - post_deploy_hooks.results | selectattr('item.name', 'equalto', service.name) | map(attribute='stat.exists') | first | default(false)
+    - post_deploy_hooks.results | selectattr('service.name', 'equalto', service.name) | map(attribute='stat.exists') | first | default(false)
   register: post_deploy_results
   changed_when: "'SUCCESS' in post_deploy_results.stdout | default('') or 'CHANGED' in post_deploy_results.stdout | default('')"
   failed_when: false  # Don't fail deployment if hook fails
