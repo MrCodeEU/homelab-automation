@@ -1,0 +1,265 @@
+---
+# Keycloak Role - Deploys and provisions Keycloak SSO
+#
+# This role:
+# 1. Deploys Keycloak and PostgreSQL via Docker Compose
+# 2. Waits for Keycloak to be healthy
+# 3. Provisions the 'homelab' realm
+# 4. Creates the 'oauth2-proxy' client for SSO
+# 5. Optionally configures Google as an identity provider
+# 6. Saves the client secret for oauth2-proxy to use
+
+# Get service configuration from all.yml
+- name: Get keycloak service config
+  ansible.builtin.set_fact:
+    keycloak_service: "{{ services | selectattr('name', 'equalto', 'keycloak') | first }}"
+
+- name: Check if keycloak is enabled
+  ansible.builtin.debug:
+    msg: "Keycloak is {{ 'enabled' if keycloak_service.enabled else 'disabled' }}"
+
+- name: Skip if keycloak is disabled
+  ansible.builtin.meta: end_host
+  when: not keycloak_service.enabled
+
+# Directory and file setup
+- name: Create keycloak directory
+  ansible.builtin.file:
+    path: "{{ keycloak_install_path }}"
+    state: directory
+    mode: "0755"
+
+- name: Deploy docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ keycloak_install_path }}/docker-compose.yml"
+    mode: "0644"
+  register: compose_file
+
+- name: Generate .env file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ keycloak_install_path }}/.env"
+    mode: "0600"
+  register: env_file
+  no_log: true
+
+# Start containers
+- name: Start keycloak containers
+  community.docker.docker_compose_v2:
+    project_src: "{{ keycloak_install_path }}"
+    state: present
+    pull: "{{ 'always' if (compose_file.changed or env_file.changed) else 'missing' }}"
+  register: compose_result
+
+- name: Show container status
+  ansible.builtin.debug:
+    msg: "Keycloak containers: {{ 'started/updated' if compose_result.changed else 'already running' }}"
+
+# Health check - wait for Keycloak to be ready
+- name: Wait for Keycloak to be ready
+  ansible.builtin.uri:
+    url: "{{ keycloak_internal_url }}/health/ready"
+    status_code: 200
+  register: keycloak_health
+  until: keycloak_health.status == 200
+  retries: "{{ (keycloak_health_timeout / keycloak_health_delay) | int }}"
+  delay: "{{ keycloak_health_delay }}"
+  when: not ansible_check_mode
+
+- name: Skip provisioning in check mode
+  ansible.builtin.debug:
+    msg: "Skipping Keycloak provisioning in check mode"
+  when: ansible_check_mode
+
+# Provisioning - Admin authentication
+- name: Get admin access token
+  ansible.builtin.uri:
+    url: "{{ keycloak_internal_url }}/realms/master/protocol/openid-connect/token"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      client_id: admin-cli
+      username: "{{ keycloak_admin_user }}"
+      password: "{{ secrets.keycloak.admin_password }}"
+      grant_type: password
+    status_code: 200
+  register: keycloak_token_response
+  no_log: true
+  when: not ansible_check_mode
+
+- name: Set access token fact
+  ansible.builtin.set_fact:
+    keycloak_access_token: "{{ keycloak_token_response.json.access_token }}"
+  no_log: true
+  when: not ansible_check_mode
+
+# Realm provisioning
+- name: Check if realm exists
+  ansible.builtin.uri:
+    url: "{{ keycloak_internal_url }}/admin/realms/{{ keycloak_realm }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ keycloak_access_token }}"
+    status_code: [200, 404]
+  register: realm_check
+  when: not ansible_check_mode
+
+- name: Create realm
+  ansible.builtin.uri:
+    url: "{{ keycloak_internal_url }}/admin/realms"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ keycloak_access_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      realm: "{{ keycloak_realm }}"
+      enabled: true
+      displayName: "Homelab SSO"
+    status_code: 201
+  when:
+    - not ansible_check_mode
+    - realm_check.status == 404
+  register: realm_created
+
+- name: Realm status
+  ansible.builtin.debug:
+    msg: "{{ 'Created realm: ' + keycloak_realm if realm_created.changed | default(false) else 'Realm already exists: ' + keycloak_realm }}"
+  when: not ansible_check_mode
+
+# Client provisioning
+- name: Check if client exists
+  ansible.builtin.uri:
+    url: "{{ keycloak_internal_url }}/admin/realms/{{ keycloak_realm }}/clients?clientId={{ keycloak_client_id }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ keycloak_access_token }}"
+    status_code: 200
+  register: client_check
+  when: not ansible_check_mode
+
+- name: Generate client secret
+  ansible.builtin.set_fact:
+    keycloak_client_secret: "{{ lookup('password', '/dev/null length=32 chars=ascii_letters,digits') }}"
+  when:
+    - not ansible_check_mode
+    - client_check.json | length == 0
+  no_log: true
+
+- name: Create client
+  ansible.builtin.uri:
+    url: "{{ keycloak_internal_url }}/admin/realms/{{ keycloak_realm }}/clients"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ keycloak_access_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      clientId: "{{ keycloak_client_id }}"
+      name: "OAuth2 Proxy"
+      enabled: true
+      protocol: openid-connect
+      publicClient: false
+      secret: "{{ keycloak_client_secret }}"
+      standardFlowEnabled: true
+      directAccessGrantsEnabled: false
+      serviceAccountsEnabled: false
+      redirectUris: "{{ keycloak_redirect_uris }}"
+      webOrigins: "{{ keycloak_web_origins }}"
+      attributes:
+        post.logout.redirect.uris: "{{ keycloak_post_logout_uris }}"
+    status_code: 201
+  when:
+    - not ansible_check_mode
+    - client_check.json | length == 0
+  register: client_created
+
+- name: Client status
+  ansible.builtin.debug:
+    msg: "{{ 'Created client: ' + keycloak_client_id if client_created.changed | default(false) else 'Client already exists: ' + keycloak_client_id }}"
+  when: not ansible_check_mode
+
+# Google Identity Provider (optional)
+- name: Check if Google IdP should be configured
+  ansible.builtin.set_fact:
+    configure_google_idp: "{{ (secrets.google.client_id | default('') | length > 0) and (secrets.google.client_secret | default('') | length > 0) }}"
+
+- name: Check if Google IdP exists
+  ansible.builtin.uri:
+    url: "{{ keycloak_internal_url }}/admin/realms/{{ keycloak_realm }}/identity-provider/instances/google"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ keycloak_access_token }}"
+    status_code: [200, 404]
+  register: google_idp_check
+  when:
+    - not ansible_check_mode
+    - configure_google_idp
+
+- name: Configure Google identity provider
+  ansible.builtin.uri:
+    url: "{{ keycloak_internal_url }}/admin/realms/{{ keycloak_realm }}/identity-provider/instances"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ keycloak_access_token }}"
+      Content-Type: application/json
+    body_format: json
+    body:
+      alias: google
+      displayName: Google
+      providerId: google
+      enabled: true
+      trustEmail: true
+      firstBrokerLoginFlowAlias: "first broker login"
+      config:
+        clientId: "{{ secrets.google.client_id }}"
+        clientSecret: "{{ secrets.google.client_secret }}"
+        defaultScope: "openid email profile"
+        syncMode: IMPORT
+    status_code: 201
+  when:
+    - not ansible_check_mode
+    - configure_google_idp
+    - google_idp_check.status == 404
+  register: google_idp_created
+
+- name: Google IdP status
+  ansible.builtin.debug:
+    msg: >-
+      {% if not configure_google_idp %}
+      Google IdP: Skipped (no credentials provided)
+      {% elif google_idp_created.changed | default(false) %}
+      Google IdP: Configured
+      {% else %}
+      Google IdP: Already configured
+      {% endif %}
+  when: not ansible_check_mode
+
+# Save client secret
+- name: Save client secret to file
+  ansible.builtin.copy:
+    content: "OAUTH2_PROXY_CLIENT_SECRET={{ keycloak_client_secret }}"
+    dest: "{{ keycloak_install_path }}/client-secret.txt"
+    mode: "0600"
+  when:
+    - not ansible_check_mode
+    - client_created.changed | default(false)
+  no_log: true
+
+- name: Display provisioning summary
+  ansible.builtin.debug:
+    msg: |
+      ============================================
+      Keycloak Provisioning Complete
+      ============================================
+      URL: https://{{ keycloak_hostname }}
+      Realm: {{ keycloak_realm }}
+      Client: {{ keycloak_client_id }}
+      {% if client_created.changed | default(false) %}
+
+      NEW CLIENT SECRET saved to: {{ keycloak_install_path }}/client-secret.txt
+      IMPORTANT: Update OAUTH2_PROXY_CLIENT_SECRET in your secrets!
+      {% endif %}
+      ============================================
+  when: not ansible_check_mode

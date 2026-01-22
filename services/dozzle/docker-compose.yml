@@ -1,0 +1,27 @@
+services:
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-dozzle}
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8085}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      TZ: ${TZ:-Europe/Vienna}
+      DOZZLE_NO_ANALYTICS: "true"
+      # Agents are configured via DOZZLE_REMOTE_AGENT
+      # Format: name:host:port,name2:host2:port
+      # Agents on other hosts connect via Tailscale
+      DOZZLE_REMOTE_AGENT: ${DOZZLE_REMOTE_AGENTS:-}
+    networks:
+      - default
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  default:
+    driver: bridge

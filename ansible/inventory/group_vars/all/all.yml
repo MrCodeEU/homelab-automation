@@ -58,6 +58,7 @@ services:
     description: "SSO Identity Provider"
     icon: "mdi:shield-account"
     backup_critical: true
+    skip_deploy: true  # Uses dedicated keycloak role
 
   - name: oauth2-proxy
     enabled: true
@@ -191,6 +192,15 @@ services:
     host: mljr
     description: "Docker Image Update Notifier"
     icon: "mdi:docker"
+
+  - name: dozzle
+    enabled: true
+    domain: "docker.mljr.eu"
+    port: 8085
+    host: nuc
+    description: "Docker Logs"
+    icon: "mdi:text-box-search"
+    caddy_auth: "keycloak"
 
   # Personal
   - name: homepage
