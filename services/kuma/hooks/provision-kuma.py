@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
+"""
+Uptime Kuma provisioning script.
+Syncs monitors based on services.yml configuration.
+"""
 import os
 import sys
 import yaml
-import time
 from uptime_kuma_api import UptimeKumaApi, MonitorType
 
 # Monitor name prefixes for special monitors
@@ -12,6 +15,16 @@ SMTP_PREFIX = "SMTP: "
 # SMTP configuration for mailcow
 MAILCOW_SMTP_HOST = "mail.mljr.eu"
 MAILCOW_SMTP_PORT = 587
+
+
+class ProvisioningStats:
+    """Track provisioning statistics."""
+    def __init__(self):
+        self.created = []
+        self.updated = []
+        self.deleted = []
+        self.skipped = 0
+        self.failed = []
 
 
 def get_expected_monitor_names(services, hosts):
@@ -39,7 +52,7 @@ def get_expected_monitor_names(services, hosts):
     return expected
 
 
-def sync_service_monitors(api, services, existing_monitors):
+def sync_service_monitors(api, services, existing_monitors, stats):
     """Sync HTTP monitors for services."""
     for service in services:
         name = service.get('name')
@@ -62,8 +75,6 @@ def sync_service_monitors(api, services, existing_monitors):
         else:
             target_url = f"https://{domain}"
 
-        print(f"Processing service {name} ({target_url})...")
-
         if name in existing_monitors:
             monitor_id = existing_monitors[name]['id']
             current_url = existing_monitors[name].get('url', '')
@@ -76,10 +87,11 @@ def sync_service_monitors(api, services, existing_monitors):
                     url=target_url,
                     name=name
                 )
+                stats.updated.append(name)
             else:
-                print(f"  Skipping {name} (already exists and matches)")
+                stats.skipped += 1
         else:
-            print(f"  Creating monitor for {name}...")
+            print(f"  Creating {name} ({target_url})")
             try:
                 api.add_monitor(
                     type=MonitorType.HTTP,
@@ -88,12 +100,13 @@ def sync_service_monitors(api, services, existing_monitors):
                     interval=60,
                     retryInterval=60
                 )
-                print(f"  Created {name}")
+                stats.created.append(name)
             except Exception as e:
-                print(f"  Failed to create monitor {name}: {e}")
+                print(f"  Failed to create {name}: {e}")
+                stats.failed.append(name)
 
 
-def sync_ping_monitors(api, hosts, existing_monitors):
+def sync_ping_monitors(api, hosts, existing_monitors, stats):
     """Sync ping monitors for all hosts."""
     for host in hosts:
         hostname = host.get('inventory_hostname')
@@ -103,8 +116,6 @@ def sync_ping_monitors(api, hosts, existing_monitors):
             continue
 
         monitor_name = f"{PING_PREFIX}{hostname}"
-
-        print(f"Processing ping monitor {monitor_name} ({ansible_host})...")
 
         if monitor_name in existing_monitors:
             monitor_id = existing_monitors[monitor_name]['id']
@@ -123,10 +134,11 @@ def sync_ping_monitors(api, hosts, existing_monitors):
                     interval=60,
                     retryInterval=60
                 )
+                stats.updated.append(monitor_name)
             else:
-                print(f"  Skipping {monitor_name} (already exists and matches)")
+                stats.skipped += 1
         else:
-            print(f"  Creating ping monitor for {hostname}...")
+            print(f"  Creating {monitor_name} ({ansible_host})")
             try:
                 api.add_monitor(
                     type=MonitorType.PING,
@@ -136,16 +148,15 @@ def sync_ping_monitors(api, hosts, existing_monitors):
                     interval=60,
                     retryInterval=60
                 )
-                print(f"  Created {monitor_name}")
+                stats.created.append(monitor_name)
             except Exception as e:
-                print(f"  Failed to create ping monitor {monitor_name}: {e}")
+                print(f"  Failed to create {monitor_name}: {e}")
+                stats.failed.append(monitor_name)
 
 
-def sync_smtp_monitor(api, existing_monitors):
+def sync_smtp_monitor(api, existing_monitors, stats):
     """Sync SMTP monitor for mailcow."""
     monitor_name = f"{SMTP_PREFIX}{MAILCOW_SMTP_HOST}"
-
-    print(f"Processing SMTP monitor {monitor_name} (port {MAILCOW_SMTP_PORT})...")
 
     if monitor_name in existing_monitors:
         monitor_id = existing_monitors[monitor_name]['id']
@@ -165,10 +176,11 @@ def sync_smtp_monitor(api, existing_monitors):
                 interval=60,
                 retryInterval=60
             )
+            stats.updated.append(monitor_name)
         else:
-            print(f"  Skipping {monitor_name} (already exists and matches)")
+            stats.skipped += 1
     else:
-        print(f"  Creating SMTP monitor for {MAILCOW_SMTP_HOST}...")
+        print(f"  Creating {monitor_name} (port {MAILCOW_SMTP_PORT})")
         try:
             api.add_monitor(
                 type=MonitorType.SMTP,
@@ -179,25 +191,27 @@ def sync_smtp_monitor(api, existing_monitors):
                 interval=60,
                 retryInterval=60
             )
-            print(f"  Created {monitor_name}")
+            stats.created.append(monitor_name)
         except Exception as e:
             print(f"  Failed to create SMTP monitor: {e}")
+            stats.failed.append(monitor_name)
 
 
-def delete_orphaned_monitors(api, expected_names, existing_monitors):
+def delete_orphaned_monitors(api, expected_names, existing_monitors, stats):
     """Delete monitors that are not in the expected list."""
     for name, monitor in existing_monitors.items():
         if name not in expected_names:
-            print(f"Deleting orphaned monitor: {name}")
+            print(f"  Deleting orphaned monitor: {name}")
             try:
                 api.delete_monitor(monitor['id'])
-                print(f"  Deleted {name}")
+                stats.deleted.append(name)
             except Exception as e:
-                print(f"  Failed to delete monitor {name}: {e}")
+                print(f"  Failed to delete {name}: {e}")
+                stats.failed.append(f"delete:{name}")
 
 
 def main():
-    print("Starting Uptime Kuma provisioning...")
+    print("Uptime Kuma provisioning started")
 
     # Configuration
     url = os.environ.get("KUMA_URL", "http://localhost:3001")
@@ -206,25 +220,21 @@ def main():
     services_file = sys.argv[1] if len(sys.argv) > 1 else "/opt/kuma/services.yml"
 
     if not username or not password:
-        print("Error: KUMA_USERNAME and KUMA_PASSWORD environment variables must be set.")
+        print("Error: KUMA_USERNAME and KUMA_PASSWORD must be set")
         sys.exit(1)
 
     # Connect to API
     api = UptimeKumaApi(url)
 
-    print(f"Connecting to {url}...")
     try:
         api.login(username, password)
-        print("Login successful.")
     except Exception as e:
         print(f"Login failed: {e}")
-        print("Ensure Uptime Kuma is set up and credentials are correct.")
         sys.exit(1)
 
     # Read services.yml
-    print(f"Reading {services_file}...")
     if not os.path.exists(services_file):
-        print(f"Error: {services_file} not found.")
+        print(f"Error: {services_file} not found")
         sys.exit(1)
 
     with open(services_file, 'r') as f:
@@ -233,34 +243,47 @@ def main():
     services = config.get('services', [])
     hosts = config.get('hosts', [])
 
-    print(f"Found {len(services)} services and {len(hosts)} hosts in config.")
-
     # Get existing monitors
     monitors = api.get_monitors()
     existing_monitors = {m['name']: m for m in monitors}
 
-    print(f"Found {len(existing_monitors)} existing monitors in Kuma.")
-
     # Build expected monitor names
     expected_names = get_expected_monitor_names(services, hosts)
-    print(f"Expecting {len(expected_names)} monitors total.")
 
-    # Sync monitors
-    print("\n=== Syncing service monitors ===")
-    sync_service_monitors(api, services, existing_monitors)
+    print(f"Config: {len(services)} services, {len(hosts)} hosts | Kuma: {len(existing_monitors)} monitors | Expected: {len(expected_names)}")
 
-    print("\n=== Syncing ping monitors ===")
-    sync_ping_monitors(api, hosts, existing_monitors)
+    # Track statistics
+    stats = ProvisioningStats()
 
-    print("\n=== Syncing SMTP monitor ===")
-    sync_smtp_monitor(api, existing_monitors)
+    # Sync monitors (only prints when making changes)
+    sync_service_monitors(api, services, existing_monitors, stats)
+    sync_ping_monitors(api, hosts, existing_monitors, stats)
+    sync_smtp_monitor(api, existing_monitors, stats)
+    delete_orphaned_monitors(api, expected_names, existing_monitors, stats)
 
-    # Delete orphaned monitors
-    print("\n=== Cleaning up orphaned monitors ===")
-    delete_orphaned_monitors(api, expected_names, existing_monitors)
+    # Print summary
+    summary_parts = []
+    if stats.created:
+        summary_parts.append(f"created {len(stats.created)}")
+    if stats.updated:
+        summary_parts.append(f"updated {len(stats.updated)}")
+    if stats.deleted:
+        summary_parts.append(f"deleted {len(stats.deleted)}")
+    if stats.skipped:
+        summary_parts.append(f"unchanged {stats.skipped}")
+    if stats.failed:
+        summary_parts.append(f"failed {len(stats.failed)}")
 
-    print("\nProvisioning complete.")
+    if summary_parts:
+        print(f"Summary: {', '.join(summary_parts)}")
+    else:
+        print("Summary: no changes")
+
     api.disconnect()
+
+    # Exit with error if any failures
+    if stats.failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
