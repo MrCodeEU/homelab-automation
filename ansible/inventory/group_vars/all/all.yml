@@ -192,6 +192,15 @@ services:
     description: "Docker Image Update Notifier"
     icon: "mdi:docker"
 
+  - name: dozzle
+    enabled: true
+    domain: "docker.mljr.eu"
+    port: 8085
+    host: nuc
+    description: "Docker Logs"
+    icon: "mdi:text-box-search"
+    caddy_auth: "keycloak"
+
   # Personal
   - name: homepage
     enabled: true
