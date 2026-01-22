@@ -28,6 +28,7 @@ on:
     paths:
       - 'ansible/**'
       - 'services/**'
+      - 'scripts/**'
       - '.github/workflows/deploy.yml'
 
   # Check mode (dry run) on pull requests - use as required PR check
@@ -37,6 +38,7 @@ on:
     paths:
       - 'ansible/**'
       - 'services/**'
+      - 'scripts/**'
       - '.github/workflows/deploy.yml'
 
   repository_dispatch:
@@ -147,7 +149,15 @@ jobs:
           cd ansible && ansible-galaxy collection install -r requirements.yml --force-with-deps
           echo "::endgroup::"
 
+      - name: Record deployment start
+        id: deploy_start
+        run: |
+          echo "start_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+          echo "start_epoch=$(date +%s)" >> $GITHUB_OUTPUT
+
       - name: Run Ansible
+        id: ansible
+        continue-on-error: true
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           # Performance optimizations
@@ -225,7 +235,10 @@ jobs:
           
           ANSIBLE_EXIT_CODE=${PIPESTATUS[0]}
           echo "::endgroup::"
-          
+
+          # Output exit code for subsequent steps
+          echo "exit_code=$ANSIBLE_EXIT_CODE" >> $GITHUB_OUTPUT
+
           # Parse and annotate errors/failures
           if [ $ANSIBLE_EXIT_CODE -ne 0 ] || grep -q "FAILED - RETRYING\|fatal:\|failed:" /tmp/ansible-output.log; then
             echo "::group::Deployment Errors"
@@ -237,8 +250,211 @@ jobs:
             done || true
             echo "::endgroup::"
           fi
-          
+
           exit $ANSIBLE_EXIT_CODE
+
+      - name: Update deployment status page
+        if: always()
+        env:
+          START_TIME: ${{ steps.deploy_start.outputs.start_time }}
+          START_EPOCH: ${{ steps.deploy_start.outputs.start_epoch }}
+          ANSIBLE_EXIT_CODE: ${{ steps.ansible.outputs.exit_code }}
+          IS_STAGING: ${{ steps.env.outputs.is_staging }}
+          CHECK_MODE: ${{ steps.env.outputs.check_mode }}
+        run: |
+          set +e  # Don't exit on errors - status page update is non-critical
+
+          # Calculate duration
+          END_EPOCH=$(date +%s)
+          DURATION=$((END_EPOCH - START_EPOCH))
+
+          # Determine overall status
+          if [ "${ANSIBLE_EXIT_CODE:-1}" == "0" ]; then
+            STATUS="success"
+          else
+            STATUS="failed"
+          fi
+
+          # Determine limit and tags (same logic as ansible step)
+          LIMIT="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "" ]; then
+            LIMIT="${{ inputs.limit }}"
+          fi
+
+          TAGS="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "" ]; then
+            TAGS="${{ inputs.tags }}"
+          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            TAGS="services,caddy"
+          fi
+
+          # Get commit message (truncated)
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -1 | cut -c1-100)
+
+          # Create deployment record
+          mkdir -p /tmp/deploy-status/data
+
+          # Parse services from all.yml and create deployment record
+          python3 << 'PARSE_SCRIPT'
+          import json
+          import os
+          import re
+          import yaml
+          from pathlib import Path
+          from datetime import datetime
+
+          # Load services from all.yml
+          with open('ansible/inventory/group_vars/all/all.yml', 'r') as f:
+              config = yaml.safe_load(f)
+
+          services_config = config.get('services', [])
+
+          # Parse ansible output for failures
+          ansible_log = ''
+          log_path = Path('/tmp/ansible-output.log')
+          if log_path.exists():
+              ansible_log = log_path.read_text()
+
+          # Find failed services by looking for error patterns
+          failed_services = set()
+          for service in services_config:
+              name = service.get('name', '')
+              if name and re.search(rf'fatal:.*{name}|{name}.*failed|Error.*{name}', ansible_log, re.IGNORECASE):
+                  failed_services.add(name)
+
+          # Build service status list
+          service_results = []
+          for svc in services_config:
+              if not svc.get('enabled', True):
+                  continue
+
+              name = svc['name']
+              host = svc.get('host', 'unknown')
+
+              if name in failed_services:
+                  status = 'failed'
+              else:
+                  status = 'ok'
+
+              service_results.append({
+                  'name': name,
+                  'host': host,
+                  'status': status
+              })
+
+          # Count summary
+          summary = {
+              'total_services': len(service_results),
+              'ok': len([s for s in service_results if s['status'] == 'ok']),
+              'failed': len([s for s in service_results if s['status'] == 'failed'])
+          }
+
+          # Build deployment record
+          deployment = {
+              'id': f"{os.environ['START_TIME']}-{os.environ.get('GITHUB_SHA', '')[:7]}",
+              'timestamp': os.environ['START_TIME'],
+              'duration_seconds': int(os.environ.get('DURATION', 0)),
+              'status': os.environ.get('STATUS', 'unknown'),
+              'trigger': os.environ.get('GITHUB_EVENT_NAME', 'unknown'),
+              'branch': os.environ.get('GITHUB_REF_NAME', 'unknown'),
+              'commit_sha': os.environ.get('GITHUB_SHA', '')[:7],
+              'commit_message': os.environ.get('COMMIT_MSG', '')[:100],
+              'actor': os.environ.get('GITHUB_ACTOR', 'unknown'),
+              'check_mode': os.environ.get('CHECK_MODE', 'false') == 'true',
+              'is_staging': os.environ.get('IS_STAGING', 'false') == 'true',
+              'limit': os.environ.get('LIMIT', 'all'),
+              'tags': os.environ.get('TAGS', 'all'),
+              'services': service_results,
+              'summary': summary
+          }
+
+          # Build services list
+          services_list = []
+          for svc in services_config:
+              if not svc.get('enabled', True):
+                  continue
+              domain = svc.get('domain')
+              if isinstance(domain, list):
+                  domain = domain[0] if domain else None
+              services_list.append({
+                  'name': svc.get('name'),
+                  'domain': domain,
+                  'port': svc.get('port'),
+                  'host': svc.get('host'),
+                  'description': svc.get('description', ''),
+                  'icon': svc.get('icon', ''),
+                  'enabled': True,
+                  'managed': svc.get('managed', True)
+              })
+
+          with open('/tmp/new_deployment.json', 'w') as f:
+              json.dump(deployment, f)
+
+          with open('/tmp/services_list.json', 'w') as f:
+              json.dump(services_list, f)
+
+          print(f"Generated deployment record: {deployment['id']}")
+          print(f"Status: {deployment['status']}, Services: {summary['total_services']} (ok: {summary['ok']}, failed: {summary['failed']})")
+          PARSE_SCRIPT
+
+          # Export vars for Python script
+          export DURATION STATUS LIMIT TAGS COMMIT_MSG
+
+          # Try to download existing deployments.json
+          echo "Downloading existing deployment data..."
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            root@mljr.tail33930.ts.net:/opt/caddy/site/data/deployments.json \
+            /tmp/deploy-status/data/deployments.json 2>/dev/null || \
+            echo '{"deployments":[],"services":[],"last_updated":""}' > /tmp/deploy-status/data/deployments.json
+
+          # Merge new deployment
+          python3 << 'MERGE_SCRIPT'
+          import json
+          from datetime import datetime
+
+          with open('/tmp/deploy-status/data/deployments.json', 'r') as f:
+              data = json.load(f)
+
+          with open('/tmp/new_deployment.json', 'r') as f:
+              new_deployment = json.load(f)
+
+          with open('/tmp/services_list.json', 'r') as f:
+              services_list = json.load(f)
+
+          # Prepend new deployment
+          data['deployments'].insert(0, new_deployment)
+          data['services'] = services_list
+          data['last_updated'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+
+          with open('/tmp/deploy-status/data/deployments.json', 'w') as f:
+              json.dump(data, f, indent=2)
+
+          print(f"Total deployments in history: {len(data['deployments'])}")
+          MERGE_SCRIPT
+
+          # Generate HTML page
+          python3 scripts/generate_deploy_page.py \
+            /tmp/deploy-status/data/deployments.json \
+            /tmp/deploy-status/index.html
+
+          # Upload to server
+          echo "Uploading deployment status page..."
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            root@mljr.tail33930.ts.net "mkdir -p /opt/caddy/site/data && chown -R caddy:caddy /opt/caddy/site" || true
+
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            /tmp/deploy-status/data/deployments.json \
+            root@mljr.tail33930.ts.net:/opt/caddy/site/data/deployments.json || echo "Failed to upload deployments.json"
+
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            /tmp/deploy-status/index.html \
+            root@mljr.tail33930.ts.net:/opt/caddy/site/index.html || echo "Failed to upload index.html"
+
+          # Fix ownership
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            root@mljr.tail33930.ts.net "chown -R caddy:caddy /opt/caddy/site" || true
+
+          echo "Deployment status page updated: https://deploy.mljr.eu"
 
       - name: Create deployment summary
         if: always()
