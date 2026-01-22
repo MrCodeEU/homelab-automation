@@ -58,6 +58,7 @@ services:
     description: "SSO Identity Provider"
     icon: "mdi:shield-account"
     backup_critical: true
+    skip_deploy: true  # Uses dedicated keycloak role
 
   - name: oauth2-proxy
     enabled: true
