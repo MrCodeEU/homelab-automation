@@ -12,7 +12,7 @@ services:
       - --client-secret=${OAUTH2_PROXY_CLIENT_SECRET}
       - --cookie-secret=${OAUTH2_PROXY_COOKIE_SECRET}
       - --cookie-secure=true
-      - --cookie-domains=.${DOMAIN:-mljr.eu}
+      - --cookie-domain=.${DOMAIN:-mljr.eu}
       - --cookie-samesite=lax
       - --whitelist-domain=.${DOMAIN:-mljr.eu}
       - --email-domain=*
