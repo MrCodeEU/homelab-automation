@@ -28,7 +28,10 @@
     }
 
     # Forward authentication to oauth2-proxy for all other requests
-    forward_auth http://localhost:4180 {
+    @auth {
+        not path /oauth2/*
+    }
+    forward_auth @auth http://localhost:4180 {
         uri /oauth2/auth
         header_up X-Real-IP {remote}
         header_up Host {host}
