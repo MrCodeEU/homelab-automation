@@ -27,6 +27,12 @@
         header_up X-Forwarded-Uri {uri}
         header_up X-Forwarded-Host {host}
         copy_headers X-Auth-Request-User X-Auth-Request-Email
+
+        # Redirect to login page when not authenticated
+        @error status 401
+        handle_response @error {
+            redir * /oauth2/sign_in?rd={scheme}://{host}{uri}
+        }
     }
 {% endmacro %}
 
