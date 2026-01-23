@@ -249,6 +249,34 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 
 ## Triggering Deployment from External Repos
 
+### Deploy a Specific Service (Recommended)
+
+Pass the service name in `client_payload` to deploy only that service:
+
+```yaml
+- name: Trigger deployment for specific service
+  run: |
+    curl -X POST \
+      -H "Authorization: token ${{ secrets.DISPATCH_TOKEN }}" \
+      -H "Accept: application/vnd.github.v3+json" \
+      https://api.github.com/repos/MrCodeEU/homelab-automation/dispatches \
+      -d '{
+        "event_type": "service-update",
+        "client_payload": {
+          "service": "my-service-name",
+          "environment": "production"
+        }
+      }'
+```
+
+**Payload options:**
+- `service` (required): Service name matching the service definition in `all.yml`
+- `environment` (optional): `"production"`, `"staging"`, or omit for both
+
+This is significantly faster than deploying all services since it only touches the specified service.
+
+### Deploy All Services (Legacy)
+
 ```yaml
 - name: Trigger deployment
   run: |
@@ -258,4 +286,4 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
       -d '{"event_type": "service-update"}'
 ```
 
-Repository dispatch automatically uses `--tags services,caddy`.
+Without `client_payload.service`, repository dispatch deploys all services with `--tags services,caddy`.
