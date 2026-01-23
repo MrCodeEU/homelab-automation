@@ -18,7 +18,7 @@
 {% macro keycloak_auth() %}
     # OAuth2 proxy callback routes
     # Ensure oauth2 endpoints are handled directly by the proxy (avoid auth loop)
-    handle_path /oauth2/* {
+    handle /oauth2/* {
         reverse_proxy http://localhost:4180 {
             header_up Host {host}
             header_up X-Forwarded-Proto {scheme}
