@@ -266,7 +266,8 @@ jobs:
 
           # Calculate duration
           END_EPOCH=$(date +%s)
-          DURATION=$((END_EPOCH - START_EPOCH))
+          START_EPOCH_VAL="${START_EPOCH:-$END_EPOCH}"
+          DURATION=$((END_EPOCH - START_EPOCH_VAL))
 
           # Determine overall status
           if [ "${ANSIBLE_EXIT_CODE:-1}" == "0" ]; then
@@ -289,7 +290,10 @@ jobs:
           fi
 
           # Get commit message (truncated)
-          COMMIT_MSG=$(git log -1 --pretty=%B | head -1 | cut -c1-100)
+          COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null | head -1 | cut -c1-100 || echo "No commit message")
+
+          # Export vars for Python script (MUST be before the heredoc)
+          export DURATION STATUS LIMIT TAGS COMMIT_MSG
 
           # Create deployment record
           mkdir -p /tmp/deploy-status/data
@@ -303,24 +307,63 @@ jobs:
           from pathlib import Path
           from datetime import datetime
 
+          print("Starting deployment log parsing...")
           # Load services from all.yml
-          with open('ansible/inventory/group_vars/all/all.yml', 'r') as f:
-              config = yaml.safe_load(f)
+          try:
+              with open('ansible/inventory/group_vars/all/all.yml', 'r') as f:
+                  config = yaml.safe_load(f)
+          except Exception as e:
+              print(f"Error loading all.yml: {e}")
+              config = {}
 
           services_config = config.get('services', [])
+          print(f"Loaded {len(services_config)} services from config")
 
           # Parse ansible output for failures
-          ansible_log = ''
+          ansible_log_lines = []
           log_path = Path('/tmp/ansible-output.log')
           if log_path.exists():
-              ansible_log = log_path.read_text()
+              ansible_log_lines = log_path.read_text().splitlines()
+          
+          print(f"Read {len(ansible_log_lines)} lines from ansible log")
 
-          # Find failed services by looking for error patterns
-          failed_services = set()
-          for service in services_config:
-              name = service.get('name', '')
-              if name and re.search(rf'fatal:.*{name}|{name}.*failed|Error.*{name}', ansible_log, re.IGNORECASE):
-                  failed_services.add(name)
+          # Find failed services and capture error messages
+          failed_services = {}  # name -> error message
+          
+          # More efficient parsing: scan the log once and keep track of current task
+          current_task_services = []
+          
+          for line in ansible_log_lines:
+              # Identify task headers: TASK [role : Task Name]
+              task_match = re.search(r'TASK \[(?:[^:]+ : )?(.*?)\]', line)
+              if task_match:
+                  task_name = task_match.group(1).lower()
+                  # Find which services are mentioned in this task header
+                  current_task_services = []
+                  for svc in services_config:
+                      svc_name = svc.get('name', '').lower()
+                      if svc_name and svc_name in task_name:
+                          current_task_services.append(svc.get('name'))
+              
+              # Identify failures
+              if any(err in line for err in ['fatal:', 'failed:', 'FAILED!']):
+                  error_msg = line.strip()
+                  # Clean up the error message
+                  error_msg = re.sub(r'\s+', ' ', error_msg)[:200]
+                  
+                  # Assign failure to all services involved in the current task
+                  for svc_name in current_task_services:
+                      if svc_name not in failed_services:
+                          failed_services[svc_name] = error_msg
+                  
+                  # Also check if any service name is mentioned directly in the failure line
+                  for svc in services_config:
+                      svc_name = svc.get('name', '')
+                      if svc_name and svc_name.lower() in line.lower():
+                          if svc_name not in failed_services:
+                              failed_services[svc_name] = error_msg
+
+          print(f"Found {len(failed_services)} failed services")
 
           # Build service status list
           service_results = []
@@ -331,16 +374,16 @@ jobs:
               name = svc['name']
               host = svc.get('host', 'unknown')
 
-              if name in failed_services:
-                  status = 'failed'
-              else:
-                  status = 'ok'
-
-              service_results.append({
+              result = {
                   'name': name,
                   'host': host,
-                  'status': status
-              })
+                  'status': 'failed' if name in failed_services else 'ok'
+              }
+
+              if name in failed_services:
+                  result['error'] = failed_services[name]
+
+              service_results.append(result)
 
           # Count summary
           summary = {
@@ -350,9 +393,10 @@ jobs:
           }
 
           # Build deployment record
+          start_time = os.environ.get('START_TIME', datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'))
           deployment = {
-              'id': f"{os.environ['START_TIME']}-{os.environ.get('GITHUB_SHA', '')[:7]}",
-              'timestamp': os.environ['START_TIME'],
+              'id': f"{start_time}-{os.environ.get('GITHUB_SHA', '')[:7]}",
+              'timestamp': start_time,
               'duration_seconds': int(os.environ.get('DURATION', 0)),
               'status': os.environ.get('STATUS', 'unknown'),
               'trigger': os.environ.get('GITHUB_EVENT_NAME', 'unknown'),
@@ -397,12 +441,9 @@ jobs:
           print(f"Status: {deployment['status']}, Services: {summary['total_services']} (ok: {summary['ok']}, failed: {summary['failed']})")
           PARSE_SCRIPT
 
-          # Export vars for Python script
-          export DURATION STATUS LIMIT TAGS COMMIT_MSG
-
           # Try to download existing deployments.json
           echo "Downloading existing deployment data..."
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=30 \
             root@mljr.tail33930.ts.net:/opt/caddy/site/data/deployments.json \
             /tmp/deploy-status/data/deployments.json 2>/dev/null || \
             echo '{"deployments":[],"services":[],"last_updated":""}' > /tmp/deploy-status/data/deployments.json
@@ -422,7 +463,14 @@ jobs:
               services_list = json.load(f)
 
           # Prepend new deployment
+          if 'deployments' not in data:
+              data['deployments'] = []
+          
           data['deployments'].insert(0, new_deployment)
+          
+          # Keep history manageable (last 500 deployments)
+          data['deployments'] = data['deployments'][:500]
+          
           data['services'] = services_list
           data['last_updated'] = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
 
@@ -439,19 +487,19 @@ jobs:
 
           # Upload to server
           echo "Uploading deployment status page..."
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=30 \
             root@mljr.tail33930.ts.net "mkdir -p /opt/caddy/site/data && chown -R caddy:caddy /opt/caddy/site" || true
 
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=30 \
             /tmp/deploy-status/data/deployments.json \
             root@mljr.tail33930.ts.net:/opt/caddy/site/data/deployments.json || echo "Failed to upload deployments.json"
 
-          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+          scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=30 \
             /tmp/deploy-status/index.html \
             root@mljr.tail33930.ts.net:/opt/caddy/site/index.html || echo "Failed to upload index.html"
 
           # Fix ownership
-          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -o ServerAliveInterval=30 \
             root@mljr.tail33930.ts.net "chown -R caddy:caddy /opt/caddy/site" || true
 
           echo "Deployment status page updated: https://deploy.mljr.eu"
