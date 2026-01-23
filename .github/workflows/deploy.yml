@@ -291,6 +291,9 @@ jobs:
           # Get commit message (truncated)
           COMMIT_MSG=$(git log -1 --pretty=%B | head -1 | cut -c1-100)
 
+          # Export vars for Python script (MUST be before the heredoc)
+          export DURATION STATUS LIMIT TAGS COMMIT_MSG
+
           # Create deployment record
           mkdir -p /tmp/deploy-status/data
 
@@ -315,12 +318,30 @@ jobs:
           if log_path.exists():
               ansible_log = log_path.read_text()
 
-          # Find failed services by looking for error patterns
-          failed_services = set()
+          # Find failed services and capture error messages
+          failed_services = {}  # name -> error message
+
+          # Look for fatal errors with service names
           for service in services_config:
               name = service.get('name', '')
-              if name and re.search(rf'fatal:.*{name}|{name}.*failed|Error.*{name}', ansible_log, re.IGNORECASE):
-                  failed_services.add(name)
+              if not name:
+                  continue
+
+              # Search for various error patterns mentioning this service
+              patterns = [
+                  rf'TASK \[.*{name}.*\].*?(?:fatal|failed):([^\n]+)',
+                  rf'fatal:.*{name}[^\n]*',
+                  rf'{name}.*(?:failed|error)[^\n]*',
+              ]
+
+              for pattern in patterns:
+                  match = re.search(pattern, ansible_log, re.IGNORECASE | re.DOTALL)
+                  if match:
+                      # Extract error message (clean it up)
+                      error_msg = match.group(0)[:200].strip()
+                      error_msg = re.sub(r'\s+', ' ', error_msg)  # Normalize whitespace
+                      failed_services[name] = error_msg
+                      break
 
           # Build service status list
           service_results = []
@@ -331,16 +352,16 @@ jobs:
               name = svc['name']
               host = svc.get('host', 'unknown')
 
-              if name in failed_services:
-                  status = 'failed'
-              else:
-                  status = 'ok'
-
-              service_results.append({
+              result = {
                   'name': name,
                   'host': host,
-                  'status': status
-              })
+                  'status': 'failed' if name in failed_services else 'ok'
+              }
+
+              if name in failed_services:
+                  result['error'] = failed_services[name]
+
+              service_results.append(result)
 
           # Count summary
           summary = {
@@ -396,9 +417,6 @@ jobs:
           print(f"Generated deployment record: {deployment['id']}")
           print(f"Status: {deployment['status']}, Services: {summary['total_services']} (ok: {summary['ok']}, failed: {summary['failed']})")
           PARSE_SCRIPT
-
-          # Export vars for Python script
-          export DURATION STATUS LIMIT TAGS COMMIT_MSG
 
           # Try to download existing deployments.json
           echo "Downloading existing deployment data..."

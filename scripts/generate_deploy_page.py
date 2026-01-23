@@ -2,6 +2,7 @@
 """Generate the deployment status page from deployment data."""
 
 import json
+import html
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -38,7 +39,14 @@ def format_relative_time(timestamp: str) -> str:
         else:
             return "just now"
     except Exception:
-        return timestamp[:10]
+        return timestamp[:10] if timestamp else 'Never'
+
+
+def get_icon_class(icon_str: str) -> str:
+    """Convert mdi:icon-name to iconify class."""
+    if not icon_str:
+        return "mdi:application"
+    return icon_str
 
 
 def generate_html(data: dict) -> str:
@@ -58,6 +66,39 @@ def generate_html(data: dict) -> str:
 
     last_status = deployments[0].get('status', 'none') if deployments else 'none'
     last_deployment = deployments[0] if deployments else None
+
+    # Get failed services from last deployment
+    failed_services_html = ""
+    if last_deployment:
+        failed_svcs = [s for s in last_deployment.get('services', []) if s.get('status') == 'failed']
+        if failed_svcs:
+            failed_services_html = '''
+            <div class="bg-red-500/10 rounded-xl border border-red-500/30 p-4 mb-8">
+                <h2 class="text-lg font-semibold text-red-400 mb-4 flex items-center gap-2">
+                    <iconify-icon icon="mdi:alert-circle" class="text-xl"></iconify-icon>
+                    Failed Services (Last Deployment)
+                </h2>
+                <div class="space-y-3">
+            '''
+            for svc in failed_svcs:
+                name = html.escape(svc.get('name', 'Unknown'))
+                host = html.escape(svc.get('host', 'unknown'))
+                error = html.escape(svc.get('error', 'No error details available')[:300])
+                failed_services_html += f'''
+                    <div class="bg-slate-800/50 rounded-lg p-3 border border-red-500/20">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="font-medium text-red-300">{name}</span>
+                            <span class="text-xs text-slate-500">on {host}</span>
+                        </div>
+                        <div class="text-sm text-slate-400 font-mono bg-slate-900/50 p-2 rounded overflow-x-auto">
+                            {error}
+                        </div>
+                    </div>
+                '''
+            failed_services_html += '''
+                </div>
+            </div>
+            '''
 
     # Group services by host
     services_by_host = {}
@@ -87,13 +128,8 @@ def generate_html(data: dict) -> str:
         'failed': 'text-red-400',
         'none': 'text-slate-400'
     }
-    status_bg = {
-        'success': 'bg-emerald-500/20 border-emerald-500/30',
-        'failed': 'bg-red-500/20 border-red-500/30',
-        'none': 'bg-slate-500/20 border-slate-500/30'
-    }
 
-    # Generate services HTML
+    # Generate services HTML with icons
     services_html = ""
     for host in host_order:
         if host not in services_by_host:
@@ -114,9 +150,9 @@ def generate_html(data: dict) -> str:
                 domain = domain[0] if domain else None
 
             url = f"https://{domain}" if domain else None
-            icon = svc.get('icon', 'mdi:application')
-            name = svc.get('name', 'Unknown')
-            desc = svc.get('description', '')[:50]
+            icon = get_icon_class(svc.get('icon', ''))
+            name = html.escape(svc.get('name', 'Unknown'))
+            desc = html.escape(svc.get('description', '')[:60])
 
             link_class = 'hover:bg-slate-700/50 cursor-pointer' if url else 'opacity-60'
             link_attr = f'onclick="window.open(\'{url}\', \'_blank\')"' if url else ''
@@ -124,14 +160,15 @@ def generate_html(data: dict) -> str:
             services_html += f'''
                 <div class="bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 {link_class} transition-all" {link_attr}>
                     <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded bg-slate-700/50 flex items-center justify-center text-slate-400">
-                            <span class="text-sm">{name[0].upper()}</span>
+                        <div class="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center text-slate-300">
+                            <iconify-icon icon="{icon}" class="text-xl"></iconify-icon>
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="font-medium text-slate-200 truncate">{name}</div>
-                            <div class="text-xs text-slate-500 truncate">{domain or 'No public URL'}</div>
+                            <div class="text-xs text-slate-500 truncate">{domain or 'Internal service'}</div>
                         </div>
                     </div>
+                    {f'<div class="text-xs text-slate-400 mt-2 truncate">{desc}</div>' if desc else ''}
                 </div>
             '''
         services_html += '''
@@ -139,19 +176,19 @@ def generate_html(data: dict) -> str:
         </div>
         '''
 
-    # Generate recent deployments HTML
+    # Generate recent deployments HTML with expandable failed services
     deployments_html = ""
-    for dep in deployments[:10]:
+    for idx, dep in enumerate(deployments[:15]):
         status = dep.get('status', 'unknown')
-        status_icon = '&#10003;' if status == 'success' else '&#10007;'
+        status_icon = 'mdi:check-circle' if status == 'success' else 'mdi:close-circle'
         status_class = 'text-emerald-400' if status == 'success' else 'text-red-400'
 
         timestamp = dep.get('timestamp', '')
         relative = format_relative_time(timestamp)
         duration = format_duration(dep.get('duration_seconds', 0))
-        branch = dep.get('branch', 'unknown')
-        actor = dep.get('actor', 'unknown')
-        commit = dep.get('commit_sha', '')[:7]
+        branch = html.escape(dep.get('branch', 'unknown'))
+        actor = html.escape(dep.get('actor', 'unknown'))
+        commit = html.escape(dep.get('commit_sha', '')[:7])
 
         summary = dep.get('summary', {})
         ok_count = summary.get('ok', 0)
@@ -161,14 +198,44 @@ def generate_html(data: dict) -> str:
         check_badge = '<span class="px-1.5 py-0.5 text-xs bg-amber-500/20 text-amber-400 rounded">dry-run</span>' if dep.get('check_mode') else ''
         staging_badge = '<span class="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">staging</span>' if dep.get('is_staging') else ''
 
+        # Get failed services for this deployment
+        dep_failed_svcs = [s for s in dep.get('services', []) if s.get('status') == 'failed']
+        has_failures = len(dep_failed_svcs) > 0
+
+        # Expandable row for failures
+        expand_btn = ''
+        expanded_content = ''
+        if has_failures:
+            expand_btn = f'<button onclick="toggleExpand({idx})" class="text-red-400 hover:text-red-300 ml-2"><iconify-icon icon="mdi:chevron-down" id="chevron-{idx}"></iconify-icon></button>'
+            expanded_content = f'''
+            <tr id="expanded-{idx}" class="hidden">
+                <td colspan="7" class="px-4 pb-4 bg-slate-800/30">
+                    <div class="text-sm text-red-400 mb-2">Failed services:</div>
+                    <div class="space-y-2">
+            '''
+            for svc in dep_failed_svcs:
+                svc_name = html.escape(svc.get('name', 'Unknown'))
+                svc_error = html.escape(svc.get('error', 'No details')[:200])
+                expanded_content += f'''
+                        <div class="bg-slate-900/50 p-2 rounded text-xs">
+                            <span class="text-red-300 font-medium">{svc_name}</span>
+                            <span class="text-slate-500 ml-2 font-mono">{svc_error}</span>
+                        </div>
+                '''
+            expanded_content += '''
+                    </div>
+                </td>
+            </tr>
+            '''
+
         deployments_html += f'''
         <tr class="border-b border-slate-800 hover:bg-slate-800/30">
             <td class="py-3 px-4">
-                <span class="{status_class} text-lg">{status_icon}</span>
+                <iconify-icon icon="{status_icon}" class="{status_class} text-xl"></iconify-icon>
             </td>
             <td class="py-3 px-4">
                 <div class="text-slate-200">{relative}</div>
-                <div class="text-xs text-slate-500">{timestamp[:19].replace('T', ' ')}</div>
+                <div class="text-xs text-slate-500">{timestamp[:19].replace('T', ' ') if timestamp else ''}</div>
             </td>
             <td class="py-3 px-4 text-slate-300">{duration}</td>
             <td class="py-3 px-4">
@@ -182,9 +249,11 @@ def generate_html(data: dict) -> str:
                 <span class="text-red-400">{failed_count}</span>
                 <span class="text-slate-600">/</span>
                 <span class="text-slate-400">{total}</span>
+                {expand_btn}
             </td>
             <td class="py-3 px-4 space-x-1">{check_badge}{staging_badge}</td>
         </tr>
+        {expanded_content}
         '''
 
     return f'''<!DOCTYPE html>
@@ -195,6 +264,7 @@ def generate_html(data: dict) -> str:
     <title>Deployment Status - mljr.eu</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
     <meta http-equiv="refresh" content="60">
     <style>
         .chart-container {{ position: relative; height: 200px; }}
@@ -206,7 +276,10 @@ def generate_html(data: dict) -> str:
         <header class="mb-8">
             <div class="flex items-center justify-between">
                 <div>
-                    <h1 class="text-3xl font-bold text-white">Deployment Status</h1>
+                    <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+                        <iconify-icon icon="mdi:rocket-launch" class="text-blue-400"></iconify-icon>
+                        Deployment Status
+                    </h1>
                     <p class="text-slate-400 mt-1">Homelab Infrastructure Monitoring</p>
                 </div>
                 <div class="text-right text-sm text-slate-500">
@@ -235,10 +308,13 @@ def generate_html(data: dict) -> str:
             </div>
             <div class="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
                 <div class="text-sm text-slate-400 mb-1">Last Deploy</div>
-                <div class="text-2xl font-bold {status_colors.get(last_status, 'text-slate-400')}">{last_status.title()}</div>
+                <div class="text-2xl font-bold {status_colors.get(last_status, 'text-slate-400')}">{last_status.title() if last_status else 'None'}</div>
                 <div class="text-xs text-slate-500">{format_relative_time(last_deployment.get('timestamp', '')) if last_deployment else 'Never'}</div>
             </div>
         </div>
+
+        <!-- Failed Services Alert (if any) -->
+        {failed_services_html}
 
         <!-- Charts -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
@@ -265,7 +341,10 @@ def generate_html(data: dict) -> str:
         <!-- Recent Deployments -->
         <div class="bg-slate-800/50 rounded-xl border border-slate-700/50 mb-8 overflow-hidden">
             <div class="px-4 py-3 border-b border-slate-700/50">
-                <h2 class="text-lg font-semibold text-slate-200">Recent Deployments</h2>
+                <h2 class="text-lg font-semibold text-slate-200 flex items-center gap-2">
+                    <iconify-icon icon="mdi:history"></iconify-icon>
+                    Recent Deployments
+                </h2>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -276,7 +355,7 @@ def generate_html(data: dict) -> str:
                             <th class="py-2 px-4">Duration</th>
                             <th class="py-2 px-4">Branch</th>
                             <th class="py-2 px-4">Actor</th>
-                            <th class="py-2 px-4">Services</th>
+                            <th class="py-2 px-4">Services (ok/fail/total)</th>
                             <th class="py-2 px-4">Flags</th>
                         </tr>
                     </thead>
@@ -289,23 +368,39 @@ def generate_html(data: dict) -> str:
 
         <!-- Services Grid -->
         <div class="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4">
-            <h2 class="text-lg font-semibold text-slate-200 mb-4">Services</h2>
+            <h2 class="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
+                <iconify-icon icon="mdi:server"></iconify-icon>
+                Services
+            </h2>
             {services_html if services_html else '<p class="text-slate-500">No services configured</p>'}
         </div>
 
         <!-- Footer -->
         <footer class="mt-8 text-center text-sm text-slate-500">
-            <a href="https://github.com/MrCodeEU/homelab-automation" class="hover:text-slate-300">
+            <a href="https://github.com/MrCodeEU/homelab-automation" class="hover:text-slate-300 flex items-center justify-center gap-2">
+                <iconify-icon icon="mdi:github"></iconify-icon>
                 MrCodeEU/homelab-automation
             </a>
-            <span class="mx-2">|</span>
-            Auto-refreshes every 60 seconds
+            <span class="mt-1 block">Auto-refreshes every 60 seconds</span>
         </footer>
     </div>
 
     <script>
         const deployments = {deployments_json};
         const services = {services_json};
+
+        // Toggle expanded row for failed services
+        function toggleExpand(idx) {{
+            const row = document.getElementById('expanded-' + idx);
+            const chevron = document.getElementById('chevron-' + idx);
+            if (row.classList.contains('hidden')) {{
+                row.classList.remove('hidden');
+                chevron.setAttribute('icon', 'mdi:chevron-up');
+            }} else {{
+                row.classList.add('hidden');
+                chevron.setAttribute('icon', 'mdi:chevron-down');
+            }}
+        }}
 
         // Chart.js default config
         Chart.defaults.color = '#94a3b8';
@@ -449,12 +544,12 @@ def main():
         data = {'deployments': [], 'services': [], 'last_updated': ''}
 
     # Generate HTML
-    html = generate_html(data)
+    html_content = generate_html(data)
 
     # Write output
     output_file.parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, 'w') as f:
-        f.write(html)
+        f.write(html_content)
 
     print(f"Generated {output_file} with {len(data.get('deployments', []))} deployments")
 
