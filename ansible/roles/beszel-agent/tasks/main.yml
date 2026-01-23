@@ -14,7 +14,8 @@
 
 - name: Set Beszel hub URL (local for mljr, remote for others)
   ansible.builtin.set_fact:
-    beszel_hub_url: "{{ 'http://localhost:8090' if inventory_hostname == 'mljr' else 'http://' + hostvars['mljr']['ansible_host'] + ':8090' }}"
+    # Use Tailscale IP instead of hostname - containers can't resolve Tailscale DNS
+    beszel_hub_url: "{{ 'http://localhost:8090' if inventory_hostname == 'mljr' else 'http://' + hostvars['mljr']['tailscale_ip'] + ':8090' }}"
 
 - name: Check if Beszel key is configured
   ansible.builtin.assert:
