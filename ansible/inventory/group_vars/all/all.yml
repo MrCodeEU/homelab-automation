@@ -219,6 +219,7 @@ services:
     host: mljr
     description: "Internal Network Speed Test"
     icon: "mdi:speedometer"
+    skip_deploy: true
 
 
 

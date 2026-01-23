@@ -17,13 +17,22 @@
 {# Macro: Keycloak SSO authentication via oauth2-proxy #}
 {% macro keycloak_auth() %}
     # OAuth2 proxy callback routes
-    route /oauth2/* {
-        reverse_proxy localhost:4180
+    # Ensure oauth2 endpoints are handled directly by the proxy (avoid auth loop)
+    handle_path /oauth2/* {
+        reverse_proxy http://localhost:4180 {
+            header_up Host {host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+            header_up X-Forwarded-Uri {uri}
+        }
     }
-    # Forward authentication to oauth2-proxy
-    forward_auth localhost:4180 {
+
+    # Forward authentication to oauth2-proxy for all other requests
+    forward_auth http://localhost:4180 {
         uri /oauth2/auth
-        header_up X-Real-IP {remote_host}
+        header_up X-Real-IP {remote}
+        header_up Host {host}
+        header_up X-Forwarded-Proto {scheme}
         header_up X-Forwarded-Uri {uri}
         header_up X-Forwarded-Host {host}
         copy_headers X-Auth-Request-User X-Auth-Request-Email

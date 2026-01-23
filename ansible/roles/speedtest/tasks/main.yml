@@ -1,0 +1,77 @@
+---
+- name: Generate SSH key pair for Speedtest
+  community.crypto.openssh_keypair:
+    path: "/tmp/speedtest_id_rsa"
+    type: rsa
+    size: 2048
+    state: present
+    force: false
+  delegate_to: localhost
+  register: speedtest_key
+  run_once: true
+
+- name: Authorize Speedtest key on managed hosts
+  ansible.posix.authorized_key:
+    user: "{{ hostvars[item].ansible_user | default('root') }}"
+    state: present
+    key: "{{ speedtest_key.public_key }}"
+  delegate_to: "{{ item }}"
+  loop: "{{ groups['managed'] }}"
+  run_once: true
+  ignore_errors: true
+
+- name: Create speedtest directory
+  file:
+    path: "{{ base_path }}/speedtest"
+    state: directory
+    mode: '0755'
+
+- name: Copy speedtest service files
+  synchronize:
+    src: "{{ playbook_dir }}/../../services/speedtest/"
+    dest: "{{ base_path }}/speedtest/"
+    recursive: yes
+    delete: yes
+    rsync_opts:
+      - "--exclude=.git"
+      - "--exclude=node_modules"
+
+- name: Copy Private Key to destination
+  copy:
+    content: "{{ speedtest_key.private_key }}"
+    dest: "{{ base_path }}/speedtest/id_rsa"
+    mode: '0600'
+    owner: root
+    group: root
+
+- name: Start Speedtest Service
+  community.docker.docker_compose_v2:
+    project_src: "{{ base_path }}/speedtest"
+    state: present
+    build: always
+  register: compose_result
+
+- name: Wait for Speedtest API
+  uri:
+    url: "http://localhost:8089/api/devices"
+    method: GET
+    status_code: 200
+  register: api_check
+  until: api_check.status == 200
+  retries: 20
+  delay: 5
+
+- name: Add Devices to Speedtest
+  uri:
+    url: "http://localhost:8089/api/devices"
+    method: POST
+    body_format: json
+    body:
+      name: "{{ item }}"
+      hostname: "{{ hostvars[item].ansible_host }}"
+      ssh_user: "{{ hostvars[item].ansible_user | default('root') }}"
+      ssh_port: 22
+      ip: "{{ hostvars[item].ansible_host }}"
+    status_code: [200, 201, 409]
+  loop: "{{ groups['managed'] }}"
+  ignore_errors: true
