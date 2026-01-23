@@ -136,6 +136,19 @@
     - services
 
 # ============================================================================
+# Speedtest Service (mljr only - orchestrator)
+# ============================================================================
+- name: Speedtest Service
+  hosts: mljr
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - speedtest
+  roles:
+    - speedtest
+
+# ============================================================================
 # Beszel Agent (all Rocky hosts - system monitoring)
 # ============================================================================
 - name: Beszel Monitoring Agent
