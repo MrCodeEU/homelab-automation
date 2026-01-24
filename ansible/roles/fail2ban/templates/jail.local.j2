@@ -8,24 +8,42 @@ findtime = 600
 # "maxretry" is the number of failures before a host get banned.
 maxretry = 5
 
-# Whitelist local IPs
-ignoreip = 127.0.0.1/8 ::1 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12
+# Whitelist local IPs and Tailscale network
+ignoreip = 127.0.0.1/8 ::1 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 100.64.0.0/10
 
-# Default action
+# Default action with ntfy notifications
 action = %(action_)s
          ntfy
 
+# ============================================================================
+# SSH Protection - All hosts
+# ============================================================================
 [sshd]
 enabled = true
 port    = ssh
 logpath = %(sshd_log)s
 backend = systemd
+maxretry = 5
 
+# Aggressive SSH protection (for repeated failures)
+[sshd-aggressive]
+enabled = true
+port    = ssh
+logpath = %(sshd_log)s
+backend = systemd
+maxretry = 3
+findtime = 3600
+bantime = 604800  ; 1 week for persistent attackers
+
+# ============================================================================
+# Caddy Protection - All hosts with Caddy
+# ============================================================================
+{% if caddy_enabled | default(true) %}
 [caddy-basicauth]
 enabled = true
 port    = http,https
 filter  = caddy-basicauth
-logpath = /var/log/caddy/access.log
+logpath = /var/log/caddy/*.log
 backend = auto
 maxretry = 5
 
@@ -33,7 +51,53 @@ maxretry = 5
 enabled = true
 port    = http,https
 filter  = caddy-badbots
-logpath = /var/log/caddy/access.log
+logpath = /var/log/caddy/*.log
 backend = auto
 maxretry = 2
-bantime = 172800 ; 48 hours for bad bots
+bantime = 172800  ; 48 hours for bad bots
+
+[caddy-forbidden]
+enabled = true
+port    = http,https
+filter  = caddy-forbidden
+logpath = /var/log/caddy/*.log
+backend = auto
+maxretry = 10
+findtime = 60
+bantime = 3600  ; 1 hour for 403 flooding
+
+[caddy-scanner]
+enabled = true
+port    = http,https
+filter  = caddy-scanner
+logpath = /var/log/caddy/*.log
+backend = auto
+maxretry = 3
+bantime = 259200  ; 3 days for scanners
+{% endif %}
+
+# ============================================================================
+# Authelia Protection - Hosts with Authelia
+# Monitors all Caddy logs for forward_auth failures (401 on protected services)
+# ============================================================================
+{% if inventory_hostname == 'mljr' %}
+[authelia]
+enabled = true
+port    = http,https
+filter  = authelia
+logpath = /var/log/caddy/*.log
+backend = auto
+maxretry = 5
+findtime = 300
+bantime = 86400
+
+[authelia-aggressive]
+enabled = true
+port    = http,https
+filter  = authelia
+logpath = /var/log/caddy/*.log
+backend = auto
+maxretry = 10
+findtime = 86400
+bantime = 604800  ; 1 week for persistent auth failures
+{% endif %}

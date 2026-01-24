@@ -47,10 +47,10 @@
     - base
 
 # ============================================================================
-# Security (mljr only - nuc is Tailscale-only, not internet-exposed)
+# Security (all rocky hosts - fail2ban-ui only on mljr)
 # ============================================================================
 - name: Security Setup
-  hosts: mljr
+  hosts: rocky
   become: true
   gather_facts: false
   strategy: free
