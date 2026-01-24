@@ -1,0 +1,5 @@
+---
+- name: Restart Authelia
+  community.docker.docker_compose_v2:
+    project_src: "{{ authelia_config_path }}"
+    state: restarted

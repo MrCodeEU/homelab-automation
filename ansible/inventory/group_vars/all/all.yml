@@ -50,24 +50,15 @@ staging_host: "nuc"
 
 services:
   # Identity & Access Management
-  - name: keycloak
+  - name: authelia
     enabled: true
     domain: "auth.mljr.eu"
-    port: 9732
+    port: 9091
     host: mljr
-    description: "SSO Identity Provider"
+    description: "Authelia SSO"
     icon: "mdi:shield-account"
+    skip_deploy: true # Uses dedicated authelia role
     backup_critical: true
-    skip_deploy: true  # Uses dedicated keycloak role
-
-  - name: oauth2-proxy
-    enabled: true
-    port: 4180
-    host: mljr
-    description: "OAuth2 Authentication Proxy"
-    icon: "mdi:key-chain"
-    managed: true
-    # No domain - accessed internally via Caddy forward_auth
 
   # Dashboard
   - name: glance
@@ -126,7 +117,7 @@ services:
     host: mljr
     description: "Access Logs"
     icon: "mdi:chart-bar"
-    caddy_auth: "keycloak"
+    caddy_auth: "authelia"
 
   # External Services (proxy only)
   - name: homeassistant
@@ -166,7 +157,7 @@ services:
     host: mljr
     description: "Security Monitor"
     icon: "mdi:shield-lock"
-    caddy_auth: "keycloak"
+    caddy_auth: "authelia"
 
   # Container Management
   - name: dockge
@@ -200,7 +191,7 @@ services:
     host: nuc
     description: "Docker Logs"
     icon: "mdi:text-box-search"
-    caddy_auth: "keycloak"
+    caddy_auth: "authelia"
 
   # Personal
   - name: homepage
@@ -315,7 +306,7 @@ services:
     host: nuc
     description: "Code Quality"
     icon: "mdi:code-braces"
-    caddy_auth: "keycloak"
+    caddy_auth: "authelia"
     requires_sysctl: "vm.max_map_count=262144"
 
   - name: jenkins

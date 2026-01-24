@@ -113,17 +113,17 @@
     - mailcow
 
 # ============================================================================
-# Keycloak Identity Provider (mljr only)
+# Authelia Identity Provider (mljr only)
 # ============================================================================
-- name: Keycloak Identity Provider
+- name: Authelia Identity Provider
   hosts: mljr
   become: true
   gather_facts: false
   strategy: free
   tags:
-    - keycloak
+    - authelia
   roles:
-    - keycloak
+    - authelia
 
 - name: Docker Services
   hosts: rocky
