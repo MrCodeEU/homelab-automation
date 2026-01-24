@@ -1,0 +1,30 @@
+services:
+  authelia:
+    image: authelia/authelia:{{ authelia_version }}
+    container_name: authelia
+    volumes:
+      - ./configuration.yml:/config/configuration.yml
+      - ./users_database.yml:/config/users_database.yml
+      - ./db.sqlite3:/config/db.sqlite3
+      - ./notification.txt:/config/notification.txt
+    ports:
+      - "{{ authelia_port }}:9091"
+    environment:
+      - TZ={{ timezone }}
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    depends_on:
+      - redis
+  
+  redis:
+    image: redis:alpine
+    container_name: authelia_redis
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    expose:
+      - 6379
+
+volumes:
+  redis_data:
