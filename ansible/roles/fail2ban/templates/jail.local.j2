@@ -29,6 +29,7 @@ maxretry = 5
 [sshd-aggressive]
 enabled = true
 port    = ssh
+filter  = sshd
 logpath = %(sshd_log)s
 backend = systemd
 maxretry = 3
@@ -36,9 +37,9 @@ findtime = 3600
 bantime = 604800  ; 1 week for persistent attackers
 
 # ============================================================================
-# Caddy Protection - All hosts with Caddy
+# Caddy Protection - Only on mljr (public-facing host with Caddy logs)
 # ============================================================================
-{% if caddy_enabled | default(true) %}
+{% if inventory_hostname == 'mljr' %}
 [caddy-basicauth]
 enabled = true
 port    = http,https
