@@ -1,7 +1,6 @@
 services:
   speedtest:
-    build: ./src
-    image: homelab-speedtest:local
+    image: ghcr.io/mrcodeeu/homelab-speedtest:latest
     container_name: ${COMPOSE_PROJECT_NAME:-speedtest}
     restart: unless-stopped
     ports:

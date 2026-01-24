@@ -55,7 +55,7 @@
   community.docker.docker_compose_v2:
     project_src: "{{ base_path }}/speedtest"
     state: present
-    build: always
+    pull: always
   register: compose_result
 
 - name: Wait for Speedtest API
