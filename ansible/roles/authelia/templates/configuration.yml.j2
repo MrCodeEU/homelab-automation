@@ -1,0 +1,41 @@
+###############################################################################
+#                           Authelia Configuration                            #
+###############################################################################
+
+theme: light
+
+identity_validation:
+  reset_password:
+    jwt_secret: {{ authelia_jwt_secret }}
+
+authentication_backend:
+  file:
+    path: /config/users_database.yml
+
+access_control:
+  default_policy: deny
+  rules:
+    # Allow public access to the authentication portal
+    - domain: "auth.{{ domain }}"
+      policy: bypass
+    
+    # Allow all authenticated users to access everything else
+    - domain: "*.{{ domain }}"
+      policy: one_factor
+
+session:
+  secret: {{ authelia_session_secret }}
+  cookies:
+    domain: "{{ domain }}"
+  redis:
+    host: authelia_redis
+    port: 6379
+
+storage:
+  encryption_key: {{ authelia_storage_encryption_key }}
+  local:
+    path: /config/db.sqlite3
+
+notifier:
+  filesystem:
+    filename: /config/notification.txt

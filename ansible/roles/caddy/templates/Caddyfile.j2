@@ -131,8 +131,11 @@ deploy.{{ domain }} {
 {{ basicauth_block() }}
 {% elif auth_type == 'authelia' %}
 {{ authelia_auth() }}
+<<<<<<< HEAD
 {% elif auth_type == 'keycloak' %}
 {{ keycloak_auth() }}
+=======
+>>>>>>> 48605e86144badc179b6b6ab2c6d4a9733500d1e
 {% endif %}
 {% if service.upstream is defined %}
     reverse_proxy {{ service.upstream }}
