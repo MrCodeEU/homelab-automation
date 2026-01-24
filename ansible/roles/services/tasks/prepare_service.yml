@@ -69,6 +69,7 @@
       - "--exclude=venv/"   # Don't delete Python venv (created by hooks)
       - "--quiet"           # Reduce log verbosity
   delegate_to: localhost
+  become: false  # Run as local user, not root (avoids permission issues with synchronize)
   vars:
     # Fork a subprocess for this task to bypass Mitogen (which breaks synchronize)
     mitogen_task_isolation: fork

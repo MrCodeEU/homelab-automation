@@ -37,7 +37,7 @@ staging_host: "nuc"
 #   description     - Human-readable description
 #   icon            - Material Design Icon for dashboard
 #   managed         - If false, only configure Caddy (external service)
-#   caddy_auth      - Set to "basicauth" for password protection
+#   caddy_auth      - Authentication method: "basicauth", "authelia" (SSO), or "keycloak" (deprecated SSO)
 #   skip_deploy     - Skip generic deployment (uses dedicated role)
 #   backup_critical - If true, restore this service on fresh install
 #   https_backend   - If true, proxy to HTTPS with self-signed cert (e.g., mailcow)
@@ -50,21 +50,33 @@ staging_host: "nuc"
 
 services:
   # Identity & Access Management
-  - name: keycloak
+  - name: authelia
     enabled: true
     domain: "auth.mljr.eu"
-    port: 9732
+    port: 9091
     host: mljr
     description: "SSO Identity Provider"
     icon: "mdi:shield-account"
     backup_critical: true
-    skip_deploy: true  # Uses dedicated keycloak role
+    managed: true
+    # Replaces Keycloak + oauth2-proxy for forward authentication
+    # Services use caddy_auth: "authelia" to protect endpoints
+
+  - name: keycloak
+    enabled: false
+    # domain removed - service deprecated, kept for rollback capability
+    port: 9732
+    host: mljr
+    description: "SSO Identity Provider (deprecated - replaced by Authelia)"
+    icon: "mdi:shield-account"
+    backup_critical: true
+    skip_deploy: true  # Uses dedicated keycloak role (deprecated - kept for rollback)
 
   - name: oauth2-proxy
-    enabled: true
+    enabled: false
     port: 4180
     host: mljr
-    description: "OAuth2 Authentication Proxy"
+    description: "OAuth2 Authentication Proxy (deprecated - replaced by Authelia)"
     icon: "mdi:key-chain"
     managed: true
     # No domain - accessed internally via Caddy forward_auth
@@ -126,7 +138,7 @@ services:
     host: mljr
     description: "Access Logs"
     icon: "mdi:chart-bar"
-    caddy_auth: "keycloak"
+    caddy_auth: "authelia"
 
   # External Services (proxy only)
   - name: homeassistant
@@ -166,7 +178,7 @@ services:
     host: mljr
     description: "Security Monitor"
     icon: "mdi:shield-lock"
-    caddy_auth: "keycloak"
+    caddy_auth: "authelia"
 
   # Container Management
   - name: dockge
@@ -200,7 +212,7 @@ services:
     host: nuc
     description: "Docker Logs"
     icon: "mdi:text-box-search"
-    caddy_auth: "keycloak"
+    caddy_auth: "authelia"
 
   # Personal
   - name: homepage
@@ -315,7 +327,7 @@ services:
     host: nuc
     description: "Code Quality"
     icon: "mdi:code-braces"
-    caddy_auth: "keycloak"
+    caddy_auth: "authelia"
     requires_sysctl: "vm.max_map_count=262144"
 
   - name: jenkins
