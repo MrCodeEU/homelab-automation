@@ -62,6 +62,14 @@
 
 {
     email {{ email }}
+
+    # Global access log for GoAccess real-time analytics
+    log access {
+        output file {{ log_path }}/caddy/access.log {
+            roll_size 100mb
+            roll_keep 5
+        }
+    }
 }
 
 # Deployment Status Page

@@ -8,31 +8,57 @@ services:
       - .env
     volumes:
       - /var/log/caddy:/logs:ro,z
-      - /opt/goaccess:/goaccess:rw
-      - /opt/goaccess/caddyLog.py:/app/caddyLog.py:ro
+      - goaccess-data:/goaccess:rw
+      - ./caddyLog.py:/app/caddyLog.py:ro
     working_dir: /app
-    command: python3 caddyLog.py -i /logs/access.log -t 10 -g /goaccess/access.goaccess.log
-  
+    # Create the output file if it doesn't exist, then run the converter
+    command: >
+      sh -c "touch /goaccess/access.goaccess.log &&
+             python3 caddyLog.py -i /logs/access.log -t 10 -g /goaccess/access.goaccess.log"
+    healthcheck:
+      test: ["CMD", "test", "-f", "/goaccess/access.goaccess.log"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
   # GoAccess reads the converted log file
   goaccess:
     image: allinurl/goaccess:latest
     container_name: goaccess
     restart: unless-stopped
     depends_on:
-      - log-converter
+      log-converter:
+        condition: service_healthy
     env_file:
       - .env
     ports:
       - "0.0.0.0:7890:7890"
     volumes:
-      - /opt/goaccess:/goaccess:ro
-      - /opt/goaccess/report:/var/www/goaccess:rw
+      - goaccess-data:/goaccess:ro
+      - goaccess-report:/var/www/goaccess:rw
     command: >
       /goaccess/access.goaccess.log
-      --log-format="%d %t %v %h %m %U %H %s %b %^ %R \"%u\""
+      --log-format="%d %t %v %h %m %U %H %s %b %T %R %u"
       --date-format="%Y-%m-%d"
       --time-format="%H:%M:%S"
       -o /var/www/goaccess/index.html
       --real-time-html
       --ws-url=wss://logs.mljr.eu:443/ws
       --port=7890
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7890"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  goaccess-data:
+    driver: local
+  goaccess-report:
+    driver: local
