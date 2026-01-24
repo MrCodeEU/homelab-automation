@@ -36,9 +36,16 @@
       - "--exclude=.git"
       - "--exclude=node_modules"
 
+- name: Read private key from generated file
+  ansible.builtin.slurp:
+    src: "/tmp/speedtest_id_rsa"
+  delegate_to: localhost
+  register: speedtest_private_key_file
+  run_once: true
+
 - name: Copy Private Key to destination
   copy:
-    content: "{{ speedtest_key.private_key }}"
+    content: "{{ speedtest_private_key_file.content | b64decode }}"
     dest: "{{ base_path }}/speedtest/id_rsa"
     mode: '0600'
     owner: root

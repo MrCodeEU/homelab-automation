@@ -8,6 +8,29 @@ SERVICE_NAME="$1"
 SERVICES_FILE="$2"
 TARGET_DIR="/opt/$SERVICE_NAME"
 
+# Color definitions
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Logging functions
+log_info() {
+    echo -e "${NC}[INFO] $1${NC}"
+}
+
+log_success() {
+    echo -e "${GREEN}[SUCCESS] $1${NC}"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARNING] $1${NC}"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR] $1${NC}"
+}
+
 log_info "Running Glance pre-deployment checks..."
 
 # Check if Docker is running
