@@ -64,11 +64,14 @@ add_device() {
 
 echo "Adding managed hosts as devices..."
 
+# Note: We use IP addresses for hostnames because the Docker container
+# doesn't have access to Tailscale MagicDNS for resolving .ts.net hostnames
+
 # Managed Rocky Linux hosts
-add_device "mljr" "mljr.tail33930.ts.net" "100.100.20.1" "root" 22
-add_device "nuc" "nuc.tail33930.ts.net" "100.100.10.1" "root" 22
+add_device "mljr" "100.100.20.1" "100.100.20.1" "root" 22
+add_device "nuc" "100.100.10.1" "100.100.10.1" "root" 22
 
 # Unraid NAS
-add_device "nas" "nas.tail33930.ts.net" "100.100.10.2" "root" 22
+add_device "nas" "100.100.10.2" "100.100.10.2" "root" 22
 
 echo "Speedtest post-deploy complete"

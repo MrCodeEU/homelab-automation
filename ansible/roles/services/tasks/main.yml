@@ -104,6 +104,7 @@
 - name: Pull production service images (with retry)
   community.docker.docker_compose_v2_pull:
     project_src: "{{ base_path }}/{{ service.name }}"
+    policy: always  # Always pull to get newest version
   loop: "{{ host_services }}"
   loop_control:
     loop_var: service
@@ -320,6 +321,7 @@
 - name: Pull staging service images (with retry)
   community.docker.docker_compose_v2_pull:
     project_src: "{{ base_path }}/staging/{{ service.name }}"
+    policy: always  # Always pull to get newest version
   loop: "{{ staging_services | default([]) }}"
   loop_control:
     loop_var: service
