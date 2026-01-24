@@ -114,7 +114,7 @@ services:
     domain: "nightscout.mljr.eu"  # Can be string or list
     port: 1337                    # Required for managed services (use 0 for no web UI)
     host: mljr                    # Must match inventory hostname
-    caddy_auth: "basicauth"       # "basicauth" or "keycloak" for SSO
+    caddy_auth: "basicauth"       # "basicauth", "authelia", or "keycloak" (deprecated) for SSO
     managed: false                # External service (proxy only, no docker-compose)
     skip_deploy: true             # Uses dedicated role instead of services role
     backup_critical: true         # Restore on fresh install
@@ -123,21 +123,24 @@ services:
 
 ### Authentication
 
-Two authentication methods are available via `caddy_auth`:
+Three authentication methods are available via `caddy_auth`:
 
 | Value | Description |
 |-------|-------------|
 | `basicauth` | Username/password from `CADDY_AUTH_USER` and `CADDY_AUTH_PASSWORD_HASH` |
-| `keycloak` | SSO via Keycloak + oauth2-proxy (requires Keycloak service) |
+| `authelia` | SSO via Authelia (current recommended method) |
+| `keycloak` | SSO via Keycloak + oauth2-proxy (deprecated - replaced by Authelia) |
 
-**Keycloak SSO Architecture:**
+**Authelia SSO Architecture:**
 ```
-User → Caddy → forward_auth → oauth2-proxy → Keycloak → User authenticated
+User → Caddy → forward_auth → Authelia → User authenticated
 ```
 
-Services using `caddy_auth: "keycloak"`: goaccess, fail2ban-ui, sonarqube
+Services using `caddy_auth: "authelia"`: goaccess, fail2ban-ui, sonarqube, dozzle
 
-**Setup**: See `docs/KEYCLOAK_SONARQUBE_SETUP.md` for deployment steps and secret generation.
+**Default credentials** (change after first login):
+- Username: `admin`
+- Password: `authelia`
 
 ### Post-Deploy Hooks
 
@@ -192,7 +195,7 @@ Reference in templates: `{{ secrets.nightscout.api_secret }}`
 
 1. **GitHub Actions** triggers on push to main, PRs (check mode), or repository dispatch
 2. **Tailscale VPN** connects runner to hosts
-3. **Playbook execution**: base → security → backup → glance → mailcow → keycloak → services → caddy
+3. **Playbook execution**: base → security → backup → glance → mailcow → services → caddy
 
 ### Async Deployment
 
@@ -224,22 +227,24 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 | security, fail2ban | Fail2ban (mljr only) |
 | glance | Dashboard |
 | mailcow | Mail server |
-| keycloak | SSO Identity Provider (mljr only) |
+| keycloak | SSO Identity Provider (deprecated - replaced by authelia) |
+| authelia | SSO Identity Provider (mljr only) |
 
 ## Key Services
 
-### Keycloak (SSO Identity Provider)
+### Authelia (SSO Identity Provider)
 - **Domain**: auth.mljr.eu
-- **Port**: 9732 (mljr)
-- **Dedicated role**: Uses `ansible/roles/keycloak/` (not generic services role)
-- **Provisioning**: Ansible tasks auto-provision `homelab` realm, `oauth2-proxy` client, and Google IdP
-- **Client secret**: Saved to `/opt/keycloak/client-secret.txt` after first deploy
-- **Dependencies**: oauth2-proxy must be deployed after Keycloak
+- **Port**: 9091 (mljr)
+- **Configuration**: File-based auth via `services/authelia/configuration.yml`
+- **User database**: Local file at `services/authelia/users_database.yml`
+- **Default credentials**: admin/authelia (change after first login)
+- **Backend**: Redis for session storage, SQLite for persistent data
+- **Integration**: Services use `caddy_auth: "authelia"` for SSO protection
+- **Protected services**: goaccess, fail2ban-ui, sonarqube, dozzle
 
-### OAuth2-Proxy
-- **Port**: 4180 (mljr, internal only)
-- **Purpose**: Handles forward_auth for Keycloak-protected services
-- **No domain**: Accessed internally by Caddy via `forward_auth localhost:4180`
+### Deprecated Services
+- **Keycloak** (port 9732): Replaced by Authelia, kept for rollback capability
+- **OAuth2-Proxy** (port 4180): No longer needed with Authelia's native forward_auth
 
 ### SonarQube (Code Quality)
 - **Domain**: sonarqube.mljr.eu
