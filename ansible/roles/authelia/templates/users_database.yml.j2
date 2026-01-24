@@ -1,0 +1,9 @@
+users:
+  admin:
+    displayname: Admin
+    # Password set via vault
+    password: "{{ secrets.authelia.admin_password }}"
+    email: {{ email }}
+    groups:
+      - admins
+      - dev

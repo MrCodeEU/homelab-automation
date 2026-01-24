@@ -1,0 +1,34 @@
+---
+- name: Ensure Authelia directory exists
+  file:
+    path: "{{ authelia_config_path }}"
+    state: directory
+    mode: '0755'
+
+- name: Copy Authelia configuration
+  template:
+    src: configuration.yml.j2
+    dest: "{{ authelia_config_path }}/configuration.yml"
+    mode: '0600'
+  notify: Restart Authelia
+
+- name: Copy Authelia users database
+  template:
+    src: users_database.yml.j2
+    dest: "{{ authelia_config_path }}/users_database.yml"
+    mode: '0600'
+    force: no
+  notify: Restart Authelia
+
+- name: Create Authelia Docker Compose file
+  template:
+    src: docker-compose.yml.j2
+    dest: "{{ authelia_config_path }}/docker-compose.yml"
+    mode: '0644'
+  notify: Restart Authelia
+
+- name: Ensure Authelia service is running
+  community.docker.docker_compose_v2:
+    project_src: "{{ authelia_config_path }}"
+    state: present
+    pull: always
