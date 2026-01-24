@@ -37,11 +37,48 @@
     dest: /etc/fail2ban/filter.d/caddy-badbots.conf
     content: |
       [Definition]
-      # Match remote_ip, then uri, then status
-      failregex = ^.*"remote_ip":"<HOST>".*"uri":"/.*(wp-admin|phpmyadmin|\.env|\.git|setup\.php|config\.php).*".*"status":404.*$
+      # Match remote_ip, then uri for common vulnerability scanners
+      failregex = ^.*"remote_ip":"<HOST>".*"uri":"/.*(wp-admin|wp-login|wp-content|phpmyadmin|pma|adminer|\.env|\.git|\.svn|setup\.php|config\.php|install\.php|xmlrpc\.php|admin\.php|shell\.php|eval-stdin\.php).*".*"status":(404|403).*$
       ignoreregex =
     mode: '0644'
   notify: Restart Fail2ban
+
+- name: Configure Caddy Forbidden Filter
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/filter.d/caddy-forbidden.conf
+    content: |
+      [Definition]
+      # Match 403 Forbidden responses (access denied)
+      failregex = ^.*"remote_ip":"<HOST>".*"status":403.*$
+      ignoreregex =
+    mode: '0644'
+  notify: Restart Fail2ban
+
+- name: Configure Caddy Scanner Filter
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/filter.d/caddy-scanner.conf
+    content: |
+      [Definition]
+      # Match common security scanner paths and suspicious requests
+      failregex = ^.*"remote_ip":"<HOST>".*"uri":"/.*(\.asp|\.aspx|\.jsp|\.cgi|/cgi-bin/|/manager/|/jenkins/|/solr/|/struts/|/actuator/|/api/v1/pods|/debug/|/telescope/|/elfinder/|/vendor/|/backup|/db/|/sql/|/mysql/|/database/).*".*$
+                  ^.*"remote_ip":"<HOST>".*"user_agent":".*(?i)(nikto|sqlmap|nmap|masscan|zgrab|gobuster|dirbuster|wpscan|nessus|openvas|acunetix|burp|nuclei|httpx|subfinder).*".*$
+      ignoreregex =
+    mode: '0644'
+  notify: Restart Fail2ban
+
+- name: Configure Authelia Filter
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/filter.d/authelia.conf
+    content: |
+      [Definition]
+      # Match failed authentication attempts in Authelia logs via Caddy
+      # Caddy logs Authelia 401 responses when forward_auth fails
+      failregex = ^.*"remote_ip":"<HOST>".*"uri":"/api/authz/forward-auth".*"status":401.*$
+                  ^.*"remote_ip":"<HOST>".*auth\..*"status":401.*$
+      ignoreregex =
+    mode: '0644'
+  notify: Restart Fail2ban
+  when: inventory_hostname == 'mljr'
 
 - name: Configure ntfy Action
   ansible.builtin.template:
@@ -56,13 +93,15 @@
     state: started
     enabled: true
 
-# Setup Fail2ban UI (using crazy-max/fail2ban-dashboard or similar)
-# We'll use a simple web UI that reads the fail2ban socket/db
+# ============================================================================
+# Fail2ban UI - Only on mljr (monitors all hosts)
+# ============================================================================
 - name: Create Fail2ban UI directory
   ansible.builtin.file:
     path: "{{ base_path }}/fail2ban-ui"
     state: directory
     mode: '0755'
+  when: inventory_hostname == 'mljr'
 
 - name: Copy Fail2ban UI configuration
   ansible.builtin.copy:
@@ -70,6 +109,7 @@
     dest: "{{ base_path }}/fail2ban-ui/"
     mode: preserve
     directory_mode: '0755'
+  when: inventory_hostname == 'mljr'
 
 - name: Create .env file for Fail2ban UI
   ansible.builtin.template:
@@ -77,10 +117,13 @@
     dest: "{{ base_path }}/fail2ban-ui/.env"
     mode: '0600'
   no_log: true
+  when: inventory_hostname == 'mljr'
 
 - name: Deploy Fail2ban UI
   community.docker.docker_compose_v2:
     project_src: "{{ base_path }}/fail2ban-ui"
     state: present
     pull: always
-  when: not ansible_check_mode
+  when:
+    - not ansible_check_mode
+    - inventory_hostname == 'mljr'
