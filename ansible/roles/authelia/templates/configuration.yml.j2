@@ -26,7 +26,8 @@ access_control:
 session:
   secret: {{ authelia_session_secret }}
   cookies:
-    domain: "{{ domain }}"
+    - domain: "{{ domain }}"
+      authelia_url: "https://auth.{{ domain }}"
   redis:
     host: authelia_redis
     port: 6379
@@ -37,5 +38,10 @@ storage:
     path: /config/db.sqlite3
 
 notifier:
-  filesystem:
-    filename: /config/notification.txt
+  smtp:
+    host: {{ secrets.smtp.host }}
+    port: {{ secrets.smtp.port | default('587') }}
+    username: {{ secrets.smtp.user }}
+    password: {{ secrets.smtp.password }}
+    sender: {{ secrets.smtp.from | default('authelia@' ~ domain) }}
+    subject: "[Authelia] {title}"
