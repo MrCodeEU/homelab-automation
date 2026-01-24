@@ -3,7 +3,14 @@ users:
     displayname: Admin
     # Password: authelia
     password: "{{ secrets.authelia.admin_password }}"
-    email: {{ email }}
+    email: "{{ email }}"
+    groups:
+      - admins
+      - dev
+  mrcode:
+    displayname: mrcode
+    password: "{{ secrets.authelia.admin_password }}"
+    email: "{{ email }}"
     groups:
       - admins
       - dev
