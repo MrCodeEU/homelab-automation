@@ -78,7 +78,29 @@ jobs:
           pipx inject ansible-core docker mitogen ansible-mitogen
 
       - name: Install collections
-        run: cd ansible && ansible-galaxy collection install -r requirements.yml --force-with-deps
+        run: |
+          cd ansible
+          # Try installing from Ansible Galaxy first
+          if ansible-galaxy collection install -r requirements.yml --force-with-deps; then
+            echo "✓ Collections installed from Ansible Galaxy"
+          else
+            echo "⚠ Galaxy failed, falling back to GitHub..."
+            cat > requirements-fallback.yml << 'EOF'
+          ---
+          collections:
+            - name: https://github.com/ansible-collections/community.docker.git
+              type: git
+              version: main
+            - name: https://github.com/ansible-collections/community.general.git
+              type: git
+              version: main
+            - name: https://github.com/ansible-collections/ansible.posix.git
+              type: git
+              version: main
+          EOF
+            ansible-galaxy collection install -r requirements-fallback.yml --force-with-deps || exit 1
+            echo "✓ Collections installed from GitHub"
+          fi
 
       - name: Deploy to mljr
         env:
@@ -136,7 +158,29 @@ jobs:
           pipx inject ansible-core docker mitogen ansible-mitogen
 
       - name: Install collections
-        run: cd ansible && ansible-galaxy collection install -r requirements.yml --force-with-deps
+        run: |
+          cd ansible
+          # Try installing from Ansible Galaxy first
+          if ansible-galaxy collection install -r requirements.yml --force-with-deps; then
+            echo "✓ Collections installed from Ansible Galaxy"
+          else
+            echo "⚠ Galaxy failed, falling back to GitHub..."
+            cat > requirements-fallback.yml << 'EOF'
+          ---
+          collections:
+            - name: https://github.com/ansible-collections/community.docker.git
+              type: git
+              version: main
+            - name: https://github.com/ansible-collections/community.general.git
+              type: git
+              version: main
+            - name: https://github.com/ansible-collections/ansible.posix.git
+              type: git
+              version: main
+          EOF
+            ansible-galaxy collection install -r requirements-fallback.yml --force-with-deps || exit 1
+            echo "✓ Collections installed from GitHub"
+          fi
 
       - name: Deploy staging to nuc
         env:
