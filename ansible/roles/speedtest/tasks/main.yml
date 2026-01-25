@@ -17,8 +17,19 @@
     key: "{{ speedtest_key.public_key }}"
   delegate_to: "{{ item }}"
   loop: "{{ groups['managed'] }}"
+  loop_control:
+    label: "{{ item }}"
   run_once: true
-  ignore_errors: true
+  register: key_auth_results
+
+- name: Report key authorization failures
+  ansible.builtin.debug:
+    msg: "WARNING: Failed to authorize SSH key on {{ item.item }}: {{ item.msg | default('unknown error') }}"
+  loop: "{{ key_auth_results.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item | default('unknown') }}"
+  when: item.failed | default(false)
+  run_once: true
 
 - name: Create speedtest directory
   file:
