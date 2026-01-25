@@ -85,11 +85,22 @@
     method: GET
     return_content: yes
   register: existing_devices
+  failed_when: false
+
+- name: Parse existing devices
+  ansible.builtin.set_fact:
+    existing_device_list: "{{ existing_devices.json | default([]) }}"
+  when: existing_devices.status == 200
+
+- name: Set empty device list on API failure
+  ansible.builtin.set_fact:
+    existing_device_list: []
+  when: existing_devices.status != 200
 
 - name: Add or Update Devices in Speedtest
   uri:
-    url: "http://localhost:8089/api/devices{{ '/' ~ (existing_devices.json | selectattr('name', 'equalto', item) | map(attribute='id') | first) if (existing_devices.json | selectattr('name', 'equalto', item) | list | length > 0) else '' }}"
-    method: "{{ 'PUT' if (existing_devices.json | selectattr('name', 'equalto', item) | list | length > 0) else 'POST' }}"
+    url: "http://localhost:8089/api/devices{{ '/' ~ (existing_device_list | selectattr('name', 'equalto', item) | map(attribute='id') | first) if (existing_device_list | selectattr('name', 'equalto', item) | list | length > 0) else '' }}"
+    method: "{{ 'PUT' if (existing_device_list | selectattr('name', 'equalto', item) | list | length > 0) else 'POST' }}"
     body_format: json
     body:
       name: "{{ item }}"
@@ -99,4 +110,6 @@
       ip: "{{ hostvars[item].tailscale_ip }}"
     status_code: [200, 201]
   loop: "{{ groups['managed'] }}"
+  loop_control:
+    label: "{{ item }}"
   ignore_errors: true
