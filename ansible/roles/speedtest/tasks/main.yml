@@ -90,7 +90,8 @@
 
 - name: Parse existing devices
   ansible.builtin.set_fact:
-    existing_device_list: "{{ existing_devices.json | default([]) }}"
+    # Use from_json filter since API returns text/plain instead of application/json
+    existing_device_list: "{{ (existing_devices.content | from_json) if existing_devices.content else [] }}"
   when: existing_devices.status == 200
 
 - name: Set empty device list on API failure
