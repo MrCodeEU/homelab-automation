@@ -23,7 +23,9 @@ services:
         max-file: "3"
 
   sonarqube:
-    image: sonarqube:community
+    # Pinned to 24.12 LTA for database migration compatibility
+    # After successful migration, can upgrade to sonarqube:community (latest)
+    image: sonarqube:24.12-community
     container_name: ${COMPOSE_PROJECT_NAME:-sonarqube}
     restart: unless-stopped
     depends_on:
