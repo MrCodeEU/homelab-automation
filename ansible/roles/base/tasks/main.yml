@@ -87,6 +87,52 @@
   when: docker_python_pkg is failed
 
 # ============================================================================
+# Firewall Configuration (Tailscale internal network)
+# ============================================================================
+
+- name: Ensure firewalld is installed and running
+  ansible.builtin.service:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Add Tailscale zone if not exists
+  ansible.posix.firewalld:
+    zone: tailscale
+    state: present
+    permanent: true
+  register: tailscale_zone_created
+  failed_when: false
+
+- name: Configure Tailscale zone sources (Tailscale CGNAT range)
+  ansible.posix.firewalld:
+    zone: tailscale
+    source: 100.64.0.0/10
+    state: enabled
+    permanent: true
+    immediate: true
+
+- name: Allow all traffic from Tailscale network
+  ansible.posix.firewalld:
+    zone: tailscale
+    service: "{{ item }}"
+    state: enabled
+    permanent: true
+    immediate: true
+  loop:
+    - ssh
+    - http
+    - https
+
+- name: Allow speedtest worker ports from Tailscale network (8090-8099)
+  ansible.posix.firewalld:
+    zone: tailscale
+    port: "8090-8099/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+
+# ============================================================================
 # Docker Prune (only when explicitly tagged)
 # ============================================================================
 

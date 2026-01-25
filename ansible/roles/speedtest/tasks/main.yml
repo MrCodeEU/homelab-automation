@@ -113,3 +113,28 @@
   loop_control:
     label: "{{ item }}"
   ignore_errors: true
+
+# Configure test schedules (Go duration format: 15m = 15 minutes, 1h = 1 hour)
+- name: Configure ping schedule (every 15 minutes)
+  uri:
+    url: "http://localhost:8089/api/schedules"
+    method: PUT
+    body_format: json
+    body:
+      type: ping
+      cron: "15m"
+      enabled: true
+    status_code: [200, 201]
+  ignore_errors: true
+
+- name: Configure speedtest schedule (every hour)
+  uri:
+    url: "http://localhost:8089/api/schedules"
+    method: PUT
+    body_format: json
+    body:
+      type: speed
+      cron: "1h"
+      enabled: true
+    status_code: [200, 201]
+  ignore_errors: true
