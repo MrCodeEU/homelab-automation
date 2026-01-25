@@ -24,7 +24,7 @@ for i in $(seq 1 $MAX_RETRIES); do
     sleep $RETRY_INTERVAL
 done
 
-# Function to add a device (idempotent - checks if exists first)
+# Function to add or update a device
 add_device() {
     local name=$1
     local hostname=$2
@@ -32,12 +32,36 @@ add_device() {
     local ssh_user=$4
     local ssh_port=${5:-22}
 
-    # Check if device already exists
-    existing=$(curl -s "${API_URL}/devices" | grep -o "\"name\":\"${name}\"" || true)
+    # Check if device already exists and get its ID
+    existing_device=$(curl -s "${API_URL}/devices" | grep -o "{[^}]*\"name\":\"${name}\"[^}]*}" || true)
 
-    if [ -n "$existing" ]; then
-        echo "Device '${name}' already exists, skipping"
-        return 0
+    if [ -n "$existing_device" ]; then
+        # Extract device ID
+        device_id=$(echo "$existing_device" | grep -o '"id":[0-9]*' | grep -o '[0-9]*')
+
+        if [ -n "$device_id" ]; then
+            echo "Updating existing device '${name}' (id: ${device_id})"
+
+            response=$(curl -s -w "\n%{http_code}" -X PUT "${API_URL}/devices/${device_id}" \
+                -H "Content-Type: application/json" \
+                -d "{
+                    \"name\": \"${name}\",
+                    \"hostname\": \"${hostname}\",
+                    \"ip\": \"${ip}\",
+                    \"ssh_user\": \"${ssh_user}\",
+                    \"ssh_port\": ${ssh_port}
+                }")
+
+            http_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
+
+            if [ "$http_code" = "200" ]; then
+                echo "Successfully updated device: ${name}"
+            else
+                echo "Warning: Failed to update device ${name} (HTTP ${http_code}): ${body}"
+            fi
+            return 0
+        fi
     fi
 
     echo "Adding device: ${name} (${hostname} / ${ip})"

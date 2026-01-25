@@ -68,17 +68,24 @@
   retries: 20
   delay: 5
 
-- name: Add Devices to Speedtest
+- name: Get existing Speedtest devices
   uri:
     url: "http://localhost:8089/api/devices"
-    method: POST
+    method: GET
+    return_content: yes
+  register: existing_devices
+
+- name: Add or Update Devices in Speedtest
+  uri:
+    url: "http://localhost:8089/api/devices{{ '/' ~ (existing_devices.json | selectattr('name', 'equalto', item) | map(attribute='id') | first) if (existing_devices.json | selectattr('name', 'equalto', item) | list | length > 0) else '' }}"
+    method: "{{ 'PUT' if (existing_devices.json | selectattr('name', 'equalto', item) | list | length > 0) else 'POST' }}"
     body_format: json
     body:
       name: "{{ item }}"
-      hostname: "{{ hostvars[item].ansible_host }}"
+      hostname: "{{ hostvars[item].tailscale_ip }}"
       ssh_user: "{{ hostvars[item].ansible_user | default('root') }}"
       ssh_port: 22
-      ip: "{{ hostvars[item].ansible_host }}"
-    status_code: [200, 201, 409]
+      ip: "{{ hostvars[item].tailscale_ip }}"
+    status_code: [200, 201]
   loop: "{{ groups['managed'] }}"
   ignore_errors: true
