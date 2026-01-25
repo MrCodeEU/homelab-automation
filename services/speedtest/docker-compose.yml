@@ -10,6 +10,9 @@ services:
       - ./id_rsa:/root/.ssh/id_rsa:ro
     environment:
       TZ: ${TZ:-Europe/Vienna}
+      # Schedule configuration (cron format)
+      PING_SCHEDULE: "*/15 * * * *"      # Every 15 minutes
+      SPEEDTEST_SCHEDULE: "0 * * * *"    # Every hour at minute 0
       # ntfy notifications
       NTFY_ENABLED: "true"
       NTFY_SERVER: "https://ntfy.mljr.eu"
