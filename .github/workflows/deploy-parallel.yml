@@ -85,22 +85,19 @@ jobs:
             echo "✓ Collections installed from Ansible Galaxy"
           else
             echo "⚠ Galaxy failed, falling back to GitHub..."
-            cat > requirements-fallback.yml << 'EOF'
----
-collections:
-  - name: https://github.com/ansible-collections/community.docker.git
-    type: git
-    version: main
-  - name: https://github.com/ansible-collections/community.general.git
-    type: git
-    version: main
-  - name: https://github.com/ansible-collections/ansible.posix.git
-    type: git
-    version: main
-  - name: https://github.com/ansible-collections/community.library_inventory_filtering.git
-    type: git
-    version: stable-1
-EOF
+            echo 'collections:' > requirements-fallback.yml
+            echo '  - name: https://github.com/ansible-collections/community.docker.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: main' >> requirements-fallback.yml
+            echo '  - name: https://github.com/ansible-collections/community.general.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: main' >> requirements-fallback.yml
+            echo '  - name: https://github.com/ansible-collections/ansible.posix.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: main' >> requirements-fallback.yml
+            echo '  - name: https://github.com/ansible-collections/community.library_inventory_filtering.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: stable-1' >> requirements-fallback.yml
             ansible-galaxy collection install -r requirements-fallback.yml --no-deps --force 2>&1 || exit 1
             echo "✓ Collections installed from GitHub"
           fi
@@ -168,22 +165,19 @@ EOF
             echo "✓ Collections installed from Ansible Galaxy"
           else
             echo "⚠ Galaxy failed, falling back to GitHub..."
-            cat > requirements-fallback.yml << 'EOF'
----
-collections:
-  - name: https://github.com/ansible-collections/community.docker.git
-    type: git
-    version: main
-  - name: https://github.com/ansible-collections/community.general.git
-    type: git
-    version: main
-  - name: https://github.com/ansible-collections/ansible.posix.git
-    type: git
-    version: main
-  - name: https://github.com/ansible-collections/community.library_inventory_filtering.git
-    type: git
-    version: stable-1
-EOF
+            echo 'collections:' > requirements-fallback.yml
+            echo '  - name: https://github.com/ansible-collections/community.docker.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: main' >> requirements-fallback.yml
+            echo '  - name: https://github.com/ansible-collections/community.general.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: main' >> requirements-fallback.yml
+            echo '  - name: https://github.com/ansible-collections/ansible.posix.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: main' >> requirements-fallback.yml
+            echo '  - name: https://github.com/ansible-collections/community.library_inventory_filtering.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: stable-1' >> requirements-fallback.yml
             ansible-galaxy collection install -r requirements-fallback.yml --no-deps --force 2>&1 || exit 1
             echo "✓ Collections installed from GitHub"
           fi
