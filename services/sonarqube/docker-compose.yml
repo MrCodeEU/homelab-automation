@@ -23,7 +23,7 @@ services:
         max-file: "3"
 
   sonarqube:
-    image: sonarqube:lts-community
+    image: sonarqube:community
     container_name: ${COMPOSE_PROJECT_NAME:-sonarqube}
     restart: unless-stopped
     depends_on:
