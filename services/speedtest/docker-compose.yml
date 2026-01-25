@@ -7,10 +7,9 @@ services:
       - "8089:8080"
     volumes:
       - speedtest-data:/app/data
-      - ./id_rsa:/app/id_rsa:ro
+      - ./id_rsa:/root/.ssh/id_rsa:ro
     environment:
       TZ: ${TZ:-Europe/Vienna}
-      SSH_KEY_PATH: /app/id_rsa
       # ntfy notifications
       NTFY_ENABLED: "true"
       NTFY_SERVER: "https://ntfy.mljr.eu"
