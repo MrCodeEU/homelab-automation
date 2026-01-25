@@ -10,13 +10,14 @@
   register: speedtest_key
   run_once: true
 
-- name: Authorize Speedtest key on managed hosts
+# Only authorize keys on rocky hosts (not unraid/nas which has limited SSH management)
+- name: Authorize Speedtest key on rocky hosts
   ansible.posix.authorized_key:
     user: "{{ hostvars[item].ansible_user | default('root') }}"
     state: present
     key: "{{ speedtest_key.public_key }}"
   delegate_to: "{{ item }}"
-  loop: "{{ groups['managed'] }}"
+  loop: "{{ groups['rocky'] | default([]) }}"
   loop_control:
     label: "{{ item }}"
   run_once: true
@@ -97,6 +98,7 @@
     existing_device_list: []
   when: existing_devices.status != 200
 
+# Only add rocky hosts as speedtest targets (unraid/nas doesn't have speedtest worker)
 - name: Add or Update Devices in Speedtest
   uri:
     url: "http://localhost:8089/api/devices{{ '/' ~ (existing_device_list | selectattr('name', 'equalto', item) | map(attribute='id') | first) if (existing_device_list | selectattr('name', 'equalto', item) | list | length > 0) else '' }}"
@@ -109,32 +111,12 @@
       ssh_port: 22
       ip: "{{ hostvars[item].tailscale_ip }}"
     status_code: [200, 201]
-  loop: "{{ groups['managed'] }}"
+  loop: "{{ groups['rocky'] | default([]) }}"
   loop_control:
     label: "{{ item }}"
   ignore_errors: true
 
-# Configure test schedules (Go duration format: 15m = 15 minutes, 1h = 1 hour)
-- name: Configure ping schedule (every 15 minutes)
-  uri:
-    url: "http://localhost:8089/api/schedules"
-    method: PUT
-    body_format: json
-    body:
-      type: ping
-      cron: "15m"
-      enabled: true
-    status_code: [200, 201]
-  ignore_errors: true
-
-- name: Configure speedtest schedule (every hour)
-  uri:
-    url: "http://localhost:8089/api/schedules"
-    method: PUT
-    body_format: json
-    body:
-      type: speed
-      cron: "1h"
-      enabled: true
-    status_code: [200, 201]
-  ignore_errors: true
+# Note: Schedules are configured via environment variables in docker-compose.yml:
+# - PING_SCHEDULE: "*/15 * * * *"      (Every 15 minutes)
+# - SPEEDTEST_SCHEDULE: "0 * * * *"    (Every hour at minute 0)
+# The API doesn't support schedule configuration via PUT.

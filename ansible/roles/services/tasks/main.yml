@@ -499,7 +499,13 @@
           {{ kuma_provision.stdout_lines | join('\n') }}
           {% else %}
           ⚠ Kuma provisioning failed (non-blocking):
-          {{ kuma_provision.stdout_lines | join('\n') }}
+          STDOUT:
+          {{ kuma_provision.stdout_lines | default([]) | join('\n') }}
+          {% if kuma_provision.stderr_lines | default([]) | length > 0 %}
+          STDERR:
+          {{ kuma_provision.stderr_lines | join('\n') }}
+          {% endif %}
+          Exit code: {{ kuma_provision.rc }}
           {% endif %}
           {% else %}
           Kuma provisioning skipped

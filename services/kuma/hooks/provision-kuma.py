@@ -224,19 +224,28 @@ def main():
         sys.exit(1)
 
     # Connect to API
+    print(f"Connecting to Uptime Kuma at {url}")
     api = UptimeKumaApi(url)
 
     try:
+        print(f"Attempting login with username: {username}")
         api.login(username, password)
+        print("Login successful")
     except Exception as e:
         print(f"Login failed: {e}")
+        print("This may happen if:")
+        print("  - First-time setup: Please complete initial setup via web UI first")
+        print("  - Wrong credentials: Check KUMA_USERNAME and KUMA_PASSWORD in secrets")
+        print("  - API not ready: Kuma may still be starting up")
         sys.exit(1)
 
     # Read services.yml
     if not os.path.exists(services_file):
         print(f"Error: {services_file} not found")
+        print(f"Expected path: {os.path.abspath(services_file)}")
         sys.exit(1)
 
+    print(f"Reading services from {services_file}")
     with open(services_file, 'r') as f:
         config = yaml.safe_load(f)
 
@@ -283,7 +292,11 @@ def main():
 
     # Exit with error if any failures
     if stats.failed:
+        print(f"\nFailed operations: {stats.failed}")
+        print("Check the errors above for details")
         sys.exit(1)
+
+    print("Provisioning completed successfully")
 
 
 if __name__ == "__main__":
