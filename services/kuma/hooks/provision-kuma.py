@@ -155,7 +155,11 @@ def sync_ping_monitors(api, hosts, existing_monitors, stats):
 
 
 def sync_smtp_monitor(api, existing_monitors, stats):
-    """Sync SMTP monitor for mailcow."""
+    """Sync SMTP monitor for mailcow using TCP port check.
+
+    Note: Uptime Kuma doesn't have a native SMTP monitor type yet (feature request).
+    We use PORT (TCP) monitoring to check if the SMTP port is responding.
+    """
     monitor_name = f"{SMTP_PREFIX}{MAILCOW_SMTP_HOST}"
 
     if monitor_name in existing_monitors:
@@ -168,11 +172,10 @@ def sync_smtp_monitor(api, existing_monitors, stats):
             print(f"  Updating {monitor_name}")
             api.edit_monitor(
                 id=monitor_id,
-                type=MonitorType.SMTP,
+                type=MonitorType.PORT,
                 name=monitor_name,
                 hostname=MAILCOW_SMTP_HOST,
                 port=MAILCOW_SMTP_PORT,
-                smtpSecurity="STARTTLS",
                 interval=60,
                 retryInterval=60
             )
@@ -180,14 +183,13 @@ def sync_smtp_monitor(api, existing_monitors, stats):
         else:
             stats.skipped += 1
     else:
-        print(f"  Creating {monitor_name} (port {MAILCOW_SMTP_PORT})")
+        print(f"  Creating {monitor_name} (TCP port {MAILCOW_SMTP_PORT})")
         try:
             api.add_monitor(
-                type=MonitorType.SMTP,
+                type=MonitorType.PORT,
                 name=monitor_name,
                 hostname=MAILCOW_SMTP_HOST,
                 port=MAILCOW_SMTP_PORT,
-                smtpSecurity="STARTTLS",
                 interval=60,
                 retryInterval=60
             )

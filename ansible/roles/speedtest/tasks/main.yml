@@ -99,6 +99,7 @@
   when: existing_devices.status != 200
 
 # Only add rocky hosts as speedtest targets (unraid/nas doesn't have speedtest worker)
+# Add retries since the API may return 500 while still initializing
 - name: Add or Update Devices in Speedtest
   uri:
     url: "http://localhost:8089/api/devices{{ '/' ~ (existing_device_list | selectattr('name', 'equalto', item) | map(attribute='id') | first) if (existing_device_list | selectattr('name', 'equalto', item) | list | length > 0) else '' }}"
@@ -114,6 +115,10 @@
   loop: "{{ groups['rocky'] | default([]) }}"
   loop_control:
     label: "{{ item }}"
+  register: device_result
+  retries: 3
+  delay: 5
+  until: device_result.status in [200, 201]
   ignore_errors: true
 
 # Note: Schedules are configured via environment variables in docker-compose.yml:
