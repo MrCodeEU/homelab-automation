@@ -165,7 +165,39 @@ jobs:
       - name: Install collections
         run: |
           echo "::group::Installing Ansible collections"
-          cd ansible && ansible-galaxy collection install -r requirements.yml --force-with-deps
+          cd ansible
+
+          # Try installing from Ansible Galaxy first
+          echo "Attempting to install collections from Ansible Galaxy..."
+          if ansible-galaxy collection install -r requirements.yml --force-with-deps; then
+            echo "✓ Collections installed successfully from Ansible Galaxy"
+          else
+            echo "⚠ Ansible Galaxy failed, falling back to GitHub sources..."
+
+            # Create fallback requirements with GitHub sources
+            cat > requirements-fallback.yml << 'EOF'
+          ---
+          collections:
+            - name: https://github.com/ansible-collections/community.docker.git
+              type: git
+              version: main
+            - name: https://github.com/ansible-collections/community.general.git
+              type: git
+              version: main
+            - name: https://github.com/ansible-collections/ansible.posix.git
+              type: git
+              version: main
+          EOF
+
+            echo "Installing collections from GitHub..."
+            if ansible-galaxy collection install -r requirements-fallback.yml --force-with-deps; then
+              echo "✓ Collections installed successfully from GitHub"
+            else
+              echo "::error::Failed to install collections from both Galaxy and GitHub"
+              exit 1
+            fi
+          fi
+
           echo "::endgroup::"
 
       - name: Record deployment start
