@@ -169,28 +169,35 @@ jobs:
 
           # Try installing from Ansible Galaxy first
           echo "Attempting to install collections from Ansible Galaxy..."
-          if ansible-galaxy collection install -r requirements.yml --force-with-deps; then
+          if ansible-galaxy collection install -r requirements.yml --force-with-deps 2>&1; then
             echo "✓ Collections installed successfully from Ansible Galaxy"
           else
             echo "⚠ Ansible Galaxy failed, falling back to GitHub sources..."
 
             # Create fallback requirements with GitHub sources
+            # Include all dependencies to avoid Galaxy resolution
+            # Using --no-deps to prevent any Galaxy calls
             cat > requirements-fallback.yml << 'EOF'
-          ---
-          collections:
-            - name: https://github.com/ansible-collections/community.docker.git
-              type: git
-              version: main
-            - name: https://github.com/ansible-collections/community.general.git
-              type: git
-              version: main
-            - name: https://github.com/ansible-collections/ansible.posix.git
-              type: git
-              version: main
-          EOF
+---
+collections:
+  # Main collections
+  - name: https://github.com/ansible-collections/community.docker.git
+    type: git
+    version: main
+  - name: https://github.com/ansible-collections/community.general.git
+    type: git
+    version: main
+  - name: https://github.com/ansible-collections/ansible.posix.git
+    type: git
+    version: main
+  # Dependencies
+  - name: https://github.com/ansible-collections/community.library_inventory_filtering.git
+    type: git
+    version: stable-1
+EOF
 
-            echo "Installing collections from GitHub..."
-            if ansible-galaxy collection install -r requirements-fallback.yml --force-with-deps; then
+            echo "Installing collections from GitHub (with --no-deps to skip Galaxy)..."
+            if ansible-galaxy collection install -r requirements-fallback.yml --no-deps --force 2>&1; then
               echo "✓ Collections installed successfully from GitHub"
             else
               echo "::error::Failed to install collections from both Galaxy and GitHub"
