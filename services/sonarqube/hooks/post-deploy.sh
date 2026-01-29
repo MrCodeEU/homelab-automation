@@ -37,16 +37,21 @@ fi
 
 echo "Attempting to change admin password..."
 
-# Try to change password assuming default credentials (admin:admin)
-# We use -f to fail on HTTP errors (like 401 Unauthorized which implies wrong password)
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -u admin:admin "$URL/api/users/change_password" \
+# Helper to capture response
+# Attempt 1: With login parameter
+echo "Trying WITH login parameter..."
+RESPONSE=$(curl -s -w "\n%{http_code}" -u admin:admin "$URL/api/users/change_password" \
     --data-urlencode "login=admin" \
     --data-urlencode "previousPassword=admin" \
     --data-urlencode "password=$SONARQUBE_ADMIN_PASSWORD")
 
+HTTP_BODY=$(echo "$RESPONSE" | head -n -1)
+HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
+
 if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 204 ]; then
     echo "Successfully changed admin password."
     echo "CHANGED"
+    exit 0
 elif [ "$HTTP_CODE" -eq 401 ]; then
     echo "Could not login with default credentials (admin:admin). Password might already be changed."
     
@@ -59,8 +64,30 @@ elif [ "$HTTP_CODE" -eq 401 ]; then
          echo "Warning: Current password is neither 'admin' nor the configured new password."
          exit 0
     fi
+elif [ "$HTTP_CODE" -eq 400 ]; then
+    echo "Attempt 1 failed with HTTP 400. Body: $HTTP_BODY"
+    echo "Retrying WITHOUT 'login' parameter..."
+    
+    # Attempt 2: Without login parameter
+    RESPONSE=$(curl -s -w "\n%{http_code}" -u admin:admin "$URL/api/users/change_password" \
+        --data-urlencode "previousPassword=admin" \
+        --data-urlencode "password=$SONARQUBE_ADMIN_PASSWORD")
+        
+    HTTP_BODY=$(echo "$RESPONSE" | head -n -1)
+    HTTP_CODE=$(echo "$RESPONSE" | tail -n 1)
+    
+    if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 204 ]; then
+        echo "Successfully changed admin password (fallback method)."
+        echo "CHANGED"
+        exit 0
+    else
+        echo "Failed to change password (Attempt 2). HTTP Code: $HTTP_CODE"
+        echo "Response Body: $HTTP_BODY"
+        exit 0
+    fi
 else
     echo "Failed to change password. HTTP Code: $HTTP_CODE"
+    echo "Response Body: $HTTP_BODY"
     # Don't fail the deployment, just warn
     exit 0
 fi
