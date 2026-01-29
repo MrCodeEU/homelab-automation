@@ -201,12 +201,12 @@
 - name: Display post-deploy hook results
   ansible.builtin.debug:
     msg: |
-      Post-deploy hook for {{ item.service.name | default('unknown') }}:
+      Post-deploy hook for {{ item.item.service.name | default('unknown') }}:
       {% if item.rc | default(0) == 0 %}SUCCESS{% else %}FAILED (rc={{ item.rc }}){% endif %}
       {{ item.stdout_lines | default([]) | join('\n') }}
   loop: "{{ hook_job_result.results | default([]) }}"
   loop_control:
-    label: "{{ item.service.name | default('unknown') }}"
+    label: "{{ item.item.service.name | default('unknown') }}"
   when:
     - not ansible_check_mode
     - item.finished | default(false)
