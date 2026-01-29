@@ -39,7 +39,10 @@ echo "Attempting to change admin password..."
 
 # Try to change password assuming default credentials (admin:admin)
 # We use -f to fail on HTTP errors (like 401 Unauthorized which implies wrong password)
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -u admin:admin -X POST "$URL/api/users/change_password?login=admin&previousPassword=admin&password=$SONARQUBE_ADMIN_PASSWORD")
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -u admin:admin "$URL/api/users/change_password" \
+    --data-urlencode "login=admin" \
+    --data-urlencode "previousPassword=admin" \
+    --data-urlencode "password=$SONARQUBE_ADMIN_PASSWORD")
 
 if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 204 ]; then
     echo "Successfully changed admin password."
