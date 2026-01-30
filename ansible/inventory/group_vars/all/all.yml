@@ -325,7 +325,6 @@ services:
     host: nuc
     description: "Code Quality"
     icon: "mdi:code-braces"
-    caddy_auth: "authelia"
     requires_sysctl: "vm.max_map_count=262144"
 
   - name: jenkins
