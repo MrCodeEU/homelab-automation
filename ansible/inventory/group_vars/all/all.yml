@@ -336,6 +336,14 @@ services:
     description: "CI/CD"
     icon: "mdi:pipe"
 
+  - name: homey
+    enabled: true
+    domain: "homey.mljr.eu"
+    port: 4859
+    host: nuc
+    description: "Homey Self-Hosted Server"
+    icon: "mdi:home-automation"
+
   # Monitoring Host
   - name: grafana
     enabled: true
