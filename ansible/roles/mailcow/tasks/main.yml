@@ -56,6 +56,10 @@
   when: not mailcow_git.stat.exists
   register: mailcow_cloned
 
+# Note: When mailcow_run_update_on_deploy is true (default), update.sh handles
+# git pulls and image updates. mailcow_auto_update only controls this Ansible git
+# task and is effectively redundant when update.sh runs. Keep it for cases where
+# you want git-only updates without running update.sh.
 - name: Update mailcow repository (if already cloned)
   ansible.builtin.git:
     repo: "{{ mailcow_repo_url }}"
@@ -228,6 +232,65 @@
     daemon_reload: true
   when: not ansible_check_mode
 
+- name: Check for mailcow updates
+  ansible.builtin.command:
+    cmd: ./update.sh --check
+    chdir: "{{ mailcow_install_path }}"
+  register: mailcow_update_check
+  changed_when: false
+  # update.sh --check exit codes: 0 = updates available, 3 = already up to date
+  failed_when: mailcow_update_check.rc not in [0, 3]
+  when:
+    - not ansible_check_mode
+    - mailcow_run_update_on_deploy | default(true)
+
+- name: Run mailcow update script
+  ansible.builtin.command:
+    cmd: ./update.sh --force
+    chdir: "{{ mailcow_install_path }}"
+  register: mailcow_update_run
+  async: 1800   # 30 minute timeout - update.sh pulls images and restarts containers
+  poll: 30
+  changed_when: "'Updates available' in mailcow_update_run.stdout or 'Pulled' in mailcow_update_run.stdout"
+  when:
+    - not ansible_check_mode
+    - mailcow_run_update_on_deploy | default(true)
+    - mailcow_update_check.rc == 0
+
+# update.sh can modify mailcow.conf during major version upgrades, so re-apply
+# reverse proxy settings and sync .env to ensure our config is preserved
+- name: Re-apply reverse proxy config after update
+  ansible.builtin.lineinfile:
+    path: "{{ mailcow_install_path }}/mailcow.conf"
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    backup: false
+  loop:
+    - { key: "HTTP_PORT", value: "{{ mailcow_http_port }}" }
+    - { key: "HTTP_BIND", value: "{{ mailcow_http_bind }}" }
+    - { key: "HTTPS_PORT", value: "{{ mailcow_https_port }}" }
+    - { key: "HTTPS_BIND", value: "{{ mailcow_http_bind }}" }
+    - { key: "SKIP_LETS_ENCRYPT", value: "y" }
+    - { key: "SKIP_HTTP_VERIFICATION", value: "y" }
+    - { key: "SNAT_TO_SOURCE", value: "" }
+  when:
+    - not ansible_check_mode
+    - "(mailcow_update_run | default({'changed': false})).changed"
+  register: mailcow_post_update_conf
+  notify: Restart mailcow
+
+- name: Re-sync mailcow.conf to .env after update
+  ansible.builtin.copy:
+    src: "{{ mailcow_install_path }}/mailcow.conf"
+    dest: "{{ mailcow_install_path }}/.env"
+    remote_src: true
+    mode: '0600'
+    backup: true
+  when:
+    - not ansible_check_mode
+    - "(mailcow_post_update_conf | default({'changed': false})).changed"
+  notify: Restart mailcow
+
 # Pull Docker images
 - name: Pull mailcow Docker images
   ansible.builtin.command:
@@ -237,9 +300,11 @@
   changed_when: "'Pulled' in docker_pull.stderr or 'Downloaded' in docker_pull.stderr"
   when:
     - not ansible_check_mode
-    - mailcow_cloned.changed or mailcow_updated.changed | default(false)
+    - "(mailcow_cloned | default({'changed': false})).changed or (mailcow_updated | default({'changed': false})).changed"
+    - "not (mailcow_update_run | default({'changed': false})).changed"
 
 # Start or restart mailcow
+# Skip if update.sh already brought containers up
 - name: Check if mailcow containers are running
   ansible.builtin.command:
     cmd: docker compose ps -q
@@ -247,7 +312,9 @@
   register: mailcow_containers
   changed_when: false
   failed_when: false
-  when: not ansible_check_mode
+  when:
+    - not ansible_check_mode
+    - "not (mailcow_update_run | default({'changed': false})).changed"
 
 - name: Start mailcow services
   ansible.builtin.command:
@@ -257,14 +324,17 @@
   changed_when: "'Started' in mailcow_start.stderr or 'Creating' in mailcow_start.stderr"
   when:
     - not ansible_check_mode
+    - "not (mailcow_update_run | default({'changed': false})).changed"
     - mailcow_containers.stdout | default('') | length == 0
 
-# Ensure services are running
+# Ensure services are running (skip if update.sh already handled it)
 - name: Ensure mailcow services are running
   community.docker.docker_compose_v2:
     project_src: "{{ mailcow_install_path }}"
     state: present
-  when: not ansible_check_mode
+  when:
+    - not ansible_check_mode
+    - "not (mailcow_update_run | default({'changed': false})).changed"
   register: mailcow_compose_result
 
 # Run initial certificate sync (non-blocking - certs may not exist on first deploy)

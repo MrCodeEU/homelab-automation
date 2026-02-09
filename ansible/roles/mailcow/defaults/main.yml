@@ -25,6 +25,9 @@ mailcow_https_port: 8443
 # Auto-update repository on deployment
 mailcow_auto_update: false
 
+# Run mailcow update script during deployment
+mailcow_run_update_on_deploy: true
+
 # Caddy certificate sync - provides valid Let's Encrypt certs for SMTP/IMAP
 # Caddy's data directory where certificates are stored
 caddy_data_dir: /var/lib/caddy/.local/share/caddy
