@@ -38,7 +38,6 @@ services:
       - "9000:9000"
     volumes:
       - sonarqube-data:/opt/sonarqube/data
-      - sonarqube-extensions:/opt/sonarqube/extensions
       - sonarqube-logs:/opt/sonarqube/logs
     networks:
       - sonarqube-internal
@@ -68,5 +67,4 @@ networks:
 volumes:
   sonarqube-db-data:
   sonarqube-data:
-  sonarqube-extensions:
   sonarqube-logs:
