@@ -25,5 +25,9 @@ mailcow_https_port: 8443
 # Auto-update repository on deployment
 mailcow_auto_update: false
 
+# Caddy certificate sync - provides valid Let's Encrypt certs for SMTP/IMAP
+# Caddy's data directory where certificates are stored
+caddy_data_dir: /var/lib/caddy/.local/share/caddy
+
 # Docker compose project name (for volume naming)
 mailcow_compose_project: mailcowdockerized

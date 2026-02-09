@@ -169,6 +169,36 @@
     backup: true
   notify: Restart mailcow
 
+# Certificate sync - use Caddy's Let's Encrypt certs for SMTP/IMAP
+# Without this, postfix/dovecot use self-signed certs untrusted by mail clients and servers
+- name: Deploy mailcow certificate sync script
+  ansible.builtin.template:
+    src: mailcow-cert-sync.sh.j2
+    dest: /usr/local/bin/mailcow-cert-sync.sh
+    mode: '0755'
+
+- name: Deploy mailcow cert sync systemd service
+  ansible.builtin.template:
+    src: mailcow-cert-sync.service.j2
+    dest: /etc/systemd/system/mailcow-cert-sync.service
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Deploy mailcow cert sync systemd timer
+  ansible.builtin.template:
+    src: mailcow-cert-sync.timer.j2
+    dest: /etc/systemd/system/mailcow-cert-sync.timer
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Enable mailcow cert sync timer
+  ansible.builtin.systemd:
+    name: mailcow-cert-sync.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
+
 # Pull Docker images
 - name: Pull mailcow Docker images
   ansible.builtin.command:
@@ -207,6 +237,22 @@
     state: present
   when: not ansible_check_mode
   register: mailcow_compose_result
+
+# Run initial certificate sync (non-blocking - certs may not exist on first deploy)
+- name: Run initial certificate sync from Caddy
+  ansible.builtin.command:
+    cmd: /usr/local/bin/mailcow-cert-sync.sh
+  register: cert_sync_result
+  changed_when: "'Certificates changed' in cert_sync_result.stdout"
+  when: not ansible_check_mode
+
+- name: Display certificate sync result
+  ansible.builtin.debug:
+    msg: |
+      RC={{ cert_sync_result.rc | default('N/A') }}
+      Output: {{ cert_sync_result.stdout_lines | default(['Skipped in check mode']) }}
+      {{ 'Errors: ' + (cert_sync_result.stderr_lines | join(', ')) if cert_sync_result.stderr_lines | default([]) | length > 0 else '' }}
+  when: cert_sync_result is defined
 
 # Health check - quick validation, non-blocking
 - name: Wait for mailcow nginx to be ready
