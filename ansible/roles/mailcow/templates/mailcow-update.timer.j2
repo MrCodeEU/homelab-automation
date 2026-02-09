@@ -1,0 +1,11 @@
+# Managed by Ansible - do not edit manually
+[Unit]
+Description=Weekly mailcow update check
+
+[Timer]
+OnCalendar=Sun *-*-* 04:00:00
+RandomizedDelaySec=3600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

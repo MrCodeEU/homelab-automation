@@ -1,0 +1,18 @@
+#!/bin/bash
+# Automated mailcow update using the official update.sh script
+# Managed by Ansible - do not edit manually
+
+set -euo pipefail
+
+MAILCOW_DIR="{{ mailcow_install_path }}"
+
+cd "$MAILCOW_DIR"
+
+# Check if updates are available (exit 0 = updates available, 3 = up to date)
+if ./update.sh --check 2>/dev/null; then
+    echo "Updates available, running update..."
+    ./update.sh --force
+    echo "Mailcow update complete"
+else
+    echo "Mailcow is already up to date"
+fi
