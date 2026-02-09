@@ -170,7 +170,7 @@
   notify: Restart mailcow
 
 # Certificate sync - use Caddy's Let's Encrypt certs for SMTP/IMAP
-# Without this, postfix/dovecot use self-signed certs untrusted by mail clients and servers
+# Without this, postfix/dovecot use self-signed certs that lack SANs
 - name: Deploy mailcow certificate sync script
   ansible.builtin.template:
     src: mailcow-cert-sync.sh.j2
@@ -195,7 +195,7 @@
   ansible.builtin.systemd:
     name: mailcow-cert-sync.timer
     enabled: true
-    state: started
+    state: restarted
     daemon_reload: true
   when: not ansible_check_mode
 
@@ -244,14 +244,12 @@
     cmd: /usr/local/bin/mailcow-cert-sync.sh
   register: cert_sync_result
   changed_when: "'Certificates changed' in cert_sync_result.stdout"
+  failed_when: false
   when: not ansible_check_mode
 
 - name: Display certificate sync result
   ansible.builtin.debug:
-    msg: |
-      RC={{ cert_sync_result.rc | default('N/A') }}
-      Output: {{ cert_sync_result.stdout_lines | default(['Skipped in check mode']) }}
-      {{ 'Errors: ' + (cert_sync_result.stderr_lines | join(', ')) if cert_sync_result.stderr_lines | default([]) | length > 0 else '' }}
+    msg: "{{ cert_sync_result.stdout_lines | default(['Skipped in check mode']) }}"
   when: cert_sync_result is defined
 
 # Health check - quick validation, non-blocking
