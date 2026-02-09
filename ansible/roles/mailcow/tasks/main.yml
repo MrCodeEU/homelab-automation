@@ -199,6 +199,35 @@
     daemon_reload: true
   when: not ansible_check_mode
 
+# Automated weekly updates using mailcow's official update.sh
+- name: Deploy mailcow update script
+  ansible.builtin.template:
+    src: mailcow-update.sh.j2
+    dest: /usr/local/bin/mailcow-update.sh
+    mode: '0755'
+
+- name: Deploy mailcow update systemd service
+  ansible.builtin.template:
+    src: mailcow-update.service.j2
+    dest: /etc/systemd/system/mailcow-update.service
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Deploy mailcow update systemd timer
+  ansible.builtin.template:
+    src: mailcow-update.timer.j2
+    dest: /etc/systemd/system/mailcow-update.timer
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Enable mailcow update timer
+  ansible.builtin.systemd:
+    name: mailcow-update.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
+
 # Pull Docker images
 - name: Pull mailcow Docker images
   ansible.builtin.command:

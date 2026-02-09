@@ -1,0 +1,11 @@
+# Managed by Ansible - do not edit manually
+[Unit]
+Description=Automated mailcow update
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory={{ mailcow_install_path }}
+ExecStart=/usr/local/bin/mailcow-update.sh
+TimeoutStartSec=1800
