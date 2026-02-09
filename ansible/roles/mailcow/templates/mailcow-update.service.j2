@@ -9,3 +9,6 @@ Type=oneshot
 WorkingDirectory={{ mailcow_install_path }}
 ExecStart=/usr/local/bin/mailcow-update.sh
 TimeoutStartSec=1800
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mailcow-update
