@@ -232,6 +232,17 @@
     daemon_reload: true
   when: not ansible_check_mode
 
+- name: Login to Docker Hub (avoid rate limits during update)
+  community.docker.docker_login:
+    username: "{{ secrets.dockerhub.username }}"
+    password: "{{ secrets.dockerhub.password }}"
+  when:
+    - not ansible_check_mode
+    - secrets.dockerhub.username | default('') | length > 0
+    - secrets.dockerhub.password | default('') | length > 0
+  no_log: true
+  failed_when: false
+
 - name: Check for mailcow updates
   ansible.builtin.command:
     cmd: ./update.sh --check

@@ -107,6 +107,8 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_PIPELINING: "True"
           ANSIBLE_STRATEGY: "mitogen_linear"
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
           LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
           LINK_UP_PASSWORD: ${{ secrets.LINK_UP_PASSWORD }}
@@ -187,6 +189,8 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_PIPELINING: "True"
           ANSIBLE_STRATEGY: "mitogen_linear"
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           GITHUB_USERNAME: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
         run: |
