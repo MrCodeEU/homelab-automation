@@ -218,6 +218,9 @@ jobs:
           ANSIBLE_SSH_PIPELINING: "True"
           # Mitogen strategy plugin path
           ANSIBLE_STRATEGY_PLUGINS: "${{ env.MITOGEN_STRATEGY_PATH }}"
+          # Docker Hub (avoid rate limits)
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           # Secrets
           NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
           LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
