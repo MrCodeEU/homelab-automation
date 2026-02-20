@@ -119,6 +119,15 @@ services:
     icon: "mdi:chart-line"
     # Note: Beszel has built-in authentication, don't use caddy_auth
 
+  - name: pocketbase
+    enabled: true
+    domain: "base.mljr.eu"
+    port: 8091
+    host: mljr
+    description: "PocketBase Backend"
+    icon: "mdi:database"
+    backup_critical: true
+
   # Notifications
   - name: ntfy
     enabled: true
