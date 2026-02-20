@@ -202,6 +202,8 @@
       {%- for service in (services | default([])) -%}
         {%- if service.enabled | default(true) and service.domain is defined -%}
           {%- set _ = files.append(service.name) -%}
+          {# Also pre-create staging logs to ensure Caddy can start even if directory permissions are tight #}
+          {%- set _ = files.append(service.name ~ '-staging') -%}
         {%- endif -%}
       {%- endfor -%}
       {{ files }}
