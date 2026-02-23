@@ -361,6 +361,13 @@ services:
     description: "Music Assistant Server"
     icon: "mdi:music"
 
+  - name: ytdlp-pot-provider
+    enabled: true
+    port: 4416
+    host: nuc
+    description: "YouTube PO Token provider for yt-dlp / Music Assistant"
+    icon: "mdi:youtube"
+
   # Monitoring Host
   - name: grafana
     enabled: true
