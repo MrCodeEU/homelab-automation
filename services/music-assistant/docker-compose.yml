@@ -1,0 +1,27 @@
+services:
+  music-assistant:
+    image: ghcr.io/music-assistant/server:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-music-assistant}
+    restart: unless-stopped
+    # Host network mode is mandatory for mDNS/uPnP player discovery and audio streaming
+    network_mode: host
+    volumes:
+      - music-assistant-data:/data
+    # Required for SMB/NFS share mounting within the container
+    cap_add:
+      - SYS_ADMIN
+      - DAC_READ_SEARCH
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      TZ: ${TZ:-Europe/Vienna}
+      LOG_LEVEL: info
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  music-assistant-data:
+    driver: local

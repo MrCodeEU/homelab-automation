@@ -353,6 +353,14 @@ services:
     description: "Homey Self-Hosted Server"
     icon: "mdi:home-automation"
 
+  - name: music-assistant
+    enabled: true
+    domain: "music.mljr.eu"
+    port: 8095
+    host: nuc
+    description: "Music Assistant Server"
+    icon: "mdi:music"
+
   # Monitoring Host
   - name: grafana
     enabled: true
