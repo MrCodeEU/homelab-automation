@@ -99,6 +99,14 @@
       {{ host_services | map(attribute='name') | join(', ') if host_services | length > 0 else 'none' }}
 
 # ============================================================================
+# Cleanup (Remove services no longer assigned to this host)
+# ============================================================================
+
+- name: Cleanup orphaned services
+  ansible.builtin.include_tasks: cleanup_orphaned.yml
+  when: cleanup_enabled | default(false) | bool
+
+# ============================================================================
 # Production Deployment
 # ============================================================================
 
