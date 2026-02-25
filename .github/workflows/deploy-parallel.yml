@@ -17,6 +17,11 @@ on:
         required: false
         default: true
         type: boolean
+      cleanup:
+        description: 'Remove services no longer assigned to their host (use after host migrations)'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: deploy-parallel-${{ github.ref }}
@@ -203,18 +208,81 @@ jobs:
             --tags "$TAGS" \
             --extra-vars "is_staging_deployment=true"
 
+  # Cleanup orphaned services - runs AFTER both hosts are deployed to avoid downtime
+  # Only triggered when cleanup=true is passed; safe to run since new host is already up
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: [validate, detect-changes, deploy-mljr, deploy-nuc-staging]
+    if: |
+      always() &&
+      inputs.cleanup == true &&
+      needs.deploy-mljr.result == 'success' &&
+      (needs.deploy-nuc-staging.result == 'success' || needs.deploy-nuc-staging.result == 'skipped')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Install Ansible with Mitogen
+        run: |
+          pipx install ansible-core
+          pipx inject ansible-core docker mitogen ansible-mitogen
+
+      - name: Install collections
+        run: |
+          cd ansible
+          if ansible-galaxy collection install -r requirements.yml --force-with-deps 2>&1; then
+            echo "Collections installed from Ansible Galaxy"
+          else
+            echo 'collections:' > requirements-fallback.yml
+            echo '  - name: https://github.com/ansible-collections/community.docker.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: main' >> requirements-fallback.yml
+            echo '  - name: https://github.com/ansible-collections/community.general.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: main' >> requirements-fallback.yml
+            echo '  - name: https://github.com/ansible-collections/ansible.posix.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: main' >> requirements-fallback.yml
+            echo '  - name: https://github.com/ansible-collections/community.library_inventory_filtering.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: stable-1' >> requirements-fallback.yml
+            ansible-galaxy collection install -r requirements-fallback.yml --no-deps --force 2>&1 || exit 1
+          fi
+
+      - name: Cleanup orphaned services on all hosts
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "False"
+          ANSIBLE_PIPELINING: "True"
+          ANSIBLE_STRATEGY: "mitogen_linear"
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          cd ansible
+          echo "Removing orphaned services (services no longer assigned to each host)"
+          ansible-playbook playbooks/site.yml \
+            --limit all \
+            --tags services \
+            --extra-vars "is_staging_deployment=false cleanup_enabled=true"
+
   # Summary
   deployment-summary:
     runs-on: ubuntu-latest
-    needs: [deploy-mljr, deploy-nuc-staging]
+    needs: [deploy-mljr, deploy-nuc-staging, cleanup]
     if: always()
     steps:
       - name: Create summary
         run: |
-          echo "## 🚀 Parallel Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Parallel Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**mljr (production):** ${{ needs.deploy-mljr.result == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
-          echo "**nuc (staging):** ${{ needs.deploy-nuc-staging.result == 'success' && '✅ Success' || (needs.deploy-nuc-staging.result == 'skipped' && '⏭️ Skipped' || '❌ Failed') }}" >> $GITHUB_STEP_SUMMARY
+          echo "**mljr (production):** ${{ needs.deploy-mljr.result == 'success' && 'Success' || 'Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**nuc (staging):** ${{ needs.deploy-nuc-staging.result == 'success' && 'Success' || (needs.deploy-nuc-staging.result == 'skipped' && 'Skipped' || 'Failed') }}" >> $GITHUB_STEP_SUMMARY
+          echo "**cleanup:** ${{ needs.cleanup.result == 'success' && 'Success' || (needs.cleanup.result == 'skipped' && 'Skipped' || 'Failed') }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Tags:** \`${{ inputs.tags }}\`" >> $GITHUB_STEP_SUMMARY
           

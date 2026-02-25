@@ -20,6 +20,11 @@ on:
         required: false
         default: true
         type: boolean
+      cleanup:
+        description: 'Remove services no longer assigned to their host (use after host migrations)'
+        required: false
+        default: false
+        type: boolean
 
   # Automatic deploy on main branch
   push:
@@ -287,7 +292,13 @@ jobs:
           DISPATCH_SERVICE="${{ steps.env.outputs.dispatch_service }}"
           if [ -n "$DISPATCH_SERVICE" ]; then
             EXTRA_VARS="$EXTRA_VARS changed_services=$DISPATCH_SERVICE"
-            echo "🎯 Deploying specific service: $DISPATCH_SERVICE"
+            echo "Deploying specific service: $DISPATCH_SERVICE"
+          fi
+
+          # Enable cleanup when explicitly requested (use after host migrations)
+          if [ "${{ inputs.cleanup }}" == "true" ]; then
+            EXTRA_VARS="$EXTRA_VARS cleanup_enabled=true"
+            echo "Cleanup enabled: orphaned services will be removed"
           fi
 
           # Check mode for non-main branches (dry run)

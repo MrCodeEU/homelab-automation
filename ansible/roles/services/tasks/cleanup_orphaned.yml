@@ -1,0 +1,116 @@
+---
+# Cleanup Orphaned Services
+# Detects and removes Docker Compose services no longer assigned to this host.
+# Only considers directories that contain a docker-compose.yml (managed services).
+# Runs orphan detection even in check mode to preview what would be removed.
+
+- name: Verify base_path exists and is accessible
+  ansible.builtin.stat:
+    path: "{{ base_path }}"
+  register: base_path_stat
+
+- name: Abort cleanup if base_path is invalid
+  ansible.builtin.fail:
+    msg: >-
+      CLEANUP ABORTED: base_path '{{ base_path }}' does not exist or is not a
+      directory. Cannot safely detect orphaned services.
+      Resolve the path or set cleanup_enabled=false to skip cleanup.
+  when: not base_path_stat.stat.exists or not base_path_stat.stat.isdir
+
+- name: Find docker-compose.yml files under base_path
+  ansible.builtin.find:
+    paths: "{{ base_path }}"
+    patterns: "docker-compose.yml"
+    file_type: file
+    recurse: yes
+  register: compose_files_found
+
+- name: Identify orphaned services
+  ansible.builtin.set_fact:
+    orphaned_services: >-
+      {%- set orphaned = [] -%}
+      {%- set host_service_names = [] -%}
+      {%- for svc in services -%}
+        {%- if svc.host == inventory_hostname
+            and svc.enabled | default(true)
+            and not svc.skip_deploy | default(false) -%}
+          {%- set _ = host_service_names.append(svc.name) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- for compose in compose_files_found.files -%}
+        {%- set dir_path = compose.path | dirname -%}
+        {%- set dir_name = dir_path | basename -%}
+        {# Only consider direct children of base_path to avoid staging/nested paths #}
+        {%- if dir_path | dirname == base_path and dir_name not in host_service_names -%}
+          {%- set _ = orphaned.append({'name': dir_name, 'path': dir_path}) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ orphaned }}
+
+- name: Preview orphaned services detected
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'DRY RUN - would remove' if ansible_check_mode else 'CLEANUP - will remove' }}
+      {{ orphaned_services | length }} orphaned service(s):
+      {{ orphaned_services | map(attribute='name') | join(', ') }}
+      Paths: {{ orphaned_services | map(attribute='path') | join(', ') }}
+  when: orphaned_services | length > 0
+
+- name: No orphaned services found
+  ansible.builtin.debug:
+    msg: "CLEANUP: No orphaned services detected on {{ inventory_hostname }}"
+  when: orphaned_services | length == 0
+
+- name: Remove orphaned services
+  when:
+    - not ansible_check_mode
+    - orphaned_services | length > 0
+  block:
+    - name: Stop orphaned containers
+      community.docker.docker_compose_v2:
+        project_src: "{{ item.path }}"
+        state: absent
+        remove_orphans: true
+      loop: "{{ orphaned_services }}"
+      loop_control:
+        label: "{{ item.name }}"
+      ignore_errors: true
+      register: stop_result
+
+    - name: Report container stop results
+      ansible.builtin.debug:
+        msg: >-
+          CLEANUP STOP {{ item.item.name }}:
+          {{ 'stopped successfully' if not item.failed | default(false)
+             else 'FAILED - directory will NOT be deleted. Investigate with: docker compose -p '
+               ~ item.item.name ~ ' ps' }}
+      loop: "{{ stop_result.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+    - name: Identify services safe to remove
+      ansible.builtin.set_fact:
+        safely_removable: >-
+          {%- set safe = [] -%}
+          {%- for result in stop_result.results | default([]) -%}
+            {%- if not result.failed | default(false) -%}
+              {%- set _ = safe.append(result.item) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ safe }}
+
+    - name: Remove orphaned service directories
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ safely_removable }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Report cleanup summary
+      ansible.builtin.debug:
+        msg: >-
+          CLEANUP SUMMARY: Removed {{ safely_removable | length }} of
+          {{ orphaned_services | length }} orphaned service(s).
+          {{ (orphaned_services | length - safely_removable | length) ~ ' service(s) could not be stopped and were skipped.'
+             if orphaned_services | length > safely_removable | length else '' }}

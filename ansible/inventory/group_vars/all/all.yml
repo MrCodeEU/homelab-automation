@@ -96,7 +96,7 @@ services:
       - "nightscout.mljr.eu"
       - "ns.mljr.eu"
     port: 1337
-    host: mljr
+    host: nuc
     description: "CGM Monitor"
     icon: "mdi:diabetes"
     backup_critical: true  # Restore on fresh install
@@ -105,7 +105,7 @@ services:
     enabled: true
     domain: "uptime.mljr.eu"
     port: 3001
-    host: mljr
+    host: nuc
     description: "Uptime Monitoring"
     icon: "mdi:heart-pulse"
     backup_critical: true  # Restore on fresh install
@@ -114,7 +114,7 @@ services:
     enabled: true
     domain: "monitor.mljr.eu"
     port: 8090
-    host: mljr
+    host: nuc
     description: "System Monitoring"
     icon: "mdi:chart-line"
     # Note: Beszel has built-in authentication, don't use caddy_auth
@@ -123,7 +123,7 @@ services:
     enabled: true
     domain: "base.mljr.eu"
     port: 8091
-    host: mljr
+    host: nuc
     description: "PocketBase Backend"
     icon: "mdi:database"
     backup_critical: true
@@ -162,7 +162,7 @@ services:
     enabled: true
     domain: "mail-archive.mljr.eu"
     port: 15630
-    host: mljr
+    host: nuc
     description: "Email Archiver"
     icon: "mdi:email"
 
