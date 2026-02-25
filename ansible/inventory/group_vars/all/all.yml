@@ -150,10 +150,10 @@ services:
   # External Services (proxy only)
   - name: homeassistant
     enabled: true
-    managed: false
+    managed: true
     domain: "home.mljr.eu"
     port: 8123
-    host: pi
+    host: nuc
     description: "Home Automation"
     icon: "mdi:home-assistant"
 
@@ -278,6 +278,7 @@ services:
     host: nas
     description: "File Sync"
     icon: "mdi:sync"
+    https_backend: true  # Syncthing uses self-signed HTTPS
 
   - name: filebrowser
     enabled: true
@@ -337,7 +338,7 @@ services:
     requires_sysctl: "vm.max_map_count=262144"
 
   - name: jenkins
-    enabled: true
+    enabled: false
     managed: false  # Will change to true when NUC runs Rocky
     domain: "jenkins.mljr.eu"
     port: 6857
@@ -387,6 +388,7 @@ services:
     host: nuc
     description: "NUC WebUI provided by Rocky"
     icon: "mdi:monitor-dashboard"
+    https_backend: true  # Rocky Cockpit serves HTTPS on port 9090
 
 
   # Tempalet for future services
