@@ -29,19 +29,23 @@
   ansible.builtin.set_fact:
     orphaned_services: >-
       {%- set orphaned = [] -%}
+      {%- set all_service_names = [] -%}
       {%- set host_service_names = [] -%}
       {%- for svc in services -%}
-        {%- if svc.host == inventory_hostname
-            and svc.enabled | default(true)
-            and not svc.skip_deploy | default(false) -%}
+        {%- set _ = all_service_names.append(svc.name) -%}
+        {%- if svc.host == inventory_hostname and svc.enabled | default(true) -%}
           {%- set _ = host_service_names.append(svc.name) -%}
         {%- endif -%}
       {%- endfor -%}
       {%- for compose in compose_files_found.files -%}
         {%- set dir_path = compose.path | dirname -%}
         {%- set dir_name = dir_path | basename -%}
-        {# Only consider direct children of base_path to avoid staging/nested paths #}
-        {%- if dir_path | dirname == base_path and dir_name not in host_service_names -%}
+        {# Only direct children of base_path, and only if the dir name matches a known service.
+           This prevents touching skip_deploy service dirs whose dir name differs from service
+           name (e.g. mailcow-dockerized vs mailcow). #}
+        {%- if dir_path | dirname == base_path
+            and dir_name in all_service_names
+            and dir_name not in host_service_names -%}
           {%- set _ = orphaned.append({'name': dir_name, 'path': dir_path}) -%}
         {%- endif -%}
       {%- endfor -%}
