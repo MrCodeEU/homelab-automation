@@ -106,7 +106,7 @@ deploy.{{ domain }} {
         }
     }
 {% if service.name == 'goaccess' %}
-    # WebSocket support for GoAccess real-time updates
+    # WebSocket requests go directly to GoAccess real-time server (no auth needed for WS)
     @websocket {
         header Connection *Upgrade*
         header Upgrade websocket
@@ -114,24 +114,25 @@ deploy.{{ domain }} {
     handle @websocket {
         reverse_proxy {{ target_host }}:{{ target_port }}
     }
+    # HTTP requests serve the static HTML report via nginx (port {{ target_port | int + 1 }})
 {% if auth_type == 'basicauth' %}
     handle {
 {{ basicauth_block() }}
-        reverse_proxy {{ target_host }}:{{ target_port }}
+        reverse_proxy {{ target_host }}:{{ target_port | int + 1 }}
     }
 {% elif auth_type == 'authelia' %}
 {{ authelia_auth() }}
     handle {
-        reverse_proxy {{ target_host }}:{{ target_port }}
+        reverse_proxy {{ target_host }}:{{ target_port | int + 1 }}
     }
 {% elif auth_type == 'keycloak' %}
 {{ keycloak_auth() }}
     handle {
-        reverse_proxy {{ target_host }}:{{ target_port }}
+        reverse_proxy {{ target_host }}:{{ target_port | int + 1 }}
     }
 {% else %}
     handle {
-        reverse_proxy {{ target_host }}:{{ target_port }}
+        reverse_proxy {{ target_host }}:{{ target_port | int + 1 }}
     }
 {% endif %}
 {% else %}
