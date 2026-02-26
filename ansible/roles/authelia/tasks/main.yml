@@ -5,6 +5,29 @@
     state: directory
     mode: '0755'
 
+- name: Ensure db.sqlite3 exists as a file (prevents Docker from creating it as a directory)
+  ansible.builtin.file:
+    path: "{{ authelia_config_path }}/db.sqlite3"
+    state: touch
+    mode: '0600'
+    modification_time: preserve
+    access_time: preserve
+
+- name: Generate Authelia admin password hash
+  ansible.builtin.shell:
+    cmd: >
+      docker run --rm authelia/authelia:latest
+      authelia crypto hash generate argon2 --password "{{ secrets.authelia.admin_password }}"
+      | grep 'Digest:' | awk '{print $2}'
+  register: authelia_hash_result
+  changed_when: false
+  no_log: true
+
+- name: Set password hash fact
+  ansible.builtin.set_fact:
+    authelia_admin_password_hash: "{{ authelia_hash_result.stdout | trim }}"
+  no_log: true
+
 - name: Copy Authelia configuration
   template:
     src: configuration.yml.j2

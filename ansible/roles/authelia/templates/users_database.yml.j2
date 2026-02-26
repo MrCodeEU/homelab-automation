@@ -1,15 +1,14 @@
 users:
   admin:
     displayname: Admin
-    # Password set via vault
-    password: "{{ secrets.authelia.admin_password }}"
+    password: "{{ authelia_admin_password_hash }}"
     email: "{{ email }}"
     groups:
       - admins
       - dev
   mrcode:
     displayname: mrcode
-    password: "{{ secrets.authelia.admin_password }}"
+    password: "{{ authelia_admin_password_hash }}"
     email: "{{ email }}"
     groups:
       - admins
