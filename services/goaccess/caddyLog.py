@@ -14,7 +14,7 @@ below
 
 *********************************************************************************** """
 
-import sys, signal, getopt, socket, json
+import sys, signal, getopt, socket, json, os
 from datetime import datetime
 from time import sleep
 
@@ -74,47 +74,65 @@ def main():
 
     if (inputJSONfilename):
         try:
-            with open(outputGoAccessFilename, 'w') as g:
-                totalLogCount = 0
-                try:
-                    with open(inputJSONfilename) as j:
-                        print('{} - processing JSON input file: {}'.format(datetime.now(), inputJSONfilename))
-                        batchLogCount = 0
-                        while True:
-                            line = j.readline()
-                            if (line != ""):
-                                try:
-                                    JSONdata = json.loads(line)
-                                    goAccessData = convertJSONtoGoAccess(JSONdata)
-                                    g.write(goAccessData+'\n')
-                                    totalLogCount += 1
-                                    batchLogCount += 1
-                                except json.JSONDecodeError:
-                                    continue
-                                except Exception as e:
-                                    print(f"Error processing line: {e}")
-                                    continue
-                            elif (timeInterval > 0):
-                                g.flush()
-                                if (batchLogCount):
-                                    print('{} - {} log entries written to {}'.format(datetime.now(), str(batchLogCount), outputGoAccessFilename))
-                                    batchLogCount = 0
-                                print('{} - sleeping for {} seconds before checking for additional log entries'.format(datetime.now(), str(timeInterval)))
-                                sleep(timeInterval)
-                            elif (timeInterval == 0):
-                                print('{} - TOTAL: {} log entries written to {}'.format(datetime.now(), str(totalLogCount), outputGoAccessFilename))
-                                print()
-                                batchLogCount = 0
-                                g.flush()
-                                break
-                except FileNotFoundError:
-                    print()
-                    print('{} - ERROR: Input file "{}" not found'.format(datetime.now(), inputJSONfilename))
-                    sys.exit(2)
+            g = open(outputGoAccessFilename, 'w')
         except IOError:
             print()
             print('{} - ERROR: Output file "{}" error'.format(datetime.now(), outputGoAccessFilename))
             sys.exit(2)
+
+        try:
+            j = open(inputJSONfilename)
+        except FileNotFoundError:
+            print()
+            print('{} - ERROR: Input file "{}" not found'.format(datetime.now(), inputJSONfilename))
+            g.close()
+            sys.exit(2)
+
+        print('{} - processing JSON input file: {}'.format(datetime.now(), inputJSONfilename))
+        totalLogCount = 0
+        batchLogCount = 0
+        current_inode = os.fstat(j.fileno()).st_ino
+        try:
+            while True:
+                line = j.readline()
+                if (line != ""):
+                    try:
+                        JSONdata = json.loads(line)
+                        goAccessData = convertJSONtoGoAccess(JSONdata)
+                        g.write(goAccessData+'\n')
+                        totalLogCount += 1
+                        batchLogCount += 1
+                    except json.JSONDecodeError:
+                        continue
+                    except Exception as e:
+                        print(f"Error processing line: {e}")
+                        continue
+                elif (timeInterval > 0):
+                    g.flush()
+                    if (batchLogCount):
+                        print('{} - {} log entries written to {}'.format(datetime.now(), str(batchLogCount), outputGoAccessFilename))
+                        batchLogCount = 0
+                    # Detect log rotation: if the file at the path has a different
+                    # inode, the log was rotated — reopen the new file.
+                    try:
+                        if os.stat(inputJSONfilename).st_ino != current_inode:
+                            print('{} - log rotation detected, reopening {}'.format(datetime.now(), inputJSONfilename))
+                            j.close()
+                            j = open(inputJSONfilename)
+                            current_inode = os.fstat(j.fileno()).st_ino
+                            continue
+                    except FileNotFoundError:
+                        pass
+                    print('{} - sleeping for {} seconds before checking for additional log entries'.format(datetime.now(), str(timeInterval)))
+                    sleep(timeInterval)
+                elif (timeInterval == 0):
+                    print('{} - TOTAL: {} log entries written to {}'.format(datetime.now(), str(totalLogCount), outputGoAccessFilename))
+                    print()
+                    g.flush()
+                    break
+        finally:
+            j.close()
+            g.close()
 
 def signal_handler(signal, frame):
     print()

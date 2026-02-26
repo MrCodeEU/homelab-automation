@@ -11,9 +11,15 @@ services:
       - goaccess-data:/goaccess:rw
       - ./caddyLog.py:/app/caddyLog.py:ro
     working_dir: /app
-    # Create the output file if it doesn't exist, then run the converter
+    # On startup: process all rotated access logs (oldest first) for full history,
+    # then follow the current access.log for real-time updates.
     command: >
       sh -c "touch /goaccess/access.goaccess.log &&
+             echo 'Processing historical rotated logs...' &&
+             for f in $$(ls /logs/access-*.log 2>/dev/null | sort); do
+               python3 caddyLog.py -i \"$$f\" -t 0 -g /goaccess/access.goaccess.log || true;
+             done &&
+             echo 'Following current access.log for real-time updates...' &&
              python3 caddyLog.py -i /logs/access.log -t 10 -g /goaccess/access.goaccess.log"
     healthcheck:
       test: ["CMD", "test", "-f", "/goaccess/access.goaccess.log"]
@@ -22,7 +28,17 @@ services:
       retries: 3
       start_period: 30s
 
-  # GoAccess reads the converted log file
+  # Nginx serves the static GoAccess HTML report on port 7891
+  html-server:
+    image: nginx:alpine
+    container_name: goaccess-html
+    restart: unless-stopped
+    volumes:
+      - goaccess-report:/usr/share/nginx/html:ro
+    ports:
+      - "127.0.0.1:7891:80"
+
+  # GoAccess reads the converted log file and serves WebSocket for real-time updates
   goaccess:
     image: allinurl/goaccess:latest
     container_name: goaccess
