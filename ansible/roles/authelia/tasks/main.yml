@@ -40,7 +40,6 @@
     src: users_database.yml.j2
     dest: "{{ authelia_config_path }}/users_database.yml"
     mode: '0600'
-    force: no
   notify: Restart Authelia
 
 - name: Create Authelia Docker Compose file
