@@ -13,5 +13,5 @@ services:
       - .env
     volumes:
       - ./data:/data
-
-
+    dns:
+      - 8.8.8.8
