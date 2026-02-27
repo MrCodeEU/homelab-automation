@@ -391,7 +391,40 @@ services:
     https_backend: true  # Rocky Cockpit serves HTTPS on port 9090
 
 
-  # Tempalet for future services
+  # Personal Projects
+  - name: wordwiz
+    enabled: true
+    domain: "wordwiz.mljr.eu"
+    port: 3601
+    host: nuc
+    description: "Word Wizard App"
+    icon: "mdi:alphabetical-variant"
+
+  - name: sudoku
+    enabled: true
+    domain: "sudoku.mljr.eu"
+    port: 3602
+    host: nuc
+    description: "Sudoku Generator"
+    icon: "mdi:grid"
+
+  - name: gameoflife
+    enabled: true
+    domain: "gameoflife.mljr.eu"
+    port: 3603
+    host: nuc
+    description: "Game of Life (Kotlin/WASM)"
+    icon: "mdi:grain"
+
+  - name: cglab
+    enabled: true
+    domain: "cglab.mljr.eu"
+    port: 3604
+    host: nuc
+    description: "CG Lab WebGL Project"
+    icon: "mdi:cube-outline"
+
+  # Template for future services
   - name: template
     enabled: true
     domain: "template.mljr.eu"

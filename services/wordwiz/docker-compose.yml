@@ -1,0 +1,7 @@
+services:
+  wordwiz:
+    image: ghcr.io/mrcodeeU/wordwiz:latest
+    container_name: wordwiz
+    restart: unless-stopped
+    ports:
+      - "3601:3000"
