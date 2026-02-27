@@ -1,0 +1,7 @@
+services:
+  gameoflife:
+    image: ghcr.io/mrcodeeU/game-of-life-multiplatform:latest
+    container_name: gameoflife
+    restart: unless-stopped
+    ports:
+      - "3603:80"
