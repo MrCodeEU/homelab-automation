@@ -1,6 +1,6 @@
 services:
   sudoku:
-    image: ghcr.io/mrcodeeU/sudoku-gen:latest
+    image: ghcr.io/mrcodeeu/sudoku-gen:latest
     container_name: sudoku
     restart: unless-stopped
     ports:

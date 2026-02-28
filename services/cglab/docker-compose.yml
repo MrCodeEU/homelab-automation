@@ -1,6 +1,6 @@
 services:
   cglab:
-    image: ghcr.io/mrcodeeU/cg-lab-2023-project-reineggersilber:latest
+    image: ghcr.io/mrcodeeu/cg-lab-2023-project-reineggersilber:latest
     container_name: cglab
     restart: unless-stopped
     ports:
