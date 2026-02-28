@@ -4,7 +4,7 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-homepage}
     restart: unless-stopped
     ports:
-      - "8082:8080"
+      - "8082:80"
     environment:
       - GITHUB_USERNAME=${GITHUB_USERNAME}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
