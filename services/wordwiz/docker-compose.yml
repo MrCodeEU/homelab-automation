@@ -1,6 +1,6 @@
 services:
   wordwiz:
-    image: ghcr.io/mrcodeeU/wordwiz:latest
+    image: ghcr.io/mrcodeeu/wordwiz:latest
     container_name: wordwiz
     restart: unless-stopped
     ports:

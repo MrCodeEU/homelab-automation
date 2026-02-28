@@ -1,6 +1,6 @@
 services:
   gameoflife:
-    image: ghcr.io/mrcodeeU/game-of-life-multiplatform:latest
+    image: ghcr.io/mrcodeeu/game-of-life-multiplatform:latest
     container_name: gameoflife
     restart: unless-stopped
     ports:
