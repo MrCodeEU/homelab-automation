@@ -5,3 +5,9 @@ services:
     restart: unless-stopped
     ports:
       - "3602:3000"
+    volumes:
+      - sudoku-data:/data
+
+volumes:
+  sudoku-data:
+    driver: local
