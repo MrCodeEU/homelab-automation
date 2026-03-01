@@ -5,6 +5,9 @@ services:
     restart: unless-stopped
     ports:
       - "3602:3000"
+    environment:
+      - SUDOKU_API_USER=${SUDOKU_API_USER}
+      - SUDOKU_API_PASSWORD=${SUDOKU_API_PASSWORD}
     volumes:
       - sudoku-data:/data
 
