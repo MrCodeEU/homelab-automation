@@ -277,7 +277,7 @@
   when:
     - not ansible_check_mode
     - fail_on_hook_error | default(false)
-    - item.name in critical_hook_services | default(['keycloak'])
+    - item.name in critical_hook_services | default([])
 
 # ============================================================================
 # Staging Deployment (only on staging_host when is_staging_deployment is true)

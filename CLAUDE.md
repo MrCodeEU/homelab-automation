@@ -114,7 +114,7 @@ services:
     domain: "nightscout.mljr.eu"  # Can be string or list
     port: 1337                    # Required for managed services (use 0 for no web UI)
     host: mljr                    # Must match inventory hostname
-    caddy_auth: "basicauth"       # "basicauth", "authelia", or "keycloak" (deprecated) for SSO
+    caddy_auth: "basicauth"       # "basicauth" or "authelia" (SSO)
     managed: false                # External service (proxy only, no docker-compose)
     skip_deploy: true             # Uses dedicated role instead of services role
     backup_critical: true         # Restore on fresh install
@@ -123,13 +123,12 @@ services:
 
 ### Authentication
 
-Three authentication methods are available via `caddy_auth`:
+Two authentication methods are available via `caddy_auth`:
 
 | Value | Description |
 |-------|-------------|
 | `basicauth` | Username/password from `CADDY_AUTH_USER` and `CADDY_AUTH_PASSWORD_HASH` |
-| `authelia` | SSO via Authelia (current recommended method) |
-| `keycloak` | SSO via Keycloak + oauth2-proxy (deprecated - replaced by Authelia) |
+| `authelia` | SSO via Authelia (recommended) |
 
 **Authelia SSO Architecture:**
 ```
@@ -153,7 +152,6 @@ services/<name>/hooks/post-deploy.sh
 - Receives `SERVICE_NAME` and `SERVICE_PATH` environment variables
 - `.env` file is sourced before execution
 - Runs asynchronously with 10-minute timeout
-- Used by Keycloak to auto-provision realm, client, and Google IdP
 
 ### Staging Environment
 
@@ -227,7 +225,6 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 | security, fail2ban | Fail2ban (mljr only) |
 | glance | Dashboard |
 | mailcow | Mail server |
-| keycloak | SSO Identity Provider (deprecated - replaced by authelia) |
 | authelia | SSO Identity Provider (mljr only) |
 
 ## Key Services
@@ -241,10 +238,6 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 - **Backend**: Redis for session storage, SQLite for persistent data
 - **Integration**: Services use `caddy_auth: "authelia"` for SSO protection
 - **Protected services**: goaccess, fail2ban-ui, sonarqube, dozzle
-
-### Deprecated Services
-- **Keycloak** (port 9732): Replaced by Authelia, kept for rollback capability
-- **OAuth2-Proxy** (port 4180): No longer needed with Authelia's native forward_auth
 
 ### SonarQube (Code Quality)
 - **Domain**: sonarqube.mljr.eu

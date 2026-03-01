@@ -1,0 +1,69 @@
+---
+# Fast single-service deployment — called by repository_dispatch
+# ============================================================================
+# Skips all infrastructure roles (base, security, backup, glance, mailcow,
+# authelia, beszel, dozzle) and only deploys the specified service + updates
+# its Caddy snippet.
+#
+# Required extra-vars:
+#   target_service  — service name matching the definition in all.yml
+#   service_host    — inventory hostname where the service runs (e.g. nuc, mljr)
+#
+# Optional extra-vars:
+#   is_staging_deployment — deploy staging variant too (default: false)
+#
+# Example:
+#   ansible-playbook playbooks/deploy-service.yml \
+#     -e target_service=nightscout \
+#     -e service_host=nuc
+# ============================================================================
+
+- name: Gather facts
+  hosts: "{{ service_host }},mljr"
+  gather_facts: true
+  gather_subset:
+    - min
+    - network
+
+- name: Deploy service
+  hosts: "{{ service_host }}"
+  become: true
+  gather_facts: false
+  roles:
+    - services
+  vars:
+    changed_services: "{{ target_service }}"
+
+# Update Caddy snippet on mljr (runs directly on mljr so inventory_hostname
+# is 'mljr', which ensures correct is_local/target_host resolution in the template)
+- name: Update Caddy snippet for {{ target_service }}
+  hosts: mljr
+  become: true
+  gather_facts: false
+  vars:
+    service: "{{ services | selectattr('name', 'equalto', target_service) | first }}"
+  tasks:
+    - name: Ensure /etc/caddy/conf.d exists
+      ansible.builtin.file:
+        path: /etc/caddy/conf.d
+        state: directory
+        owner: caddy
+        group: caddy
+        mode: '0755'
+
+    - name: Generate Caddy snippet for {{ target_service }}
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../roles/caddy/templates/service_snippet.caddy.j2"
+        dest: "/etc/caddy/conf.d/{{ target_service }}.caddy"
+        owner: caddy
+        group: caddy
+        mode: '0644'
+      notify: Reload Caddy
+      when: service.domain is defined
+
+  handlers:
+    - name: Reload Caddy
+      ansible.builtin.command: timeout 30 systemctl reload caddy
+      register: caddy_reload_result
+      changed_when: caddy_reload_result.rc == 0
+      failed_when: false
