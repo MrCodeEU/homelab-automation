@@ -312,16 +312,8 @@ jobs:
 
           # Fast path: single-service deploy via repository_dispatch
           if [ -n "$DISPATCH_SERVICE" ]; then
-            # Look up the service host from all.yml
-            SERVICE_HOST=$(python3 -c "
-import yaml, sys
-svcs = yaml.safe_load(open('inventory/group_vars/all/all.yml'))['services']
-match = next((s for s in svcs if s['name'] == '$DISPATCH_SERVICE'), None)
-if match is None:
-    print('nuc', end='')
-    sys.exit(0)
-print(match.get('host', 'nuc'), end='')
-")
+            # Look up the service host from all.yml (single-line to stay in YAML block scalar)
+            SERVICE_HOST=$(python3 -c "import yaml,sys;d=yaml.safe_load(open('inventory/group_vars/all/all.yml'));m=next((s for s in d['services'] if s['name']=='$DISPATCH_SERVICE'),None);print(m.get('host','nuc') if m else 'nuc',end='')")
             echo "🚀 Fast deploy: service=$DISPATCH_SERVICE host=$SERVICE_HOST"
             echo "⚡ Using deploy-service.yml (skips base/security/backup/mailcow/authelia)"
             echo "::group::Ansible Deployment"
