@@ -310,17 +310,40 @@ jobs:
             echo "Running in CHECK MODE (dry run) - no changes will be made"
           fi
 
-          echo "🚀 Running: ansible-playbook site.yml --limit $LIMIT --tags $TAGS --forks 20 $CHECK_FLAG"
-          echo "⚡ Using Mitogen strategy for faster execution"
-          echo "::group::Ansible Deployment"
-          
-          ansible-playbook playbooks/site.yml \
-            --limit "$LIMIT" \
-            --tags "$TAGS" \
-            --forks 20 \
-            $CHECK_FLAG \
-            --extra-vars "$EXTRA_VARS" \
-            2>&1 | tee /tmp/ansible-output.log
+          # Fast path: single-service deploy via repository_dispatch
+          if [ -n "$DISPATCH_SERVICE" ]; then
+            # Look up the service host from all.yml
+            SERVICE_HOST=$(python3 -c "
+import yaml, sys
+svcs = yaml.safe_load(open('inventory/group_vars/all/all.yml'))['services']
+match = next((s for s in svcs if s['name'] == '$DISPATCH_SERVICE'), None)
+if match is None:
+    print('nuc', end='')
+    sys.exit(0)
+print(match.get('host', 'nuc'), end='')
+")
+            echo "🚀 Fast deploy: service=$DISPATCH_SERVICE host=$SERVICE_HOST"
+            echo "⚡ Using deploy-service.yml (skips base/security/backup/mailcow/authelia)"
+            echo "::group::Ansible Deployment"
+
+            ansible-playbook playbooks/deploy-service.yml \
+              --forks 20 \
+              $CHECK_FLAG \
+              --extra-vars "$EXTRA_VARS target_service=$DISPATCH_SERVICE service_host=$SERVICE_HOST" \
+              2>&1 | tee /tmp/ansible-output.log
+          else
+            echo "🚀 Running: ansible-playbook site.yml --limit $LIMIT --tags $TAGS --forks 20 $CHECK_FLAG"
+            echo "⚡ Using Mitogen strategy for faster execution"
+            echo "::group::Ansible Deployment"
+
+            ansible-playbook playbooks/site.yml \
+              --limit "$LIMIT" \
+              --tags "$TAGS" \
+              --forks 20 \
+              $CHECK_FLAG \
+              --extra-vars "$EXTRA_VARS" \
+              2>&1 | tee /tmp/ansible-output.log
+          fi
           
           ANSIBLE_EXIT_CODE=${PIPESTATUS[0]}
           echo "::endgroup::"

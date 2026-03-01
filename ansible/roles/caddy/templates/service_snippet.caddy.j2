@@ -1,0 +1,108 @@
+{% if service.enabled | default(true) and service.domain is defined %}
+{# Determine the upstream target #}
+{% set is_local = service.host == inventory_hostname %}
+{% set target_host = 'localhost' if is_local else hostvars[service.host]['ansible_host'] %}
+{% set target_port = service.port %}
+{% set auth_type = service.caddy_auth | default('') %}
+
+{# Handle single domain or list of domains #}
+{% if service.domain is string %}
+{{ service.domain }} {
+{% else %}
+{{ service.domain | join(', ') }} {
+{% endif %}
+    log {
+        output file {{ log_path }}/caddy/{{ service.name }}.log {
+            roll_disabled
+        }
+    }
+{% if service.name == 'goaccess' %}
+    # WebSocket requests go directly to GoAccess real-time server (no auth needed for WS)
+    @websocket {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    handle @websocket {
+        reverse_proxy {{ target_host }}:{{ target_port }}
+    }
+    # HTTP requests serve the static HTML report via nginx (port {{ target_port | int + 1 }})
+{% if auth_type == 'basicauth' %}
+    handle {
+        import basicauth_block
+        reverse_proxy {{ target_host }}:{{ target_port | int + 1 }}
+    }
+{% elif auth_type == 'authelia' %}
+    import authelia_auth
+    handle {
+        reverse_proxy {{ target_host }}:{{ target_port | int + 1 }}
+    }
+{% else %}
+    handle {
+        reverse_proxy {{ target_host }}:{{ target_port | int + 1 }}
+    }
+{% endif %}
+{% else %}
+{% if auth_type == 'basicauth' %}
+    import basicauth_block
+{% elif auth_type == 'authelia' %}
+    import authelia_auth
+{% endif %}
+
+{% if service.upstream is defined %}
+    reverse_proxy {{ service.upstream }}
+{% elif service.https_backend | default(false) %}
+    reverse_proxy https://{{ target_host }}:{{ target_port }} {
+        transport http {
+            tls_insecure_skip_verify
+        }
+    }
+{% else %}
+    reverse_proxy {{ target_host }}:{{ target_port }}
+{% endif %}
+{% endif %}
+}
+
+{# Staging environment - check if dev/ folder exists #}
+{% set has_dev_folder = lookup('fileglob', playbook_dir ~ '/../../services/' ~ service.name ~ '/dev/docker-compose.yml') %}
+{% if has_dev_folder and is_staging_deployment | default(false) %}
+{% set staging_port = service.port + 10000 %}
+{% set staging_target = hostvars[staging_host]['ansible_host'] %}
+{# Generate staging domain #}
+{% if service.domain is string %}
+{% set parts = service.domain.split('.') %}
+{% if parts | length == 2 %}
+{# Root domain (e.g., mljr.eu) -> dev.mljr.eu #}
+{% set staging_domain = staging_domain_prefix ~ '.' ~ service.domain %}
+{% else %}
+{# Subdomain (e.g., nightscout.mljr.eu) -> nightscout.dev.mljr.eu #}
+{% set staging_domain = parts[0] ~ '.' ~ staging_domain_prefix ~ '.' ~ parts[1:] | join('.') %}
+{% endif %}
+{{ staging_domain }} {
+{% else %}
+{% set staging_domains = [] %}
+{% for d in service.domain %}
+{% set parts = d.split('.') %}
+{% if parts | length == 2 %}
+{# Root domain (e.g., mljr.eu) -> dev.mljr.eu #}
+{% set _ = staging_domains.append(staging_domain_prefix ~ '.' ~ d) %}
+{% else %}
+{# Subdomain (e.g., ns.mljr.eu) -> ns.dev.mljr.eu #}
+{% set _ = staging_domains.append(parts[0] ~ '.' ~ staging_domain_prefix ~ '.' ~ parts[1:] | join('.')) %}
+{% endif %}
+{% endfor %}
+{{ staging_domains | join(', ') }} {
+{% endif %}
+    log {
+        output file {{ log_path }}/caddy/{{ service.name }}-staging.log {
+            roll_disabled
+        }
+    }
+{% if auth_type == 'basicauth' %}
+    import basicauth_block
+{% elif auth_type == 'authelia' %}
+    import authelia_auth
+{% endif %}
+    reverse_proxy {{ staging_target }}:{{ staging_port }}
+}
+{% endif %}
+{% endif %}

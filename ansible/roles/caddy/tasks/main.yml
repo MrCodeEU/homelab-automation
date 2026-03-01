@@ -73,6 +73,7 @@
   loop:
     - "{{ base_path }}/caddy"
     - "{{ base_path }}/caddy/site"
+    - "/etc/caddy/conf.d"
 
 - name: Create Caddy log directory
   ansible.builtin.file:
@@ -195,29 +196,56 @@
           Caddy failed to restart after systemd override change.
           See the systemctl status and journalctl output above for details.
 
-- name: Build list of Caddy log files to pre-create
-  ansible.builtin.set_fact:
-    caddy_log_files: >-
-      {%- set files = ['deploy'] -%}
-      {%- for service in (services | default([])) -%}
-        {%- if service.enabled | default(true) and service.domain is defined -%}
-          {%- set _ = files.append(service.name) -%}
-          {# Also pre-create staging logs to ensure Caddy can start even if directory permissions are tight #}
-          {%- set _ = files.append(service.name ~ '-staging') -%}
-        {%- endif -%}
-      {%- endfor -%}
-      {{ files }}
-
-- name: Pre-create Caddy log files with correct ownership
-  ansible.builtin.file:
-    path: "{{ log_path }}/caddy/{{ item }}.log"
-    state: touch
+- name: Generate shared Caddy snippets (auth macros)
+  ansible.builtin.template:
+    src: snippets.caddy.j2
+    dest: /etc/caddy/conf.d/000-snippets.caddy
     owner: caddy
     group: caddy
-    mode: '0755'
-    modification_time: preserve
-    access_time: preserve
-  loop: "{{ caddy_log_files }}"
+    mode: '0644'
+  notify: Reload Caddy
+
+- name: Build list of enabled service names for Caddy
+  ansible.builtin.set_fact:
+    caddy_service_names: >-
+      {%- set names = [] -%}
+      {%- for service in (services | default([])) -%}
+        {%- if service.enabled | default(true) and service.domain is defined -%}
+          {%- set _ = names.append(service.name) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ names }}
+
+- name: Generate per-service Caddy snippet files
+  ansible.builtin.template:
+    src: service_snippet.caddy.j2
+    dest: "/etc/caddy/conf.d/{{ service.name }}.caddy"
+    owner: caddy
+    group: caddy
+    mode: '0644'
+  loop: "{{ services | default([]) }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}"
+  when: service.enabled | default(true) and service.domain is defined
+  notify: Reload Caddy
+
+- name: Find existing Caddy snippet files
+  ansible.builtin.find:
+    paths: /etc/caddy/conf.d
+    patterns: "*.caddy"
+    excludes: "000-snippets.caddy"
+  register: existing_snippets
+
+- name: Remove orphaned Caddy snippet files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ existing_snippets.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: (item.path | basename | regex_replace('\\.caddy$', '')) not in caddy_service_names
+  notify: Reload Caddy
 
 - name: Generate Caddyfile
   ansible.builtin.template:
@@ -231,7 +259,7 @@
   register: caddyfile_changed
 
 - name: Display Caddyfile preview
-  ansible.builtin.shell: head -100 {{ config_path }}/caddy/Caddyfile
+  ansible.builtin.shell: head -50 {{ config_path }}/caddy/Caddyfile
   register: caddyfile_preview
   changed_when: false
   when: caddyfile_changed is changed

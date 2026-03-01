@@ -37,7 +37,7 @@ staging_host: "nuc"
 #   description     - Human-readable description
 #   icon            - Material Design Icon for dashboard
 #   managed         - If false, only configure Caddy (external service)
-#   caddy_auth      - Authentication method: "basicauth", "authelia" (SSO), or "keycloak" (deprecated SSO)
+#   caddy_auth      - Authentication method: "basicauth" or "authelia" (SSO)
 #   skip_deploy     - Skip generic deployment (uses dedicated role)
 #   backup_critical - If true, restore this service on fresh install
 #   https_backend   - If true, proxy to HTTPS with self-signed cert (e.g., mailcow)
@@ -59,25 +59,6 @@ services:
     icon: "mdi:shield-account"
     skip_deploy: true # Uses dedicated authelia role
     backup_critical: true
-
-  - name: keycloak
-    enabled: false
-    # domain removed - service deprecated, kept for rollback capability
-    port: 9732
-    host: mljr
-    description: "SSO Identity Provider (deprecated - replaced by Authelia)"
-    icon: "mdi:shield-account"
-    backup_critical: true
-    skip_deploy: true  # Uses dedicated keycloak role (deprecated - kept for rollback)
-
-  - name: oauth2-proxy
-    enabled: false
-    port: 4180
-    host: mljr
-    description: "OAuth2 Authentication Proxy (deprecated - replaced by Authelia)"
-    icon: "mdi:key-chain"
-    managed: true
-    # No domain - accessed internally via Caddy forward_auth
 
   # Dashboard
   - name: glance
