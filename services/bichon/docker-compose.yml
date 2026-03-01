@@ -12,6 +12,10 @@ services:
     env_file:
       - .env
     volumes:
-      - ./data:/data
+      - bichon-data:/data
     dns:
       - 8.8.8.8
+
+volumes:
+  bichon-data:
+    driver: local
