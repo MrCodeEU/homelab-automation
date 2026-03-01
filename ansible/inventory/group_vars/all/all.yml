@@ -397,7 +397,7 @@ services:
     icon: "mdi:cube-outline"
 
   # Template for future services
-  - name: template
+  - name: service-template
     enabled: true
     domain: "template.mljr.eu"
     port: 8181
