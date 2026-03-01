@@ -23,7 +23,7 @@ services:
         max-file: "3"
 
   sonarqube:
-    image: mc1arke/sonarqube-with-community-branch-plugin:latest
+    image: mc1arke/sonarqube-with-community-branch-plugin:25.12.0.117093-community
     container_name: ${COMPOSE_PROJECT_NAME:-sonarqube}
     restart: unless-stopped
     depends_on:
