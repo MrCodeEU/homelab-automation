@@ -163,6 +163,20 @@
     - beszel-agent
 
 # ============================================================================
+# iperf3 (all Rocky hosts - network performance testing)
+# ============================================================================
+- name: iperf3 Network Test Server
+  hosts: rocky
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - iperf3
+    - monitoring
+  roles:
+    - iperf3
+
+# ============================================================================
 # Dozzle Agent (mljr only - nuc runs main instance with local docker.sock)
 # ============================================================================
 - name: Dozzle Log Agent
