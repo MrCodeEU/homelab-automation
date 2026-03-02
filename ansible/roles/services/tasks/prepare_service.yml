@@ -55,6 +55,41 @@
   ansible.builtin.debug:
     msg: "Deploying {{ service.name }} from {{ 'dev/' if (is_staging | default(false) and dev_config.stat.exists | default(false)) else 'production' }} config"
 
+# ============================================================================
+# Checksum-based skip: skip rsync + .env when nothing has changed
+# ============================================================================
+- name: "{{ service.name }} - Find service source files for checksum"
+  delegate_to: localhost
+  become: false
+  ansible.builtin.find:
+    paths: "{{ service_source_path }}"
+    recurse: true
+    file_type: file
+    get_checksum: true
+    follow: false
+  register: service_source_files
+
+- name: "{{ service.name }} - Compute source checksum"
+  ansible.builtin.set_fact:
+    prepare_source_hash: >-
+      {{ (service | to_json +
+          (service_source_files.files | default([]) | sort(attribute='path')
+           | map(attribute='checksum') | join('')))
+         | hash('sha256') }}
+
+- name: "{{ service.name }} - Read stored prepare checksum"
+  ansible.builtin.slurp:
+    src: "{{ deploy_path }}/.prepare-checksum"
+  register: prepare_stored_checksum
+  failed_when: false
+
+- name: "{{ service.name }} - Set prepare needed flag"
+  ansible.builtin.set_fact:
+    prepare_needed: >-
+      {{ (force_redeploy | default(false) | bool) or
+         (prepare_stored_checksum.failed | default(true)) or
+         ((prepare_stored_checksum.content | default('') | b64decode | trim) != prepare_source_hash) }}
+
 # Synchronize service files from determined source path
 # Note: mitogen_task_isolation: fork is required because Mitogen doesn't handle synchronize correctly
 - name: "{{ service.name }} - Synchronize service files"
@@ -73,7 +108,9 @@
   vars:
     # Fork a subprocess for this task to bypass Mitogen (which breaks synchronize)
     mitogen_task_isolation: fork
-  when: (is_staging | default(false) and dev_config.stat.exists | default(false)) or prod_config.stat.exists
+  when:
+    - prepare_needed | default(true) | bool
+    - (is_staging | default(false) and dev_config.stat.exists | default(false)) or prod_config.stat.exists
 
 # Generate .env file with secrets
 - name: "{{ service.name }} - Generate .env file"
@@ -86,6 +123,17 @@
     project_name: "{{ service.name if not is_staging else (service.name + '-staging') }}"
     image_tag: "latest"  # Default, can be overridden in docker-compose.yml
   no_log: true
+  when: prepare_needed | default(true) | bool
+
+# Save checksum so we can skip this on next run if nothing changed
+- name: "{{ service.name }} - Save prepare checksum"
+  ansible.builtin.copy:
+    content: "{{ prepare_source_hash }}"
+    dest: "{{ deploy_path }}/.prepare-checksum"
+    mode: '0600'
+  when:
+    - prepare_needed | default(true) | bool
+    - not ansible_check_mode
 
 # ============================================================================
 # Pre-Deploy Hooks

@@ -129,7 +129,7 @@
   hosts: rocky
   become: true
   gather_facts: false
-  strategy: free
+  strategy: mitogen_free
   tags:
     - services
   roles:

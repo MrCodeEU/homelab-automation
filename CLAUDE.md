@@ -62,6 +62,15 @@ ansible-playbook playbooks/site.yml -e is_staging_deployment=true
 # Deploy only changed services (detected automatically in CI)
 ansible-playbook playbooks/site.yml -e changed_services=nightscout,homepage
 
+# Force Kuma re-provisioning even if services haven't changed
+ansible-playbook playbooks/site.yml --tags services -e force_provision_kuma=true
+
+# Force Caddy snippet regeneration even if services haven't changed
+ansible-playbook playbooks/site.yml --tags caddy -e force_regen_caddy=true
+
+# Force full service file sync + .env regeneration (bypass prepare checksum)
+ansible-playbook playbooks/site.yml --tags services -e force_redeploy=true
+
 # Install Ansible collections
 ansible-galaxy collection install -r requirements.yml
 ```
@@ -209,6 +218,7 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 2. Create `services/<name>/docker-compose.yml`
 3. If service needs secrets, add env lookups to `secrets.yml` and GitHub Actions secrets
 4. **(Optional)** Create `services/<name>/hooks/post-deploy.sh` for post-deployment configuration
+   - **CRITICAL**: If you add a `post-deploy.sh`, you **must** also add the service name to `post_deploy_hook_services` in `ansible/inventory/group_vars/all/all.yml`, otherwise the hook will be silently skipped. A validation warning is shown at deploy time for unregistered hooks.
 5. **(Optional) Create staging**: Create `services/<name>/dev/docker-compose.yml` with explicit staging config
 6. Deploy: `ansible-playbook playbooks/site.yml --tags services`
 
