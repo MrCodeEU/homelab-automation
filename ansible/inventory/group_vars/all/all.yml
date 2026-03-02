@@ -409,6 +409,15 @@ services:
 # Role-specific variables
 # ============================================================================
 
+# Services with post-deploy hooks (services/<name>/hooks/post-deploy.sh)
+# IMPORTANT: When you add a new post-deploy.sh script to a service, you MUST
+# also add that service name here — otherwise the hook will be silently skipped.
+# This list replaces per-service stat checks and is validated at deploy time.
+# Run `force_redeploy=true` to bypass the checksum cache after hook changes.
+post_deploy_hook_services:
+  - speedtest   # SSH key distribution to speedtest measurement targets
+  - sonarqube   # Initial SonarQube admin password + project provisioning
+
 # Backup configuration
 backup_enabled: true
 backup_schedule: "*-*-* 03:00:00"  # Daily at 3 AM (systemd calendar format)

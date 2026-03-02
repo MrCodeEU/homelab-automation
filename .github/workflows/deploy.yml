@@ -138,7 +138,34 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
+      - name: Notify deployment start
+        run: |
+          # Skip start notification for check mode (PR dry runs)
+          if [ "${{ steps.env.outputs.check_mode }}" == "true" ]; then
+            echo "Check mode - skipping start notification"
+            exit 0
+          fi
+
+          DISPATCH_SERVICE="${{ steps.env.outputs.dispatch_service }}"
+          if [ -n "$DISPATCH_SERVICE" ]; then
+            TITLE="Deployment starting - $DISPATCH_SERVICE"
+            MSG="🚀 Deploying service: $DISPATCH_SERVICE (trigger: ${{ github.event_name }})"
+          else
+            TITLE="Deployment starting"
+            SHA="${{ github.sha }}"
+            MSG="🚀 Homelab deployment starting (trigger: ${{ github.event_name }}, branch: ${{ github.ref_name }}, commit: ${SHA:0:7})"
+          fi
+
+          # Best-effort: don't fail the workflow if ntfy is unreachable
+          curl -s --connect-timeout 5 --max-time 10 \
+            -H "Title: $TITLE" \
+            -H "Priority: low" \
+            -H "Tags: ansible,homelab,rocket" \
+            -d "$MSG" \
+            https://ntfy.mljr.eu/deployment || echo "Start notification failed (non-critical)"
+
       - name: Cache Ansible and Collections
+        id: ansible-cache
         uses: actions/cache@v4
         with:
           path: |
@@ -177,12 +204,18 @@ jobs:
 
       - name: Install collections
         run: |
+          # Skip install when cache is valid — collections are already present
+          if [ "${{ steps.ansible-cache.outputs.cache-hit }}" == "true" ]; then
+            echo "Collections loaded from cache - skipping install"
+            exit 0
+          fi
+
           echo "::group::Installing Ansible collections"
           cd ansible
 
           # Try installing from Ansible Galaxy first
           echo "Attempting to install collections from Ansible Galaxy..."
-          if ansible-galaxy collection install -r requirements.yml --force-with-deps 2>&1; then
+          if ansible-galaxy collection install -r requirements.yml 2>&1; then
             echo "✓ Collections installed successfully from Ansible Galaxy"
           else
             echo "⚠ Ansible Galaxy failed, falling back to GitHub sources..."

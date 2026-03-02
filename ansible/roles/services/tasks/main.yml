@@ -170,14 +170,46 @@
 # Post-Deploy Hooks (Production)
 # ============================================================================
 
-- name: Check for post-deploy hooks (production)
-  ansible.builtin.stat:
-    path: "{{ base_path }}/{{ service.name }}/hooks/post-deploy.sh"
-  loop: "{{ host_services }}"
+# Validate: warn if any hook script exists in the repo but is not registered.
+# This catches the "I added a hook but forgot to update post_deploy_hook_services" mistake.
+- name: Find all post-deploy hooks in repo (validation)
+  delegate_to: localhost
+  become: false
+  run_once: true
+  ansible.builtin.find:
+    paths: "{{ playbook_dir }}/../../services"
+    patterns: "post-deploy.sh"
+    recurse: true
+  register: all_hook_files
+  when: not ansible_check_mode
+
+- name: Warn about hooks not registered in post_deploy_hook_services
+  delegate_to: localhost
+  become: false
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: Unregistered post-deploy hook: {{ item.path }}
+      — service '{{ item.path | dirname | dirname | basename }}'
+      is not in post_deploy_hook_services. Add it to all.yml or the hook will be skipped!
+  loop: "{{ all_hook_files.files | default([]) }}"
   loop_control:
-    loop_var: service
-    label: "{{ service.name }}"
-  register: post_deploy_hooks
+    label: "{{ item.path | basename }}"
+  when:
+    - not ansible_check_mode
+    - (item.path | dirname | dirname | basename) not in (post_deploy_hook_services | default([]))
+  run_once: true
+
+# Determine which deployed services on this host have registered hooks
+- name: Filter host services with registered post-deploy hooks
+  ansible.builtin.set_fact:
+    hook_services: >-
+      {%- set result = [] -%}
+      {%- for service in host_services -%}
+        {%- if service.name in (post_deploy_hook_services | default([])) -%}
+          {%- set _ = result.append(service) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ result }}
   when: not ansible_check_mode
 
 - name: Run post-deploy hooks (production)
@@ -190,13 +222,13 @@
   args:
     executable: /bin/bash
     chdir: "{{ base_path }}/{{ service.name }}"
-  loop: "{{ host_services }}"
+  loop: "{{ hook_services | default([]) }}"
   loop_control:
     loop_var: service
     label: "{{ service.name }}"
   when:
     - not ansible_check_mode
-    - post_deploy_hooks.results | selectattr('service.name', 'equalto', service.name) | map(attribute='stat.exists') | first | default(false)
+    - hook_services | default([]) | length > 0
   register: post_deploy_results
   changed_when: "'SUCCESS' in post_deploy_results.stdout | default('') or 'CHANGED' in post_deploy_results.stdout | default('')"
   failed_when: false  # Don't fail deployment if hook fails
@@ -444,7 +476,7 @@
     - health_check_results is defined
 
 # ============================================================================
-# Kuma Provisioning (if Kuma is deployed)
+# Kuma Provisioning (only when services list has changed)
 # ============================================================================
 
 - name: Check if Kuma is deployed
@@ -452,12 +484,41 @@
     path: "{{ base_path }}/kuma/docker-compose.yml"
   register: kuma_deployed
 
+- name: Compute Kuma services checksum
+  ansible.builtin.set_fact:
+    kuma_services_hash: "{{ services | to_json | hash('sha256') }}"
+  when:
+    - not ansible_check_mode
+    - kuma_deployed.stat.exists
+
+- name: Read stored Kuma services checksum
+  ansible.builtin.slurp:
+    src: "{{ base_path }}/kuma/.services-checksum"
+  register: kuma_stored_checksum
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - kuma_deployed.stat.exists
+    - kuma_services_hash is defined
+
+- name: Set Kuma provision needed flag
+  ansible.builtin.set_fact:
+    kuma_provision_needed: >-
+      {{ (force_provision_kuma | default(false) | bool) or
+         (kuma_stored_checksum.failed | default(true)) or
+         ((kuma_stored_checksum.content | default('') | b64decode | trim) != kuma_services_hash) }}
+  when:
+    - not ansible_check_mode
+    - kuma_deployed.stat.exists
+    - kuma_services_hash is defined
+
 - name: Run Kuma provisioning
   when:
     - not ansible_check_mode
     - kuma_deployed.stat.exists
     - secrets.kuma.username | default('') | length > 0
     - secrets.kuma.password | default('') | length > 0
+    - kuma_provision_needed | default(true)
   block:
     - name: Create services.yml for Kuma
       vars:
@@ -532,6 +593,15 @@
           Kuma provisioning skipped
           {% endif %}
       when: kuma_provision is defined
+
+    - name: Save Kuma services checksum
+      ansible.builtin.copy:
+        content: "{{ kuma_services_hash }}"
+        dest: "{{ base_path }}/kuma/.services-checksum"
+        mode: '0644'
+      when:
+        - kuma_provision is defined
+        - kuma_provision.rc | default(1) == 0
 
 # ============================================================================
 # Deployment Summary and Error Reporting
