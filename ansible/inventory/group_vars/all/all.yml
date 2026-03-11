@@ -309,30 +309,6 @@ services:
     icon: "mdi:code-braces"
     requires_sysctl: "vm.max_map_count=262144"
 
-  - name: jenkins
-    enabled: false
-    managed: false  # Will change to true when NUC runs Rocky
-    domain: "jenkins.mljr.eu"
-    port: 6857
-    host: nuc
-    description: "CI/CD"
-    icon: "mdi:pipe"
-
-  - name: music-assistant
-    enabled: true
-    domain: "music.mljr.eu"
-    port: 8095
-    host: nuc
-    description: "Music Assistant Server"
-    icon: "mdi:music"
-
-  - name: ytdlp-pot-provider
-    enabled: true
-    port: 4416
-    host: nuc
-    description: "YouTube PO Token provider for yt-dlp / Music Assistant"
-    icon: "mdi:youtube"
-
   # Monitoring Host
   - name: grafana
     enabled: true
