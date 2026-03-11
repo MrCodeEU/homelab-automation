@@ -125,7 +125,7 @@ services:
     managed: true
     domain: "home.mljr.eu"
     port: 8123
-    host: nuc
+    host: homeassistant
     description: "Home Automation"
     icon: "mdi:home-assistant"
 
@@ -317,14 +317,6 @@ services:
     host: nuc
     description: "CI/CD"
     icon: "mdi:pipe"
-
-  - name: homey
-    enabled: true
-    domain: "homey.mljr.eu"
-    port: 4859
-    host: nuc
-    description: "Homey Self-Hosted Server"
-    icon: "mdi:home-automation"
 
   - name: music-assistant
     enabled: true
