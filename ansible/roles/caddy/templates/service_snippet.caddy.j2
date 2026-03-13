@@ -48,7 +48,7 @@
     import authelia_auth
 {% endif %}
 
-{% if service.caddy_extra_config is defined %}
+{% if service.caddy_extra_config | default('') %}
 {{ service.caddy_extra_config | indent(4, first=True) }}
 {% endif %}
 {% if service.upstream is defined %}

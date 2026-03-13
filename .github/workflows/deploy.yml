@@ -25,6 +25,11 @@ on:
         required: false
         default: false
         type: boolean
+      force_regen_caddy:
+        description: 'Force Caddy snippet regeneration even if services have not changed'
+        required: false
+        default: false
+        type: boolean
 
   # Automatic deploy on main branch
   push:
@@ -334,6 +339,12 @@ jobs:
           if [ "${{ inputs.cleanup }}" == "true" ]; then
             EXTRA_VARS="$EXTRA_VARS cleanup_enabled=true"
             echo "Cleanup enabled: orphaned services will be removed"
+          fi
+
+          # Force Caddy snippet regeneration when explicitly requested
+          if [ "${{ inputs.force_regen_caddy }}" == "true" ]; then
+            EXTRA_VARS="$EXTRA_VARS force_regen_caddy=true"
+            echo "Force Caddy snippet regeneration enabled"
           fi
 
           # Check mode for non-main branches (dry run)
