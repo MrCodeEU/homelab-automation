@@ -48,6 +48,9 @@
     import authelia_auth
 {% endif %}
 
+{% if service.caddy_extra_config is defined %}
+{{ service.caddy_extra_config | indent(4, first=True) }}
+{% endif %}
 {% if service.upstream is defined %}
     reverse_proxy {{ service.upstream }}
 {% elif service.https_backend | default(false) %}
