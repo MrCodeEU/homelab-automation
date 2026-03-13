@@ -47,6 +47,9 @@ The pre-commit hook validates service configurations before each commit. It uses
 # Deploy all
 ansible-playbook playbooks/site.yml
 
+# Fast single-service deploy (skips base/security/backup/glance/mailcow/authelia)
+ansible-playbook playbooks/deploy-service.yml -e target_service=nightscout -e service_host=nuc
+
 # Deploy specific host
 ansible-playbook playbooks/site.yml --limit mljr
 
@@ -128,6 +131,9 @@ services:
     skip_deploy: true             # Uses dedicated role instead of services role
     backup_critical: true         # Restore on fresh install
     requires_sysctl: "key=value"  # System tuning (e.g., vm.max_map_count=262144)
+    https_backend: true           # Proxy to HTTPS backend with self-signed cert
+    description: "Human-readable description"
+    icon: "mdi:icon-name"         # Material Design Icon for dashboard
 ```
 
 ### Authentication
@@ -150,17 +156,19 @@ Services using `caddy_auth: "authelia"`: goaccess, fail2ban-ui, sonarqube, dozzl
 - Username: `admin`
 - Password: `authelia`
 
-### Post-Deploy Hooks
+### Service Hooks
 
-Services can have post-deploy scripts that run after docker-compose up:
+Services can have hook scripts in `services/<name>/hooks/`:
 
-```
-services/<name>/hooks/post-deploy.sh
-```
+| Hook | When it runs |
+|------|-------------|
+| `post-deploy.sh` | After `docker-compose up` (async, 10-min timeout) |
+| `pre-deploy.sh` | Before deployment (e.g., config generation) |
+| `validate.sh` | Validation step |
 
-- Receives `SERVICE_NAME` and `SERVICE_PATH` environment variables
-- `.env` file is sourced before execution
-- Runs asynchronously with 10-minute timeout
+`post-deploy.sh` receives `SERVICE_NAME` and `SERVICE_PATH` env vars; `.env` is sourced before execution.
+
+**CRITICAL**: Register `post-deploy.sh` hooks in `post_deploy_hook_services` in `all.yml` or they are silently skipped.
 
 ### Staging Environment
 
@@ -202,7 +210,9 @@ Reference in templates: `{{ secrets.nightscout.api_secret }}`
 
 1. **GitHub Actions** triggers on push to main, PRs (check mode), or repository dispatch
 2. **Tailscale VPN** connects runner to hosts
-3. **Playbook execution**: base → security → backup → glance → mailcow → services → caddy
+3. **Playbook execution**: base → security → hetrixtools → backup → glance → mailcow → authelia → services → speedtest → monitoring → caddy
+
+**Critical services** (`caddy`, `kuma`, `ntfy`) will fail the entire deployment if they fail to deploy.
 
 ### Async Deployment
 
@@ -217,8 +227,7 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 1. Add service definition to `ansible/inventory/group_vars/all/all.yml`
 2. Create `services/<name>/docker-compose.yml`
 3. If service needs secrets, add env lookups to `secrets.yml` and GitHub Actions secrets
-4. **(Optional)** Create `services/<name>/hooks/post-deploy.sh` for post-deployment configuration
-   - **CRITICAL**: If you add a `post-deploy.sh`, you **must** also add the service name to `post_deploy_hook_services` in `ansible/inventory/group_vars/all/all.yml`, otherwise the hook will be silently skipped. A validation warning is shown at deploy time for unregistered hooks.
+4. **(Optional)** Create hook scripts in `services/<name>/hooks/` — see Service Hooks section above
 5. **(Optional) Create staging**: Create `services/<name>/dev/docker-compose.yml` with explicit staging config
 6. Deploy: `ansible-playbook playbooks/site.yml --tags services`
 
@@ -231,7 +240,10 @@ PRs and non-main branches automatically run with `--check --diff` (dry run). Thi
 | services | Docker Compose services |
 | beszel-agent | Beszel monitoring agent (all rocky hosts) |
 | iperf3 | Network performance test server (all rocky hosts) |
-| monitoring | Alias for beszel-agent + iperf3 |
+| dozzle-agent | Dozzle log agent (mljr only) |
+| hetrixtools | HetrixTools uptime monitoring agent (mljr only) |
+| speedtest | Speedtest orchestrator (mljr only) |
+| monitoring | Alias for beszel-agent + iperf3 + dozzle-agent |
 | backup | Backup/restore configuration |
 | security, fail2ban | Fail2ban (mljr only) |
 | glance | Dashboard |
