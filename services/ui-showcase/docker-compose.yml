@@ -1,0 +1,15 @@
+services:
+  ui-showcase:
+    image: ghcr.io/mrcodeeu/ui-showcase:${IMAGE_TAG:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-ui-showcase}
+    restart: unless-stopped
+    ports:
+      - "8083:8081"
+    environment:
+      - PORT=8081
+    networks:
+      - ui-showcase
+
+networks:
+  ui-showcase:
+    driver: bridge
