@@ -1,6 +1,6 @@
 services:
   homepage:
-    image: ghcr.io/mrcodeeu/homepage:${IMAGE_TAG:-latest}
+    image: ghcr.io/mrcodeeu/next-gen-web-dev/homepage:${IMAGE_TAG:-latest}
     container_name: ${COMPOSE_PROJECT_NAME:-homepage-staging}
     restart: unless-stopped
     ports:
