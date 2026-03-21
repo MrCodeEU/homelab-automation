@@ -1,6 +1,6 @@
 services:
   ui-showcase:
-    image: ghcr.io/mrcodeeu/ui-showcase:${IMAGE_TAG:-latest}
+    image: ghcr.io/mrcodeeu/next-gen-web-dev/ui-showcase:${IMAGE_TAG:-latest}
     container_name: ${COMPOSE_PROJECT_NAME:-ui-showcase-staging}
     restart: unless-stopped
     ports:
