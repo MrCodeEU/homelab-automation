@@ -136,7 +136,7 @@
   when: not ansible_check_mode
   failed_when: false  # Don't fail - let compose try anyway
 
-- name: Deploy production services (Async)
+- name: Deploy production services
   community.docker.docker_compose_v2:
     project_src: "{{ base_path }}/{{ service.name }}"
     state: present
@@ -146,27 +146,10 @@
     loop_var: service
     label: "{{ service.name }}"
   register: deploy_results
-  async: 300
-  poll: 0
   when: not ansible_check_mode
-  vars:
-    mitogen_task_isolation: fork  # Required: Mitogen breaks async job tracking
-
-- name: Wait for production services deployment
-  ansible.builtin.async_status:
-    jid: "{{ item.ansible_job_id }}"
-  loop: "{{ (deploy_results.results | default([])) }}"
-  loop_control:
-    label: "{{ ((item.service | default(item.item)) | default({'name': 'unknown'})).name }}"
-  register: job_result
-  until: job_result.finished
-  retries: 30
-  delay: 5
-  when:
-    - not ansible_check_mode
-    - item.ansible_job_id is defined
   failed_when: false  # Don't fail the play - collect errors instead
-  ignore_errors: true
+  vars:
+    mitogen_task_isolation: fork  # Required: Mitogen transport breaks community.docker tasks
 
 # ============================================================================
 # Post-Deploy Hooks (Production)
@@ -391,7 +374,7 @@
     - not ansible_check_mode
   failed_when: false  # Don't fail - let compose try anyway
 
-- name: Deploy staging services (Async)
+- name: Deploy staging services
   community.docker.docker_compose_v2:
     project_src: "{{ base_path }}/staging/{{ service.name }}"
     state: present
@@ -401,32 +384,13 @@
     loop_var: service
     label: "{{ service.name }}-staging"
   register: staging_deploy_results
-  async: 300
-  poll: 0
   when:
     - is_staging_deployment | default(false) | bool
     - inventory_hostname == staging_host
     - not ansible_check_mode
-  vars:
-    mitogen_task_isolation: fork  # Required: Mitogen breaks async job tracking
-
-- name: Wait for staging services deployment
-  ansible.builtin.async_status:
-    jid: "{{ item.ansible_job_id }}"
-  loop: "{{ staging_deploy_results.results | default([]) }}"
-  loop_control:
-    label: "{{ ((item.service | default(item.item)) | default({'name': 'unknown'})).name }}-staging"
-  register: staging_job_result
-  until: staging_job_result.finished
-  retries: 30
-  delay: 5
-  when:
-    - is_staging_deployment | default(false) | bool
-    - inventory_hostname == staging_host
-    - not ansible_check_mode
-    - item.ansible_job_id is defined
   failed_when: false  # Don't fail the play - collect errors instead
-  ignore_errors: true
+  vars:
+    mitogen_task_isolation: fork  # Required: Mitogen transport breaks community.docker tasks
 
 # ============================================================================
 # Health Checks (Parallel)
@@ -615,26 +579,26 @@
   ansible.builtin.set_fact:
     failed_production_services: >-
       {%- set failed = [] -%}
-      {%- for result in job_result.results | default([]) -%}
-        {%- if result.failed | default(false) or result.msg is defined and 'Error' in result.msg -%}
-          {%- set service_name = ((result.item.service | default(result.item.item)) | default({'name': 'unknown'})).name -%}
-          {%- set error_msg = result.msg | default('Unknown error') -%}
+      {%- for result in deploy_results.results | default([]) -%}
+        {%- if result.failed | default(false) -%}
+          {%- set service_name = result.service.name | default('unknown') -%}
+          {%- set error_msg = result.msg | default('Deployment failed') -%}
           {%- set _ = failed.append({'name': service_name, 'error': error_msg}) -%}
         {%- endif -%}
       {%- endfor -%}
       {{ failed }}
   when:
     - not ansible_check_mode
-    - job_result is defined
+    - deploy_results is defined
 
 - name: Collect failed staging deployments
   ansible.builtin.set_fact:
     failed_staging_services: >-
       {%- set failed = [] -%}
-      {%- for result in staging_job_result.results | default([]) -%}
-        {%- if result.failed | default(false) or result.msg is defined and 'Error' in result.msg -%}
-          {%- set service_name = ((result.item.service | default(result.item.item)) | default({'name': 'unknown'})).name -%}
-          {%- set error_msg = result.msg | default('Unknown error') -%}
+      {%- for result in staging_deploy_results.results | default([]) -%}
+        {%- if result.failed | default(false) -%}
+          {%- set service_name = result.service.name | default('unknown') -%}
+          {%- set error_msg = result.msg | default('Deployment failed') -%}
           {%- set _ = failed.append({'name': service_name, 'error': error_msg}) -%}
         {%- endif -%}
       {%- endfor -%}
@@ -643,7 +607,7 @@
     - not ansible_check_mode
     - is_staging_deployment | default(false) | bool
     - inventory_hostname == staging_host
-    - staging_job_result is defined
+    - staging_deploy_results is defined
 
 - name: Display deployment summary
   ansible.builtin.debug:
