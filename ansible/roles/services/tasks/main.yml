@@ -149,6 +149,8 @@
   async: 300
   poll: 0
   when: not ansible_check_mode
+  vars:
+    mitogen_task_isolation: fork  # Required: Mitogen breaks async job tracking
 
 - name: Wait for production services deployment
   ansible.builtin.async_status:
@@ -405,6 +407,8 @@
     - is_staging_deployment | default(false) | bool
     - inventory_hostname == staging_host
     - not ansible_check_mode
+  vars:
+    mitogen_task_isolation: fork  # Required: Mitogen breaks async job tracking
 
 - name: Wait for staging services deployment
   ansible.builtin.async_status:
