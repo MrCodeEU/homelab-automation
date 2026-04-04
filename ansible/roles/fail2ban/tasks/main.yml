@@ -72,9 +72,10 @@
     content: |
       [Definition]
       # Match failed authentication attempts in Authelia logs via Caddy
-      # Caddy logs Authelia 401 responses when forward_auth fails
-      failregex = ^.*"remote_ip":"<HOST>".*"uri":"/api/authz/forward-auth".*"status":401.*$
-                  ^.*"remote_ip":"<HOST>".*auth\..*"status":401.*$
+      # NOTE: We only match POST requests to avoid banning users with expired cookies or 
+      # simply visiting Authelia-protected apps unauthenticated (which causes 401 GET checks).
+      failregex = ^.*"remote_ip":"<HOST>".*"method":"POST".*"uri":"/api/firstfactor".*"status":401.*$
+                  ^.*"remote_ip":"<HOST>".*"method":"POST".*auth\..*"status":401.*$
       ignoreregex =
     mode: '0644'
   notify: Restart Fail2ban
