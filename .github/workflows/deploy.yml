@@ -308,6 +308,12 @@ jobs:
           SMTP_FROM: ${{ secrets.SMTP_FROM }}
           SUDOKU_API_USER: ${{ secrets.SUDOKU_API_USER }}
           SUDOKU_API_PASSWORD: ${{ secrets.SUDOKU_API_PASSWORD }}
+          STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
+          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
+          STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
+          LINKEDIN_EMAIL: ${{ secrets.LINKEDIN_EMAIL }}
+          LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
+          LINKEDIN_TOTP_SECRET: ${{ secrets.LINKEDIN_TOTP_SECRET }}
         run: |
           cd ansible
 

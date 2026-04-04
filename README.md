@@ -64,6 +64,7 @@ homelab-automation/
 ├── services/                   # Service configurations
 │   ├── nightscout/
 │   ├── homepage/
+│   ├── ui-showcase/
 │   ├── kuma/
 │   └── ...
 └── .github/workflows/
@@ -154,6 +155,8 @@ The workflow triggers on:
 
 ### Trigger from External Repo
 
+External repos can trigger deployment of specific services via `repository_dispatch`:
+
 ```yaml
 - name: Trigger deployment
   run: |
@@ -161,8 +164,27 @@ The workflow triggers on:
       -H "Authorization: token ${{ secrets.DISPATCH_TOKEN }}" \
       -H "Accept: application/vnd.github.v3+json" \
       https://api.github.com/repos/MrCodeEU/homelab-automation/dispatches \
-      -d '{"event_type": "service-update"}'
+      -d '{
+        "event_type": "service-update",
+        "client_payload": {
+          "service": "homepage",
+          "tag": "latest",
+          "environment": "production",
+          "commit_sha": "${{ github.sha }}"
+        }
+      }'
 ```
+
+#### Payload Fields
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `service` | Service name matching `services/<name>/` | Deploys all if omitted |
+| `tag` | Docker image tag to deploy | `latest` |
+| `environment` | `production` or `staging` | `production` |
+| `commit_sha` | Source commit for traceability | — |
+
+When `environment` is `staging`, the service is deployed to the staging host with `dev/docker-compose.yml`.
 
 ### Required Secrets
 
@@ -173,6 +195,12 @@ The workflow triggers on:
 | `NIGHTSCOUT_API_SECRET` | Nightscout API secret |
 | `CADDY_AUTH_PASSWORD_HASH` | Bcrypt hash for basicauth |
 | `PCLOUD_TOKEN` | pCloud rclone token for backups |
+| `STRAVA_CLIENT_ID` | Strava API client ID (homepage) |
+| `STRAVA_CLIENT_SECRET` | Strava API client secret (homepage) |
+| `STRAVA_REFRESH_TOKEN` | Strava API refresh token (homepage) |
+| `LINKEDIN_EMAIL` | LinkedIn email (homepage) |
+| `LINKEDIN_PASSWORD` | LinkedIn password (homepage) |
+| `LINKEDIN_TOTP_SECRET` | LinkedIn TOTP secret (homepage) |
 
 ## Adding a Service
 
