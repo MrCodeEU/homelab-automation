@@ -9,7 +9,7 @@ findtime = 600
 maxretry = 5
 
 # Whitelist local IPs, Tailscale network, and trusted home IPs
-ignoreip = 127.0.0.1/8 ::1 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 100.64.0.0/10 139.178.109.200
+ignoreip = 127.0.0.1/8 ::1 192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 100.64.0.0/10
 
 # Default action with ntfy notifications
 action = %(action_)s
@@ -63,9 +63,9 @@ port    = http,https
 filter  = caddy-forbidden
 logpath = /var/log/caddy/*.log
 backend = auto
-maxretry = 10
-findtime = 60
-bantime = 3600  ; 1 hour for 403 flooding
+maxretry = 20
+findtime = 120
+bantime = 1800  ; 30 minutes for 403 flooding
 
 [caddy-scanner]
 enabled = true
@@ -73,8 +73,9 @@ port    = http,https
 filter  = caddy-scanner
 logpath = /var/log/caddy/*.log
 backend = auto
-maxretry = 3
-bantime = 259200  ; 3 days for scanners
+maxretry = 5
+findtime = 600
+bantime = 86400  ; 24 hours for scanners
 {% endif %}
 
 # ============================================================================
@@ -88,7 +89,7 @@ port    = http,https
 filter  = authelia
 logpath = /var/log/caddy/*.log
 backend = auto
-maxretry = 5
+maxretry = 10
 findtime = 300
 bantime = 86400
 
@@ -98,7 +99,7 @@ port    = http,https
 filter  = authelia
 logpath = /var/log/caddy/*.log
 backend = auto
-maxretry = 10
+maxretry = 20
 findtime = 86400
-bantime = 604800  ; 1 week for persistent auth failures
+bantime = 259200  ; 3 days for persistent auth failures
 {% endif %}
