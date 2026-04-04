@@ -123,7 +123,7 @@
     project_name: "{{ service.name if not is_staging else (service.name + '-staging') }}"
     image_tag: "latest"  # Default, can be overridden in docker-compose.yml
   no_log: true
-  when: prepare_needed | default(true) | bool
+  # Always regenerate .env — secrets change independently of service files
 
 # Save checksum so we can skip this on next run if nothing changed
 - name: "{{ service.name }} - Save prepare checksum"

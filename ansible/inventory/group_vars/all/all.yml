@@ -199,8 +199,18 @@ services:
     domain: "mljr.eu"
     port: 8082
     host: mljr
-    description: "Personal Homepage"
+    staging: true
+    description: "Personal Homepage (Go + Templ + HTMX)"
     icon: "mdi:account-circle"
+
+  - name: ui-showcase
+    enabled: true
+    domain: "ui.mljr.eu"
+    port: 8083
+    host: mljr
+    staging: true
+    description: "mljr-ui Component Showcase"
+    icon: "mdi:palette-swatch"
 
   # Network Testing
   - name: speedtest
