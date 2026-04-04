@@ -41,7 +41,7 @@ bantime = 604800  ; 1 week for persistent attackers
 # ============================================================================
 {% if inventory_hostname == 'mljr' %}
 [caddy-basicauth]
-enabled = true
+enabled = false
 port    = http,https
 filter  = caddy-basicauth
 logpath = /var/log/caddy/*.log
