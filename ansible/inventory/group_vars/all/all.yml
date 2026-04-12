@@ -214,7 +214,7 @@ services:
 
   # Network Testing
   - name: speedtest
-    enabled: true
+    enabled: false
     domain: "speedtest.mljr.eu"
     port: 8089
     host: mljr
@@ -274,7 +274,7 @@ services:
     https_backend: true  # Syncthing uses self-signed HTTPS
 
   - name: filebrowser
-    enabled: true
+    enabled: false
     managed: false
     domain: "files.mljr.eu"
     port: 5687
@@ -283,7 +283,7 @@ services:
     icon: "mdi:folder"
 
   - name: stats
-    enabled: true
+    enabled: false
     managed: false
     domain: "stats.mljr.eu"
     port: 3000
@@ -301,7 +301,7 @@ services:
     icon: "mdi:clipboard-list"
 
   - name: pairdrop
-    enabled: true
+    enabled: false
     managed: false
     domain: "share.mljr.eu"
     port: 3054
@@ -321,8 +321,8 @@ services:
     icon: "mdi:server"
 
   - name: sonarqube
-    enabled: true
-    managed: true
+    enabled: false
+    managed: false
     domain: "sonarqube.mljr.eu"
     port: 9000
     host: nuc
@@ -332,7 +332,7 @@ services:
 
   # Monitoring Host
   - name: grafana
-    enabled: true
+    enabled: false
     managed: false
     domain: "grafana.mljr.eu"
     port: 3000
@@ -403,6 +403,7 @@ services:
 # also add that service name here — otherwise the hook will be silently skipped.
 # This list replaces per-service stat checks and is validated at deploy time.
 # Run `force_redeploy=true` to bypass the checksum cache after hook changes.
+# TODO: NEED TO TEST THE BACKUP STRATEGY!!
 post_deploy_hook_services:
   - speedtest   # SSH key distribution to speedtest measurement targets
   - sonarqube   # Initial SonarQube admin password + project provisioning
