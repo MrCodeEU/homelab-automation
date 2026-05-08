@@ -273,11 +273,11 @@ services:
     icon: "mdi:sync"
     https_backend: true  # Syncthing uses self-signed HTTPS
 
-  - name: filebrowser
+  - name: filerun
     enabled: false
     managed: false
     domain: "files.mljr.eu"
-    port: 5687
+    port: 7940
     host: nas
     description: "File Browser"
     icon: "mdi:folder"
@@ -297,7 +297,7 @@ services:
     domain: "projects.mljr.eu"
     port: 6528
     host: nas
-    description: "Tasktrove Projects and TODOs"
+    description: "Vikunja Projects and TODOs"
     icon: "mdi:clipboard-list"
 
   - name: pairdrop
