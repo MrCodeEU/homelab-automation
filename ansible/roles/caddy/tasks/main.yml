@@ -83,6 +83,29 @@
     owner: caddy
     group: caddy
 
+- name: Ensure setgid bit is set so new files inherit caddy group
+  ansible.builtin.file:
+    path: "{{ log_path }}/caddy"
+    state: directory
+    mode: '2755'
+
+- name: Set ACL on Caddy log directory so caddy user always has permissions
+  ansible.posix.acl:
+    path: "{{ log_path }}/caddy"
+    entity: caddy
+    etype: user
+    permissions: rwx
+    state: present
+
+- name: Set default ACL on Caddy log directory so new files are accessible
+  ansible.posix.acl:
+    path: "{{ log_path }}/caddy"
+    entity: caddy
+    etype: user
+    permissions: rwx
+    default: true
+    state: present
+
 - name: Ensure existing log files have correct permissions
   ansible.builtin.shell: |
     chown -R caddy:caddy {{ log_path }}/caddy

@@ -19,6 +19,7 @@
 - name: Install base packages
   ansible.builtin.dnf:
     name:
+      - acl
       - git
       - curl
       - wget
