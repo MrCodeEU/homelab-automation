@@ -274,7 +274,7 @@ services:
     https_backend: true  # Syncthing uses self-signed HTTPS
 
   - name: filerun
-    enabled: false
+    enabled: true
     managed: false
     domain: "files.mljr.eu"
     port: 7940
