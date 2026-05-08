@@ -49,8 +49,10 @@
 {% endif %}
 
 {% if service.caddy_extra_config | default('') %}
-{{ service.caddy_extra_config | indent(4, first=True) }}
+{% set rendered_config = service.caddy_extra_config | replace('__TARGET_HOST__', target_host) | replace('__TARGET_PORT__', target_port | string) %}
+{{ rendered_config | indent(4, first=True) }}
 {% endif %}
+{% if not service.caddy_suppress_default_proxy | default(false) %}
 {% if service.upstream is defined %}
     reverse_proxy {{ service.upstream }}
 {% elif service.https_backend | default(false) %}
@@ -61,6 +63,7 @@
     }
 {% else %}
     reverse_proxy {{ target_host }}:{{ target_port }}
+{% endif %}
 {% endif %}
 {% endif %}
 }
