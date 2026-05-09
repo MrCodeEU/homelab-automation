@@ -14,10 +14,21 @@
       /etc/yum.repos.d/
       _copr:copr.fedorainfracloud.org:group_caddy:caddy.repo
 
-- name: Install Caddy
+# Prioritise COPR over EPEL so we always get the latest Caddy, not the older EPEL build
+- name: Set COPR repo priority higher than EPEL
+  community.general.ini_file:
+    path: "/etc/yum.repos.d/\
+      _copr:copr.fedorainfracloud.org:group_caddy:caddy.repo"
+    section: "copr:copr.fedorainfracloud.org:group_caddy:caddy"
+    option: priority
+    value: "1"
+    mode: '0644'
+
+- name: Install / upgrade Caddy to latest version
   ansible.builtin.dnf:
     name: caddy
-    state: present
+    state: latest
+  notify: Reload Caddy
 
 - name: Check for conflicting web servers
   ansible.builtin.service_facts:
