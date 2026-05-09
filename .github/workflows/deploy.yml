@@ -70,7 +70,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate service configurations
+      - name: Install Python deps for validation
+        run: pip install --quiet pyyaml jinja2
+
+      - name: Install Caddy for config syntax validation
+        env:
+          CADDY_VERSION: "2.11.2"
+        run: |
+          curl -sSL \
+            "https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C /usr/local/bin caddy
+          caddy version
+
+      - name: Validate service configurations and Caddy templates
         run: bash ./.githooks/pre-commit
 
   # Deploy

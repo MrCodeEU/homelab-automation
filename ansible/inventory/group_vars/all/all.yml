@@ -304,7 +304,8 @@ services:
     port: 9201
     host: nas
     description: "test ocis against opencloud"
-    icon: "md:cloud"
+    icon: "mdi:cloud"
+    https_backend: true
 
 
   - name: stats

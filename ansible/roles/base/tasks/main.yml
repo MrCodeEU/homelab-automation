@@ -11,6 +11,12 @@
     name: "{{ timezone }}"
   when: timezone is defined
 
+- name: Upgrade all installed packages
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+    update_cache: true
+
 - name: Install EPEL Release
   ansible.builtin.dnf:
     name: epel-release
