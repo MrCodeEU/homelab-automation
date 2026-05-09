@@ -154,10 +154,14 @@ def run_caddy_validate(snippets: dict[str, str], gvars: dict) -> tuple[bool, str
     with tempfile.TemporaryDirectory(prefix="caddy-validate-") as tmpdir:
         conf_dir = Path(tmpdir) / "conf.d"
         conf_dir.mkdir()
+        log_dir = Path(tmpdir) / "logs"
+        log_dir.mkdir()
 
-        # Write each snippet
+        # Write each snippet, replacing the real log path with a writable temp dir
+        # so `caddy validate` can instantiate the log writers without permission errors
         for name, content in snippets.items():
-            (conf_dir / f"{name}.caddy").write_text(content)
+            safe_content = content.replace("/var/log/caddy", str(log_dir))
+            (conf_dir / f"{name}.caddy").write_text(safe_content)
 
         # Write minimal shared snippets file (empty macros, no real secrets needed)
         (conf_dir / "000-snippets.caddy").write_text(
