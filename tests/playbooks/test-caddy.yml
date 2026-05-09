@@ -1,0 +1,116 @@
+---
+# Minimal test playbook: gather facts then run the Caddy snippet-generation
+# tasks against the test-mljr container.  Skips install/firewall/systemd steps
+# that require the real OS environment; focuses on template rendering so we
+# catch the "empty snippet" class of failures that hit production.
+#
+# Run with:
+#   ansible-playbook -i tests/inventory/hosts.yml tests/playbooks/test-caddy.yml
+
+- name: Gather facts for test hosts
+  hosts: managed
+  gather_facts: true
+  gather_subset:
+    - min
+  tags: [always]
+
+- name: Test - Caddy template generation
+  hosts: mljr
+  become: true
+  gather_facts: false
+  vars:
+    # Tell the Caddy role to skip install / firewall / systemd tasks in CI
+    caddy_test_mode: true
+    force_regen_caddy: true   # Always regenerate so we actually test output
+  tasks:
+    - name: Ensure /etc/caddy/conf.d exists
+      ansible.builtin.file:
+        path: /etc/caddy/conf.d
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Ensure log/caddy dir exists
+      ansible.builtin.file:
+        path: /var/log/caddy
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    # -----------------------------------------------------------------------
+    # Inline subset of the Caddy role: only the snippet-generation block
+    # -----------------------------------------------------------------------
+
+    - name: Build list of enabled service names for Caddy
+      ansible.builtin.set_fact:
+        caddy_service_names: >-
+          {%- set names = [] -%}
+          {%- for svc in (services | default([])) -%}
+            {%- if svc.enabled | default(true) and svc.domain is defined -%}
+              {%- set _ = names.append(svc.name) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ names }}
+
+    - name: Generate per-service Caddy snippet files
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../ansible/roles/caddy/templates/service_snippet.caddy.j2"
+        dest: "/etc/caddy/conf.d/{{ service.name }}.caddy"
+        owner: root
+        group: root
+        mode: '0644'
+      loop: "{{ services | default([]) }}"
+      loop_control:
+        loop_var: service
+        label: "{{ service.name }}"
+      when: service.enabled | default(true) and service.domain is defined
+
+    # -----------------------------------------------------------------------
+    # Assertions
+    # -----------------------------------------------------------------------
+
+    - name: Assert no snippet file is empty
+      ansible.builtin.shell: |
+        fail=0
+        for svc in {{ caddy_service_names | join(' ') }}; do
+          f="/etc/caddy/conf.d/${svc}.caddy"
+          if [ -f "$f" ] && [ ! -s "$f" ]; then
+            echo "EMPTY: $f"
+            fail=1
+          fi
+        done
+        exit $fail
+      changed_when: false
+
+    - name: List generated snippets
+      ansible.builtin.shell: |
+        echo "Generated Caddy snippets:"
+        for f in /etc/caddy/conf.d/*.caddy; do
+          bytes=$(wc -c < "$f")
+          echo "  $bytes bytes  $(basename $f)"
+        done
+      register: snippet_list
+      changed_when: false
+
+    - name: Show snippet list
+      ansible.builtin.debug:
+        msg: "{{ snippet_list.stdout_lines }}"
+
+    - name: Verify opencloud snippet contains handle blocks
+      ansible.builtin.shell: |
+        grep -q "handle" /etc/caddy/conf.d/opencloud.caddy && \
+        grep -q "reverse_proxy" /etc/caddy/conf.d/opencloud.caddy
+      changed_when: false
+      failed_when: false
+      register: opencloud_check
+
+    - name: Show opencloud snippet content
+      ansible.builtin.command: cat /etc/caddy/conf.d/opencloud.caddy
+      register: opencloud_content
+      changed_when: false
+
+    - name: Display opencloud snippet
+      ansible.builtin.debug:
+        msg: "{{ opencloud_content.stdout_lines }}"

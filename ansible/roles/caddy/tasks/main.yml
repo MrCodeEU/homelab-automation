@@ -241,7 +241,8 @@
 
 - name: Compute Caddy services checksum
   ansible.builtin.set_fact:
-    caddy_services_hash: "{{ services | to_json | hash('sha256') }}"
+    caddy_services_hash: >-
+      {{ (services | to_json + lookup('file', role_path + '/templates/service_snippet.caddy.j2')) | hash('sha256') }}
 
 - name: Read stored Caddy services checksum
   ansible.builtin.slurp:
@@ -272,6 +273,21 @@
         label: "{{ service.name }}"
       when: service.enabled | default(true) and service.domain is defined
       notify: Reload Caddy
+
+    - name: Assert no generated snippet is empty
+      ansible.builtin.shell: |
+        fail=0
+        for svc in {{ caddy_service_names | join(' ') }}; do
+          f="/etc/caddy/conf.d/${svc}.caddy"
+          if [ -f "$f" ] && [ ! -s "$f" ]; then
+            echo "EMPTY: $f"
+            fail=1
+          fi
+        done
+        exit $fail
+      register: snippet_empty_check
+      changed_when: false
+      failed_when: snippet_empty_check.rc != 0
 
     - name: Find existing Caddy snippet files
       ansible.builtin.find:

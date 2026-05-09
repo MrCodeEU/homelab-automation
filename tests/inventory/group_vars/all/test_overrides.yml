@@ -1,0 +1,16 @@
+---
+# Override / mock values for the test environment.
+# Real secrets are replaced with dummy values so the playbook runs without
+# actual credentials.  These values are never used by real services.
+
+secrets:
+  caddy:
+    auth_user: "testuser"
+    auth_hash: "$2a$14$dummyhashforcionly000000000000000000000000000000000000"
+
+domain: "test.local"
+email: "test@test.local"
+base_path: "/opt"
+config_path: "/etc"
+log_path: "/var/log"
+backup_path: "/opt/backups"
