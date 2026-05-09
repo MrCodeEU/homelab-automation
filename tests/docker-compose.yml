@@ -1,0 +1,31 @@
+---
+# Test cluster: two Rocky Linux 9 SSH containers mimicking mljr and nuc.
+# The Caddy role is deployed to test-mljr; nuc is present for inventory completeness.
+#
+# SSH keys are generated on first `make up` and written to tests/ssh/
+# so subsequent Ansible runs can connect without a password.
+
+services:
+  test-mljr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: test-mljr
+    hostname: test-mljr
+    ports:
+      - "127.0.0.1:2201:22"
+    volumes:
+      - ./ssh/authorized_keys:/root/.ssh/authorized_keys:ro
+    restart: "no"
+
+  test-nuc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: test-nuc
+    hostname: test-nuc
+    ports:
+      - "127.0.0.1:2202:22"
+    volumes:
+      - ./ssh/authorized_keys:/root/.ssh/authorized_keys:ro
+    restart: "no"
