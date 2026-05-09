@@ -281,6 +281,8 @@ services:
     host: nas
     description: "OpenCloud / File Sync"
     icon: "mdi:cloud"
+    # Container must use HTTPS on port 9200 (remove PROXY_HTTP_ADDR env var from the
+    # opencloud container — it defaults to TLS on 9200, same as ocis-test on 9201).
     caddy_suppress_default_proxy: true
     caddy_extra_config: |
       @oc_preview {
@@ -291,10 +293,18 @@ services:
           uri query x 256
           uri query y 256
           uri query -c
-          reverse_proxy __TARGET_HOST__:__TARGET_PORT__
+          reverse_proxy https://__TARGET_HOST__:__TARGET_PORT__ {
+              transport http {
+                  tls_insecure_skip_verify
+              }
+          }
       }
       handle {
-          reverse_proxy __TARGET_HOST__:__TARGET_PORT__
+          reverse_proxy https://__TARGET_HOST__:__TARGET_PORT__ {
+              transport http {
+                  tls_insecure_skip_verify
+              }
+          }
       }
 
   - name: test-ocis
