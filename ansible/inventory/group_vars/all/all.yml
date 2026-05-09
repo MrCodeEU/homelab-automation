@@ -297,6 +297,7 @@ services:
               transport http {
                   tls_insecure_skip_verify
               }
+              header_up Host {http.request.host}
           }
       }
       handle {
@@ -304,6 +305,7 @@ services:
               transport http {
                   tls_insecure_skip_verify
               }
+              header_up Host {http.request.host}
           }
       }
 

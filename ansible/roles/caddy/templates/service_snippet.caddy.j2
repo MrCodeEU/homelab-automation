@@ -60,6 +60,7 @@
         transport http {
             tls_insecure_skip_verify
         }
+        header_up Host {http.request.host}
     }
 {% else %}
     reverse_proxy {{ target_host }}:{{ target_port }}
