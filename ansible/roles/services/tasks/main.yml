@@ -104,7 +104,7 @@
 
 - name: Cleanup orphaned services
   ansible.builtin.include_tasks: cleanup_orphaned.yml
-  when: cleanup_enabled | default(false) | bool
+  when: cleanup_enabled | default(true) | bool
 
 # ============================================================================
 # Production Deployment
