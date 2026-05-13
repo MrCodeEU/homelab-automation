@@ -149,18 +149,18 @@
     - speedtest
 
 # ============================================================================
-# Beszel Agent (all Rocky hosts - system monitoring)
+# SigNoz Agent (all Rocky hosts - system monitoring telemetry)
 # ============================================================================
-- name: Beszel Monitoring Agent
+- name: SigNoz Telemetry Agent
   hosts: rocky
   become: true
   gather_facts: false
   strategy: free
   tags:
-    - beszel-agent
+    - signoz-agent
     - monitoring
   roles:
-    - beszel-agent
+    - signoz-agent
 
 # ============================================================================
 # iperf3 (all Rocky hosts - network performance testing)
