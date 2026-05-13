@@ -1,0 +1,6 @@
+---
+- name: Restart SigNoz Agent
+  community.docker.docker_container:
+    name: signoz-agent
+    state: started
+    restart: true

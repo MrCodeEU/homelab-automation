@@ -1,0 +1,37 @@
+---
+# SigNoz Agent Role - Deploys OTEL Collector to managed hosts
+# ============================================================================
+
+- name: Set SigNoz OTLP endpoint (local for nuc, remote for others)
+  ansible.builtin.set_fact:
+    signoz_otlp_endpoint: "{{ 'localhost:4317' if inventory_hostname == 'nuc' else hostvars['nuc']['tailscale_ip'] + ':4317' }}"
+
+- name: Create SigNoz Agent config directory
+  ansible.builtin.file:
+    path: /opt/signoz-agent
+    state: directory
+    mode: '0755'
+
+- name: Generate OTEL Collector configuration
+  ansible.builtin.template:
+    src: "otel-collector-config.yaml.j2"
+    dest: "/opt/signoz-agent/otel-collector-config.yaml"
+    mode: '0644'
+  notify: Restart SigNoz Agent
+
+- name: Deploy SigNoz OTEL Collector container
+  community.docker.docker_container:
+    name: signoz-agent
+    image: "signoz/signoz-otel-collector:0.111.9"  # Pin to stable version
+    state: started
+    restart_policy: unless-stopped
+    pull: true
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    network_mode: host
+    pid_mode: host
+    volumes:
+      - /opt/signoz-agent/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+      - /:/hostfs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    env:
+      HOST_FS: /hostfs
