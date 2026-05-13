@@ -91,14 +91,14 @@ services:
     icon: "mdi:heart-pulse"
     backup_critical: true  # Restore on fresh install
 
-  - name: beszel
+  - name: signoz
     enabled: true
     domain: "monitor.mljr.eu"
-    port: 8090
+    port: 8080
     host: nuc
-    description: "System Monitoring"
+    description: "System & Application Observability"
     icon: "mdi:chart-line"
-    # Note: Beszel has built-in authentication, don't use caddy_auth
+    # Note: SigNoz has built-in authentication, don't use caddy_auth
 
   # Notifications
   - name: ntfy

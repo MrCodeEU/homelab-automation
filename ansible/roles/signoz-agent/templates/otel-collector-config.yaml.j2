@@ -1,0 +1,46 @@
+receivers:
+  hostmetrics:
+    collection_interval: 30s
+    root_path: /hostfs
+    scrapers:
+      cpu: {}
+      load: {}
+      memory: {}
+      disk: {}
+      filesystem:
+        exclude_mount_points:
+          match_type: strict
+          mount_points:
+            - /dev/*
+            - /proc/*
+            - /sys/*
+            - /run/*
+            - /var/lib/docker/*
+            - /snap/*
+      network: {}
+  
+  docker_stats:
+    endpoint: unix:///var/run/docker.sock
+    collection_interval: 30s
+
+processors:
+  batch:
+    send_batch_size: 1000
+    timeout: 10s
+  resourcedetection:
+    detectors: [env, system]
+    timeout: 2s
+    override: false
+
+exporters:
+  otlp:
+    endpoint: "{{ signoz_otlp_endpoint }}"
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [hostmetrics, docker_stats]
+      processors: [resourcedetection, batch]
+      exporters: [otlp]
