@@ -271,6 +271,37 @@
 - name: Regenerate Caddy service snippets
   when: caddy_snippets_stale | bool
   block:
+    - name: Ensure service log files exist with correct permissions (Production)
+      ansible.builtin.file:
+        path: "{{ log_path }}/caddy/{{ item.name }}.log"
+        state: touch
+        owner: caddy
+        group: caddy
+        mode: '0644'
+        modification_time: preserve
+        access_time: preserve
+      loop: "{{ services | default([]) }}"
+      when: item.enabled | default(true) and item.domain is defined
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Ensure service log files exist with correct permissions (Staging)
+      ansible.builtin.file:
+        path: "{{ log_path }}/caddy/{{ item.name }}-staging.log"
+        state: touch
+        owner: caddy
+        group: caddy
+        mode: '0644'
+        modification_time: preserve
+        access_time: preserve
+      loop: "{{ services | default([]) }}"
+      when: >
+        item.enabled | default(true) and 
+        item.domain is defined and 
+        is_staging_deployment | default(false)
+      loop_control:
+        label: "{{ item.name }}-staging"
+
     - name: Generate per-service Caddy snippet files
       ansible.builtin.template:
         src: service_snippet.caddy.j2

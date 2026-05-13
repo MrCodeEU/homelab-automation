@@ -149,10 +149,10 @@
     - speedtest
 
 # ============================================================================
-# SigNoz Agent (all Rocky hosts - system monitoring telemetry)
+# SigNoz Agent (all Managed hosts - system monitoring telemetry)
 # ============================================================================
 - name: SigNoz Telemetry Agent
-  hosts: rocky
+  hosts: rocky,unraid
   become: true
   gather_facts: false
   strategy: free
