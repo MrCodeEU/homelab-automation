@@ -171,7 +171,7 @@ main() {
     local success_count=0
     local total_count=0
 
-{% for item in backup_service_configs | dict2items %}
+{% for item in backup_host_service_configs | default(backup_service_configs) | dict2items %}
 {% set service = item.key %}
 {% set config = item.value %}
     # Backup {{ service }}

@@ -54,42 +54,35 @@
   register: rclone_config
 
 # ============================================================================
-# Auto-restore on fresh installation
+# Build host-local service backup configuration
 # ============================================================================
 
-- name: Restore from backup on fresh install
+- name: Initialize host backup service config
+  ansible.builtin.set_fact:
+    backup_host_service_configs: {}
+
+- name: Select backup services assigned to this host
+  ansible.builtin.set_fact:
+    backup_host_service_configs: >-
+      {{
+        backup_host_service_configs
+        | combine({
+            item.name: backup_service_configs[item.name] | combine({
+              'backup_critical': item.backup_critical | default(backup_service_configs[item.name].backup_critical | default(false))
+            })
+          })
+      }}
+  loop: "{{ services }}"
+  loop_control:
+    label: "{{ item.name }}"
   when:
-    - is_fresh_install
-    - rclone_config.stat.exists
-    - not ansible_check_mode
-  block:
-    - name: List available backups
-      ansible.builtin.command:
-        cmd: rclone lsd {{ backup_remote_name }}:{{ backup_remote_path }}/volumes
-      register: available_backups
-      failed_when: false
-      changed_when: false
+    - item.host | default('') == inventory_hostname
+    - item.enabled | default(true) | bool
+    - backup_service_configs[item.name] is defined
 
-    - name: Display available backups
-      ansible.builtin.debug:
-        msg: "Available backups: {{ available_backups.stdout_lines | default(['None']) }}"
-
-    - name: Restore service data
-      ansible.builtin.shell: |
-        {{ backup_local_path }}/scripts/restore.sh --force --service {{ item.key }}
-      loop: "{{ backup_service_configs | dict2items }}"
-      loop_control:
-        label: "{{ item.key }}"
-      register: restore_results
-      failed_when: false
-      when:
-        - available_backups.rc == 0
-        - item.value.backup_critical | default(false)
-
-    - name: Display restore results
-      ansible.builtin.debug:
-        msg: "Restore completed for critical services"
-      when: restore_results is defined
+- name: Display host backup targets
+  ansible.builtin.debug:
+    msg: "Backup targets for {{ inventory_hostname }}: {{ backup_host_service_configs.keys() | list }}"
 
 # ============================================================================
 # Generate backup/restore scripts
@@ -122,6 +115,43 @@
   when: rclone_config.stat.exists
 
 # ============================================================================
+# Auto-restore on fresh installation
+# ============================================================================
+
+- name: Restore from backup on fresh install
+  when:
+    - is_fresh_install
+    - rclone_config.stat.exists
+    - not ansible_check_mode
+  block:
+    - name: List available backups
+      ansible.builtin.command:
+        cmd: rclone lsd {{ backup_remote_name }}:{{ backup_remote_path }}/volumes
+      register: available_backups
+      failed_when: false
+      changed_when: false
+
+    - name: Display available backups
+      ansible.builtin.debug:
+        msg: "Available backups: {{ available_backups.stdout_lines | default(['None']) }}"
+
+    - name: Restore service data
+      ansible.builtin.command:
+        cmd: "{{ backup_local_path }}/scripts/restore.sh --force --service {{ item.key }}"
+      loop: "{{ backup_host_service_configs | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      register: restore_results
+      when:
+        - available_backups.rc == 0
+        - item.value.backup_critical | default(false)
+
+    - name: Display restore results
+      ansible.builtin.debug:
+        msg: "Restore completed for critical services"
+      when: restore_results is defined
+
+# ============================================================================
 # Systemd timer for automated backups
 # ============================================================================
 
@@ -146,27 +176,11 @@
     daemon_reload: true
   when: rclone_config.stat.exists and (timer_created.changed or service_created.changed)
 
-- name: Debug - Show timer file content
-  ansible.builtin.command: cat /etc/systemd/system/homelab-backup.timer
-  register: timer_content
-  changed_when: false
-  when: rclone_config.stat.exists
-
-- name: Debug - Display timer content
-  ansible.builtin.debug:
-    var: timer_content.stdout_lines
-  when: rclone_config.stat.exists
-
 - name: Validate timer file
   ansible.builtin.command: systemd-analyze verify /etc/systemd/system/homelab-backup.timer
   register: timer_validation
   failed_when: false
   changed_when: false
-  when: rclone_config.stat.exists
-
-- name: Debug - Show validation result
-  ansible.builtin.debug:
-    var: timer_validation
   when: rclone_config.stat.exists
 
 - name: Enable backup timer

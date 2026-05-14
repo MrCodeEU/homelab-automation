@@ -56,6 +56,10 @@ receivers:
         value: fail2ban
 
 processors:
+  filter/drop_uptime_kuma:
+    logs:
+      log_record:
+        - 'IsMatch(body, "Uptime-Kuma/")'
   batch:
     send_batch_size: 1000
     timeout: 10s
@@ -78,5 +82,5 @@ service:
       exporters: [otlp]
     logs:
       receivers: [filelog/caddy, filelog/fail2ban]
-      processors: [resourcedetection, batch]
+      processors: [filter/drop_uptime_kuma, resourcedetection, batch]
       exporters: [otlp]
