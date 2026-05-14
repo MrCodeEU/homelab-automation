@@ -22,7 +22,7 @@
 - name: Deploy SigNoz OTEL Collector container
   community.docker.docker_container:
     name: signoz-agent
-    image: "signoz/signoz-otel-collector:0.111.9"  # Pin to stable version
+    image: "signoz/signoz-otel-collector:latest"  # Using latest to avoid mismatches with backend
     state: started
     restart_policy: unless-stopped
     pull: true
