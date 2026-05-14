@@ -167,7 +167,8 @@ main() {
     log "Starting homelab backup - $TIMESTAMP"
     log "=========================================="
 
-    local failed_services=()
+    local failed_critical=()
+    local failed_noncritical=()
     local success_count=0
     local total_count=0
 
@@ -200,10 +201,11 @@ main() {
 {% endif %}
 
     if [ "$service_failed" = true ]; then
-        failed_services+=("{{ service }}")
 {% if config.backup_critical | default(false) %}
+        failed_critical+=("{{ service }}")
         log_error "Critical service {{ service }} backup failed!"
 {% else %}
+        failed_noncritical+=("{{ service }}")
         log_warn "Non-critical service {{ service }} backup failed"
 {% endif %}
     else
@@ -222,15 +224,21 @@ main() {
     log "=========================================="
     log "Total services: $total_count"
     log "Successful: $success_count"
-    log "Failed: {% raw %}${#failed_services[@]}{% endraw %}"
+    log "Critical failures: {% raw %}${#failed_critical[@]}{% endraw %}"
+    log "Non-critical failures: {% raw %}${#failed_noncritical[@]}{% endraw %}"
 
-    if [ {% raw %}${#failed_services[@]}{% endraw %} -gt 0 ]; then
-        log_error "Failed services: ${failed_services[*]}"
-        send_notification "❌ Backup failed for: ${failed_services[*]}" "high"
+    if [ {% raw %}${#failed_critical[@]}{% endraw %} -gt 0 ]; then
+        log_error "Critical backup failures: ${failed_critical[*]}"
+        send_notification "❌ Critical backup failures: ${failed_critical[*]}" "high"
         exit 1
     fi
 
-    log_success "All backups completed successfully!"
+    if [ {% raw %}${#failed_noncritical[@]}{% endraw %} -gt 0 ]; then
+        log_warn "Non-critical backup failures: ${failed_noncritical[*]}"
+        send_notification "⚠️ Non-critical backup failures: ${failed_noncritical[*]}" "default"
+    fi
+
+    log_success "Critical backups completed successfully!"
     send_notification "✅ All backups completed successfully ($success_count/$total_count)" "default"
     exit 0
 }
