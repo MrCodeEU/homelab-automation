@@ -59,7 +59,7 @@ Examples:
     $0 --dry-run --service kuma  # Preview kuma restore
 
 Available services:
-{% for service in backup_service_configs.keys() %}
+{% for service in (backup_host_service_configs | default(backup_service_configs)).keys() %}
     - {{ service }}
 {% endfor %}
 
@@ -80,20 +80,25 @@ list_backups() {
 restore_volume() {
     local volume_name="$1"
     local dry_run="${2:-false}"
-    local volume_path="/var/lib/docker/volumes/${volume_name}/_data"
 
     log "Restoring Docker volume: $volume_name"
 
     # Check if backup exists
-    if ! rclone lsd "${REMOTE}/volumes/${volume_name}" > /dev/null 2>&1; then
+    if ! rclone lsf "${REMOTE}/volumes/${volume_name}" --max-depth 1 > /dev/null 2>&1; then
         log_error "No backup found for volume $volume_name"
         return 1
     fi
 
-    # Create volume directory if it doesn't exist
-    if [ ! -d "$volume_path" ]; then
-        log_info "Creating volume directory: $volume_path"
-        mkdir -p "$volume_path"
+    if ! docker volume inspect "$volume_name" > /dev/null 2>&1; then
+        log_info "Creating Docker volume: $volume_name"
+        docker volume create "$volume_name" > /dev/null
+    fi
+
+    local volume_path
+    volume_path=$(docker volume inspect --format '{{ '{{' }}.Mountpoint{{ '}}' }}' "$volume_name" 2>/dev/null)
+    if [ -z "$volume_path" ] || [ ! -d "$volume_path" ]; then
+        log_error "Volume $volume_name has no usable mountpoint: $volume_path"
+        return 1
     fi
 
     local rclone_opts="--progress --transfers 4 --checkers 8"
@@ -123,7 +128,7 @@ restore_path() {
     log "Restoring path: $path_name to $target_path"
 
     # Check if backup exists
-    if ! rclone lsd "${REMOTE}/paths/${path_name}" > /dev/null 2>&1; then
+    if ! rclone lsf "${REMOTE}/paths/${path_name}" --max-depth 1 > /dev/null 2>&1; then
         log_error "No backup found for path $path_name"
         return 1
     fi
@@ -162,19 +167,21 @@ restore_service() {
     log "Restoring service: $service"
     log "=========================================="
 
+    local failed=0
+
     case "$service" in
-{% for service, config in backup_service_configs.items() %}
+{% for service, config in (backup_host_service_configs | default(backup_service_configs)).items() %}
         {{ service }})
 {% if config.backup_volumes is defined %}
 {% for volume in config.backup_volumes %}
             log "Restoring volume: {{ volume }}"
-            restore_volume "{{ volume }}" "$dry_run" || true
+            restore_volume "{{ volume }}" "$dry_run" || failed=1
 {% endfor %}
 {% endif %}
 {% if config.backup_paths is defined %}
 {% for path in config.backup_paths %}
             log "Restoring path: {{ path }}"
-            restore_path "$(basename {{ path }})" "{{ path }}" "$dry_run" || true
+            restore_path "$(basename "{{ path }}")" "{{ path }}" "$dry_run" || failed=1
 {% endfor %}
 {% endif %}
             ;;
@@ -185,7 +192,13 @@ restore_service() {
             ;;
     esac
 
+    if [ "$failed" -ne 0 ]; then
+        log_error "Service $service restore completed with errors"
+        return 1
+    fi
+
     log_success "Service $service restore completed"
+    return 0
 }
 
 # Parse arguments
@@ -268,6 +281,20 @@ case "$ACTION" in
             fi
         fi
         restore_volume "$TARGET" "$DRY_RUN"
+        ;;
+    path)
+        if [ -z "$TARGET" ]; then
+            log_error "No path specified"
+            usage
+        fi
+        if [ "$FORCE" != true ] && [ "$DRY_RUN" != true ]; then
+            read -p "Are you sure you want to restore path '$TARGET'? This may overwrite existing data. [y/N] " confirm
+            if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+                log "Restore cancelled"
+                exit 0
+            fi
+        fi
+        restore_path "$(basename "$TARGET")" "$TARGET" "$DRY_RUN"
         ;;
     *)
         usage
