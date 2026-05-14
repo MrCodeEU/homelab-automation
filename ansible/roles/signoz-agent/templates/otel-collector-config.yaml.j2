@@ -21,9 +21,45 @@ receivers:
   
   docker_stats:
     endpoint: unix:///var/run/docker.sock
+    api_version: "1.41"
     collection_interval: 30s
 
+  filelog/caddy:
+    include:
+      - /hostfs/var/log/caddy/*.log
+    exclude:
+      - /hostfs/var/log/caddy/*.gz
+      - /hostfs/var/log/caddy/access-*.log
+    start_at: end
+    include_file_name: true
+    include_file_path: true
+    operators:
+      - type: add
+        field: attributes["log.source"]
+        value: caddy
+      - type: add
+        field: attributes["service.name"]
+        value: caddy
+
+  filelog/fail2ban:
+    include:
+      - /hostfs/var/log/fail2ban.log
+    start_at: end
+    include_file_name: true
+    include_file_path: true
+    operators:
+      - type: add
+        field: attributes["log.source"]
+        value: fail2ban
+      - type: add
+        field: attributes["service.name"]
+        value: fail2ban
+
 processors:
+  filter/drop_uptime_kuma:
+    logs:
+      log_record:
+        - 'IsMatch(body, "Uptime-Kuma/")'
   batch:
     send_batch_size: 1000
     timeout: 10s
@@ -43,4 +79,8 @@ service:
     metrics:
       receivers: [hostmetrics, docker_stats]
       processors: [resourcedetection, batch]
+      exporters: [otlp]
+    logs:
+      receivers: [filelog/caddy, filelog/fail2ban]
+      processors: [filter/drop_uptime_kuma, resourcedetection, batch]
       exporters: [otlp]

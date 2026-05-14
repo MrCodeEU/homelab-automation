@@ -30,17 +30,27 @@ backup_auto_detect_volumes: true
 #   - backup_post_hook: command to run after backup
 #   - backup_critical: if true, backup failure is fatal
 backup_service_configs:
+  authelia:
+    backup_paths:
+      - "{{ authelia_config_path | default('/opt/authelia') }}"
+    backup_volumes:
+      - authelia_redis_data
+    backup_critical: true
+
   mailcow:
     backup_volumes:
       - mailcowdockerized_vmail-vol-1
       - mailcowdockerized_mysql-vol-1
     backup_pre_hook: |
-      cd /opt/mailcow && \
-      docker compose exec -T mysql-mailcow bash -c 'mysqldump -u${DBUSER} -p${DBPASS} ${DBNAME}' > /opt/backups/mailcow-mysql-dump.sql
+      cd {{ mailcow_install_path | default('/opt/mailcow-dockerized') }} && \
+      set -a && . ./mailcow.conf && set +a && \
+      mkdir -p /opt/backups/mailcow-dumps && \
+      docker compose exec -T mysql-mailcow mysqldump -u"$DBUSER" -p"$DBPASS" "$DBNAME" > /opt/backups/mailcow-dumps/mailcow.sql
     backup_post_hook: |
-      rm -f /opt/backups/mailcow-mysql-dump.sql
+      rm -rf /opt/backups/mailcow-dumps
     backup_paths:
-      - /opt/mailcow/data
+      - /opt/backups/mailcow-dumps
+      - "{{ mailcow_install_path | default('/opt/mailcow-dockerized') }}/data"
     backup_critical: true
 
   nightscout:

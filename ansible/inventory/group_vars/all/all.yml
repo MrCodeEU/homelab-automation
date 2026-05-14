@@ -416,6 +416,7 @@ services:
 # Run `force_redeploy=true` to bypass the checksum cache after hook changes.
 # TODO: NEED TO TEST THE BACKUP STRATEGY!!
 post_deploy_hook_services:
+  - signoz      # Dashboard provisioning
   - speedtest   # SSH key distribution to speedtest measurement targets
   - sonarqube   # Initial SonarQube admin password + project provisioning
 

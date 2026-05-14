@@ -6,4 +6,9 @@
 [{{ backup_remote_name }}]
 type = pcloud
 hostname = eapi.pcloud.com
-token = "{{ secrets.backup.pcloud_token }}"
+{% set pcloud_token = secrets.backup.pcloud_token | trim %}
+{% if pcloud_token.startswith('{') %}
+token = {{ pcloud_token }}
+{% else %}
+token = {"access_token":"{{ pcloud_token }}","token_type":"bearer"}
+{% endif %}
