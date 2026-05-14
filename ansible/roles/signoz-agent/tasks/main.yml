@@ -29,6 +29,7 @@
     command: ["--config=/etc/otel-collector-config.yaml"]
     network_mode: host
     pid_mode: host
+    user: root
     volumes:
       - /opt/signoz-agent/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
       - /:/hostfs:ro
