@@ -324,6 +324,7 @@ jobs:
           LINKEDIN_EMAIL: ${{ secrets.LINKEDIN_EMAIL }}
           LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
           LINKEDIN_TOTP_SECRET: ${{ secrets.LINKEDIN_TOTP_SECRET }}
+          SIGNOZ_API_KEY: ${{ secrets.SIGNOZ_API_KEY }}
         run: |
           cd ansible
 
