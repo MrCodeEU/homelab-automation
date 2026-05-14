@@ -4,7 +4,7 @@
 
 - name: Set SigNoz OTLP endpoint (local for nuc, remote for others)
   ansible.builtin.set_fact:
-    signoz_otlp_endpoint: "{{ 'localhost:4317' if inventory_hostname == 'nuc' else hostvars['nuc']['tailscale_ip'] + ':4317' }}"
+    signoz_otlp_endpoint: "{{ '127.0.0.1:4317' if inventory_hostname == 'nuc' else hostvars['nuc']['tailscale_ip'] + ':4317' }}"
 
 - name: Create SigNoz Agent config directory
   ansible.builtin.file:
