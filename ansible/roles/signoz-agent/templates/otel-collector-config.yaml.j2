@@ -24,6 +24,37 @@ receivers:
     api_version: "1.41"
     collection_interval: 30s
 
+  filelog/caddy:
+    include:
+      - /hostfs/var/log/caddy/*.log
+    exclude:
+      - /hostfs/var/log/caddy/*.gz
+      - /hostfs/var/log/caddy/access-*.log
+    start_at: end
+    include_file_name: true
+    include_file_path: true
+    operators:
+      - type: add
+        field: attributes["log.source"]
+        value: caddy
+      - type: add
+        field: attributes["service.name"]
+        value: caddy
+
+  filelog/fail2ban:
+    include:
+      - /hostfs/var/log/fail2ban.log
+    start_at: end
+    include_file_name: true
+    include_file_path: true
+    operators:
+      - type: add
+        field: attributes["log.source"]
+        value: fail2ban
+      - type: add
+        field: attributes["service.name"]
+        value: fail2ban
+
 processors:
   batch:
     send_batch_size: 1000
@@ -43,5 +74,9 @@ service:
   pipelines:
     metrics:
       receivers: [hostmetrics, docker_stats]
+      processors: [resourcedetection, batch]
+      exporters: [otlp]
+    logs:
+      receivers: [filelog/caddy, filelog/fail2ban]
       processors: [resourcedetection, batch]
       exporters: [otlp]

@@ -58,6 +58,49 @@ def query(metric, query_name="A", expression="A", group_by=None, legend="{{host.
     }
 
 
+def empty_attr():
+    return {
+        "dataType": "",
+        "id": "------false",
+        "isColumn": False,
+        "isJSON": False,
+        "key": "",
+        "type": "",
+    }
+
+
+def filter_item(key, op, value, typ="tag", data_type="string", is_column=False):
+    return {
+        "id": uuid.uuid4().hex[:8],
+        "key": attr(key, typ=typ, data_type=data_type, is_column=is_column),
+        "op": op,
+        "value": value,
+    }
+
+
+def log_query(query_name="A", operator="count", group_by=None, filters=None,
+              legend="", order_by=None, reduce_to="sum"):
+    return {
+        "aggregateAttribute": empty_attr(),
+        "aggregateOperator": operator,
+        "dataSource": "logs",
+        "disabled": False,
+        "expression": query_name,
+        "filters": {"items": filters or [], "op": "AND"},
+        "functions": [],
+        "groupBy": [attr(item) for item in (group_by or [])],
+        "having": [],
+        "legend": legend,
+        "limit": None,
+        "orderBy": order_by or [],
+        "queryName": query_name,
+        "reduceTo": reduce_to,
+        "spaceAggregation": "sum",
+        "stepInterval": 60,
+        "timeAggregation": "rate",
+    }
+
+
 def base_widget(title, panel_type, unit="none"):
     return {
         "description": "",
@@ -77,6 +120,8 @@ def base_widget(title, panel_type, unit="none"):
         "selectedLogFields": [
             {"dataType": "string", "name": "body", "type": ""},
             {"dataType": "string", "name": "timestamp", "type": ""},
+            {"dataType": "string", "name": "log.source", "type": "tag"},
+            {"dataType": "string", "name": "log.file.name", "type": "tag"},
         ],
         "selectedTracesFields": [
             attr("serviceName", is_column=True),
@@ -100,6 +145,27 @@ def graph(title, metric, x, y, w, h, group_by, legend, unit="none"):
     return widget, {"h": h, "i": widget["id"], "w": w, "x": x, "y": y}
 
 
+def log_graph(title, x, y, w, h, filters=None, group_by=None, legend="", panel_type="graph"):
+    widget = base_widget(title, panel_type)
+    widget["query"]["builder"]["queryData"] = [
+        log_query(filters=filters, group_by=group_by, legend=legend)
+    ]
+    return widget, {"h": h, "i": widget["id"], "w": w, "x": x, "y": y}
+
+
+def log_list(title, x, y, w, h, filters=None):
+    widget = base_widget(title, "list")
+    widget["query"]["builder"]["queryData"] = [
+        log_query(
+            operator="noop",
+            filters=filters,
+            order_by=[{"columnName": "timestamp", "order": "desc"}],
+            reduce_to="avg",
+        )
+    ]
+    return widget, {"h": h, "i": widget["id"], "w": w, "x": x, "y": y}
+
+
 def container_table(x, y, w, h):
     widget = base_widget("Container Inventory and Usage", "table")
     group_by = ["host.name", "container.name", "container.image.name"]
@@ -120,26 +186,50 @@ def dashboard():
     widgets = []
     layout = []
     for args in [
-        ("Host Load Average 1m", "system.cpu.load_average.1m", 0, 0, 4, 5,
+        ("Host Load Average 1m", "system.cpu.load_average.1m", 0, 0, 3, 4,
          ["host.name"], "{{host.name}}", "none"),
-        ("Host Memory Usage", "system.memory.usage", 4, 0, 4, 5,
+        ("Host Memory Usage", "system.memory.usage", 3, 0, 3, 4,
          ["host.name", "state"], "{{host.name}} {{state}}", "bytes"),
-        ("Filesystem Usage", "system.filesystem.usage", 8, 0, 4, 5,
+        ("Filesystem Usage", "system.filesystem.usage", 6, 0, 3, 4,
          ["host.name", "mountpoint", "state"], "{{host.name}} {{mountpoint}} {{state}}", "bytes"),
-        ("Container CPU", "container.cpu.utilization", 0, 5, 6, 6,
+        ("Network IO", "system.network.io", 9, 0, 3, 4,
+         ["host.name", "device", "direction"], "{{host.name}} {{device}} {{direction}}", "binBps"),
+        ("Container CPU", "container.cpu.utilization", 0, 4, 6, 5,
          ["host.name", "container.name"], "{{host.name}} {{container.name}}", "percentunit"),
-        ("Container Memory %", "container.memory.percent", 6, 5, 6, 6,
+        ("Container Memory %", "container.memory.percent", 6, 4, 6, 5,
          ["host.name", "container.name"], "{{host.name}} {{container.name}}", "percentunit"),
     ]:
         widget, item = graph(*args)
         widgets.append(widget)
         layout.append(item)
-    widget, item = container_table(0, 11, 12, 7)
+    widget, item = container_table(0, 9, 12, 6)
     widgets.append(widget)
     layout.append(item)
+
+    caddy = [filter_item("log.source", "=", "caddy")]
+    fail2ban = [filter_item("log.source", "=", "fail2ban")]
+    caddy_4xx = caddy + [filter_item("body", "contains", '"status":4', typ="", is_column=True)]
+    caddy_5xx = caddy + [filter_item("body", "contains", '"status":5', typ="", is_column=True)]
+    fail2ban_bans = fail2ban + [
+        filter_item("body", "contains", "Ban", typ="", is_column=True),
+    ]
+
+    for widget, item in [
+        log_graph("Caddy Requests by Log File", 0, 15, 6, 5, caddy, ["log.file.name"], "{{log.file.name}}"),
+        log_graph("Caddy 4xx Responses", 6, 15, 3, 5, caddy_4xx, ["log.file.name"], "{{log.file.name}}", "bar"),
+        log_graph("Caddy 5xx Responses", 9, 15, 3, 5, caddy_5xx, ["log.file.name"], "{{log.file.name}}", "bar"),
+        log_graph("Fail2ban Events", 0, 20, 4, 5, fail2ban, ["log.file.name"], "{{log.file.name}}", "bar"),
+        log_graph("Fail2ban Ban Activity", 4, 20, 4, 5, fail2ban_bans, ["log.file.name"], "{{log.file.name}}", "bar"),
+        log_graph("All Logs by Source", 8, 20, 4, 5, [], ["log.source"], "{{log.source}}", "bar"),
+        log_list("Recent Caddy Access Logs", 0, 25, 6, 7, caddy),
+        log_list("Recent Fail2ban Logs", 6, 25, 6, 7, fail2ban),
+    ]:
+        widgets.append(widget)
+        layout.append(item)
+
     return {
         "title": TITLE,
-        "description": "Initial homelab overview for host and Docker metrics collected by SigNoz agents.",
+        "description": "Homelab operations dashboard for host resources, Docker usage, Caddy access logs, and fail2ban activity.",
         "name": "homelab-overview",
         "tags": ["homelab", "infrastructure", "docker"],
         "version": "v5",
