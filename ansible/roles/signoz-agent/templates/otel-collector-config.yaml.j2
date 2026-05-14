@@ -21,6 +21,7 @@ receivers:
   
   docker_stats:
     endpoint: unix:///var/run/docker.sock
+    api_version: "1.41"
     collection_interval: 30s
 
 processors:
