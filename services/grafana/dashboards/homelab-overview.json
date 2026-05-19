@@ -4,7 +4,7 @@
   "tags": ["homelab", "linux", "docker"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "refresh": "30s",
   "time": {
     "from": "now-6h",
