@@ -226,7 +226,14 @@
     set -e
     export SERVICE_NAME="{{ service.name }}"
     export SERVICE_PATH="{{ base_path }}/{{ service.name }}"
-    source {{ base_path }}/{{ service.name }}/.env 2>/dev/null || true
+    if [ -f {{ base_path }}/{{ service.name }}/.env ]; then
+      while IFS='=' read -r key value; do
+        case "$key" in
+          ''|\#*) continue ;;
+        esac
+        export "$key=$value"
+      done < {{ base_path }}/{{ service.name }}/.env
+    fi
     bash {{ base_path }}/{{ service.name }}/hooks/post-deploy.sh "{{ service.name }}" "{{ base_path }}/{{ service.name }}"
   args:
     executable: /bin/bash

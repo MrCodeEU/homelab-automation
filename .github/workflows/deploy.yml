@@ -689,9 +689,10 @@ jobs:
       - name: Create deployment summary
         if: always()
         run: |
+          STATUS="${{ steps.ansible.outputs.exit_code == '0' && 'success' || 'failure' }}"
           echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** ${{ job.status == 'success' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** $([[ "$STATUS" == "success" ]] && echo "✅ Success" || echo "❌ Failed")" >> $GITHUB_STEP_SUMMARY
           echo "**Mode:** ${{ steps.env.outputs.check_mode == 'true' && '🧪 Dry Run (Check Mode)' || '🎯 Live Deployment' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ steps.env.outputs.is_staging == 'true' && '🔵 Production + Staging' || '🟢 Production Only' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -731,7 +732,7 @@ jobs:
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           fi
           
-          if [ "${{ job.status }}" != "success" ]; then
+          if [ "$STATUS" != "success" ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### ⚠️ Failure Information" >> $GITHUB_STEP_SUMMARY
             echo "Check the Ansible Deployment section above for detailed error messages." >> $GITHUB_STEP_SUMMARY

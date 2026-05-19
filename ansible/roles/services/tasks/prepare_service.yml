@@ -148,7 +148,14 @@
     set -e
     export SERVICE_NAME="{{ service.name }}"
     export SERVICE_PATH="{{ deploy_path }}"
-    source {{ deploy_path }}/.env 2>/dev/null || true
+    if [ -f {{ deploy_path }}/.env ]; then
+      while IFS='=' read -r key value; do
+        case "$key" in
+          ''|\#*) continue ;;
+        esac
+        export "$key=$value"
+      done < {{ deploy_path }}/.env
+    fi
     bash {{ deploy_path }}/hooks/pre-deploy.sh "{{ service.name }}" "{{ deploy_path }}"
   args:
     executable: /bin/bash
