@@ -1,16 +1,20 @@
 services:
   speedtest:
-    image: openspeedtest/latest:latest
+    image: ghcr.io/autobrr/netronome:latest
     container_name: ${COMPOSE_PROJECT_NAME:-speedtest}
     restart: unless-stopped
     ports:
-      - "8090:3000"
+      - "8090:7575"
     environment:
       TZ: ${TZ:-Europe/Vienna}
+    cap_add:
+      - NET_RAW
+    volumes:
+      - netronome-data:/data
     networks:
       - speedtest
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7575"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -23,3 +27,7 @@ services:
 networks:
   speedtest:
     driver: bridge
+
+volumes:
+  netronome-data:
+    name: netronome-data

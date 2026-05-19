@@ -25,6 +25,10 @@ backup_path: "/opt/backups"
 staging_domain_prefix: "dev"
 staging_host: "nuc"
 
+# Security migration
+fail2ban_enabled: false
+crowdsec_firewall_bouncer_enabled: true
+
 # ============================================================================
 # Services Configuration
 # ============================================================================
@@ -161,17 +165,19 @@ services:
 
   # Security
   - name: fail2ban-ui
-    enabled: true
+    enabled: false
     domain: "security.mljr.eu"
     port: 5000
     host: mljr
-    description: "Security Monitor"
+    description: "Fail2ban Security Monitor (retired)"
     icon: "mdi:shield-lock"
     caddy_auth: "authelia"
 
   - name: crowdsec
     enabled: true
-    domain: "crowdsec.mljr.eu"
+    domain:
+      - "crowdsec.mljr.eu"
+      - "security.mljr.eu"
     port: 8089
     host: mljr
     description: "CrowdSec Security Intelligence"
@@ -236,8 +242,8 @@ services:
     enabled: true
     domain: "speedtest.mljr.eu"
     port: 8090
-    host: mljr
-    description: "Browser Network Speed Test"
+    host: nuc
+    description: "Netronome Network Monitor"
     icon: "mdi:speedometer"
 
 

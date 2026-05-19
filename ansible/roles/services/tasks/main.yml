@@ -107,11 +107,15 @@
       - >-
         service.name != 'crowdsec' or
         (secrets.crowdsec.web_ui_password | default('') | length > 0)
+      - >-
+        service.name != 'crowdsec' or
+        not (crowdsec_firewall_bouncer_enabled | default(false) | bool) or
+        (secrets.crowdsec.firewall_bouncer_key | default('') | length > 0)
     fail_msg: >-
       Missing required secret for {{ service.name }}.
       Required: {{
         'GRAFANA_ADMIN_PASSWORD' if service.name == 'grafana'
-        else 'CROWDSEC_WEB_UI_PASSWORD'
+        else 'CROWDSEC_WEB_UI_PASSWORD and CROWDSEC_FIREWALL_BOUNCER_KEY'
       }}
     quiet: true
   loop: "{{ host_services }}"

@@ -44,7 +44,7 @@ Configure these secrets in your GitHub repository settings (Settings → Secrets
 | `GRAFANA_ADMIN_PASSWORD` | Grafana admin password |
 | `CROWDSEC_WEB_UI_PASSWORD` | CrowdSec machine password for the web UI |
 | `CROWDSEC_WEB_UI_NOTIFICATION_SECRET` | CrowdSec web UI notification encryption key |
-| `CROWDSEC_FIREWALL_BOUNCER_KEY` | Reserved for CrowdSec firewall remediation |
+| `CROWDSEC_FIREWALL_BOUNCER_KEY` | CrowdSec firewall bouncer API key for host-level remediation |
 
 ## How It Works
 

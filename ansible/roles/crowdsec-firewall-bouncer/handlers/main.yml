@@ -1,0 +1,6 @@
+---
+- name: Restart CrowdSec firewall bouncer
+  ansible.builtin.service:
+    name: crowdsec-firewall-bouncer
+    state: restarted
+  when: not ansible_check_mode

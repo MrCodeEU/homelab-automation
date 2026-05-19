@@ -62,7 +62,7 @@
     - container-reconcile
 
 # ============================================================================
-# Security (all rocky hosts - fail2ban-ui only on mljr)
+# Security (legacy fail2ban, skipped once CrowdSec bouncer is enabled)
 # ============================================================================
 - name: Security Setup
   hosts: rocky
@@ -73,7 +73,8 @@
     - security
     - fail2ban
   roles:
-    - fail2ban
+    - role: fail2ban
+      when: fail2ban_enabled | default(true) | bool
 
 # ============================================================================
 # HetrixTools Agent (mljr only - external uptime monitoring)
@@ -151,24 +152,37 @@
     - services
 
 # ============================================================================
-# Speedtest Service (mljr only - orchestrator)
+# CrowdSec Firewall Bouncer (mljr only - host-level enforcement)
 # ============================================================================
-- name: Speedtest Service
+- name: CrowdSec Firewall Bouncer
   hosts: mljr
   become: true
   gather_facts: false
   strategy: free
-  vars:
-    speedtest_service: "{{ services | selectattr('name', 'equalto', 'speedtest') | first }}"
   tags:
-    - speedtest
-  tasks:
-    - name: Run dedicated speedtest role when explicitly requested
-      ansible.builtin.include_role:
-        name: speedtest
+    - security
+    - crowdsec
+  roles:
+    - role: crowdsec-firewall-bouncer
+      when: crowdsec_firewall_bouncer_enabled | default(false) | bool
+
+# ============================================================================
+# Retire Fail2ban (after CrowdSec enforcement is active)
+# ============================================================================
+- name: Retire Fail2ban
+  hosts: rocky
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - security
+    - fail2ban
+    - cleanup
+  roles:
+    - role: fail2ban-retire
       when:
-        - speedtest_service.enabled | default(false)
-        - speedtest_service.skip_deploy | default(false)
+        - not (fail2ban_enabled | default(true) | bool)
+        - crowdsec_firewall_bouncer_enabled | default(false) | bool
 
 # ============================================================================
 # Grafana Alloy Agent (Rocky hosts only - NAS/Unraid is managed manually)

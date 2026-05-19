@@ -1,0 +1,38 @@
+---
+# Retire fail2ban only after the CrowdSec bouncer play has succeeded.
+
+- name: Stop and disable fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: stopped
+    enabled: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Remove fail2ban package
+  ansible.builtin.package:
+    name: fail2ban
+    state: absent
+
+- name: Check for fail2ban UI deployment
+  ansible.builtin.stat:
+    path: "{{ base_path }}/fail2ban-ui/docker-compose.yml"
+  register: fail2ban_ui_compose
+  when: inventory_hostname == 'mljr'
+
+- name: Stop fail2ban UI containers
+  community.docker.docker_compose_v2:
+    project_src: "{{ base_path }}/fail2ban-ui"
+    state: absent
+    remove_orphans: true
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - inventory_hostname == 'mljr'
+    - fail2ban_ui_compose.stat.exists | default(false)
+
+- name: Remove fail2ban UI deployment directory
+  ansible.builtin.file:
+    path: "{{ base_path }}/fail2ban-ui"
+    state: absent
+  when: inventory_hostname == 'mljr'

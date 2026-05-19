@@ -1,0 +1,74 @@
+---
+# CrowdSec firewall bouncer - host-level remediation on the public ingress host.
+
+- name: Validate CrowdSec firewall bouncer secret
+  ansible.builtin.assert:
+    that:
+      - secrets.crowdsec.firewall_bouncer_key | default('') | length > 0
+    fail_msg: >-
+      CROWDSEC_FIREWALL_BOUNCER_KEY is required when
+      crowdsec_firewall_bouncer_enabled=true.
+    quiet: true
+  no_log: true
+
+- name: Wait for Dockerized CrowdSec local API
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 8088
+    timeout: 60
+  when: not ansible_check_mode
+
+- name: Configure CrowdSec package repository
+  ansible.builtin.copy:
+    dest: /etc/yum.repos.d/crowdsec_crowdsec.repo
+    mode: '0644'
+    content: |
+      [crowdsec_crowdsec]
+      name=crowdsec_crowdsec
+      baseurl=https://packagecloud.io/crowdsec/crowdsec/rpm_any/rpm_any/$basearch
+      repo_gpgcheck=1
+      gpgcheck=1
+      enabled=1
+      gpgkey=https://packagecloud.io/crowdsec/crowdsec/gpgkey
+             https://packagecloud.io/crowdsec/crowdsec/gpgkey/crowdsec-crowdsec-EDE2C695EC9A5A5C.pub.gpg
+             https://packagecloud.io/crowdsec/crowdsec/gpgkey/crowdsec-crowdsec-C822EDD6B39954A1.pub.gpg
+             https://packagecloud.io/crowdsec/crowdsec/gpgkey/crowdsec-crowdsec-FED78314A2468CCF.pub.gpg
+      sslverify=1
+      sslcacert=/etc/pki/tls/certs/ca-bundle.crt
+      metadata_expire=3600
+
+- name: Install CrowdSec nftables firewall bouncer
+  ansible.builtin.dnf:
+    name: crowdsec-firewall-bouncer-nftables
+    state: present
+    update_cache: true
+
+- name: Ensure CrowdSec bouncer config directory exists
+  ansible.builtin.file:
+    path: /etc/crowdsec/bouncers
+    state: directory
+    mode: '0750'
+
+- name: Configure CrowdSec firewall bouncer
+  ansible.builtin.template:
+    src: crowdsec-firewall-bouncer.yaml.j2
+    dest: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
+    mode: '0600'
+  no_log: true
+  notify: Restart CrowdSec firewall bouncer
+
+- name: Ensure CrowdSec firewall bouncer is enabled and running
+  ansible.builtin.service:
+    name: crowdsec-firewall-bouncer
+    state: started
+    enabled: true
+  when: not ansible_check_mode
+
+- name: Apply CrowdSec firewall bouncer config before retiring fail2ban
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify CrowdSec firewall bouncer is active
+  ansible.builtin.command: systemctl is-active crowdsec-firewall-bouncer
+  register: crowdsec_firewall_bouncer_active
+  changed_when: false
+  when: not ansible_check_mode

@@ -25,11 +25,6 @@ prometheus.scrape "docker" {
 prometheus.scrape "security" {
   targets = [
     {
-      "__address__" = "127.0.0.1:9191",
-      "job"         = "fail2ban",
-      "instance"    = "{{ inventory_hostname }}",
-    },
-    {
       "__address__" = "127.0.0.1:6060",
       "job"         = "crowdsec",
       "instance"    = "{{ inventory_hostname }}",
@@ -74,11 +69,6 @@ loki.source.file "system_logs" {
     {
       "__path__" = "/var/log/secure",
       "job"      = "auth",
-      "instance" = "{{ inventory_hostname }}",
-    },
-    {
-      "__path__" = "/var/log/fail2ban.log",
-      "job"      = "fail2ban",
       "instance" = "{{ inventory_hostname }}",
     },
 {% if inventory_hostname == 'mljr' %}

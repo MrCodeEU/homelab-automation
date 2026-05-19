@@ -1,0 +1,20 @@
+api_url: http://127.0.0.1:8088/
+api_key: {{ secrets.crowdsec.firewall_bouncer_key }}
+mode: nftables
+update_frequency: 10s
+log_mode: file
+log_dir: /var/log
+log_level: info
+deny_action: DROP
+deny_log: false
+nftables:
+  ipv4:
+    enabled: true
+    set-only: false
+    table: crowdsec
+    chain: crowdsec-chain
+  ipv6:
+    enabled: true
+    set-only: false
+    table: crowdsec6
+    chain: crowdsec6-chain
