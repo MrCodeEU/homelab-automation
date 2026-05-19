@@ -40,6 +40,11 @@ Configure these secrets in your GitHub repository settings (Settings → Secrets
 | `BICHON_ENCRYPT_PASSWORD` | Bichon email archiver encryption password |
 | `CADDY_AUTH_PASSWORD_HASH` | Bcrypt hash for Caddy basicauth |
 | `CADDY_AUTH_USER` | Username for Caddy basicauth |
+| `GRAFANA_ADMIN_USER` | Grafana admin user (optional, defaults to `admin`) |
+| `GRAFANA_ADMIN_PASSWORD` | Grafana admin password |
+| `CROWDSEC_WEB_UI_PASSWORD` | CrowdSec machine password for the web UI |
+| `CROWDSEC_WEB_UI_NOTIFICATION_SECRET` | CrowdSec web UI notification encryption key |
+| `CROWDSEC_FIREWALL_BOUNCER_KEY` | Reserved for CrowdSec firewall remediation |
 
 ## How It Works
 

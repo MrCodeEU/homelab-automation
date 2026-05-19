@@ -1,0 +1,77 @@
+---
+# Reconcile standalone Docker containers managed outside the generic services role.
+# Compose-based services are handled by roles/services/tasks/cleanup_orphaned.yml.
+
+- name: Build expected standalone container list for this host
+  ansible.builtin.set_fact:
+    expected_standalone_containers: >-
+      {%- set expected = [] -%}
+      {%- for item in homelab_standalone_containers | default([]) -%}
+        {%- set item_hosts = item.hosts | default([]) -%}
+        {%- set item_host_groups = item.host_groups | default([]) -%}
+        {%- set ns = namespace(matches_group=false) -%}
+        {%- for group_name in item_host_groups -%}
+          {%- if inventory_hostname in (groups[group_name] | default([])) -%}
+            {%- set ns.matches_group = true -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {%- if inventory_hostname in item_hosts or ns.matches_group -%}
+          {%- set _ = expected.append(item.name) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ expected }}
+    known_standalone_containers: "{{ homelab_standalone_containers | default([]) | map(attribute='name') | list }}"
+
+- name: Build stale standalone path list for this host
+  ansible.builtin.set_fact:
+    stale_standalone_paths: >-
+      {%- set stale = [] -%}
+      {%- for item in homelab_standalone_paths | default([]) -%}
+        {%- set item_hosts = item.hosts | default([]) -%}
+        {%- set item_host_groups = item.host_groups | default([]) -%}
+        {%- set ns = namespace(matches_group=false) -%}
+        {%- for group_name in item_host_groups -%}
+          {%- if inventory_hostname in (groups[group_name] | default([])) -%}
+            {%- set ns.matches_group = true -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {%- if (inventory_hostname in item_hosts or ns.matches_group)
+              and item.container not in expected_standalone_containers -%}
+          {%- set _ = stale.append(item) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ stale }}
+
+- name: Inspect known standalone containers
+  community.docker.docker_container_info:
+    name: "{{ item }}"
+  loop: "{{ known_standalone_containers }}"
+  loop_control:
+    label: "{{ item }}"
+  register: standalone_container_info
+  failed_when: false
+  when:
+    - known_standalone_containers | length > 0
+    - not ansible_check_mode
+
+- name: Remove unexpected standalone containers
+  community.docker.docker_container:
+    name: "{{ item.item }}"
+    state: absent
+  loop: "{{ standalone_container_info.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when:
+    - not ansible_check_mode
+    - item.exists | default(false)
+    - item.item not in expected_standalone_containers
+
+- name: Remove stale standalone container paths
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ stale_standalone_paths | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when:
+    - not ansible_check_mode

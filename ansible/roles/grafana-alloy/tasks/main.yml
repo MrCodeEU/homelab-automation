@@ -1,0 +1,51 @@
+---
+# Grafana Alloy Role - host, Docker, and log telemetry for Grafana LGTM
+
+- name: Set Grafana telemetry endpoints
+  ansible.builtin.set_fact:
+    grafana_prometheus_remote_write_url: "http://{{ hostvars['nuc']['tailscale_ip'] }}:9090/api/v1/write"
+    grafana_loki_push_url: "http://{{ hostvars['nuc']['tailscale_ip'] }}:3100/loki/api/v1/push"
+
+- name: Create Grafana Alloy directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /opt/grafana-alloy
+    - /opt/grafana-alloy/data
+
+- name: Generate Grafana Alloy configuration
+  ansible.builtin.template:
+    src: config.alloy.j2
+    dest: /opt/grafana-alloy/config.alloy
+    mode: '0644'
+  notify: Restart Grafana Alloy
+
+- name: Deploy Grafana Alloy container
+  community.docker.docker_container:
+    name: grafana-alloy
+    image: grafana/alloy:latest
+    state: started
+    restart_policy: unless-stopped
+    pull: true
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    network_mode: host
+    pid_mode: host
+    user: root
+    volumes:
+      - /opt/grafana-alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /opt/grafana-alloy/data:/var/lib/alloy/data
+      - /:/hostfs:ro
+      - /proc:/hostfs/proc:ro
+      - /sys:/hostfs/sys:ro
+      - /var/log:/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      homelab.managed: "true"
+      homelab.component: "standalone-container"
+      homelab.name: "grafana-alloy"

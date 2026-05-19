@@ -47,6 +47,21 @@
     - base
 
 # ============================================================================
+# Container Reconciliation (remove retired standalone containers before deploy)
+# ============================================================================
+- name: Container Reconciliation
+  hosts: managed
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - cleanup
+    - services
+    - monitoring
+  roles:
+    - container-reconcile
+
+# ============================================================================
 # Security (all rocky hosts - fail2ban-ui only on mljr)
 # ============================================================================
 - name: Security Setup
@@ -149,18 +164,18 @@
     - speedtest
 
 # ============================================================================
-# SigNoz Agent (all Managed hosts - system monitoring telemetry)
+# Grafana Alloy Agent (Rocky hosts only - NAS/Unraid is managed manually)
 # ============================================================================
-- name: SigNoz Telemetry Agent
-  hosts: rocky,unraid
+- name: Grafana Alloy Telemetry Agent
+  hosts: rocky
   become: true
   gather_facts: false
   strategy: free
   tags:
-    - signoz-agent
+    - grafana-alloy
     - monitoring
   roles:
-    - signoz-agent
+    - grafana-alloy
 
 # ============================================================================
 # iperf3 (all Rocky hosts - network performance testing)

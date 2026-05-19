@@ -34,6 +34,10 @@
             - /var/run/docker.sock:/var/run/docker.sock:ro
           environment:
             TZ: {{ timezone | default('Europe/Vienna') }}
+          labels:
+            homelab.managed: "true"
+            homelab.component: "standalone-container"
+            homelab.name: "dozzle-agent"
           logging:
             driver: "json-file"
             options:

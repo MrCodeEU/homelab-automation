@@ -1,0 +1,104 @@
+prometheus.exporter.unix "host" {
+  rootfs_path = "/hostfs"
+  procfs_path = "/hostfs/proc"
+  sysfs_path  = "/hostfs/sys"
+}
+
+prometheus.scrape "host" {
+  targets    = prometheus.exporter.unix.host.targets
+  forward_to = [prometheus.remote_write.homelab.receiver]
+  job_name   = "node"
+}
+
+prometheus.exporter.cadvisor "docker" {
+  docker_host      = "unix:///var/run/docker.sock"
+  storage_duration = "5m"
+}
+
+prometheus.scrape "docker" {
+  targets    = prometheus.exporter.cadvisor.docker.targets
+  forward_to = [prometheus.remote_write.homelab.receiver]
+  job_name   = "docker"
+}
+
+{% if inventory_hostname == 'mljr' %}
+prometheus.scrape "security" {
+  targets = [
+    {
+      "__address__" = "127.0.0.1:9191",
+      "job"         = "fail2ban",
+      "instance"    = "{{ inventory_hostname }}",
+    },
+    {
+      "__address__" = "127.0.0.1:6060",
+      "job"         = "crowdsec",
+      "instance"    = "{{ inventory_hostname }}",
+    },
+  ]
+  forward_to = [prometheus.remote_write.homelab.receiver]
+}
+
+{% endif %}
+prometheus.remote_write "homelab" {
+  endpoint {
+    url = "{{ grafana_prometheus_remote_write_url }}"
+  }
+
+  external_labels = {
+    instance = "{{ inventory_hostname }}",
+    host     = "{{ inventory_hostname }}",
+  }
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.containers.targets
+  labels     = {
+    job      = "docker",
+    instance = "{{ inventory_hostname }}",
+  }
+  forward_to = [loki.write.homelab.receiver]
+}
+
+loki.source.file "system_logs" {
+  targets = [
+    {
+      "__path__" = "/var/log/messages",
+      "job"      = "system",
+      "instance" = "{{ inventory_hostname }}",
+    },
+    {
+      "__path__" = "/var/log/secure",
+      "job"      = "auth",
+      "instance" = "{{ inventory_hostname }}",
+    },
+    {
+      "__path__" = "/var/log/fail2ban.log",
+      "job"      = "fail2ban",
+      "instance" = "{{ inventory_hostname }}",
+    },
+{% if inventory_hostname == 'mljr' %}
+    {
+      "__path__"         = "/var/log/caddy/*.log",
+      "__path_exclude__" = "/var/log/caddy/*.gz",
+      "job"              = "caddy",
+      "instance"         = "{{ inventory_hostname }}",
+    },
+{% endif %}
+  ]
+  forward_to = [loki.write.homelab.receiver]
+
+  file_match {
+    enabled = true
+  }
+}
+
+loki.write "homelab" {
+  endpoint {
+    url = "{{ grafana_loki_push_url }}"
+  }
+}

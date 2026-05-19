@@ -324,7 +324,11 @@ jobs:
           LINKEDIN_EMAIL: ${{ secrets.LINKEDIN_EMAIL }}
           LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
           LINKEDIN_TOTP_SECRET: ${{ secrets.LINKEDIN_TOTP_SECRET }}
-          SIGNOZ_API_KEY: ${{ secrets.SIGNOZ_API_KEY }}
+          GRAFANA_ADMIN_USER: ${{ secrets.GRAFANA_ADMIN_USER }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          CROWDSEC_FIREWALL_BOUNCER_KEY: ${{ secrets.CROWDSEC_FIREWALL_BOUNCER_KEY }}
+          CROWDSEC_WEB_UI_PASSWORD: ${{ secrets.CROWDSEC_WEB_UI_PASSWORD }}
+          CROWDSEC_WEB_UI_NOTIFICATION_SECRET: ${{ secrets.CROWDSEC_WEB_UI_NOTIFICATION_SECRET }}
         run: |
           cd ansible
 

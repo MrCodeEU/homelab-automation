@@ -129,6 +129,11 @@ jobs:
           GITHUB_USERNAME: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
           PCLOUD_TOKEN: ${{ secrets.PCLOUD_TOKEN }}
+          GRAFANA_ADMIN_USER: ${{ secrets.GRAFANA_ADMIN_USER }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          CROWDSEC_FIREWALL_BOUNCER_KEY: ${{ secrets.CROWDSEC_FIREWALL_BOUNCER_KEY }}
+          CROWDSEC_WEB_UI_PASSWORD: ${{ secrets.CROWDSEC_WEB_UI_PASSWORD }}
+          CROWDSEC_WEB_UI_NOTIFICATION_SECRET: ${{ secrets.CROWDSEC_WEB_UI_NOTIFICATION_SECRET }}
         run: |
           cd ansible
           TAGS="${{ inputs.tags }}"
@@ -198,6 +203,8 @@ jobs:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
           GITHUB_USERNAME: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
+          GRAFANA_ADMIN_USER: ${{ secrets.GRAFANA_ADMIN_USER }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         run: |
           cd ansible
           TAGS="${{ inputs.tags }}"

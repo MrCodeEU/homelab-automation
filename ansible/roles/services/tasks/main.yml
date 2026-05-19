@@ -98,6 +98,30 @@
       Deploying {{ host_services | length }} service{{ 's' if host_services | length != 1 else '' }}: 
       {{ host_services | map(attribute='name') | join(', ') if host_services | length > 0 else 'none' }}
 
+- name: Validate required service secrets for this host
+  ansible.builtin.assert:
+    that:
+      - >-
+        service.name != 'grafana' or
+        (secrets.grafana.admin_password | default('') | length > 0)
+      - >-
+        service.name != 'crowdsec' or
+        (secrets.crowdsec.web_ui_password | default('') | length > 0)
+    fail_msg: >-
+      Missing required secret for {{ service.name }}.
+      Required: {{
+        'GRAFANA_ADMIN_PASSWORD' if service.name == 'grafana'
+        else 'CROWDSEC_WEB_UI_PASSWORD'
+      }}
+    quiet: true
+  loop: "{{ host_services }}"
+  loop_control:
+    loop_var: service
+    label: "{{ service.name }}"
+  when:
+    - not ansible_check_mode
+    - service.name in ['grafana', 'crowdsec']
+
 # ============================================================================
 # Cleanup (Remove services no longer assigned to this host)
 # ============================================================================

@@ -92,13 +92,23 @@ services:
     backup_critical: true  # Restore on fresh install
 
   - name: signoz
-    enabled: true
+    enabled: false  # Replaced by Grafana LGTM stack
     domain: "monitor.mljr.eu"
     port: 8080
     host: nuc
-    description: "System & Application Observability"
+    description: "System & Application Observability (deprecated)"
     icon: "mdi:chart-line"
-    # Note: SigNoz has built-in authentication, don't use caddy_auth
+
+  - name: grafana
+    enabled: true
+    domain:
+      - "monitor.mljr.eu"
+      - "grafana.mljr.eu"
+    port: 3000
+    host: nuc
+    description: "Metrics, Logs & Monitoring"
+    icon: "mdi:chart-areaspline"
+    caddy_auth: "authelia"
 
   # Notifications
   - name: ntfy
@@ -157,6 +167,15 @@ services:
     host: mljr
     description: "Security Monitor"
     icon: "mdi:shield-lock"
+    caddy_auth: "authelia"
+
+  - name: crowdsec
+    enabled: true
+    domain: "crowdsec.mljr.eu"
+    port: 8089
+    host: mljr
+    description: "CrowdSec Security Intelligence"
+    icon: "mdi:shield-search"
     caddy_auth: "authelia"
 
   # Container Management
@@ -341,16 +360,6 @@ services:
     icon: "mdi:code-braces"
     requires_sysctl: "vm.max_map_count=262144"
 
-  # Monitoring Host
-  - name: grafana
-    enabled: false
-    managed: false
-    domain: "grafana.mljr.eu"
-    port: 3000
-    host: monitoring
-    description: "Metrics & Monitoring"
-    icon: "mdi:chart-areaspline"
-
   # NUC Rocky WebUI
   - name: nuc-webui
     enabled: true
@@ -409,6 +418,34 @@ services:
 # Role-specific variables
 # ============================================================================
 
+# Standalone Docker containers are managed by dedicated roles rather than the
+# generic services role. The container-reconcile role removes known containers
+# that are no longer expected on a host before new services and agents start.
+homelab_standalone_containers:
+  - name: grafana-alloy
+    host_groups:
+      - rocky
+  - name: dozzle-agent
+    hosts:
+      - mljr
+  - name: signoz-agent
+    hosts: []  # Retired; kept here so reconciliation removes old deployments.
+
+homelab_standalone_paths:
+  - container: grafana-alloy
+    path: /opt/grafana-alloy
+    host_groups:
+      - rocky
+  - container: dozzle-agent
+    path: /opt/dozzle-agent
+    hosts:
+      - mljr
+  - container: signoz-agent
+    path: /opt/signoz-agent
+    host_groups:
+      - rocky
+      - unraid
+
 # Services with post-deploy hooks (services/<name>/hooks/post-deploy.sh)
 # IMPORTANT: When you add a new post-deploy.sh script to a service, you MUST
 # also add that service name here — otherwise the hook will be silently skipped.
@@ -416,7 +453,7 @@ services:
 # Run `force_redeploy=true` to bypass the checksum cache after hook changes.
 # TODO: NEED TO TEST THE BACKUP STRATEGY!!
 post_deploy_hook_services:
-  - signoz      # Dashboard provisioning
+  - crowdsec    # CrowdSec web UI machine registration
   - speedtest   # SSH key distribution to speedtest measurement targets
   - sonarqube   # Initial SonarQube admin password + project provisioning
 

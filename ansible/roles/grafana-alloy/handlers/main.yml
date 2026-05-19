@@ -1,0 +1,6 @@
+---
+- name: Restart Grafana Alloy
+  community.docker.docker_container:
+    name: grafana-alloy
+    state: started
+    restart: true

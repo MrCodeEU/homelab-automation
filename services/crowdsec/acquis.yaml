@@ -1,0 +1,16 @@
+filenames:
+  - /var/log/secure
+labels:
+  type: syslog
+
+---
+filenames:
+  - /var/log/caddy/*.log
+labels:
+  type: caddy
+
+---
+filenames:
+  - /var/log/fail2ban.log
+labels:
+  type: syslog
