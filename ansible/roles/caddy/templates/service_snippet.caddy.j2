@@ -71,7 +71,7 @@
 
 {# Staging environment - check if dev/ folder exists #}
 {% set has_dev_folder = lookup('fileglob', playbook_dir ~ '/../../services/' ~ service.name ~ '/dev/docker-compose.yml') %}
-{% if has_dev_folder and is_staging_deployment | default(false) %}
+{% if has_dev_folder and is_staging_deployment | default(false) | bool %}
 {% set staging_port = service.port + 10000 %}
 {% set staging_target = hostvars[staging_host]['ansible_host'] %}
 {# Generate staging domain #}

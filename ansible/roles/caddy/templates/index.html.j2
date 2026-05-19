@@ -247,7 +247,7 @@
             <p class="subtitle">Deployment Status & Service Overview</p>
         </header>
 
-{% if is_staging_deployment | default(false) %}
+{% if is_staging_deployment | default(false) | bool %}
         <div class="staging-banner">
             <strong>STAGING ENVIRONMENT</strong> - Services are running in development mode
         </div>
@@ -260,8 +260,8 @@
             </div>
             <div class="info-card">
                 <h3>Environment</h3>
-                <div class="value {% if is_staging_deployment | default(false) %}staging{% else %}success{% endif %}">
-                    {{ 'Staging' if is_staging_deployment | default(false) else 'Production' }}
+                <div class="value {% if is_staging_deployment | default(false) | bool %}staging{% else %}success{% endif %}">
+                    {{ 'Staging' if is_staging_deployment | default(false) | bool else 'Production' }}
                 </div>
             </div>
             <div class="info-card">

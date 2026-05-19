@@ -323,7 +323,7 @@
       when: >
         item.enabled | default(true) and 
         item.domain is defined and 
-        is_staging_deployment | default(false)
+        is_staging_deployment | default(false) | bool
       loop_control:
         label: "{{ item.name }}-staging"
 
