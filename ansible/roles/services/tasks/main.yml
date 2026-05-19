@@ -280,7 +280,7 @@
       {%- for result in hook_job_result.results | default([]) -%}
         {%- if result.finished | default(false) and result.rc | default(0) != 0 -%}
           {%- set _ = failed.append({
-            'name': result.service.name | default('unknown'),
+            'name': ((result.item.service | default(result.item.item)) | default({'name': 'unknown'})).name,
             'rc': result.rc,
             'stderr': result.stderr_lines | default([]) | join('\n') | truncate(200)
           }) -%}
@@ -310,14 +310,11 @@
     msg: |
       Post-deploy hook failed for critical service: {{ item.name }}
       Exit code: {{ item.rc }}
-
-      To ignore hook failures, set 'fail_on_hook_error: false' in your playbook.
   loop: "{{ failed_hooks | default([]) }}"
   loop_control:
     label: "{{ item.name }}"
   when:
     - not ansible_check_mode
-    - fail_on_hook_error | default(false)
     - item.name in critical_hook_services | default([])
 
 # ============================================================================

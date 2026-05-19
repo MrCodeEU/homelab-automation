@@ -233,13 +233,12 @@ services:
 
   # Network Testing
   - name: speedtest
-    enabled: false
+    enabled: true
     domain: "speedtest.mljr.eu"
-    port: 8089
+    port: 8090
     host: mljr
-    description: "Internal Network Speed Test"
+    description: "Browser Network Speed Test"
     icon: "mdi:speedometer"
-    skip_deploy: true
 
 
 
@@ -454,8 +453,10 @@ homelab_standalone_paths:
 # TODO: NEED TO TEST THE BACKUP STRATEGY!!
 post_deploy_hook_services:
   - crowdsec    # CrowdSec web UI machine registration
-  - speedtest   # SSH key distribution to speedtest measurement targets
   - sonarqube   # Initial SonarQube admin password + project provisioning
+
+critical_hook_services:
+  - crowdsec
 
 # Backup configuration
 backup_enabled: true

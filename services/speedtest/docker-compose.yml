@@ -1,34 +1,16 @@
 services:
   speedtest:
-    image: ghcr.io/mrcodeeu/homelab-speedtest:latest
+    image: openspeedtest/latest:latest
     container_name: ${COMPOSE_PROJECT_NAME:-speedtest}
     restart: unless-stopped
     ports:
-      - "8089:8080"
-    volumes:
-      - speedtest-data:/app/data
-      - ./id_rsa:/root/.ssh/id_rsa:ro
+      - "8090:3000"
     environment:
       TZ: ${TZ:-Europe/Vienna}
-      # Schedule configuration (cron format)
-      PING_SCHEDULE: "*/15 * * * *"      # Every 15 minutes
-      SPEEDTEST_SCHEDULE: "0 * * * *"    # Every hour at minute 0
-      # ntfy notifications
-      NTFY_ENABLED: "true"
-      NTFY_SERVER: "https://ntfy.mljr.eu"
-      NTFY_TOPIC: "speedtest"
-      NTFY_TOKEN: ""
-      # SMTP notifications (via mailcow)
-      SMTP_ENABLED: "true"
-      SMTP_HOST: "${SMTP_HOST}"
-      SMTP_PORT: "${SMTP_PORT:-587}"
-      SMTP_USER: "${SMTP_USER}"
-      SMTP_PASSWORD: "${SMTP_PASSWORD}"
-      SMTP_FROM: "${SMTP_FROM:-speedtest@mljr.eu}"
     networks:
       - speedtest
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/devices"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -41,7 +23,3 @@ services:
 networks:
   speedtest:
     driver: bridge
-
-volumes:
-  speedtest-data:
-    driver: local

@@ -158,10 +158,17 @@
   become: true
   gather_facts: false
   strategy: free
+  vars:
+    speedtest_service: "{{ services | selectattr('name', 'equalto', 'speedtest') | first }}"
   tags:
     - speedtest
-  roles:
-    - speedtest
+  tasks:
+    - name: Run dedicated speedtest role when explicitly requested
+      ansible.builtin.include_role:
+        name: speedtest
+      when:
+        - speedtest_service.enabled | default(false)
+        - speedtest_service.skip_deploy | default(false)
 
 # ============================================================================
 # Grafana Alloy Agent (Rocky hosts only - NAS/Unraid is managed manually)

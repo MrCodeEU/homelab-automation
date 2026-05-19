@@ -3,7 +3,7 @@
 
 - name: Set Grafana telemetry endpoints
   ansible.builtin.set_fact:
-    grafana_prometheus_remote_write_url: "http://{{ hostvars['nuc']['tailscale_ip'] }}:9090/api/v1/write"
+    grafana_prometheus_remote_write_url: "http://{{ hostvars['nuc']['tailscale_ip'] }}:19090/api/v1/write"
     grafana_loki_push_url: "http://{{ hostvars['nuc']['tailscale_ip'] }}:3100/loki/api/v1/push"
 
 - name: Create Grafana Alloy directories

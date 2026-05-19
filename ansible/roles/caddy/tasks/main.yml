@@ -121,6 +121,8 @@
   ansible.builtin.shell: |
     chown -R caddy:caddy {{ log_path }}/caddy
     chmod -R 0755 {{ log_path }}/caddy
+    setfacl -R -m u:caddy:rwx,m:rwx {{ log_path }}/caddy
+    setfacl -d -m u:caddy:rwx,m:rwx {{ log_path }}/caddy
   changed_when: false
   failed_when: false
   # Note: Using shell here to fix permissions on existing files
@@ -255,6 +257,28 @@
     caddy_services_hash: >-
       {{ (services | to_json + lookup('file', role_path + '/templates/service_snippet.caddy.j2')) | hash('sha256') }}
 
+- name: Find existing Caddy snippet files
+  ansible.builtin.find:
+    paths: /etc/caddy/conf.d
+    patterns: "*.caddy"
+    excludes: "000-snippets.caddy"
+  register: existing_snippets
+
+- name: Build Caddy snippet reconciliation state
+  ansible.builtin.set_fact:
+    caddy_existing_service_names: "{{ existing_snippets.files | default([]) | map(attribute='path') | map('basename') | map('regex_replace', '\\.caddy$', '') | list }}"
+    caddy_orphaned_service_names: "{{ (existing_snippets.files | default([]) | map(attribute='path') | map('basename') | map('regex_replace', '\\.caddy$', '') | list) | difference(caddy_service_names) }}"
+    caddy_missing_service_names: "{{ caddy_service_names | difference(existing_snippets.files | default([]) | map(attribute='path') | map('basename') | map('regex_replace', '\\.caddy$', '') | list) }}"
+
+- name: Remove orphaned Caddy snippet files
+  ansible.builtin.file:
+    path: "/etc/caddy/conf.d/{{ item }}.caddy"
+    state: absent
+  loop: "{{ caddy_orphaned_service_names }}"
+  loop_control:
+    label: "{{ item }}.caddy"
+  notify: Reload Caddy
+
 - name: Read stored Caddy services checksum
   ansible.builtin.slurp:
     src: /etc/caddy/conf.d/.services-checksum
@@ -266,7 +290,8 @@
     caddy_snippets_stale: >-
       {{ (force_regen_caddy | default(false) | bool) or
          (caddy_stored_checksum.failed | default(true)) or
-         ((caddy_stored_checksum.content | default('') | b64decode | trim) != caddy_services_hash) }}
+         ((caddy_stored_checksum.content | default('') | b64decode | trim) != caddy_services_hash) or
+         (caddy_missing_service_names | length > 0) }}
 
 - name: Regenerate Caddy service snippets
   when: caddy_snippets_stale | bool
@@ -330,23 +355,6 @@
       register: snippet_empty_check
       changed_when: false
       failed_when: snippet_empty_check.rc != 0
-
-    - name: Find existing Caddy snippet files
-      ansible.builtin.find:
-        paths: /etc/caddy/conf.d
-        patterns: "*.caddy"
-        excludes: "000-snippets.caddy"
-      register: existing_snippets
-
-    - name: Remove orphaned Caddy snippet files
-      ansible.builtin.file:
-        path: "{{ item.path }}"
-        state: absent
-      loop: "{{ existing_snippets.files }}"
-      loop_control:
-        label: "{{ item.path | basename }}"
-      when: (item.path | basename | regex_replace('\\.caddy$', '')) not in caddy_service_names
-      notify: Reload Caddy
 
     - name: Save Caddy services checksum
       ansible.builtin.copy:

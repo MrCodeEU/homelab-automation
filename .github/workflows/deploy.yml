@@ -741,7 +741,7 @@ jobs:
       - name: Notify
         if: always()
         run: |
-          STATUS="${{ job.status }}"
+          STATUS="${{ steps.ansible.outputs.exit_code == '0' && 'success' || 'failure' }}"
           EMOJI=$([[ "$STATUS" == "success" ]] && echo "✅" || echo "❌")
           PRIORITY=$([[ "$STATUS" == "success" ]] && echo "default" || echo "high")
 
@@ -802,3 +802,9 @@ jobs:
           else
             echo "⚠️  Ntfy service is not reachable, skipping notification"
           fi
+
+      - name: Fail workflow when Ansible failed
+        if: steps.ansible.outputs.exit_code != '0'
+        run: |
+          echo "::error::Ansible deployment failed with exit code ${{ steps.ansible.outputs.exit_code }}"
+          exit 1
