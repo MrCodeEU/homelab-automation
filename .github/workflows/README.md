@@ -1,18 +1,18 @@
-# GitHub Actions Deployment Workflow
+# GitHub Actions Deployment Workflows
 
-This directory contains the GitHub Actions workflow for deploying your homelab infrastructure using **Ansible** over Tailscale SSH.
+This directory contains the GitHub Actions workflows for deploying the homelab with Ansible over Tailscale.
 
-## Workflow
+## Workflows
 
-### Ansible Deploy (`ansible-deploy.yml`)
+### Standard Deploy (`deploy.yml`)
 
-Single unified workflow that deploys to any or all hosts using Ansible playbooks.
+Sequential deployment with validation, change detection, Ansible execution, summary generation, and ntfy notification.
 
-**Usage:** Manually trigger via GitHub Actions tab
+It runs in check mode for pull requests and can deploy changed services only when the git diff is narrow enough.
 
-**Options:**
-- **limit**: Target specific hosts (`all`, `mljr`, `homeserver`, `unraid`)
-- **tags**: Run specific roles (`all`, `base`, `docker`, `caddy`, `services`)
+### Parallel Deploy (`deploy-parallel.yml`)
+
+Manual workflow that deploys hosts in parallel for better visibility and faster multi-host runs.
 
 ## Required GitHub Secrets
 
@@ -65,8 +65,7 @@ Configure these secrets in your GitHub repository settings (Settings → Secrets
            ▼
 ┌─────────────────────┐
 │  Target Hosts       │
-│  (mljr/homeserver/  │
-│   pi/unraid)        │
+│  (mljr/nuc/nas)     │
 └─────────────────────┘
 ```
 
@@ -75,17 +74,23 @@ Configure these secrets in your GitHub repository settings (Settings → Secrets
 2. Set up Tailscale VPN connection
 3. Install Ansible (cached)
 4. Install Ansible collections
-5. Run `ansible-playbook playbooks/site.yml` with specified limit/tags
+5. Inject secrets as environment variables
+6. Run `ansible-playbook playbooks/site.yml` with selected limit/tags/check mode
+7. Fail the job when Ansible fails and send deployment notification
 
 ## Ansible Roles (Tags)
 
 | Tag | Description | Hosts |
 |-----|-------------|-------|
-| `base` | Install base packages (git, curl, vim, htop, etc.) | rocky, debian |
-| `docker` | Install Docker and Docker Compose | rocky, debian |
-| `caddy` | Install and configure Caddy reverse proxy | rocky |
-| `services` | Deploy Docker Compose services | rocky, debian |
-| `unraid` | Unraid-specific deployment script | unraid |
+| `base` | Install base packages and Docker | rocky |
+| `services` | Deploy Docker Compose services | rocky |
+| `caddy` | Configure Caddy reverse proxy | mljr |
+| `security` | Security setup, CrowdSec bouncer, fail2ban retirement | mljr/rocky |
+| `crowdsec` | CrowdSec firewall bouncer | mljr |
+| `fail2ban` | Legacy fail2ban setup/retirement | rocky |
+| `grafana-alloy` | Monitoring agent | rocky |
+| `monitoring` | Monitoring-related roles | rocky |
+| `backup` | Backup/restore setup | rocky |
 
 ## Security Features
 
@@ -94,6 +99,7 @@ Configure these secrets in your GitHub repository settings (Settings → Secrets
 - **Scoped permissions**: OAuth client tagged with `tag:ci`
 - **Secrets as env vars**: Injected via Ansible `lookup('env', ...)`
 - **No public exposure**: All communication over private Tailscale network
+- **CrowdSec enforcement**: `mljr` installs the nftables firewall bouncer before fail2ban is retired
 
 ## Troubleshooting
 

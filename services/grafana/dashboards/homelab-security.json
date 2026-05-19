@@ -1,0 +1,93 @@
+{
+  "uid": "homelab-security",
+  "title": "Homelab Security",
+  "tags": ["homelab", "security", "crowdsec"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Active CrowdSec Decisions",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 20}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "area", "justifyMode": "auto"},
+      "targets": [{"refId": "A", "expr": "sum(cs_active_decisions)", "legendFormat": "active"}]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Alerts",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 15}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "area", "justifyMode": "auto"},
+      "targets": [{"refId": "A", "expr": "sum(cs_alerts)", "legendFormat": "alerts"}]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Scenario Overflows",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 10}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "area", "justifyMode": "auto"},
+      "targets": [{"refId": "A", "expr": "sum(increase(cs_bucket_overflowed_total[24h]))", "legendFormat": "overflows"}]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "SSH Brute Force Alerts",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "area", "justifyMode": "auto"},
+      "targets": [{"refId": "A", "expr": "sum(cs_active_decisions{reason=~\".*ssh.*\"})", "legendFormat": "ssh"}]
+    },
+    {
+      "id": 5,
+      "type": "bargauge",
+      "title": "Active Decisions by Reason",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 10}]}}, "overrides": []},
+      "options": {"orientation": "horizontal", "displayMode": "gradient", "showUnfilled": true, "minVizWidth": 0, "minVizHeight": 10},
+      "targets": [{"refId": "A", "expr": "sum by(reason) (cs_active_decisions)", "legendFormat": "{{reason}}"}]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Scenario Overflows by Reason",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "fieldConfig": {"defaults": {"unit": "ops", "custom": {"drawStyle": "bars", "lineInterpolation": "linear", "lineWidth": 1, "fillOpacity": 80, "showPoints": "never"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"refId": "A", "expr": "sum by(name) (increase(cs_bucket_overflowed_total[$__rate_interval]))", "legendFormat": "{{name}}"}]
+    },
+    {
+      "id": 7,
+      "type": "logs",
+      "title": "Caddy Security-Relevant Responses",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 13},
+      "options": {"showTime": true, "showLabels": true, "wrapLogMessage": false, "dedupStrategy": "none", "sortOrder": "Descending"},
+      "targets": [{"refId": "A", "expr": "{job=\"caddy\"} |~ \"\\\"status\\\":(401|403|404|429|500|502|503)\""}]
+    },
+    {
+      "id": 8,
+      "type": "logs",
+      "title": "Auth and CrowdSec Logs",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 13},
+      "options": {"showTime": true, "showLabels": true, "wrapLogMessage": false, "dedupStrategy": "none", "sortOrder": "Descending"},
+      "targets": [{"refId": "A", "expr": "{job=~\"auth|docker\"} |~ \"(?i)(failed|invalid|ban|crowdsec|ssh|auth)\""}]
+    }
+  ]
+}

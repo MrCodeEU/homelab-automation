@@ -1,93 +1,118 @@
 # Homelab Automation - Ansible
 
-This directory contains the Ansible configuration for managing the `mljr.eu` homelab infrastructure. It automates the deployment of services, security configurations, backups, and reverse proxy setup.
+This directory contains the Ansible configuration for the `mljr.eu` homelab. It manages Rocky Linux hosts over Tailscale, deploys Docker Compose services, configures Caddy, runs backups, installs monitoring agents, and enforces security controls.
 
-## Project Overview
+## Main Components
 
-*   **Type:** Ansible Automation Project
-*   **Target OS:** Primarily Rocky Linux (managed hosts), with support for Debian/Ubuntu.
-*   **Main Domain:** `mljr.eu`
-*   **Key Components:**
-    *   **Caddy:** Reverse proxy handling SSL and routing.
-    *   **Docker:** Container orchestration for most services.
-    *   **Glance:** Main dashboard.
-    *   **Mailcow:** Mail server solution.
-    *   **Rclone:** Backup synchronization to pCloud.
+- `base`: system packages, timezone, Docker, firewalld baseline.
+- `services`: generic Docker Compose deployment for the service catalog.
+- `container-reconcile`: removes retired standalone containers and paths.
+- `caddy`: Caddy reverse proxy, HTTPS, snippets, and log permissions.
+- `crowdsec-firewall-bouncer`: installs host nftables remediation on `mljr`.
+- `fail2ban-retire`: removes legacy fail2ban after CrowdSec enforcement is active.
+- `grafana-alloy`: host, Docker, and log telemetry to the Grafana stack.
+- `backup`: backup and restore scripts.
+- `glance`, `mailcow`, `authelia`: dedicated service roles.
 
-## Directory Structure
+## Key Files
 
-*   **`inventory/`**: Defines hosts and groups.
-    *   `hosts.yml`: Main inventory file.
-    *   `group_vars/all/all.yml`: Global configuration, including the **Service Catalog**.
-    *   `group_vars/all/secrets.yml`: Encrypted secrets (ensure `ansible-vault` is used).
-*   **`playbooks/`**: Entry point playbooks.
-    *   `site.yml`: Main playbook to deploy everything.
-*   **`roles/`**: Reusable Ansible roles.
-    *   `base`: System packages, Docker installation.
-    *   `caddy`: Caddy reverse proxy configuration.
-    *   `services`: Generic role to deploy Docker Compose services defined in `all.yml`.
-    *   `backup`: Backup scripts and Rclone configuration.
-    *   `fail2ban`: Security configuration.
-    *   `glance`: Deploys the Glance dashboard.
-    *   `mailcow`: Deploys Mailcow (dockerized).
-*   **`ansible.cfg`**: Ansible runtime configuration (performance, paths, privilege escalation).
+| Path | Purpose |
+|------|---------|
+| `inventory/hosts.yml` | Inventory hosts and Tailscale addresses |
+| `inventory/group_vars/all/all.yml` | Global settings and service catalog |
+| `inventory/group_vars/all/secrets.yml` | Environment variable lookups |
+| `playbooks/site.yml` | Main playbook and role order |
+| `roles/services/` | Generic Docker Compose service deployment |
 
-## Key Concepts
+## Service Catalog
 
-### Service Catalog (`group_vars/all/all.yml`)
-Services are defined in the `services` list. Each entry controls:
-*   `enabled`: Toggle deployment.
-*   `managed`: If `false`, Ansible only configures the Caddy proxy (for external hosts like Unraid/Pi).
-*   `staging`: If `true`, deploys a second instance on `port + 10000` with `dev.` subdomain prefix.
-*   `caddy_auth`: Enables Basic Auth if set to `"basicauth"`.
+Services live in `inventory/group_vars/all/all.yml`. Each entry controls deployment, Caddy routing, dashboard metadata, staging support, and cleanup.
 
-### Staging Environment
-Global variables `staging_port_offset` (10000) and `staging_domain_prefix` ("dev") control the staging environment. Services marked with `staging: true` will be deployed twice: once for production and once for staging.
+Common fields:
 
-### Hosts
-*   **Managed (`rocky`)**: Full Ansible control (Base, Docker, Services, Security). Example: `mljr`.
-*   **Proxy Only**: Ansible only configures Caddy to reverse proxy to these hosts. Examples: `pi` (Home Assistant), `nas` (Unraid services).
-*   **Unraid**: Limited management.
+- `enabled`: whether the service should exist.
+- `managed`: if false, only Caddy proxy config is generated.
+- `skip_deploy`: a dedicated role owns deployment.
+- `domain`: one domain or a list of domains.
+- `port`: backend port, or `0` for no web UI.
+- `host`: target inventory host.
+- `caddy_auth`: `basicauth` or `authelia`.
+
+Disabled services should usually remain in the catalog until cleanup has removed old containers and snippets.
+
+## Playbook Order
+
+`site.yml` is ordered to keep migrations safe:
+
+1. Gather facts
+2. Base setup
+3. Container reconciliation
+4. Legacy fail2ban setup only if `fail2ban_enabled=true`
+5. Infrastructure roles
+6. Generic Docker services
+7. CrowdSec firewall bouncer on `mljr`
+8. Fail2ban retirement
+9. Monitoring agents and iperf3
+10. Caddy
+
+CrowdSec bouncer setup intentionally runs before fail2ban retirement.
+
+## Security
+
+CrowdSec is active security. Fail2ban is disabled by default:
+
+```yaml
+fail2ban_enabled: false
+crowdsec_firewall_bouncer_enabled: true
+```
+
+The `crowdsec` Docker service provides detection and UI. The host bouncer role installs `crowdsec-firewall-bouncer-nftables` on `mljr` and points it to `127.0.0.1:8088`.
+
+Required secrets:
+
+- `CROWDSEC_WEB_UI_PASSWORD`
+- `CROWDSEC_WEB_UI_NOTIFICATION_SECRET`
+- `CROWDSEC_FIREWALL_BOUNCER_KEY`
+
+## Monitoring
+
+Grafana replaced SigNoz. `grafana-alloy` runs on Rocky hosts and forwards metrics/logs to the Grafana stack on `nuc`. Grafana datasources and dashboards are provisioned from `services/grafana/`. Do not reintroduce SigNoz agents unless intentionally reverting the monitoring stack.
+
+Use stable dashboard datasource UIDs:
+
+- `prometheus`
+- `loki`
+
+NAS/Unraid telemetry is manual. `services/grafana/nas-alloy.example.alloy` documents the expected remote-write and Loki endpoints.
+
+## Network Testing
+
+`speedtest` is Netronome on `nuc`, exposed as `speedtest.mljr.eu`. Cross-node iperf is provided by the `iperf3` role; Netronome targets are configured manually in the UI.
 
 ## Usage
 
-### Prerequisites
-*   Ansible installed.
-*   SSH access to target hosts (configured in `~/.ssh/config` or via `ansible_host`).
-*   `ansible-galaxy` collections installed:
-    ```bash
-    ansible-galaxy install -r requirements.yml
-    ```
-
-### Common Commands
-
-**Deploy Everything:**
 ```bash
+# Deploy everything
 ansible-playbook playbooks/site.yml
-```
 
-**Deploy Specific Tag (e.g., only Caddy config):**
-```bash
-ansible-playbook playbooks/site.yml --tags caddy
-```
+# Deploy only services and Caddy
+ansible-playbook playbooks/site.yml --tags services,caddy
 
-**Limit to Specific Host:**
-```bash
+# Limit to one host
 ansible-playbook playbooks/site.yml --limit mljr
-```
 
-**Tags Available:**
-*   `base`: System setup & Docker.
-*   `services`: Docker containers.
-*   `caddy`: Reverse proxy.
-*   `backup`: Backup scripts.
-*   `security`: Fail2ban.
-*   `glance`: Dashboard.
-*   `mailcow`: Mail server.
+# Dry run
+ansible-playbook playbooks/site.yml --check --diff
+
+# Staging deployment
+ansible-playbook playbooks/site.yml -e is_staging_deployment=true
+```
 
 ## Development Conventions
 
-*   **Idempotency:** Ensure all tasks can be run multiple times without side effects.
-*   **Variables:** Prefer defining variables in `group_vars/all/all.yml` rather than hardcoding in tasks.
-*   **Secrets:** NEVER commit secrets in plain text. Use Ansible Vault for `secrets.yml`.
-*   **Templates:** Use Jinja2 (`.j2`) templates for configuration files.
+- Keep tasks idempotent.
+- Prefer variables in `group_vars/all/all.yml` over hardcoded values.
+- Add secrets through environment lookups in `secrets.yml`.
+- Update GitHub workflow env injection when adding secrets.
+- Use Jinja templates for generated config.
+- Run the root `make test` target before pushing.

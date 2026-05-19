@@ -17,6 +17,8 @@ This document explains the optimizations in place and how to further improve dep
 9. **YAML Output** - Cleaner, more readable output
 10. **Intelligent Service Deployment** - Auto-detects changed services, only deploys what changed
 11. **Parallel Host Deployment** - Optional parallel workflow for multi-host deployments
+12. **Idempotent Cleanup** - Disabled/moved services, retired standalone containers, and stale Caddy snippets are reconciled during normal runs
+13. **Critical Hook Failure Propagation** - Critical post-deploy hooks fail the Ansible run, workflow summary, and ntfy notification consistently
 
 ### GitHub Workflow Improvements
 
@@ -26,6 +28,7 @@ This document explains the optimizations in place and how to further improve dep
 4. **Validation Job** - Fails fast on config errors before deployment starts
 5. **Change Detection** - Automatically detects which services changed in git diff
 6. **Parallel Workflow** - Deploy to multiple hosts simultaneously (optional)
+7. **Deployment Status Guard** - The job fails when Ansible returns a non-zero exit code, even if later notification steps still run
 
 ## Speed Optimization: Mitogen
 
@@ -118,10 +121,23 @@ Use the parallel workflow for faster multi-host deployments:
 
 When deploying specific services:
 ```bash
-ansible-playbook playbooks/site.yml --tags services,caddy --skip-tags base,security
+ansible-playbook playbooks/site.yml --tags services,caddy --skip-tags base
 ```
 
-### 4. Free Strategy (Parallel Tasks)
+Avoid skipping `security` during CrowdSec/fail2ban migrations unless you intentionally want to leave the current host enforcement state untouched.
+
+### 4. Reconciliation and Cleanup
+
+Normal full deployments include cleanup tasks:
+
+- `container-reconcile` removes retired standalone containers such as old telemetry agents.
+- The `services` role removes Docker Compose services that are no longer assigned to a host.
+- The `caddy` role removes orphaned service snippets and regenerates missing snippets.
+- `fail2ban-retire` removes legacy fail2ban only after the CrowdSec firewall bouncer has started.
+
+Use `force_redeploy=true` when hook scripts, `.env` templates, or service files changed but the checksum cache would otherwise skip a service sync.
+
+### 5. Free Strategy (Parallel Tasks)
 
 For independent hosts, use `free` strategy in playbooks:
 ```yaml

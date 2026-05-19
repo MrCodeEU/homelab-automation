@@ -7,8 +7,11 @@ services:
       - "8090:7575"
     environment:
       TZ: ${TZ:-Europe/Vienna}
+      NETRONOME__HOST: 0.0.0.0
+      NETRONOME__PORT: 7575
     cap_add:
       - NET_RAW
+      - NET_ADMIN
     volumes:
       - netronome-data:/data
     networks:

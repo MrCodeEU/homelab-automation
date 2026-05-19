@@ -19,6 +19,46 @@ for attempt in $(seq 1 30); do
   sleep 2
 done
 
+echo "INFO: Updating CrowdSec Hub index."
+docker exec crowdsec cscli hub update
+
+STRICT_SCENARIOS=(
+  "crowdsecurity/http-dos-random-uri"
+  "crowdsecurity/http-dos-switching-ua"
+  "crowdsecurity/http-dos-invalid-http-versions"
+  "crowdsecurity/http-dos-bypass-cache"
+  "crowdsecurity/http-wordpress_user-enum"
+  "crowdsecurity/http-wordpress_wpconfig"
+  "ltsich/http-w00tw00t"
+)
+
+for scenario in "${STRICT_SCENARIOS[@]}"; do
+  if docker exec crowdsec cscli scenarios inspect "${scenario}" >/dev/null 2>&1; then
+    echo "SUCCESS: CrowdSec scenario ${scenario} already installed."
+  else
+    docker exec crowdsec cscli scenarios install "${scenario}"
+    echo "SUCCESS: CrowdSec scenario ${scenario} installed."
+  fi
+done
+
+echo "INFO: Upgrading installed CrowdSec Hub content."
+docker exec crowdsec cscli hub upgrade
+
+docker restart crowdsec >/dev/null
+
+for attempt in $(seq 1 30); do
+  if docker exec crowdsec cscli lapi status >/dev/null 2>&1; then
+    break
+  fi
+
+  if [ "$attempt" -eq 30 ]; then
+    echo "FAILED: CrowdSec Local API did not become ready after Hub maintenance."
+    exit 1
+  fi
+
+  sleep 2
+done
+
 if docker exec crowdsec cscli machines inspect crowdsec-web-ui >/dev/null 2>&1; then
   echo "SUCCESS: CrowdSec web UI machine already exists."
 else

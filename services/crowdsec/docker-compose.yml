@@ -8,7 +8,7 @@ services:
       - "127.0.0.1:6060:6060"
     environment:
       - TZ=${TZ}
-      - COLLECTIONS=crowdsecurity/linux crowdsecurity/sshd crowdsecurity/caddy crowdsecurity/http-cve
+      - COLLECTIONS=crowdsecurity/linux crowdsecurity/sshd crowdsecurity/caddy crowdsecurity/http-cve crowdsecurity/base-http-scenarios crowdsecurity/whitelist-good-actors
       - BOUNCER_KEY_firewall=${CROWDSEC_FIREWALL_BOUNCER_KEY}
       - TRUSTED_IPS=127.0.0.1,::1,172.16.0.0/12
     volumes:

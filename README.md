@@ -1,135 +1,181 @@
 # Homelab Automation
 
-Ansible-based automation for deploying and managing self-hosted services across multiple hosts over Tailscale VPN.
+Ansible automation for deploying and managing self-hosted services across the `mljr.eu` homelab over Tailscale.
 
 ## Quick Start
 
 ```bash
-# Clone and setup
 git clone https://github.com/MrCodeEU/homelab-automation.git
-cd homelab-automation/ansible
+cd homelab-automation
+git config core.hooksPath .githooks
 
-# Install Ansible collections
+cd ansible
 ansible-galaxy collection install -r requirements.yml
-
-# Configure your hosts in inventory/hosts.yml
-# Configure services in inventory/group_vars/all.yml
-
-# Deploy
 ansible-playbook playbooks/site.yml
 ```
 
 ## Architecture
 
 ```
-GitHub Actions (deploy.yml)
-         │ Tailscale VPN
-         ▼
-    ┌─────────┐     ┌─────────┐     ┌─────────┐
-    │  mljr   │     │   pi    │     │   nas   │
-    │  (VPS)  │     │  (RPi)  │     │(Unraid) │
-    │  Rocky  │     │ proxy   │     │ proxy   │
-    └─────────┘     └─────────┘     └─────────┘
+GitHub Actions / local Ansible
+             |
+        Tailscale VPN
+             |
+   +---------+---------+
+   |                   |
+ mljr                nuc
+ VPS                 compute node
+ Caddy ingress       Grafana, Netronome,
+ CrowdSec            heavier services
 ```
+
+NAS/Unraid services are mostly managed manually and only proxied or monitored where explicitly configured.
 
 ## Features
 
-- **Idempotent Deployment** - Safe to run repeatedly
-- **Staging Environment** - Port offset (+10000) for dev versions
-- **Auto-Restore** - Fresh installs automatically restore from backup
-- **External Triggers** - Repository dispatch for external service updates
-- **Caddy Proxy** - Automatic HTTPS for all services
-- **Secret Management** - Centralized secrets via environment variables
+- Idempotent Ansible deployments for Rocky Linux hosts.
+- Generic Docker Compose service deployment from `services/<name>/docker-compose.yml`.
+- Automatic Caddy HTTPS and reverse proxy snippets.
+- Staging deployments through `services/<name>/dev/docker-compose.yml`.
+- Cleanup of disabled or moved services to avoid stale containers and Caddy snippets.
+- Grafana/Loki/Prometheus monitoring with Grafana Alloy agents.
+- CrowdSec security engine with nftables firewall enforcement on `mljr`.
+- Netronome network testing on `nuc`, exposed as `speedtest.mljr.eu`.
+- GitHub Actions deployment over Tailscale with secrets injected as environment variables.
 
 ## Directory Structure
 
 ```
 homelab-automation/
+├── AGENTS.md                         # Agent/operator guidance
 ├── ansible/
 │   ├── inventory/
-│   │   ├── hosts.yml           # Host definitions
-│   │   └── group_vars/
-│   │       ├── all.yml         # Services & global config
-│   │       └── secrets.yml     # Secret lookups (DRY)
-│   ├── playbooks/
-│   │   └── site.yml            # Main playbook
+│   │   ├── hosts.yml
+│   │   └── group_vars/all/
+│   │       ├── all.yml               # Service catalog and global config
+│   │       └── secrets.yml           # Environment variable lookups
+│   ├── playbooks/site.yml            # Main deployment playbook
 │   └── roles/
-│       ├── base/               # System + Docker
-│       ├── caddy/              # Reverse proxy
-│       ├── services/           # Docker Compose
-│       ├── backup/             # Automated backup
-│       ├── fail2ban/           # Security
-│       ├── glance/             # Dashboard
-│       └── mailcow/            # Mail server
-├── services/                   # Service configurations
-│   ├── nightscout/
-│   ├── homepage/
-│   ├── ui-showcase/
-│   ├── kuma/
+│       ├── base/
+│       ├── caddy/
+│       ├── services/
+│       ├── container-reconcile/
+│       ├── crowdsec-firewall-bouncer/
+│       ├── fail2ban-retire/
+│       ├── grafana-alloy/
+│       └── ...
+├── services/
+│   ├── crowdsec/
+│   ├── grafana/
+│   ├── speedtest/                    # Netronome
 │   └── ...
 └── .github/workflows/
-    └── deploy.yml              # CI/CD workflow
+    ├── deploy.yml
+    └── deploy-parallel.yml
 ```
 
 ## Service Configuration
 
-Services are defined in `ansible/inventory/group_vars/all.yml`:
+Services are defined in `ansible/inventory/group_vars/all/all.yml`:
 
 ```yaml
 services:
-  - name: nightscout
+  - name: myservice
     enabled: true
-    domain: "nightscout.mljr.eu"
-    port: 1337
-    host: mljr
-    staging: true              # Enable staging environment
-    caddy_auth: "basicauth"    # Password protection
-
-  - name: homeassistant
-    enabled: true
-    managed: false             # External service (proxy only)
-    domain: "home.mljr.eu"
-    port: 8123
-    host: pi
+    domain: "myservice.mljr.eu"
+    port: 8080
+    host: nuc
+    managed: true
+    caddy_auth: "authelia"
 ```
 
-### Service Options
+Important options:
 
 | Option | Description |
 |--------|-------------|
-| `enabled` | Deploy this service |
-| `managed` | If false, only configure Caddy |
-| `staging` | Deploy staging version on dev subdomain |
-| `skip_deploy` | Use dedicated role instead |
-| `caddy_auth` | Set to "basicauth" for auth |
+| `enabled` | Whether the service should exist |
+| `managed` | If false, only Caddy proxy config is generated |
+| `skip_deploy` | Dedicated role owns deployment |
+| `domain` | String or list of domains |
+| `port` | Backend port, or `0` for notification-only/no UI services |
+| `host` | Inventory host running the service |
+| `caddy_auth` | `basicauth` or `authelia` |
 
-## Staging Environment
+Disabled services can remain in the catalog so cleanup roles can remove old deployments and stale proxy snippets safely.
 
-Services with `staging: true` get a staging version:
-- **Production**: `service.mljr.eu` on port 1337
-- **Staging**: `service.dev.mljr.eu` on port 11337
+## Key Services
 
-Staging auto-enables on non-main branches.
+| Service | Host | Domain |
+|---------|------|--------|
+| Caddy | `mljr` | Public ingress for `*.mljr.eu` |
+| Authelia | `mljr` | `auth.mljr.eu` |
+| CrowdSec | `mljr` | `crowdsec.mljr.eu`, `security.mljr.eu` |
+| Grafana | `nuc` | `monitor.mljr.eu`, `grafana.mljr.eu` |
+| Netronome | `nuc` | `speedtest.mljr.eu` |
+| Dozzle | `nuc` | `docker.mljr.eu` |
 
-## Backup & Restore
+## Security
 
-Backups run daily at 3 AM to pCloud:
-- Docker volumes
-- Service data directories
+CrowdSec replaced fail2ban as the active security stack.
 
-**Auto-restore on fresh install**: Delete `/opt/.homelab-initialized` to trigger restore.
+- Dockerized CrowdSec runs on `mljr`.
+- The web UI is exposed through Caddy and protected with Authelia.
+- `crowdsec-firewall-bouncer-nftables` is installed on `mljr` by Ansible for host-level enforcement.
+- The `fail2ban-retire` role stops/removes old fail2ban state only after the CrowdSec bouncer is active.
+
+Required CrowdSec secrets:
+
+| Secret | Description |
+|--------|-------------|
+| `CROWDSEC_WEB_UI_PASSWORD` | CrowdSec web UI machine password |
+| `CROWDSEC_WEB_UI_NOTIFICATION_SECRET` | CrowdSec web UI notification encryption secret |
+| `CROWDSEC_FIREWALL_BOUNCER_KEY` | API key for the host firewall bouncer |
+
+## Monitoring
+
+SigNoz has been replaced by a Grafana stack on `nuc`:
+
+- Grafana UI
+- Prometheus for metrics
+- Loki for logs
+- Grafana Alloy agents on Rocky hosts
+
+Alloy collects host metrics, Docker metrics, Docker logs, Caddy logs, and CrowdSec metrics. NAS/Unraid monitoring is manual.
+
+Grafana provisioning is stored in `services/grafana/`:
+
+- Datasources: `services/grafana/provisioning/datasources/datasources.yml`
+- Dashboard provider: `services/grafana/provisioning/dashboards/dashboards.yml`
+- Dashboards: `services/grafana/dashboards/*.json`
+- Manual NAS Alloy example: `services/grafana/nas-alloy.example.alloy`
+
+Once the NAS sends metrics/logs with `instance="nas"` and `host="nas"`, the provisioned dashboards include it automatically.
+
+## Staging
+
+Create `services/<name>/dev/docker-compose.yml` to make a service staging-capable. Then run:
 
 ```bash
-# Manual restore
-/opt/backups/scripts/restore.sh --service nightscout
-
-# List available backups
-/opt/backups/scripts/restore.sh --list
+ansible-playbook playbooks/site.yml -e is_staging_deployment=true
 ```
 
-## Commands
+Staging services deploy to `staging_host` (`nuc`) and are proxied as `<service>.dev.mljr.eu`.
+
+## Validation
+
+From the repository root:
 
 ```bash
+ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_HOME=/tmp/ansible-home make test
+```
+
+This runs service validation, Caddy template rendering, Ansible syntax checks, and Docker Compose syntax checks.
+
+## Common Commands
+
+```bash
+cd ansible
+
 # Full deployment
 ansible-playbook playbooks/site.yml
 
@@ -137,25 +183,20 @@ ansible-playbook playbooks/site.yml
 ansible-playbook playbooks/site.yml --limit mljr
 
 # Specific tags
-ansible-playbook playbooks/site.yml --tags caddy,services
-
-# Staging mode
-ansible-playbook playbooks/site.yml -e is_staging_deployment=true
+ansible-playbook playbooks/site.yml --tags services,caddy
 
 # Dry run
-ansible-playbook playbooks/site.yml --check
+ansible-playbook playbooks/site.yml --check --diff
+
+# Force service file sync and .env regeneration
+ansible-playbook playbooks/site.yml --tags services -e force_redeploy=true
 ```
 
 ## GitHub Actions
 
-The workflow triggers on:
-- Push to main/v2 branches
-- Manual dispatch with options
-- Repository dispatch from external repos
+The main workflow deploys on pushes to main branches, pull requests in check mode, manual dispatch, and repository dispatch from external repos. Secrets are injected as environment variables and consumed through `ansible/inventory/group_vars/all/secrets.yml`.
 
-### Trigger from External Repo
-
-External repos can trigger deployment of specific services via `repository_dispatch`:
+External repos can trigger a specific service deployment with `repository_dispatch`:
 
 ```yaml
 - name: Trigger deployment
@@ -168,65 +209,20 @@ External repos can trigger deployment of specific services via `repository_dispa
         "event_type": "service-update",
         "client_payload": {
           "service": "homepage",
-          "tag": "latest",
           "environment": "production",
           "commit_sha": "${{ github.sha }}"
         }
       }'
 ```
 
-#### Payload Fields
-
-| Field | Description | Default |
-|-------|-------------|---------|
-| `service` | Service name matching `services/<name>/` | Deploys all if omitted |
-| `tag` | Docker image tag to deploy | `latest` |
-| `environment` | `production` or `staging` | `production` |
-| `commit_sha` | Source commit for traceability | — |
-
-When `environment` is `staging`, the service is deployed to the staging host with `dev/docker-compose.yml`.
-
-### Required Secrets
-
-| Secret | Description |
-|--------|-------------|
-| `TS_OAUTH_CLIENT_ID` | Tailscale OAuth client ID |
-| `TS_OAUTH_SECRET` | Tailscale OAuth secret |
-| `NIGHTSCOUT_API_SECRET` | Nightscout API secret |
-| `CADDY_AUTH_PASSWORD_HASH` | Bcrypt hash for basicauth |
-| `PCLOUD_TOKEN` | pCloud rclone token for backups |
-| `STRAVA_CLIENT_ID` | Strava API client ID (homepage) |
-| `STRAVA_CLIENT_SECRET` | Strava API client secret (homepage) |
-| `STRAVA_REFRESH_TOKEN` | Strava API refresh token (homepage) |
-| `LINKEDIN_EMAIL` | LinkedIn email (homepage) |
-| `LINKEDIN_PASSWORD` | LinkedIn password (homepage) |
-| `LINKEDIN_TOTP_SECRET` | LinkedIn TOTP secret (homepage) |
-
 ## Adding a Service
 
-1. Add to `ansible/inventory/group_vars/all.yml`:
-```yaml
-- name: myservice
-  enabled: true
-  domain: "myservice.mljr.eu"
-  port: 8080
-  host: mljr
-```
-
-2. Create `services/myservice/docker-compose.yml`:
-```yaml
-services:
-  myservice:
-    image: myimage:latest
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-```
-
-3. Deploy:
-```bash
-ansible-playbook playbooks/site.yml --tags services
-```
+1. Add the service to `ansible/inventory/group_vars/all/all.yml`.
+2. Create `services/<name>/docker-compose.yml`.
+3. Add any secret lookups to `ansible/inventory/group_vars/all/secrets.yml`.
+4. Inject new GitHub secrets in `.github/workflows/deploy.yml` and document them in `.github/workflows/README.md`.
+5. Add `services/<name>/dev/docker-compose.yml` if staging is needed.
+6. Run `make test`.
 
 ## License
 
