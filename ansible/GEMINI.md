@@ -85,6 +85,10 @@ Use stable dashboard datasource UIDs:
 
 NAS/Unraid telemetry is manual. `services/grafana/nas-alloy.example.alloy` documents the expected remote-write and Loki endpoints.
 
+## Docker Cleanup
+
+Weekly scheduled deployments enable `docker_prune_enabled=true` so unused Docker images and stopped containers are cleaned up without pruning volumes.
+
 ## Network Testing
 
 `speedtest` is Netronome on `nuc`, exposed as `speedtest.mljr.eu`. Cross-node iperf is provided by the `iperf3` role; Netronome targets are configured manually in the UI.

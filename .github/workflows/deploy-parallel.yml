@@ -22,6 +22,11 @@ on:
         required: false
         default: false
         type: boolean
+      docker_prune:
+        description: 'Prune unused Docker images/containers during deployment'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: deploy-parallel-${{ github.ref }}
@@ -144,6 +149,10 @@ jobs:
           if [ "${{ needs.detect-changes.outputs.changed_services }}" != "all" ]; then
             EXTRA_VARS="$EXTRA_VARS changed_services=${{ needs.detect-changes.outputs.changed_services }}"
           fi
+
+          if [ "${{ inputs.docker_prune }}" == "true" ]; then
+            EXTRA_VARS="$EXTRA_VARS docker_prune_enabled=true"
+          fi
           
           echo "🚀 Deploying to mljr with tags: $TAGS"
           ansible-playbook playbooks/site.yml \
@@ -212,12 +221,17 @@ jobs:
         run: |
           cd ansible
           TAGS="${{ inputs.tags }}"
+          EXTRA_VARS="is_staging_deployment=true"
+
+          if [ "${{ inputs.docker_prune }}" == "true" ]; then
+            EXTRA_VARS="$EXTRA_VARS docker_prune_enabled=true"
+          fi
           
           echo "🔵 Deploying staging environment to nuc"
           ansible-playbook playbooks/site.yml \
             --limit nuc \
             --tags "$TAGS" \
-            --extra-vars "is_staging_deployment=true"
+            --extra-vars "$EXTRA_VARS"
 
   # Cleanup orphaned services - runs AFTER both hosts are deployed to avoid downtime
   # Only triggered when cleanup=true is passed; safe to run since new host is already up

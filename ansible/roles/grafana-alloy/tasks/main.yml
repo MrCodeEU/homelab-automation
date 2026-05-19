@@ -43,6 +43,9 @@
       - /:/hostfs:ro
       - /proc:/hostfs/proc:ro
       - /sys:/hostfs/sys:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
       - /var/log:/var/log:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     labels:

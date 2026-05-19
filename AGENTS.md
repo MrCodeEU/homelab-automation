@@ -68,6 +68,9 @@ ansible-playbook playbooks/site.yml --tags services -e force_redeploy=true
 
 # Force Caddy snippet regeneration
 ansible-playbook playbooks/site.yml --tags caddy -e force_regen_caddy=true
+
+# Run Docker image/container pruning
+ansible-playbook playbooks/site.yml --tags prune -e docker_prune_enabled=true
 ```
 
 ## Architecture
@@ -133,6 +136,10 @@ The main playbook order is:
 10. Caddy reverse proxy
 
 This order is intentional. The CrowdSec bouncer must be configured before fail2ban is removed.
+
+## Docker Cleanup
+
+Weekly scheduled GitHub deployments enable `docker_prune_enabled=true`, which prunes unused Docker images and stopped containers but not volumes.
 
 ## Security
 
@@ -203,6 +210,7 @@ When adding a secret-backed service, update `secrets.yml`, `.github/workflows/de
 | Tag | Description |
 |-----|-------------|
 | `base` | System packages and Docker |
+| `prune` | Docker image/container pruning |
 | `services` | Generic Docker Compose services |
 | `caddy` | Reverse proxy configuration |
 | `security` | CrowdSec/fail2ban security tasks |

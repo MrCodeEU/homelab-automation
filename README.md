@@ -38,6 +38,7 @@ NAS/Unraid services are mostly managed manually and only proxied or monitored wh
 - Automatic Caddy HTTPS and reverse proxy snippets.
 - Staging deployments through `services/<name>/dev/docker-compose.yml`.
 - Cleanup of disabled or moved services to avoid stale containers and Caddy snippets.
+- Weekly Docker image/container pruning during scheduled deployments.
 - Grafana/Loki/Prometheus monitoring with Grafana Alloy agents.
 - CrowdSec security engine with nftables firewall enforcement on `mljr`.
 - Netronome network testing on `nuc`, exposed as `speedtest.mljr.eu`.

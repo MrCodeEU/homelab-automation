@@ -80,11 +80,14 @@ Configure these secrets in your GitHub repository settings (Settings → Secrets
 6. Run `ansible-playbook playbooks/site.yml` with selected limit/tags/check mode
 7. Fail the job when Ansible fails and send deployment notification
 
+The weekly scheduled `deploy.yml` run also sets `docker_prune_enabled=true`, pruning unused Docker images and stopped containers. Volumes are intentionally excluded.
+
 ## Ansible Roles (Tags)
 
 | Tag | Description | Hosts |
 |-----|-------------|-------|
 | `base` | Install base packages and Docker | rocky |
+| `prune` | Prune unused Docker images/containers | rocky |
 | `services` | Deploy Docker Compose services | rocky |
 | `caddy` | Configure Caddy reverse proxy | mljr |
 | `security` | Security setup, CrowdSec bouncer, fail2ban retirement | mljr/rocky |

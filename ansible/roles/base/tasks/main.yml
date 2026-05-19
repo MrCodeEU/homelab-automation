@@ -113,16 +113,16 @@
     immediate: true
 
 # ============================================================================
-# Docker Prune (only when explicitly tagged)
+# Docker Prune (weekly maintenance or explicit prune tag)
 # ============================================================================
 
 - name: Prune unused Docker objects
   community.docker.docker_prune:
-    containers: true
-    images: true
-    networks: false
-    volumes: false
-    builder_cache: true
+    containers: "{{ docker_prune_containers | default(true) | bool }}"
+    images: "{{ docker_prune_images | default(true) | bool }}"
+    networks: "{{ docker_prune_networks | default(false) | bool }}"
+    volumes: "{{ docker_prune_volumes | default(false) | bool }}"
+    builder_cache: "{{ docker_prune_builder_cache | default(true) | bool }}"
+  when: docker_prune_enabled | default(false) | bool
   tags:
     - prune
-    - never

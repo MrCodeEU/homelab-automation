@@ -30,6 +30,11 @@ on:
         required: false
         default: false
         type: boolean
+      docker_prune:
+        description: 'Prune unused Docker images/containers during deployment'
+        required: false
+        default: false
+        type: boolean
 
   # Automatic deploy on main branch
   push:
@@ -368,6 +373,12 @@ jobs:
           if [ "${{ inputs.force_regen_caddy }}" == "true" ]; then
             EXTRA_VARS="$EXTRA_VARS force_regen_caddy=true"
             echo "Force Caddy snippet regeneration enabled"
+          fi
+
+          # Weekly maintenance should reclaim unused Docker images/containers.
+          if [ "${{ github.event_name }}" == "schedule" ] || [ "${{ inputs.docker_prune }}" == "true" ]; then
+            EXTRA_VARS="$EXTRA_VARS docker_prune_enabled=true"
+            echo "Docker prune enabled: unused images/containers will be removed"
           fi
 
           # Check mode for non-main branches (dry run)

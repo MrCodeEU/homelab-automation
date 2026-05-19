@@ -29,6 +29,16 @@ staging_host: "nuc"
 fail2ban_enabled: false
 crowdsec_firewall_bouncer_enabled: true
 
+# Docker maintenance. The GitHub Actions weekly schedule enables this to keep
+# image/runtime stores from filling small root filesystems. Volumes are not
+# pruned here because they may contain service data.
+docker_prune_enabled: false
+docker_prune_images: true
+docker_prune_containers: true
+docker_prune_networks: false
+docker_prune_volumes: false
+docker_prune_builder_cache: true
+
 # ============================================================================
 # Services Configuration
 # ============================================================================
@@ -459,11 +469,13 @@ homelab_standalone_paths:
 # TODO: NEED TO TEST THE BACKUP STRATEGY!!
 post_deploy_hook_services:
   - crowdsec    # CrowdSec web UI machine registration
+  - grafana     # Stable datasource UID convergence
   - speedtest   # Netronome admin password convergence
   - sonarqube   # Initial SonarQube admin password + project provisioning
 
 critical_hook_services:
   - crowdsec
+  - grafana
   - speedtest
 
 # Backup configuration
