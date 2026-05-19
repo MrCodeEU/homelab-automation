@@ -15,6 +15,7 @@ For `mljr` outbound checks, configure `mljr` as a target or test endpoint inside
 - Host port: `8090`
 - Persistent volume: `netronome-data:/data`
 - Listen address: `NETRONOME__HOST=0.0.0.0`
+- Session secret: `NETRONOME__SESSION_SECRET`
 - Capabilities: `NET_RAW` and `NET_ADMIN` for network diagnostics
 
 The staging Compose file uses host port `18090` and `netronome-staging-data`.
@@ -23,4 +24,11 @@ The staging Compose file uses host port `18090` and `netronome-staging-data`.
 
 Netronome users, iperf targets, Speedtest.net schedules, packet-loss checks, and alerts are configured in the Netronome UI.
 
-The old custom speedtest post-deploy API hook was removed because it does not apply to Netronome.
+The post-deploy hook uses the Netronome CLI to create or update the `admin` user password from `NETRONOME_ADMIN_PASSWORD`.
+
+Required/optional secrets:
+
+| Secret | Purpose |
+|--------|---------|
+| `NETRONOME_ADMIN_PASSWORD` | Required admin user password |
+| `NETRONOME_SESSION_SECRET` | Optional stable session signing secret |

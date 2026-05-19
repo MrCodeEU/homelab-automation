@@ -4,7 +4,7 @@
   "tags": ["homelab", "security", "crowdsec"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "time": {
     "from": "now-24h",

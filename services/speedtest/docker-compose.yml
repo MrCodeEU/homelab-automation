@@ -9,6 +9,7 @@ services:
       TZ: ${TZ:-Europe/Vienna}
       NETRONOME__HOST: 0.0.0.0
       NETRONOME__PORT: 7575
+      NETRONOME__SESSION_SECRET: ${NETRONOME_SESSION_SECRET:-}
     cap_add:
       - NET_RAW
       - NET_ADMIN

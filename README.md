@@ -130,6 +130,8 @@ Required CrowdSec secrets:
 | `CROWDSEC_WEB_UI_PASSWORD` | CrowdSec web UI machine password |
 | `CROWDSEC_WEB_UI_NOTIFICATION_SECRET` | CrowdSec web UI notification encryption secret |
 | `CROWDSEC_FIREWALL_BOUNCER_KEY` | API key for the host firewall bouncer |
+| `NETRONOME_ADMIN_PASSWORD` | Netronome admin user password |
+| `NETRONOME_SESSION_SECRET` | Netronome session signing secret |
 
 ## Monitoring
 

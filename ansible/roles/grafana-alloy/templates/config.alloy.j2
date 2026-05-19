@@ -55,8 +55,18 @@ loki.source.docker "containers" {
   labels     = {
     job      = "docker",
     instance = "{{ inventory_hostname }}",
+    host     = "{{ inventory_hostname }}",
   }
+  forward_to = [loki.process.recent.receiver]
+}
+
+loki.process "recent" {
   forward_to = [loki.write.homelab.receiver]
+
+  stage.drop {
+    older_than          = "168h"
+    drop_counter_reason = "too_old"
+  }
 }
 
 loki.source.file "system_logs" {
@@ -65,11 +75,13 @@ loki.source.file "system_logs" {
       "__path__" = "/var/log/messages",
       "job"      = "system",
       "instance" = "{{ inventory_hostname }}",
+      "host"     = "{{ inventory_hostname }}",
     },
     {
       "__path__" = "/var/log/secure",
       "job"      = "auth",
       "instance" = "{{ inventory_hostname }}",
+      "host"     = "{{ inventory_hostname }}",
     },
 {% if inventory_hostname == 'mljr' %}
     {
@@ -77,10 +89,13 @@ loki.source.file "system_logs" {
       "__path_exclude__" = "/var/log/caddy/*.gz",
       "job"              = "caddy",
       "instance"         = "{{ inventory_hostname }}",
+      "host"             = "{{ inventory_hostname }}",
     },
 {% endif %}
   ]
-  forward_to = [loki.write.homelab.receiver]
+  forward_to = [loki.process.recent.receiver]
+  tail_from_end = true
+  on_positions_file_error = "restart_from_end"
 
   file_match {
     enabled = true

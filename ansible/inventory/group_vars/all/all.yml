@@ -459,10 +459,12 @@ homelab_standalone_paths:
 # TODO: NEED TO TEST THE BACKUP STRATEGY!!
 post_deploy_hook_services:
   - crowdsec    # CrowdSec web UI machine registration
+  - speedtest   # Netronome admin password convergence
   - sonarqube   # Initial SonarQube admin password + project provisioning
 
 critical_hook_services:
   - crowdsec
+  - speedtest
 
 # Backup configuration
 backup_enabled: true

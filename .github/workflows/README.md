@@ -45,6 +45,8 @@ Configure these secrets in your GitHub repository settings (Settings → Secrets
 | `CROWDSEC_WEB_UI_PASSWORD` | CrowdSec machine password for the web UI |
 | `CROWDSEC_WEB_UI_NOTIFICATION_SECRET` | CrowdSec web UI notification encryption key |
 | `CROWDSEC_FIREWALL_BOUNCER_KEY` | CrowdSec firewall bouncer API key for host-level remediation |
+| `NETRONOME_ADMIN_PASSWORD` | Netronome admin user password |
+| `NETRONOME_SESSION_SECRET` | Netronome session signing secret (optional but recommended) |
 
 ## How It Works
 
