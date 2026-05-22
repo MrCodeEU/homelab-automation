@@ -420,6 +420,14 @@ services:
     description: "CG Lab WebGL Project"
     icon: "mdi:cube-outline"
 
+  - name: godrive-demo
+    enabled: true
+    domain: "godrive.mljr.eu"
+    port: 3605
+    host: nuc
+    description: "GoDrive File Management Demo"
+    icon: "mdi:folder-network-outline"
+
   # Template for future services
   - name: service-template
     enabled: true
@@ -472,6 +480,7 @@ post_deploy_hook_services:
   - grafana     # Stable datasource UID convergence
   - speedtest   # Netronome admin password convergence
   - sonarqube   # Initial SonarQube admin password + project provisioning
+  - godrive-demo  # Install systemd daily-reset timer
 
 critical_hook_services:
   - crowdsec
