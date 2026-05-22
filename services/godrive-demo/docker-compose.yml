@@ -12,9 +12,9 @@ services:
       TZ: ${TZ:-Europe/Vienna}
     read_only: true
     tmpfs:
-      - /data
-      - /appdata
-      - /tmp
+      - /tmp:uid=10001,gid=10001,mode=1770,size=32m
+      - /data:uid=10001,gid=10001,mode=0750,size=128m
+      - /appdata:uid=10001,gid=10001,mode=0750,size=128m
     cap_drop:
       - ALL
     security_opt:
