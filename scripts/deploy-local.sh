@@ -47,6 +47,18 @@ trap "rm -f '$VAULT_PASS_FILE'" EXIT INT TERM
 
 export ANSIBLE_VAULT_PASSWORD_FILE="$VAULT_PASS_FILE"
 
+# Auto-detect Mitogen strategy plugin — speeds up deploys by 40-70%.
+# Falls back to standard linear strategy if Mitogen is not installed.
+MITOGEN_PATH=$(pip show mitogen 2>/dev/null | grep "^Location:" | cut -d' ' -f2)
+if [[ -n "$MITOGEN_PATH" && -d "$MITOGEN_PATH/ansible_mitogen/plugins/strategy" ]]; then
+    export ANSIBLE_STRATEGY_PLUGINS="$MITOGEN_PATH/ansible_mitogen/plugins/strategy"
+    echo "==> Mitogen enabled: $ANSIBLE_STRATEGY_PLUGINS"
+else
+    # Override mitogen_linear default from ansible.cfg to standard linear
+    export ANSIBLE_STRATEGY=linear
+    echo "==> Mitogen not found — using linear strategy (install: pip install mitogen ansible-mitogen)"
+fi
+
 cd "$REPO_ROOT/ansible"
 
 echo "==> Local deploy ($(date -u '+%Y-%m-%dT%H:%M:%SZ'))"
