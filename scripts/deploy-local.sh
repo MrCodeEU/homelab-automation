@@ -61,10 +61,16 @@ fi
 
 cd "$REPO_ROOT/ansible"
 
-echo "==> Local deploy ($(date -u '+%Y-%m-%dT%H:%M:%SZ'))"
+TIMESTAMP=$(date -u '+%Y%m%dT%H%M%SZ')
+LOG_DIR="$REPO_ROOT/deploy-logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/${TIMESTAMP}.log"
+
+echo "==> Local deploy (${TIMESTAMP})"
 echo "==> Args: $*"
+echo "==> Log: $LOG_FILE"
 echo ""
 
 ansible-playbook playbooks/site.yml \
     --forks 20 \
-    "$@"
+    "$@" 2>&1 | tee "$LOG_FILE"

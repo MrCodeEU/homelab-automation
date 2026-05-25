@@ -61,5 +61,9 @@ apps/homepage/backend/data/cache/
 # Misc
 *syncthing*
 package-lock.json
+
+# Local deploy logs
+deploy-logs/
+check.run
 # Added by ggshield
 .cache_ggshield

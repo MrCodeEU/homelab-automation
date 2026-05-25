@@ -48,7 +48,7 @@ E2E_ANSIBLE_OPTS   := -e ansible_strategy=linear
 .PHONY: test test-quick test-e2e test-services up down clean \
         _check-validate _check-templates _check-syntax _check-compose \
         _e2e-deploy _ssh-keys _wait-ssh \
-        deploy deploy-check deploy-caddy deploy-services deploy-mljr deploy-nuc
+        deploy deploy-check deploy-diff deploy-caddy deploy-services deploy-mljr deploy-nuc
 
 ################################################################################
 # DEFAULT: fast local tests (no Docker)
@@ -151,6 +151,9 @@ test-services-verbose:
 ################################################################################
 
 deploy-check:
+	@./scripts/deploy-local.sh --check
+
+deploy-diff:
 	@./scripts/deploy-local.sh --check --diff
 
 deploy:
@@ -187,6 +190,7 @@ help:
 	@echo ""
 	@echo "Local deployment (requires Tailscale + vault.yml):"
 	@echo "  make deploy-check      — dry run, no changes"
+	@echo "  make deploy-diff       — dry run with file diffs"
 	@echo "  make deploy            — full deploy, all hosts"
 	@echo "  make deploy-caddy      — Caddy only"
 	@echo "  make deploy-services   — services only"
