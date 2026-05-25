@@ -4,10 +4,9 @@
 #   - Tailscale active (handles SSH auth to nodes automatically)
 #   - pip install ansible-core mitogen ansible-mitogen
 #   - ansible-galaxy collection install -r ansible/requirements.yml
+#   - vault.yml exists and is encrypted (ansible-vault create/edit)
 #
-# Secrets: export them as env vars in your shell session BEFORE running.
-# Never save secrets to disk — source them from your password manager directly.
-# List required secret names: gh secret list
+# Vault password is prompted once, held in memory, never written to disk.
 #
 # Usage:
 #   ./scripts/deploy-local.sh                        # full deploy, all hosts
@@ -19,12 +18,34 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+VAULT_FILE="$REPO_ROOT/ansible/inventory/group_vars/all/vault.yml"
+
+if [[ ! -f "$VAULT_FILE" ]]; then
+    echo "ERROR: $VAULT_FILE not found."
+    echo "Create it: ansible-vault create $VAULT_FILE"
+    echo "See vault.yml.example in the same directory for the required structure."
+    exit 1
+fi
 
 if ! command -v ansible-playbook &>/dev/null; then
     echo "ERROR: ansible-playbook not found."
     echo "Run: pip install ansible-core mitogen ansible-mitogen && ansible-galaxy collection install -r ansible/requirements.yml"
     exit 1
 fi
+
+# Read vault password into memory only — never touches disk
+read -rsp "Vault password: " VAULT_PASS
+echo ""
+
+# Write to a process-substitution fd so it never hits disk
+# Trap ensures cleanup even on error/interrupt
+VAULT_PASS_FILE=$(mktemp)
+chmod 600 "$VAULT_PASS_FILE"
+echo "$VAULT_PASS" > "$VAULT_PASS_FILE"
+unset VAULT_PASS
+trap "rm -f '$VAULT_PASS_FILE'" EXIT INT TERM
+
+export ANSIBLE_VAULT_PASSWORD_FILE="$VAULT_PASS_FILE"
 
 cd "$REPO_ROOT/ansible"
 

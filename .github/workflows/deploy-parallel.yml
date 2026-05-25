@@ -117,31 +117,14 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_PIPELINING: "True"
           ANSIBLE_STRATEGY: "mitogen_linear"
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
-          LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
-          LINK_UP_PASSWORD: ${{ secrets.LINK_UP_PASSWORD }}
-          NIGHTSCOUT_API_TOKEN: ${{ secrets.NIGHTSCOUT_API_TOKEN }}
-          NIGHTSCOUT_DOMAIN: ${{ secrets.NIGHTSCOUT_DOMAIN }}
-          BICHON_ENCRYPT_PASSWORD: ${{ secrets.BICHON_ENCRYPT_PASSWORD }}
-          CADDY_AUTH_PASSWORD_HASH: ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
-          CADDY_AUTH_USER: ${{ secrets.CADDY_AUTH_USER }}
-          KUMA_USERNAME: ${{ secrets.KUMA_USERNAME }}
-          KUMA_PASSWORD: ${{ secrets.KUMA_PASSWORD }}
-          BESZEL_KEY: ${{ secrets.BESZEL_KEY }}
-          BESZEL_TOKEN: ${{ secrets.BESZEL_TOKEN }}
-          GITHUB_USERNAME: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
-          PCLOUD_TOKEN: ${{ secrets.PCLOUD_TOKEN }}
-          GRAFANA_ADMIN_USER: ${{ secrets.GRAFANA_ADMIN_USER }}
-          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
-          CROWDSEC_FIREWALL_BOUNCER_KEY: ${{ secrets.CROWDSEC_FIREWALL_BOUNCER_KEY }}
-          CROWDSEC_WEB_UI_PASSWORD: ${{ secrets.CROWDSEC_WEB_UI_PASSWORD }}
-          CROWDSEC_WEB_UI_NOTIFICATION_SECRET: ${{ secrets.CROWDSEC_WEB_UI_NOTIFICATION_SECRET }}
-          NETRONOME_ADMIN_PASSWORD: ${{ secrets.NETRONOME_ADMIN_PASSWORD }}
-          NETRONOME_SESSION_SECRET: ${{ secrets.NETRONOME_SESSION_SECRET }}
+          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
         run: |
+          VAULT_PASS_FILE=$(mktemp)
+          chmod 600 "$VAULT_PASS_FILE"
+          echo "$ANSIBLE_VAULT_PASSWORD" > "$VAULT_PASS_FILE"
+          export ANSIBLE_VAULT_PASSWORD_FILE="$VAULT_PASS_FILE"
+          trap "rm -f '$VAULT_PASS_FILE'" EXIT
+
           cd ansible
           TAGS="${{ inputs.tags }}"
           EXTRA_VARS="is_staging_deployment=false"
@@ -210,15 +193,14 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_PIPELINING: "True"
           ANSIBLE_STRATEGY: "mitogen_linear"
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          GITHUB_USERNAME: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
-          GRAFANA_ADMIN_USER: ${{ secrets.GRAFANA_ADMIN_USER }}
-          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
-          NETRONOME_ADMIN_PASSWORD: ${{ secrets.NETRONOME_ADMIN_PASSWORD }}
-          NETRONOME_SESSION_SECRET: ${{ secrets.NETRONOME_SESSION_SECRET }}
+          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
         run: |
+          VAULT_PASS_FILE=$(mktemp)
+          chmod 600 "$VAULT_PASS_FILE"
+          echo "$ANSIBLE_VAULT_PASSWORD" > "$VAULT_PASS_FILE"
+          export ANSIBLE_VAULT_PASSWORD_FILE="$VAULT_PASS_FILE"
+          trap "rm -f '$VAULT_PASS_FILE'" EXIT
+
           cd ansible
           TAGS="${{ inputs.tags }}"
           EXTRA_VARS="is_staging_deployment=true"
@@ -285,9 +267,14 @@ jobs:
           ANSIBLE_HOST_KEY_CHECKING: "False"
           ANSIBLE_PIPELINING: "True"
           ANSIBLE_STRATEGY: "mitogen_linear"
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
         run: |
+          VAULT_PASS_FILE=$(mktemp)
+          chmod 600 "$VAULT_PASS_FILE"
+          echo "$ANSIBLE_VAULT_PASSWORD" > "$VAULT_PASS_FILE"
+          export ANSIBLE_VAULT_PASSWORD_FILE="$VAULT_PASS_FILE"
+          trap "rm -f '$VAULT_PASS_FILE'" EXIT
+
           cd ansible
           echo "Removing orphaned services (services no longer assigned to each host)"
           ansible-playbook playbooks/site.yml \

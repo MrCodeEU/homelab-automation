@@ -26,6 +26,22 @@ pip install --quiet $REQUIREMENTS
 
 echo -e "${YELLOW}Running pre-commit validations...${NC}"
 
+# Guard: vault.yml must never be committed unencrypted
+VAULT_FILE="$REPO_ROOT/ansible/inventory/group_vars/all/vault.yml"
+if git diff --cached --name-only | grep -qx "ansible/inventory/group_vars/all/vault.yml"; then
+    VAULT_HEADER=$(git show ":ansible/inventory/group_vars/all/vault.yml" 2>/dev/null | head -1)
+    if [ -z "$VAULT_HEADER" ]; then
+        echo -e "${RED}✗ vault.yml is staged but empty or unreadable!${NC}"
+        exit 1
+    fi
+    if [[ "$VAULT_HEADER" != '$ANSIBLE_VAULT'* ]]; then
+        echo -e "${RED}✗ vault.yml is NOT encrypted! Aborting commit.${NC}"
+        echo -e "${RED}  Run: ansible-vault encrypt $VAULT_FILE${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ vault.yml is encrypted${NC}"
+fi
+
 # Run service definition validation (ports, domains, uniqueness, etc.)
 echo -e "${YELLOW}Validating service configurations...${NC}"
 if ! python "$REPO_ROOT/.githooks/validate_services.py"; then

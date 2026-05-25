@@ -17,7 +17,7 @@ backup_retention_days: 30
 
 # pCloud OAuth token (from environment)
 # To get token: run `rclone config` interactively, copy the token JSON
-backup_pcloud_token: "{{ lookup('env', 'PCLOUD_TOKEN') }}"
+backup_pcloud_token: "{{ secrets.backup.pcloud_token | default('') }}"
 
 # Auto-detect Docker volumes for backup
 backup_auto_detect_volumes: true

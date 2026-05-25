@@ -3,7 +3,7 @@
 # ============================================================================
 
 # HetrixTools API token for agent registration
-hetrixtools_api_token: "{{ lookup('env', 'HETRIXTOOLS_API_TOKEN') }}"
+hetrixtools_api_token: "{{ secrets.hetrixtools.api_token | default('') }}"
 
 # Agent installation flags (0 = disabled, 1 = enabled)
 # These flags control optional behaviors of the HetrixTools agent during install/runtime:

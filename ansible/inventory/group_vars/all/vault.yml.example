@@ -1,0 +1,93 @@
+---
+# Ansible Vault — secret values template
+# ============================================================================
+# NEVER commit this file. The real vault.yml is encrypted and committed.
+#
+# To create vault.yml for the first time:
+#   ansible-vault create ansible/inventory/group_vars/all/vault.yml
+#   (paste this structure, fill in values, save)
+#
+# To edit existing vault.yml:
+#   ansible-vault edit ansible/inventory/group_vars/all/vault.yml
+#
+# Store your vault password in your password manager (single value to remember).
+# Add it to GitHub as secret ANSIBLE_VAULT_PASSWORD.
+# ============================================================================
+
+# Nightscout / LibreLink
+vault_nightscout_api_secret: ""
+vault_nightscout_api_token: ""
+vault_nightscout_domain: ""
+vault_link_up_username: ""
+vault_link_up_password: ""
+
+# Caddy basicauth (legacy fallback)
+vault_caddy_auth_user: "admin"
+vault_caddy_auth_hash: ""   # bcrypt hash — generate: caddy hash-password
+
+# Authelia SSO
+vault_authelia_jwt_secret: ""         # openssl rand -hex 32
+vault_authelia_session_secret: ""     # openssl rand -hex 32
+vault_authelia_storage_encryption_key: ""  # openssl rand -hex 32
+vault_authelia_admin_password: ""
+
+# Google OAuth (Authelia social login)
+vault_google_client_id: ""
+vault_google_client_secret: ""
+
+# Uptime Kuma
+vault_kuma_username: "admin"
+vault_kuma_password: ""
+
+# Grafana
+vault_grafana_admin_user: "admin"
+vault_grafana_admin_password: ""
+
+# CrowdSec
+vault_crowdsec_firewall_bouncer_key: ""  # docker exec crowdsec cscli bouncers list
+vault_crowdsec_web_ui_password: ""
+vault_crowdsec_web_ui_notification_secret: ""  # openssl rand -hex 32
+
+# Netronome / Speedtest
+vault_netronome_admin_password: ""
+vault_netronome_session_secret: ""   # openssl rand -hex 32
+
+# Bichon (email archiver)
+vault_bichon_encrypt_password: ""
+
+# Sudoku service API
+vault_sudoku_api_user: ""
+vault_sudoku_api_password: ""
+
+# Homepage scrapers
+vault_strava_client_id: ""
+vault_strava_client_secret: ""
+vault_strava_refresh_token: ""
+vault_linkedin_email: ""
+vault_linkedin_password: ""
+vault_linkedin_totp_secret: ""
+
+# Docker Hub (avoid pull rate limits)
+vault_dockerhub_username: ""
+vault_dockerhub_token: ""
+
+# GitHub (GHCR private image pulls)
+vault_github_username: ""
+vault_github_token: ""   # PAT with read:packages scope
+
+# pCloud backup
+vault_pcloud_token: ""   # rclone config → copy token JSON value
+
+# HetrixTools monitoring
+vault_hetrixtools_api_token: ""
+
+# SonarQube
+vault_sonarqube_db_password: ""   # openssl rand -hex 16
+vault_sonarqube_admin_password: ""
+
+# SMTP (outbound email for notifications)
+vault_smtp_host: ""
+vault_smtp_port: "587"
+vault_smtp_user: ""
+vault_smtp_password: ""
+vault_smtp_from: ""

@@ -281,62 +281,18 @@ jobs:
         continue-on-error: true
         env:
           ANSIBLE_HOST_KEY_CHECKING: "False"
-          # Performance optimizations
           ANSIBLE_PIPELINING: "True"
           ANSIBLE_SSH_PIPELINING: "True"
-          # Mitogen strategy plugin path
           ANSIBLE_STRATEGY_PLUGINS: "${{ env.MITOGEN_STRATEGY_PATH }}"
-          # Docker Hub (avoid rate limits)
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          # Secrets
-          NIGHTSCOUT_API_SECRET: ${{ secrets.NIGHTSCOUT_API_SECRET }}
-          LINK_UP_USERNAME: ${{ secrets.LINK_UP_USERNAME }}
-          LINK_UP_PASSWORD: ${{ secrets.LINK_UP_PASSWORD }}
-          NIGHTSCOUT_API_TOKEN: ${{ secrets.NIGHTSCOUT_API_TOKEN }}
-          NIGHTSCOUT_DOMAIN: ${{ secrets.NIGHTSCOUT_DOMAIN }}
-          BICHON_ENCRYPT_PASSWORD: ${{ secrets.BICHON_ENCRYPT_PASSWORD }}
-          CADDY_AUTH_PASSWORD_HASH: ${{ secrets.CADDY_AUTH_PASSWORD_HASH }}
-          CADDY_AUTH_USER: ${{ secrets.CADDY_AUTH_USER }}
-          KUMA_USERNAME: ${{ secrets.KUMA_USERNAME }}
-          KUMA_PASSWORD: ${{ secrets.KUMA_PASSWORD }}
-          GITHUB_USERNAME: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GHCR_PAT }}
-          PCLOUD_TOKEN: ${{ secrets.PCLOUD_TOKEN }}
-          HETRIXTOOLS_API_TOKEN: ${{ secrets.HETRIXTOOLS_API_TOKEN }}
-          # Authelia SSO
-          AUTHELIA_JWT_SECRET: ${{ secrets.AUTHELIA_JWT_SECRET }}
-          AUTHELIA_SESSION_SECRET: ${{ secrets.AUTHELIA_SESSION_SECRET }}
-          AUTHELIA_STORAGE_ENCRYPTION_KEY: ${{ secrets.AUTHELIA_STORAGE_ENCRYPTION_KEY }}
-          AUTHELIA_ADMIN_PASSWORD: ${{ secrets.AUTHELIA_ADMIN_PASSWORD }}
-          # Google OAuth (for Keycloak social login)
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          # SonarQube
-          SONARQUBE_DB_PASSWORD: ${{ secrets.SONARQUBE_DB_PASSWORD }}
-          SONARQUBE_ADMIN_PASSWORD: ${{ secrets.SONARQUBE_ADMIN_PASSWORD }}
-          # SMTP (for speedtest notifications)
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-          SMTP_FROM: ${{ secrets.SMTP_FROM }}
-          SUDOKU_API_USER: ${{ secrets.SUDOKU_API_USER }}
-          SUDOKU_API_PASSWORD: ${{ secrets.SUDOKU_API_PASSWORD }}
-          STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
-          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
-          STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
-          LINKEDIN_EMAIL: ${{ secrets.LINKEDIN_EMAIL }}
-          LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
-          LINKEDIN_TOTP_SECRET: ${{ secrets.LINKEDIN_TOTP_SECRET }}
-          GRAFANA_ADMIN_USER: ${{ secrets.GRAFANA_ADMIN_USER }}
-          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
-          CROWDSEC_FIREWALL_BOUNCER_KEY: ${{ secrets.CROWDSEC_FIREWALL_BOUNCER_KEY }}
-          CROWDSEC_WEB_UI_PASSWORD: ${{ secrets.CROWDSEC_WEB_UI_PASSWORD }}
-          CROWDSEC_WEB_UI_NOTIFICATION_SECRET: ${{ secrets.CROWDSEC_WEB_UI_NOTIFICATION_SECRET }}
-          NETRONOME_ADMIN_PASSWORD: ${{ secrets.NETRONOME_ADMIN_PASSWORD }}
-          NETRONOME_SESSION_SECRET: ${{ secrets.NETRONOME_SESSION_SECRET }}
+          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
         run: |
+          # Write vault password to tmpfs temp file; trap ensures cleanup on exit
+          VAULT_PASS_FILE=$(mktemp)
+          chmod 600 "$VAULT_PASS_FILE"
+          echo "$ANSIBLE_VAULT_PASSWORD" > "$VAULT_PASS_FILE"
+          export ANSIBLE_VAULT_PASSWORD_FILE="$VAULT_PASS_FILE"
+          trap "rm -f '$VAULT_PASS_FILE'" EXIT
+
           cd ansible
 
           # Determine limit
