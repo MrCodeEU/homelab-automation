@@ -152,36 +152,50 @@
     is_staging: false
     deploy_path: "{{ base_path }}/{{ service.name }}"
 
-# Pull images with retry logic to handle transient network failures
-- name: Pull production service images (with retry)
+# Pull all images in parallel — fire-and-forget async, then wait for all
+- name: Pull production service images (parallel)
   community.docker.docker_compose_v2_pull:
     project_src: "{{ base_path }}/{{ service.name }}"
-    policy: always  # Always pull to get newest version
+    policy: always
   loop: "{{ host_services }}"
   loop_control:
     loop_var: service
     label: "{{ service.name }}"
-  register: pull_result
-  retries: 3
-  delay: 10
-  until: pull_result is success
+  async: 600
+  poll: 0
+  register: pull_jobs
   when: not ansible_check_mode
-  failed_when: false  # Don't fail - let compose try anyway
+  failed_when: false
+  vars:
+    mitogen_task_isolation: fork
+
+- name: Wait for image pulls to complete
+  ansible.builtin.async_status:
+    jid: "{{ item.ansible_job_id }}"
+  loop: "{{ pull_jobs.results | default([]) | selectattr('ansible_job_id', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.item.name | default('unknown') }}"
+  register: pull_wait
+  until: pull_wait.finished
+  retries: 60
+  delay: 10
+  when: not ansible_check_mode
+  failed_when: false
 
 - name: Deploy production services
   community.docker.docker_compose_v2:
     project_src: "{{ base_path }}/{{ service.name }}"
     state: present
-    pull: never  # Images already pulled above with retry logic
+    pull: never  # Images already pulled above
   loop: "{{ host_services }}"
   loop_control:
     loop_var: service
     label: "{{ service.name }}"
   register: deploy_results
   when: not ansible_check_mode
-  failed_when: false  # Don't fail the play - collect errors instead
+  failed_when: false
   vars:
-    mitogen_task_isolation: fork  # Required: Mitogen transport breaks community.docker tasks
+    mitogen_task_isolation: fork
 
 # ============================================================================
 # Post-Deploy Hooks (Production)
@@ -391,30 +405,47 @@
     - is_staging_deployment | default(false) | bool
     - inventory_hostname == staging_host
 
-# Pull staging images with retry logic to handle transient network failures
-- name: Pull staging service images (with retry)
+# Pull all staging images in parallel
+- name: Pull staging service images (parallel)
   community.docker.docker_compose_v2_pull:
     project_src: "{{ base_path }}/staging/{{ service.name }}"
-    policy: always  # Always pull to get newest version
+    policy: always
   loop: "{{ staging_services | default([]) }}"
   loop_control:
     loop_var: service
     label: "{{ service.name }}-staging"
-  register: staging_pull_result
-  retries: 3
-  delay: 10
-  until: staging_pull_result is success
+  async: 600
+  poll: 0
+  register: staging_pull_jobs
   when:
     - is_staging_deployment | default(false) | bool
     - inventory_hostname == staging_host
     - not ansible_check_mode
-  failed_when: false  # Don't fail - let compose try anyway
+  failed_when: false
+  vars:
+    mitogen_task_isolation: fork
+
+- name: Wait for staging image pulls to complete
+  ansible.builtin.async_status:
+    jid: "{{ item.ansible_job_id }}"
+  loop: "{{ staging_pull_jobs.results | default([]) | selectattr('ansible_job_id', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.item.name | default('unknown') }}-staging"
+  register: staging_pull_wait
+  until: staging_pull_wait.finished
+  retries: 60
+  delay: 10
+  when:
+    - is_staging_deployment | default(false) | bool
+    - inventory_hostname == staging_host
+    - not ansible_check_mode
+  failed_when: false
 
 - name: Deploy staging services
   community.docker.docker_compose_v2:
     project_src: "{{ base_path }}/staging/{{ service.name }}"
     state: present
-    pull: never  # Images already pulled above with retry logic
+    pull: never  # Images already pulled above
   loop: "{{ staging_services | default([]) }}"
   loop_control:
     loop_var: service
@@ -424,9 +455,9 @@
     - is_staging_deployment | default(false) | bool
     - inventory_hostname == staging_host
     - not ansible_check_mode
-  failed_when: false  # Don't fail the play - collect errors instead
+  failed_when: false
   vars:
-    mitogen_task_isolation: fork  # Required: Mitogen transport breaks community.docker tasks
+    mitogen_task_isolation: fork
 
 # ============================================================================
 # Health Checks (Parallel)
