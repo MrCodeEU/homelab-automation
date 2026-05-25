@@ -125,10 +125,15 @@ def check_service(env: jinja2.Environment, template: jinja2.Template,
     extra = service.get("caddy_extra_config", "")
     if extra:
         first_line = next((l.strip() for l in extra.splitlines() if l.strip()), "")
-        if first_line and first_line not in stripped:
-            errors.append(
-                f"caddy_extra_config first line '{first_line}' not found in output"
-            )
+        if first_line:
+            is_local = service.get("host", "") == ctx["inventory_hostname"]
+            t_host = "localhost" if is_local else hostvars.get(service.get("host", ""), {}).get("ansible_host", "")
+            t_port = str(service.get("port", ""))
+            first_line_rendered = first_line.replace("__TARGET_HOST__", t_host).replace("__TARGET_PORT__", t_port)
+            if first_line_rendered not in stripped:
+                errors.append(
+                    f"caddy_extra_config first line '{first_line}' not found in output"
+                )
 
     return rendered, errors
 
