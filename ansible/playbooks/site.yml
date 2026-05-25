@@ -59,21 +59,6 @@
     - container-reconcile
 
 # ============================================================================
-# Security (legacy fail2ban, skipped once CrowdSec bouncer is enabled)
-# ============================================================================
-- name: Security Setup
-  hosts: rocky
-  become: true
-  gather_facts: false
-  strategy: free
-  tags:
-    - security
-    - fail2ban
-  roles:
-    - role: fail2ban
-      when: fail2ban_enabled | default(true) | bool
-
-# ============================================================================
 # HetrixTools Agent (mljr only - external uptime monitoring)
 # ============================================================================
 - name: HetrixTools Monitoring Agent
@@ -164,24 +149,6 @@
       when: crowdsec_firewall_bouncer_enabled | default(false) | bool
 
 # ============================================================================
-# Retire Fail2ban (after CrowdSec enforcement is active)
-# ============================================================================
-- name: Retire Fail2ban
-  hosts: rocky
-  become: true
-  gather_facts: false
-  strategy: free
-  tags:
-    - security
-    - fail2ban
-    - cleanup
-  roles:
-    - role: fail2ban-retire
-      when:
-        - not (fail2ban_enabled | default(true) | bool)
-        - crowdsec_firewall_bouncer_enabled | default(false) | bool
-
-# ============================================================================
 # Grafana Alloy Agent (Rocky hosts only - NAS/Unraid is managed manually)
 # ============================================================================
 - name: Grafana Alloy Telemetry Agent
@@ -222,20 +189,6 @@
     - monitoring
   roles:
     - hawser-agent
-
-# ============================================================================
-# Dozzle Agent (mljr only - nuc runs main instance with local docker.sock)
-# ============================================================================
-- name: Dozzle Log Agent
-  hosts: mljr
-  become: true
-  gather_facts: false
-  strategy: free
-  tags:
-    - dozzle-agent
-    - monitoring
-  roles:
-    - dozzle-agent
 
 # ============================================================================
 # Caddy Reverse Proxy (mljr only - main ingress point)

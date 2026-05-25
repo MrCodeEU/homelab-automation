@@ -1,8 +1,0 @@
-services:
-  ytdlp-pot-provider:
-    image: brainicism/bgutil-ytdlp-pot-provider:latest
-    container_name: ${COMPOSE_PROJECT_NAME:-ytdlp-pot-provider}
-    restart: unless-stopped
-    ports:
-      - "4416:4416"
-

@@ -61,3 +61,5 @@ apps/homepage/backend/data/cache/
 # Misc
 *syncthing*
 package-lock.json
+# Added by ggshield
+.cache_ggshield

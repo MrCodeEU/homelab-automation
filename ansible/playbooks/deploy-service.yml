@@ -2,7 +2,7 @@
 # Fast single-service deployment — called by repository_dispatch
 # ============================================================================
 # Skips all infrastructure roles (base, security, backup, glance, mailcow,
-# authelia, beszel, dozzle) and only deploys the specified service + updates
+# authelia) and only deploys the specified service + updates
 # its Caddy snippet.
 #
 # Required extra-vars:

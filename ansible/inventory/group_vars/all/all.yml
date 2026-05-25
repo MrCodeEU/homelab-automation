@@ -25,8 +25,6 @@ backup_path: "/opt/backups"
 staging_domain_prefix: "dev"
 staging_host: "nuc"
 
-# Security migration
-fail2ban_enabled: false
 crowdsec_firewall_bouncer_enabled: true
 
 # Docker maintenance. The GitHub Actions weekly schedule enables this to keep
@@ -105,14 +103,6 @@ services:
     icon: "mdi:heart-pulse"
     backup_critical: true  # Restore on fresh install
 
-  - name: signoz
-    enabled: false  # Replaced by Grafana LGTM stack
-    domain: "monitor.mljr.eu"
-    port: 8080
-    host: nuc
-    description: "System & Application Observability (deprecated)"
-    icon: "mdi:chart-line"
-
   - name: grafana
     enabled: true
     domain:
@@ -174,15 +164,6 @@ services:
     https_backend: true  # Backend uses HTTPS with self-signed cert
 
   # Security
-  - name: fail2ban-ui
-    enabled: false
-    domain: "security.mljr.eu"
-    port: 5000
-    host: mljr
-    description: "Fail2ban Security Monitor (retired)"
-    icon: "mdi:shield-lock"
-    caddy_auth: "authelia"
-
   - name: crowdsec
     enabled: true
     domain:
@@ -195,22 +176,6 @@ services:
     caddy_auth: "authelia"
 
   # Container Management
-  - name: dockge
-    enabled: true
-    domain: "dockge.mljr.eu"
-    port: 5001
-    host: mljr
-    description: "Docker Manager"
-    icon: "mdi:docker"
-
-  - name: wud
-    enabled: false  # Replaced by Diun (no UI, uses ntfy)
-    domain: "wud.mljr.eu"
-    port: 3000
-    host: mljr
-    description: "Docker Updates (deprecated)"
-    icon: "mdi:update"
-
   - name: diun
     enabled: true
     managed: true
@@ -218,15 +183,6 @@ services:
     host: mljr
     description: "Docker Image Update Notifier"
     icon: "mdi:docker"
-
-  - name: dozzle
-    enabled: true
-    domain: "docker.mljr.eu"
-    port: 8085
-    host: nuc
-    description: "Docker Logs"
-    icon: "mdi:text-box-search"
-    caddy_auth: "authelia"
 
   # Personal
   - name: homepage
@@ -382,16 +338,6 @@ services:
     description: "Home Server (deprecated - use nuc-webui)"
     icon: "mdi:server"
 
-  - name: sonarqube
-    enabled: false
-    managed: false
-    domain: "sonarqube.mljr.eu"
-    port: 9000
-    host: nuc
-    description: "Code Quality"
-    icon: "mdi:code-braces"
-    requires_sysctl: "vm.max_map_count=262144"
-
   # NUC Rocky WebUI
   - name: nuc-webui
     enabled: true
@@ -465,26 +411,12 @@ homelab_standalone_containers:
   - name: grafana-alloy
     host_groups:
       - rocky
-  - name: dozzle-agent
-    hosts:
-      - mljr
-  - name: signoz-agent
-    hosts: []  # Retired; kept here so reconciliation removes old deployments.
 
 homelab_standalone_paths:
   - container: grafana-alloy
     path: /opt/grafana-alloy
     host_groups:
       - rocky
-  - container: dozzle-agent
-    path: /opt/dozzle-agent
-    hosts:
-      - mljr
-  - container: signoz-agent
-    path: /opt/signoz-agent
-    host_groups:
-      - rocky
-      - unraid
 
 # Services with post-deploy hooks (services/<name>/hooks/post-deploy.sh)
 # IMPORTANT: When you add a new post-deploy.sh script to a service, you MUST
@@ -496,7 +428,6 @@ post_deploy_hook_services:
   - crowdsec    # CrowdSec web UI machine registration
   - grafana     # Stable datasource UID convergence
   - speedtest   # Netronome admin password convergence
-  - sonarqube   # Initial SonarQube admin password + project provisioning
   - godrive-demo  # Install systemd daily-reset timer
 
 critical_hook_services:
