@@ -9,9 +9,14 @@ git clone https://github.com/MrCodeEU/homelab-automation.git
 cd homelab-automation
 git config core.hooksPath .githooks
 
-cd ansible
-ansible-galaxy collection install -r requirements.yml
-ansible-playbook playbooks/site.yml
+pip install ansible-core mitogen ansible-mitogen
+ansible-galaxy collection install -r ansible/requirements.yml
+
+# Create encrypted secret store (see vault.yml.example for required variables)
+ansible-vault create ansible/inventory/group_vars/all/vault.yml
+
+# Dry run — verifies connectivity and vault decryption
+make deploy-check
 ```
 
 ## Architecture
@@ -42,7 +47,8 @@ NAS/Unraid services are mostly managed manually and only proxied or monitored wh
 - Grafana/Loki/Prometheus monitoring with Grafana Alloy agents.
 - CrowdSec security engine with nftables firewall enforcement on `mljr`.
 - Netronome network testing on `nuc`, exposed as `speedtest.mljr.eu`.
-- GitHub Actions deployment over Tailscale with secrets injected as environment variables.
+- GitHub Actions deployment over Tailscale with secrets stored in Ansible Vault.
+- Local deployment via `make deploy-*` targets — no GitHub Actions required.
 
 ## Directory Structure
 
@@ -54,7 +60,9 @@ homelab-automation/
 │   │   ├── hosts.yml
 │   │   └── group_vars/all/
 │   │       ├── all.yml               # Service catalog and global config
-│   │       └── secrets.yml           # Environment variable lookups
+│   │       ├── secrets.yml           # Maps vault_* vars to secrets.* namespace
+│   │       ├── vault.yml             # Ansible Vault encrypted secrets (git-tracked)
+│   │       └── vault.yml.example     # Template for creating vault.yml
 │   ├── playbooks/site.yml            # Main deployment playbook
 │   └── roles/
 │       ├── base/
@@ -115,6 +123,27 @@ Disabled services can remain in the catalog so cleanup roles can remove old depl
 | Netronome | `nuc` | `speedtest.mljr.eu` |
 | Dozzle | `nuc` | `docker.mljr.eu` |
 
+## Secrets Management
+
+All secrets are stored in `ansible/inventory/group_vars/all/vault.yml`, encrypted with Ansible Vault. The file is committed to git — only the encrypted ciphertext is ever stored.
+
+```bash
+# Create vault (first time)
+ansible-vault create ansible/inventory/group_vars/all/vault.yml
+
+# Edit secrets
+ansible-vault edit ansible/inventory/group_vars/all/vault.yml
+
+# View without editing
+ansible-vault view ansible/inventory/group_vars/all/vault.yml
+```
+
+See `vault.yml.example` for the full list of required variables with generation hints.
+
+CI requires one GitHub secret: `ANSIBLE_VAULT_PASSWORD`. Tailscale OAuth secrets (`TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`) also stay as GitHub secrets since they are used by the Tailscale GitHub Action, not Ansible.
+
+The pre-commit hook rejects any commit where `vault.yml` is not encrypted.
+
 ## Security
 
 CrowdSec replaced fail2ban as the active security stack.
@@ -123,16 +152,6 @@ CrowdSec replaced fail2ban as the active security stack.
 - The web UI is exposed through Caddy and protected with Authelia.
 - `crowdsec-firewall-bouncer-nftables` is installed on `mljr` by Ansible for host-level enforcement.
 - The `fail2ban-retire` role stops/removes old fail2ban state only after the CrowdSec bouncer is active.
-
-Required CrowdSec secrets:
-
-| Secret | Description |
-|--------|-------------|
-| `CROWDSEC_WEB_UI_PASSWORD` | CrowdSec web UI machine password |
-| `CROWDSEC_WEB_UI_NOTIFICATION_SECRET` | CrowdSec web UI notification encryption secret |
-| `CROWDSEC_FIREWALL_BOUNCER_KEY` | API key for the host firewall bouncer |
-| `NETRONOME_ADMIN_PASSWORD` | Netronome admin user password |
-| `NETRONOME_SESSION_SECRET` | Netronome session signing secret |
 
 ## Monitoring
 
@@ -177,27 +196,26 @@ This runs service validation, Caddy template rendering, Ansible syntax checks, a
 ## Common Commands
 
 ```bash
-cd ansible
+# Dry run — verify vault decryption and connectivity before touching anything
+make deploy-check
 
-# Full deployment
-ansible-playbook playbooks/site.yml
+# Full deploy
+make deploy
 
-# Specific host
-ansible-playbook playbooks/site.yml --limit mljr
+# Scoped deploys
+make deploy-caddy       # Caddy only (fast)
+make deploy-services    # Services only
+make deploy-mljr        # All roles, mljr only
+make deploy-nuc         # All roles, nuc only
 
-# Specific tags
-ansible-playbook playbooks/site.yml --tags services,caddy
-
-# Dry run
-ansible-playbook playbooks/site.yml --check --diff
-
-# Force service file sync and .env regeneration
-ansible-playbook playbooks/site.yml --tags services -e force_redeploy=true
+# Pass extra args via the script directly
+./scripts/deploy-local.sh --tags services --extra-vars "changed_services=grafana"
+./scripts/deploy-local.sh --limit mljr --tags services --extra-vars "force_redeploy=true"
 ```
 
 ## GitHub Actions
 
-The main workflow deploys on pushes to main branches, pull requests in check mode, manual dispatch, and repository dispatch from external repos. Secrets are injected as environment variables and consumed through `ansible/inventory/group_vars/all/secrets.yml`.
+The main workflow deploys on pushes to main branches, pull requests in check mode, manual dispatch, and repository dispatch from external repos. Secrets are decrypted from `vault.yml` using the `ANSIBLE_VAULT_PASSWORD` GitHub secret.
 
 External repos can trigger a specific service deployment with `repository_dispatch`:
 
@@ -222,10 +240,9 @@ External repos can trigger a specific service deployment with `repository_dispat
 
 1. Add the service to `ansible/inventory/group_vars/all/all.yml`.
 2. Create `services/<name>/docker-compose.yml`.
-3. Add any secret lookups to `ansible/inventory/group_vars/all/secrets.yml`.
-4. Inject new GitHub secrets in `.github/workflows/deploy.yml` and document them in `.github/workflows/README.md`.
-5. Add `services/<name>/dev/docker-compose.yml` if staging is needed.
-6. Run `make test`.
+3. If the service needs secrets: add `vault_*` variables to `vault.yml` (`ansible-vault edit`), then add mappings to `secrets.yml`.
+4. Add `services/<name>/dev/docker-compose.yml` if staging is needed.
+5. Run `make test`.
 
 ## License
 

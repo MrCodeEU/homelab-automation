@@ -1,11 +1,26 @@
 ################################################################################
-# Homelab Automation — Test Runner
+# Homelab Automation — Test Runner + Local Deploy
 #
-# Targets:
+# Testing:
 #   make test              Fast local tests — no Docker needed (CI default)
 #   make test-e2e          Full Docker deployment test (Caddy template rendering)
 #   make test-services     Ping all production services (requires VPN/Tailscale)
 #
+# Local deployment (replaces GitHub Actions when minutes are exhausted):
+#   make deploy-check      Dry run — verifies vault + connectivity, no changes
+#   make deploy            Full deploy, all hosts
+#   make deploy-caddy      Caddy only (fast, safe first step)
+#   make deploy-services   Services only, all hosts
+#   make deploy-mljr       All roles, mljr only
+#   make deploy-nuc        All roles, nuc only
+#
+# Prerequisites for local deploy:
+#   Tailscale active (handles SSH auth automatically)
+#   pip install ansible-core mitogen ansible-mitogen
+#   ansible-galaxy collection install -r ansible/requirements.yml
+#   ansible/inventory/group_vars/all/vault.yml created and encrypted
+#
+# Container management:
 #   make up                Start test containers
 #   make down              Stop and remove test containers
 #   make clean             Remove containers, images, and generated test files
@@ -32,7 +47,8 @@ E2E_ANSIBLE_OPTS   := -e ansible_strategy=linear
 
 .PHONY: test test-quick test-e2e test-services up down clean \
         _check-validate _check-templates _check-syntax _check-compose \
-        _e2e-deploy _ssh-keys _wait-ssh
+        _e2e-deploy _ssh-keys _wait-ssh \
+        deploy deploy-check deploy-caddy deploy-services deploy-mljr deploy-nuc
 
 ################################################################################
 # DEFAULT: fast local tests (no Docker)
@@ -131,6 +147,28 @@ test-services-verbose:
 	python3 $(TESTS_DIR)/scripts/check_services.py --verbose
 
 ################################################################################
+# Local deployment (Tailscale + Ansible Vault, no GitHub Actions needed)
+################################################################################
+
+deploy-check:
+	@./scripts/deploy-local.sh --check --diff
+
+deploy:
+	@./scripts/deploy-local.sh
+
+deploy-caddy:
+	@./scripts/deploy-local.sh --tags caddy
+
+deploy-services:
+	@./scripts/deploy-local.sh --tags services
+
+deploy-mljr:
+	@./scripts/deploy-local.sh --limit mljr
+
+deploy-nuc:
+	@./scripts/deploy-local.sh --limit nuc
+
+################################################################################
 # Housekeeping
 ################################################################################
 
@@ -142,8 +180,19 @@ clean: down
 
 # Quick help
 help:
-	@echo "make test              — fast local tests (no Docker)"
-	@echo "make test-e2e          — deploy to containers, verify Caddy snippets"
-	@echo "make test-services     — ping production services (needs VPN)"
-	@echo "make up / make down    — manage test containers manually"
-	@echo "make clean             — remove everything"
+	@echo "Testing:"
+	@echo "  make test              — fast local tests (no Docker)"
+	@echo "  make test-e2e          — deploy to containers, verify Caddy snippets"
+	@echo "  make test-services     — ping production services (needs VPN)"
+	@echo ""
+	@echo "Local deployment (requires Tailscale + vault.yml):"
+	@echo "  make deploy-check      — dry run, no changes"
+	@echo "  make deploy            — full deploy, all hosts"
+	@echo "  make deploy-caddy      — Caddy only"
+	@echo "  make deploy-services   — services only"
+	@echo "  make deploy-mljr       — all roles, mljr only"
+	@echo "  make deploy-nuc        — all roles, nuc only"
+	@echo ""
+	@echo "Containers:"
+	@echo "  make up / make down    — manage test containers manually"
+	@echo "  make clean             — remove everything"
