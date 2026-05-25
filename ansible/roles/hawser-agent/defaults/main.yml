@@ -1,0 +1,4 @@
+---
+hawser_port: 2376
+hawser_install_script: "https://raw.githubusercontent.com/Finsys/hawser/main/scripts/install.sh"
+hawser_binary: /usr/local/bin/hawser

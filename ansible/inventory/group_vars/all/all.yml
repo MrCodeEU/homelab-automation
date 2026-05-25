@@ -304,6 +304,16 @@ services:
           }
       }
 
+  - name: dockhand
+    enabled: true
+    managed: false
+    domain: "dockhand.mljr.eu"
+    port: 3054
+    host: nas
+    description: "Docker Management"
+    icon: "mdi:docker"
+    caddy_auth: authelia
+
   - name: syncthing
     enabled: true
     managed: false

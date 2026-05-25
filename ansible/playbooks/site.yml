@@ -210,6 +210,20 @@
     - iperf3
 
 # ============================================================================
+# Hawser Agent (all rocky hosts - enables Dockhand remote Docker management)
+# ============================================================================
+- name: Hawser Docker Agent
+  hosts: rocky
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - hawser-agent
+    - monitoring
+  roles:
+    - hawser-agent
+
+# ============================================================================
 # Dozzle Agent (mljr only - nuc runs main instance with local docker.sock)
 # ============================================================================
 - name: Dozzle Log Agent
