@@ -79,7 +79,7 @@ notifier:
     address: "submission://{{ secrets.smtp.host }}:{{ secrets.smtp.port | default('587') }}"
     username: "{{ secrets.smtp.user }}"
     password: "{{ secrets.smtp.password }}"
-    sender: "Authelia <{{ secrets.smtp.user }}@{{ domain }}>"
+    sender: "Authelia <{{ secrets.smtp.from | default(secrets.smtp.user + '@' + domain) }}>"
     subject: "[Authelia] {title}"
     tls:
       skip_verify: true
