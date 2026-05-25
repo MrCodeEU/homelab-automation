@@ -94,6 +94,21 @@
   when: docker_python_pkg is failed
 
 # ============================================================================
+# Docker Hub Login (prevents 401 errors and anonymous rate limits)
+# ============================================================================
+
+- name: Log in to Docker Hub
+  community.docker.docker_login:
+    registry_url: https://index.docker.io/v1/
+    username: "{{ secrets.dockerhub.username }}"
+    password: "{{ secrets.dockerhub.password }}"
+    reauthorize: true
+  when:
+    - secrets.dockerhub.username | default('') | length > 0
+    - secrets.dockerhub.password | default('') | length > 0
+  no_log: true
+
+# ============================================================================
 # Firewall Configuration (Tailscale internal network)
 # ============================================================================
 
