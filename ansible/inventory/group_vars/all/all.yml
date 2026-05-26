@@ -83,6 +83,16 @@ services:
     skip_deploy: true  # Uses dedicated role
 
   # Health Monitoring
+  - name: nocturne
+    enabled: true
+    domain:
+      - "nocturne.mljr.eu"
+      - "nc.mljr.eu"
+    port: 8091
+    host: nuc
+    description: "Diabetes Management (Next-Gen)"
+    icon: "mdi:moon-waning-crescent"
+
   - name: nightscout
     enabled: true
     domain:

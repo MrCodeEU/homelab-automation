@@ -14,6 +14,14 @@
 # Add it to GitHub as secret ANSIBLE_VAULT_PASSWORD.
 # ============================================================================
 
+# Nocturne
+vault_nocturne_instance_key: ""           # openssl rand -hex 32
+vault_nocturne_base_domain: "nocturne.mljr.eu"
+vault_nocturne_postgres_password: ""      # openssl rand -hex 16
+vault_nocturne_postgres_app_password: ""  # openssl rand -hex 16
+vault_nocturne_postgres_migrator_password: ""  # openssl rand -hex 16
+vault_nocturne_postgres_web_password: ""  # openssl rand -hex 16
+
 # Nightscout / LibreLink
 vault_nightscout_api_secret: ""
 vault_nightscout_api_token: ""
