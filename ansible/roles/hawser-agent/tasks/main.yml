@@ -43,6 +43,10 @@
       [Service]
       Environment=HAWSER_PORT={{ hawser_port }}
       Environment=HAWSER_BIND_ADDRESS={{ tailscale_ip }}
+      # Disable namespace hardening — incompatible with some Rocky Linux kernels
+      ProtectSystem=false
+      ProtectHome=false
+      ReadWritePaths=
   notify: restart hawser
 
 - name: Open Hawser port in firewall (Tailscale zone only)
