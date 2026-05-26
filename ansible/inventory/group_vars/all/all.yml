@@ -88,7 +88,7 @@ services:
     domain:
       - "nocturne.mljr.eu"
       - "nc.mljr.eu"
-    port: 8091
+    port: 8093
     host: nuc
     description: "Diabetes Management (Next-Gen)"
     icon: "mdi:moon-waning-crescent"
