@@ -1,0 +1,160 @@
+services:
+  nocturne-postgres:
+    image: "docker.io/library/postgres:17.6"
+    container_name: ${COMPOSE_PROJECT_NAME:-nocturne}-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+      POSTGRES_USER: "${POSTGRES_USERNAME}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "nocturne"
+      NOCTURNE_MIGRATOR_PASSWORD: "${POSTGRES_MIGRATOR_PASSWORD}"
+      NOCTURNE_APP_PASSWORD: "${POSTGRES_APP_PASSWORD}"
+      NOCTURNE_WEB_PASSWORD: "${POSTGRES_WEB_PASSWORD}"
+    expose:
+      - "5432"
+    volumes:
+      - nocturne-postgres-data:/var/lib/postgresql/data
+      - ./init/00-init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
+    networks:
+      - nocturne-internal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nocturne-api:
+    image: "${NOCTURNE_API_IMAGE}"
+    container_name: ${COMPOSE_PROJECT_NAME:-nocturne}-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      HTTP_PORTS: "${NOCTURNE_API_PORT}"
+      INSTANCE_KEY: "${INSTANCE_KEY}"
+      ConnectionStrings__nocturne-postgres: "Host=nocturne-postgres;Port=5432;Database=nocturne;Username=nocturne_app;Password=${POSTGRES_APP_PASSWORD}"
+      ConnectionStrings__nocturne-postgres-migrator: "Host=nocturne-postgres;Port=5432;Database=nocturne;Username=nocturne_migrator;Password=${POSTGRES_MIGRATOR_PASSWORD}"
+      DemoService__Enabled: "false"
+      WEB_URL: "http://nocturne-web:8000"
+      BASE_DOMAIN: "${BASE_DOMAIN}"
+    expose:
+      - "${NOCTURNE_API_PORT}"
+    depends_on:
+      nocturne-postgres:
+        condition: service_started
+    networks:
+      - nocturne-internal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nocturne-web:
+    image: "${NOCTURNE_WEB_IMAGE}"
+    container_name: ${COMPOSE_PROJECT_NAME:-nocturne}-web
+    restart: unless-stopped
+    environment:
+      PORT: "8000"
+      NOCTURNE_API_HTTP: "http://nocturne-api:${NOCTURNE_API_PORT}"
+      services__nocturne-api__http__0: "http://nocturne-api:${NOCTURNE_API_PORT}"
+      PUBLIC_API_URL: "http://nocturne-api:${NOCTURNE_API_PORT}"
+      NOCTURNE_API_URL: "http://nocturne-api:${NOCTURNE_API_PORT}"
+      INSTANCE_KEY: "${INSTANCE_KEY}"
+      BASE_DOMAIN: "${BASE_DOMAIN}"
+      ORIGIN: "https://${BASE_DOMAIN}"
+      NOCTURNE_POSTGRES_URI: "postgresql://nocturne_web:${POSTGRES_WEB_PASSWORD}@nocturne-postgres:5432/nocturne"
+    expose:
+      - "8000"
+    depends_on:
+      nocturne-api:
+        condition: service_started
+    networks:
+      - nocturne-internal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nocturne-gateway:
+    image: "mcr.microsoft.com/dotnet/nightly/yarp:2.3-preview"
+    container_name: ${COMPOSE_PROJECT_NAME:-nocturne}-gateway
+    restart: unless-stopped
+    command:
+      - "/app/yarp.dll"
+    entrypoint:
+      - "dotnet"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      REVERSEPROXY__CLUSTERS__cluster_nocturne-web__HTTPREQUEST__ACTIVITYTIMEOUT: "00:05:00"
+      REVERSEPROXY__ROUTES__route0__MATCH__PATH: "/api/auth/oidc/{**catch-all}"
+      REVERSEPROXY__ROUTES__route0__CLUSTERID: "cluster_nocturne-api"
+      REVERSEPROXY__ROUTES__route0__TRANSFORMS__0__X-Forwarded: "Off"
+      REVERSEPROXY__ROUTES__route0__TRANSFORMS__0__HeaderPrefix: "X-Forwarded-"
+      REVERSEPROXY__ROUTES__route1__MATCH__PATH: "/api/oauth/{**catch-all}"
+      REVERSEPROXY__ROUTES__route1__CLUSTERID: "cluster_nocturne-api"
+      REVERSEPROXY__ROUTES__route1__TRANSFORMS__0__X-Forwarded: "Off"
+      REVERSEPROXY__ROUTES__route1__TRANSFORMS__0__HeaderPrefix: "X-Forwarded-"
+      REVERSEPROXY__ROUTES__route2__MATCH__PATH: "/api/v4/dev-only/{**catch-all}"
+      REVERSEPROXY__ROUTES__route2__CLUSTERID: "cluster_nocturne-api"
+      REVERSEPROXY__ROUTES__route2__TRANSFORMS__0__X-Forwarded: "Off"
+      REVERSEPROXY__ROUTES__route2__TRANSFORMS__0__HeaderPrefix: "X-Forwarded-"
+      REVERSEPROXY__ROUTES__route3__MATCH__PATH: "/api/{**catch-all}"
+      REVERSEPROXY__ROUTES__route3__CLUSTERID: "cluster_nocturne-web"
+      REVERSEPROXY__ROUTES__route3__TRANSFORMS__0__X-Forwarded: "Off"
+      REVERSEPROXY__ROUTES__route3__TRANSFORMS__0__HeaderPrefix: "X-Forwarded-"
+      REVERSEPROXY__ROUTES__route4__MATCH__PATH: "/auth/bot/{**catch-all}"
+      REVERSEPROXY__ROUTES__route4__CLUSTERID: "cluster_nocturne-web"
+      REVERSEPROXY__ROUTES__route4__TRANSFORMS__0__X-Forwarded: "Off"
+      REVERSEPROXY__ROUTES__route4__TRANSFORMS__0__HeaderPrefix: "X-Forwarded-"
+      REVERSEPROXY__ROUTES__route5__MATCH__PATH: "/scalar"
+      REVERSEPROXY__ROUTES__route5__CLUSTERID: "cluster_nocturne-api"
+      REVERSEPROXY__ROUTES__route5__TRANSFORMS__0__X-Forwarded: "Off"
+      REVERSEPROXY__ROUTES__route5__TRANSFORMS__0__HeaderPrefix: "X-Forwarded-"
+      REVERSEPROXY__ROUTES__route6__MATCH__PATH: "/scalar/{**catch-all}"
+      REVERSEPROXY__ROUTES__route6__CLUSTERID: "cluster_nocturne-api"
+      REVERSEPROXY__ROUTES__route6__TRANSFORMS__0__X-Forwarded: "Off"
+      REVERSEPROXY__ROUTES__route6__TRANSFORMS__0__HeaderPrefix: "X-Forwarded-"
+      REVERSEPROXY__ROUTES__route7__MATCH__PATH: "/openapi/{**catch-all}"
+      REVERSEPROXY__ROUTES__route7__CLUSTERID: "cluster_nocturne-api"
+      REVERSEPROXY__ROUTES__route7__TRANSFORMS__0__X-Forwarded: "Off"
+      REVERSEPROXY__ROUTES__route7__TRANSFORMS__0__HeaderPrefix: "X-Forwarded-"
+      REVERSEPROXY__ROUTES__route8__MATCH__PATH: "/.well-known/{**catch-all}"
+      REVERSEPROXY__ROUTES__route8__CLUSTERID: "cluster_nocturne-api"
+      REVERSEPROXY__ROUTES__route8__TRANSFORMS__0__X-Forwarded: "Off"
+      REVERSEPROXY__ROUTES__route8__TRANSFORMS__0__HeaderPrefix: "X-Forwarded-"
+      REVERSEPROXY__ROUTES__route9__MATCH__PATH: "/{**catchall}"
+      REVERSEPROXY__ROUTES__route9__CLUSTERID: "cluster_nocturne-web"
+      REVERSEPROXY__ROUTES__route9__TRANSFORMS__0__X-Forwarded: "Off"
+      REVERSEPROXY__ROUTES__route9__TRANSFORMS__0__HeaderPrefix: "X-Forwarded-"
+      REVERSEPROXY__CLUSTERS__cluster_nocturne-api__DESTINATIONS__destination1__ADDRESS: "http://nocturne-api:${NOCTURNE_API_PORT}"
+      REVERSEPROXY__CLUSTERS__cluster_nocturne-web__DESTINATIONS__destination1__ADDRESS: "http://nocturne-web:8000"
+      NOCTURNE_API_HTTP: "http://nocturne-api:${NOCTURNE_API_PORT}"
+      services__nocturne-api__http__0: "http://nocturne-api:${NOCTURNE_API_PORT}"
+      NOCTURNE_WEB_HTTP: "http://nocturne-web:8000"
+      services__nocturne-web__http__0: "http://nocturne-web:8000"
+    ports:
+      - "8093:5000"
+    depends_on:
+      nocturne-api:
+        condition: service_started
+      nocturne-web:
+        condition: service_started
+    networks:
+      - nocturne-internal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  nocturne-internal:
+    driver: bridge
+
+volumes:
+  nocturne-postgres-data:
+    driver: local
+
