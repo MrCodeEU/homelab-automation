@@ -142,6 +142,80 @@
   failed_when: false
   when: ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
 
+- name: Install SELinux policy build tools for Caddy log rotation
+  ansible.builtin.dnf:
+    name:
+      - checkpolicy
+      - policycoreutils-python-utils
+    state: present
+  when: ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
+
+- name: Write SELinux policy source for Caddy log rotation
+  ansible.builtin.copy:
+    dest: /tmp/caddy_logrotate.te
+    mode: '0644'
+    content: |
+      module caddy_logrotate 1.0;
+
+      require {
+        type httpd_t;
+        type httpd_log_t;
+        class dir { add_name remove_name search write };
+        class file { create getattr open read rename setattr unlink write };
+      }
+
+      allow httpd_t httpd_log_t:dir { add_name remove_name search write };
+      allow httpd_t httpd_log_t:file { create getattr open read rename setattr unlink write };
+  register: caddy_logrotate_policy_source
+  when: ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
+
+- name: Check installed SELinux policy module for Caddy log rotation
+  ansible.builtin.command: semodule -l
+  register: caddy_logrotate_policy_modules
+  changed_when: false
+  when: ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
+
+- name: Compile SELinux policy module for Caddy log rotation
+  ansible.builtin.command: >-
+    checkmodule -M -m -o /tmp/caddy_logrotate.mod /tmp/caddy_logrotate.te
+  when:
+    - ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
+    - >-
+      caddy_logrotate_policy_source is changed or
+      'caddy_logrotate' not in caddy_logrotate_policy_modules.stdout
+
+- name: Package SELinux policy module for Caddy log rotation
+  ansible.builtin.command: >-
+    semodule_package -o /tmp/caddy_logrotate.pp -m /tmp/caddy_logrotate.mod
+  when:
+    - ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
+    - >-
+      caddy_logrotate_policy_source is changed or
+      'caddy_logrotate' not in caddy_logrotate_policy_modules.stdout
+
+- name: Install SELinux policy module for Caddy log rotation
+  ansible.builtin.command: semodule -i /tmp/caddy_logrotate.pp
+  when:
+    - ansible_selinux.status is defined and ansible_selinux.status == 'enabled'
+    - >-
+      caddy_logrotate_policy_source is changed or
+      'caddy_logrotate' not in caddy_logrotate_policy_modules.stdout
+
+- name: Remove stale Caddy log compression temp files
+  ansible.builtin.find:
+    paths: "{{ log_path }}/caddy"
+    patterns: "*.tmp"
+    age: 1h
+    file_type: file
+  register: stale_caddy_log_tmp_files
+
+- name: Delete stale Caddy log compression temp files
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ stale_caddy_log_tmp_files.files }}"
+  when: stale_caddy_log_tmp_files.matched | default(0) | int > 0
+
 - name: Determine basicauth-enabled services
   ansible.builtin.set_fact:
     basicauth_enabled_services: >-
@@ -255,7 +329,7 @@
 - name: Compute Caddy services checksum
   ansible.builtin.set_fact:
     caddy_services_hash: >-
-      {{ (services | to_json + lookup('file', role_path + '/templates/service_snippet.caddy.j2')) | hash('sha256') }}
+      {{ (services | to_json + (is_staging_deployment | default(false) | string) + lookup('file', role_path + '/templates/service_snippet.caddy.j2')) | hash('sha256') }}
 
 - name: Find existing Caddy snippet files
   ansible.builtin.find:

@@ -15,6 +15,13 @@ config_path: "/etc"
 log_path: "/var/log"
 backup_path: "/opt/backups"
 
+# Caddy log rotation. Per-service logs can grow quickly on public endpoints, so
+# keep rotation bounded and avoid stale compression temp files piling up.
+caddy_log_roll_size: 100mb
+caddy_log_roll_keep: 3
+caddy_log_roll_keep_for: 168h
+caddy_log_roll_uncompressed: true
+
 # Staging configuration
 # Services with a dev/ subfolder automatically get deployed to staging_host
 # when is_staging_deployment=true is set:
@@ -36,6 +43,14 @@ docker_prune_containers: true
 docker_prune_networks: false
 docker_prune_volumes: false
 docker_prune_builder_cache: true
+docker_prune_timeout: 600
+docker_prune_fail_deployment: false
+
+# Optional swapfile management. This is enabled per host where useful; it is
+# mainly a pressure-release valve for small VPS hosts running Docker workloads.
+swap_enabled: false
+swap_file_path: /swapfile
+swap_file_size_mb: 2048
 
 # ============================================================================
 # Services Configuration

@@ -17,8 +17,12 @@
     # Global access log for GoAccess real-time analytics
     log access {
         output file {{ log_path }}/caddy/access.log {
-            roll_size 100mb
-            roll_keep 5
+            roll_size {{ caddy_log_roll_size | default('100mb') }}
+            roll_keep {{ caddy_log_roll_keep | default(3) }}
+            roll_keep_for {{ caddy_log_roll_keep_for | default('168h') }}
+{% if caddy_log_roll_uncompressed | default(true) | bool %}
+            roll_uncompressed
+{% endif %}
         }
     }
 }
@@ -29,7 +33,12 @@ deploy.{{ domain }} {
     file_server
     log {
         output file {{ log_path }}/caddy/deploy.log {
-            roll_disabled
+            roll_size {{ caddy_log_roll_size | default('100mb') }}
+            roll_keep {{ caddy_log_roll_keep | default(3) }}
+            roll_keep_for {{ caddy_log_roll_keep_for | default('168h') }}
+{% if caddy_log_roll_uncompressed | default(true) | bool %}
+            roll_uncompressed
+{% endif %}
         }
     }
 }

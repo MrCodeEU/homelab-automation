@@ -44,6 +44,77 @@
     update_cache: true
 
 # ============================================================================
+# Swapfile (optional per host)
+# ============================================================================
+
+- name: Check active swap devices
+  ansible.builtin.command: swapon --show --noheadings --raw --output NAME
+  register: active_swap_devices
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: swap_enabled | default(false) | bool
+  tags:
+    - swap
+
+- name: Check swapfile
+  ansible.builtin.stat:
+    path: "{{ swap_file_path | default('/swapfile') }}"
+  register: swap_file
+  when: swap_enabled | default(false) | bool
+  tags:
+    - swap
+
+- name: Create swapfile
+  ansible.builtin.command: >-
+    fallocate -l {{ swap_file_size_mb | default(2048) | int }}M
+    {{ swap_file_path | default('/swapfile') }}
+  args:
+    creates: "{{ swap_file_path | default('/swapfile') }}"
+  register: swapfile_create
+  when:
+    - swap_enabled | default(false) | bool
+    - not swap_file.stat.exists
+  tags:
+    - swap
+
+- name: Set swapfile permissions
+  ansible.builtin.file:
+    path: "{{ swap_file_path | default('/swapfile') }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: swap_enabled | default(false) | bool
+  tags:
+    - swap
+
+- name: Format swapfile
+  ansible.builtin.command: "mkswap {{ swap_file_path | default('/swapfile') }}"
+  when:
+    - swap_enabled | default(false) | bool
+    - swapfile_create is changed
+  tags:
+    - swap
+
+- name: Persist swapfile
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: "^{{ swap_file_path | default('/swapfile') | regex_escape }}\\s+"
+    line: "{{ swap_file_path | default('/swapfile') }} none swap sw 0 0"
+    state: present
+  when: swap_enabled | default(false) | bool
+  tags:
+    - swap
+
+- name: Enable swapfile
+  ansible.builtin.command: "swapon {{ swap_file_path | default('/swapfile') }}"
+  when:
+    - swap_enabled | default(false) | bool
+    - swap_file_path | default('/swapfile') not in active_swap_devices.stdout_lines
+  tags:
+    - swap
+
+# ============================================================================
 # Docker Installation
 # ============================================================================
 
@@ -138,6 +209,24 @@
     networks: "{{ docker_prune_networks | default(false) | bool }}"
     volumes: "{{ docker_prune_volumes | default(false) | bool }}"
     builder_cache: "{{ docker_prune_builder_cache | default(true) | bool }}"
+    timeout: "{{ docker_prune_timeout | default(600) | int }}"
+  register: docker_prune_result
+  failed_when:
+    - docker_prune_fail_deployment | default(false) | bool
+    - docker_prune_result is failed
   when: docker_prune_enabled | default(false) | bool
+  tags:
+    - prune
+
+- name: Report Docker prune maintenance issue
+  ansible.builtin.debug:
+    msg: >-
+      Docker prune did not complete on {{ inventory_hostname }} within
+      {{ docker_prune_timeout | default(600) }}s: {{ docker_prune_result.msg | default('unknown error') }}
+  when:
+    - docker_prune_enabled | default(false) | bool
+    - docker_prune_result is defined
+    - docker_prune_result.msg is defined
+    - docker_prune_result.msg | length > 0
   tags:
     - prune

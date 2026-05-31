@@ -147,6 +147,7 @@
     - { key: "HTTPS_BIND", value: "{{ mailcow_http_bind }}" }
     - { key: "SKIP_LETS_ENCRYPT", value: "y" }
     - { key: "SKIP_HTTP_VERIFICATION", value: "y" }
+    - { key: "SKIP_CLAMD", value: "{{ 'y' if mailcow_skip_clamd | default(true) | bool else 'n' }}" }
     - { key: "SNAT_TO_SOURCE", value: "" }
   when: not ansible_check_mode
   register: mailcow_conf_result
@@ -283,6 +284,7 @@
     - { key: "HTTPS_BIND", value: "{{ mailcow_http_bind }}" }
     - { key: "SKIP_LETS_ENCRYPT", value: "y" }
     - { key: "SKIP_HTTP_VERIFICATION", value: "y" }
+    - { key: "SKIP_CLAMD", value: "{{ 'y' if mailcow_skip_clamd | default(true) | bool else 'n' }}" }
     - { key: "SNAT_TO_SOURCE", value: "" }
   when:
     - not ansible_check_mode

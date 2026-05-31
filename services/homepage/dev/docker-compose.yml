@@ -4,7 +4,7 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-homepage-staging}
     restart: unless-stopped
     ports:
-      - "18082:8000"  # Staging port (+10000 offset)
+      - "18082:8082"  # Staging port (+10000 offset)
     environment:
       - GITHUB_TOKEN=${GH_TOKEN}
       - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
@@ -13,7 +13,6 @@ services:
       - LINKEDIN_EMAIL=${LINKEDIN_EMAIL}
       - LINKEDIN_PASSWORD=${LINKEDIN_PASSWORD}
       - LINKEDIN_TOTP_SECRET=${LINKEDIN_TOTP_SECRET}
-      - PORT=8080
       - SCRAPER_CACHE_FILE=/data/scraper-cache.json
     volumes:
       - homepage-data:/data

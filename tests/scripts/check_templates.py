@@ -69,6 +69,19 @@ def load_all_vars() -> dict:
 # Jinja2 environment matching Ansible defaults
 # ---------------------------------------------------------------------------
 
+def ansible_bool(value) -> bool:
+    """Approximate Ansible's bool filter for standalone template checks."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "yes", "y", "on", "true", "t"}
+    return bool(value)
+
+
 def make_env() -> jinja2.Environment:
     env = jinja2.Environment(
         loader=jinja2.BaseLoader(),
@@ -77,6 +90,7 @@ def make_env() -> jinja2.Environment:
         lstrip_blocks=True,
     )
     env.globals["lookup"] = lambda *_a, **_kw: ""
+    env.filters["bool"] = ansible_bool
     return env
 
 

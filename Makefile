@@ -171,6 +171,10 @@ deploy-mljr:
 deploy-nuc:
 	@./scripts/deploy-local.sh --limit nuc
 
+deploy-svc:
+	@test -n "$(SERVICE)" || (echo "Usage: make deploy-svc SERVICE=<name>"; exit 1)
+	@./scripts/deploy-local.sh --tags services,caddy --extra-vars "changed_services=$(SERVICE)"
+
 ################################################################################
 # Housekeeping
 ################################################################################
@@ -196,6 +200,7 @@ help:
 	@echo "  make deploy-services   — services only"
 	@echo "  make deploy-mljr       — all roles, mljr only"
 	@echo "  make deploy-nuc        — all roles, nuc only"
+	@echo "  make deploy-svc SERVICE=<name>  — single service + Caddy snippet"
 	@echo ""
 	@echo "Containers:"
 	@echo "  make up / make down    — manage test containers manually"

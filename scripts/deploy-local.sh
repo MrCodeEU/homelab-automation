@@ -73,4 +73,5 @@ echo ""
 
 ansible-playbook playbooks/site.yml \
     --forks 20 \
+    --extra-vars "is_staging_deployment=true" \
     "$@" 2>&1 | tee "$LOG_FILE"
