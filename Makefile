@@ -45,7 +45,7 @@ ANSIBLE_CFG        := ANSIBLE_CONFIG=$(CURDIR)/$(ANSIBLE_DIR)/ansible.cfg
 # Disable Mitogen for container tests (not installed in containers)
 E2E_ANSIBLE_OPTS   := -e ansible_strategy=linear
 
-.PHONY: test test-quick test-e2e test-services up down clean \
+.PHONY: test test-quick test-e2e test-services docs-ansible-map up down clean \
         _check-validate _check-templates _check-syntax _check-compose \
         _e2e-deploy _ssh-keys _wait-ssh \
         deploy deploy-check deploy-diff deploy-caddy deploy-services deploy-mljr deploy-nuc
@@ -146,6 +146,10 @@ test-services-verbose:
 	@echo "==> Checking production service reachability (verbose)"
 	python3 $(TESTS_DIR)/scripts/check_services.py --verbose
 
+docs-ansible-map:
+	@echo "==> Generating Ansible inventory/service map"
+	python3 scripts/generate-ansible-visuals.py
+
 ################################################################################
 # Local deployment (Tailscale + Ansible Vault, no GitHub Actions needed)
 ################################################################################
@@ -191,6 +195,7 @@ help:
 	@echo "  make test              — fast local tests (no Docker)"
 	@echo "  make test-e2e          — deploy to containers, verify Caddy snippets"
 	@echo "  make test-services     — ping production services (needs VPN)"
+	@echo "  make docs-ansible-map  — regenerate docs/ansible-map.md"
 	@echo ""
 	@echo "Local deployment (requires Tailscale + vault.yml):"
 	@echo "  make deploy-check      — dry run, no changes"

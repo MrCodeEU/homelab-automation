@@ -197,6 +197,23 @@ def generate_html(data: dict) -> str:
 
         check_badge = '<span class="px-1.5 py-0.5 text-xs bg-amber-500/20 text-amber-400 rounded">dry-run</span>' if dep.get('check_mode') else ''
         staging_badge = '<span class="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">staging</span>' if dep.get('is_staging') else ''
+        run_url = html.escape(dep.get('run_url', ''))
+        ara_artifact = html.escape(dep.get('ara_artifact', ''))
+        links_html = ''
+        if run_url:
+            links_html += f'''
+                <a href="{run_url}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-slate-700/60 hover:bg-slate-700 rounded text-slate-300">
+                    <iconify-icon icon="mdi:github"></iconify-icon>
+                    Run
+                </a>
+            '''
+        if ara_artifact:
+            links_html += f'''
+                <span title="Download artifact '{ara_artifact}' from the GitHub Actions run" class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-500/15 text-blue-300 rounded">
+                    <iconify-icon icon="mdi:database-search"></iconify-icon>
+                    ARA
+                </span>
+            '''
 
         # Get failed services for this deployment
         dep_failed_svcs = [s for s in dep.get('services', []) if s.get('status') == 'failed']
@@ -209,7 +226,7 @@ def generate_html(data: dict) -> str:
             expand_btn = f'<button onclick="toggleExpand({idx})" class="text-red-400 hover:text-red-300 ml-2"><iconify-icon icon="mdi:chevron-down" id="chevron-{idx}"></iconify-icon></button>'
             expanded_content = f'''
             <tr id="expanded-{idx}" class="hidden">
-                <td colspan="7" class="px-4 pb-4 bg-slate-800/30">
+                <td colspan="8" class="px-4 pb-4 bg-slate-800/30">
                     <div class="text-sm text-red-400 mb-2">Failed services:</div>
                     <div class="space-y-2">
             '''
@@ -252,6 +269,9 @@ def generate_html(data: dict) -> str:
                 {expand_btn}
             </td>
             <td class="py-3 px-4 space-x-1">{check_badge}{staging_badge}</td>
+            <td class="py-3 px-4">
+                <div class="flex flex-wrap gap-1">{links_html or '<span class="text-slate-600">-</span>'}</div>
+            </td>
         </tr>
         {expanded_content}
         '''
@@ -357,10 +377,11 @@ def generate_html(data: dict) -> str:
                             <th class="py-2 px-4">Actor</th>
                             <th class="py-2 px-4">Services (ok/fail/total)</th>
                             <th class="py-2 px-4">Flags</th>
+                            <th class="py-2 px-4">Links</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {deployments_html if deployments_html else '<tr><td colspan="7" class="py-8 text-center text-slate-500">No deployments yet</td></tr>'}
+                        {deployments_html if deployments_html else '<tr><td colspan="8" class="py-8 text-center text-slate-500">No deployments yet</td></tr>'}
                     </tbody>
                 </table>
             </div>

@@ -194,7 +194,7 @@ jobs:
             ~/.local/bin
             ~/.local/pipx
             ~/.ansible/collections
-          key: ansible-${{ runner.os }}-${{ hashFiles('ansible/requirements.yml') }}-v5
+          key: ansible-${{ runner.os }}-${{ hashFiles('ansible/requirements.yml') }}-v6
           restore-keys: |
             ansible-${{ runner.os }}-
 
@@ -213,6 +213,24 @@ jobs:
           if ! pipx runpip ansible-core list | grep -q mitogen; then
             echo "Installing Mitogen..."
             pipx inject ansible-core mitogen
+          fi
+
+          # ARA records Ansible runs to SQLite for post-run troubleshooting.
+          echo "Ensuring ARA is available..."
+          if ! pipx runpip ansible-core show ara >/dev/null 2>&1; then
+            echo "Installing ARA..."
+            pipx inject ansible-core "ara[server]"
+          fi
+
+          ANSIBLE_CORE_VENV="$(pipx environment --value PIPX_HOME)/venvs/ansible-core"
+          echo "ANSIBLE_CORE_VENV=${ANSIBLE_CORE_VENV}" >> $GITHUB_ENV
+
+          if [ -x "${ANSIBLE_CORE_VENV}/bin/python" ]; then
+            ARA_CALLBACK_PLUGINS="$("${ANSIBLE_CORE_VENV}/bin/python" -m ara.setup.callback_plugins)"
+            echo "ARA_CALLBACK_PLUGINS=${ARA_CALLBACK_PLUGINS}" >> $GITHUB_ENV
+            echo "✓ ARA callback plugins: ${ARA_CALLBACK_PLUGINS}"
+          else
+            echo "⚠ Warning: Could not locate ansible-core virtualenv for ARA"
           fi
           
           # Find and export Mitogen strategy plugin path
@@ -284,8 +302,14 @@ jobs:
           ANSIBLE_PIPELINING: "True"
           ANSIBLE_SSH_PIPELINING: "True"
           ANSIBLE_STRATEGY_PLUGINS: "${{ env.MITOGEN_STRATEGY_PATH }}"
+          ANSIBLE_CALLBACK_PLUGINS: "${{ env.ARA_CALLBACK_PLUGINS }}"
+          ARA_API_CLIENT: "offline"
+          ARA_BASE_DIR: "/tmp/ara"
+          ARA_DATABASE: "sqlite:////tmp/ara/ansible.sqlite"
           ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
         run: |
+          mkdir -p /tmp/ara
+
           # Write vault password to tmpfs temp file; trap ensures cleanup on exit
           VAULT_PASS_FILE=$(mktemp)
           chmod 600 "$VAULT_PASS_FILE"
@@ -390,6 +414,39 @@ jobs:
           fi
 
           exit $ANSIBLE_EXIT_CODE
+
+      - name: Export ARA report
+        if: always()
+        run: |
+          set +e
+          mkdir -p /tmp/ara-artifact
+
+          if [ -d /tmp/ara ]; then
+            cp -a /tmp/ara /tmp/ara-artifact/ara
+          fi
+
+          if [ -x "${ANSIBLE_CORE_VENV}/bin/ara" ]; then
+            "${ANSIBLE_CORE_VENV}/bin/ara" playbook list --format json > /tmp/ara-artifact/playbooks.json 2>/tmp/ara-artifact/ara-cli.stderr || true
+            "${ANSIBLE_CORE_VENV}/bin/ara" host list --format json > /tmp/ara-artifact/hosts.json 2>>/tmp/ara-artifact/ara-cli.stderr || true
+          fi
+
+          {
+            echo "# ARA Report"
+            echo ""
+            echo "- Run: ${{ github.run_id }}"
+            echo "- Workflow: ${{ github.workflow }}"
+            echo "- Commit: ${{ github.sha }}"
+            echo "- Database: ara/ansible.sqlite"
+          } > /tmp/ara-artifact/README.md
+
+      - name: Upload ARA report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ara-report-${{ github.run_id }}
+          path: /tmp/ara-artifact
+          if-no-files-found: ignore
+          retention-days: 30
 
       - name: Update deployment status page
         if: always()
@@ -553,6 +610,8 @@ jobs:
               'is_staging': os.environ.get('IS_STAGING', 'false') == 'true',
               'limit': os.environ.get('LIMIT', 'all'),
               'tags': os.environ.get('TAGS', 'all'),
+              'run_url': f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}",
+              'ara_artifact': f"ara-report-{os.environ.get('GITHUB_RUN_ID', '')}",
               'services': service_results,
               'summary': summary
           }

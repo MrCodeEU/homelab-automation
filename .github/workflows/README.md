@@ -10,6 +10,10 @@ Sequential deployment with validation, change detection, Ansible execution, summ
 
 It runs in check mode for pull requests and can deploy changed services only when the git diff is narrow enough.
 
+### IaC Security Scan (`iac-security.yml`)
+
+Read-only Infrastructure-as-Code scanning with Checkov. This workflow intentionally does not receive the Ansible Vault password, Tailscale OAuth credentials, or any production deployment secret. It uploads a Checkov artifact and, when repository settings allow it, SARIF results for GitHub code scanning.
+
 ## Required GitHub Secrets
 
 Configure these secrets in your GitHub repository settings (Settings → Secrets and variables → Actions):
@@ -58,13 +62,32 @@ Application secrets live in the encrypted Ansible Vault file. Update `ansible/in
 **Workflow steps:**
 1. Checkout repository
 2. Set up Tailscale VPN connection
-3. Install Ansible (cached)
+3. Install Ansible, Mitogen, and ARA (cached)
 4. Install Ansible collections
-5. Inject secrets as environment variables
+5. Decrypt the Ansible Vault password into a temporary file
 6. Run `ansible-playbook playbooks/site.yml` with selected limit/tags/check mode
-7. Fail the job when Ansible fails and send deployment notification
+7. Upload ARA run data as a workflow artifact
+8. Fail the job when Ansible fails and send deployment notification
 
 The weekly scheduled `deploy.yml` run also sets `docker_prune_enabled=true`, pruning unused Docker images and stopped containers. Volumes are intentionally excluded.
+
+## ARA Reporting
+
+Deployments enable the ARA callback plugin in offline mode. Each run records playbook, task, and host results to `/tmp/ara/ansible.sqlite`, exports basic JSON summaries, and uploads everything as an artifact named `ara-report-<run id>`.
+
+To inspect a downloaded artifact locally:
+
+```bash
+pip install "ara[server]"
+ARA_DATABASE=sqlite:////path/to/artifact/ara/ansible.sqlite ara playbook list
+ARA_DATABASE=sqlite:////path/to/artifact/ara/ansible.sqlite ara host list
+```
+
+## IaC Security Scanning
+
+`iac-security.yml` runs Checkov from a pinned PyPI version in a separate, no-secrets workflow. The scan is currently soft-fail so first-run findings can be reviewed and suppressed or fixed without blocking unrelated infrastructure work. After the baseline is clean, switch from `--soft-fail` to severity-based hard failures.
+
+KICS remains a useful secondary scanner, but the Checkmarx GitHub Action and Docker distribution should not be used in this secret-bearing deploy workflow until the supply-chain situation has been reviewed and a trusted, pinned release path is chosen.
 
 ## Ansible Roles (Tags)
 

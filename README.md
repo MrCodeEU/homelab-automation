@@ -191,6 +191,16 @@ ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_HOME=/tmp/ansible-home make test
 
 This runs service validation, Caddy template rendering, Ansible syntax checks, and Docker Compose syntax checks.
 
+## Ansible Map
+
+Generate a static Markdown/Mermaid map of inventory groups, hosts, and service placement:
+
+```bash
+make docs-ansible-map
+```
+
+The output is written to `docs/ansible-map.md`.
+
 ## Common Commands
 
 ```bash
