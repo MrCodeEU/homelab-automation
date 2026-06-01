@@ -9,7 +9,6 @@ This directory contains the Ansible configuration for the `mljr.eu` homelab. It 
 - `container-reconcile`: removes retired standalone containers and paths.
 - `caddy`: Caddy reverse proxy, HTTPS, snippets, and log permissions.
 - `crowdsec-firewall-bouncer`: installs host nftables remediation on `mljr`.
-- `fail2ban-retire`: removes legacy fail2ban after CrowdSec enforcement is active.
 - `grafana-alloy`: host, Docker, and log telemetry to the Grafana stack.
 - `backup`: backup and restore scripts.
 - `glance`, `mailcow`, `authelia`: dedicated service roles.
@@ -20,7 +19,7 @@ This directory contains the Ansible configuration for the `mljr.eu` homelab. It 
 |------|---------|
 | `inventory/hosts.yml` | Inventory hosts and Tailscale addresses |
 | `inventory/group_vars/all/all.yml` | Global settings and service catalog |
-| `inventory/group_vars/all/secrets.yml` | Environment variable lookups |
+| `inventory/group_vars/all/secrets.yml` | Vault variable mappings |
 | `playbooks/site.yml` | Main playbook and role order |
 | `roles/services/` | Generic Docker Compose service deployment |
 
@@ -47,22 +46,19 @@ Disabled services should usually remain in the catalog until cleanup has removed
 1. Gather facts
 2. Base setup
 3. Container reconciliation
-4. Legacy fail2ban setup only if `fail2ban_enabled=true`
-5. Infrastructure roles
-6. Generic Docker services
-7. CrowdSec firewall bouncer on `mljr`
-8. Fail2ban retirement
-9. Monitoring agents and iperf3
-10. Caddy
+4. Infrastructure roles
+5. Generic Docker services
+6. CrowdSec firewall bouncer on `mljr`
+7. Monitoring agents and iperf3
+8. Caddy
 
-CrowdSec bouncer setup intentionally runs before fail2ban retirement.
+CrowdSec bouncer setup intentionally runs after the Dockerized CrowdSec service is deployed.
 
 ## Security
 
-CrowdSec is active security. Fail2ban is disabled by default:
+CrowdSec is active security. Fail2ban is no longer managed by this playbook:
 
 ```yaml
-fail2ban_enabled: false
 crowdsec_firewall_bouncer_enabled: true
 ```
 
@@ -116,7 +112,7 @@ ansible-playbook playbooks/site.yml -e is_staging_deployment=true
 
 - Keep tasks idempotent.
 - Prefer variables in `group_vars/all/all.yml` over hardcoded values.
-- Add secrets through environment lookups in `secrets.yml`.
-- Update GitHub workflow env injection when adding secrets.
+- Add secrets through vault variables mapped in `secrets.yml`.
+- Update `vault.yml.example` when adding secrets.
 - Use Jinja templates for generated config.
 - Run the root `make test` target before pushing.

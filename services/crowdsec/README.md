@@ -67,4 +67,4 @@ systemctl status crowdsec-firewall-bouncer
 tail -f /var/log/crowdsec-firewall-bouncer.log
 ```
 
-If the bouncer is enabled and `CROWDSEC_FIREWALL_BOUNCER_KEY` is missing, deployment intentionally fails before fail2ban is retired.
+If the bouncer is enabled and `CROWDSEC_FIREWALL_BOUNCER_KEY` is missing, deployment intentionally fails before host enforcement is configured.

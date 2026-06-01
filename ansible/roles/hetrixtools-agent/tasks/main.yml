@@ -49,10 +49,3 @@
 - name: Display agent status
   ansible.builtin.debug:
     msg: "HetrixTools agent is installed and cron job is {{ 'configured' if 'hetrixtools_agent.sh' in (hetrixtools_cron.stdout | default('')) else 'NOT configured' }}"
-  register: hetrixtools_cron
-  changed_when: false
-
-- name: Display agent status
-  ansible.builtin.debug:
-
-    msg: "HetrixTools agent is installed and cron job is {{ 'configured' if 'hetrixtools_agent.sh' in (hetrixtools_cron.stdout | default('')) else 'NOT configured' }}"

@@ -64,7 +64,7 @@
     enabled: true
   when: not ansible_check_mode
 
-- name: Apply CrowdSec firewall bouncer config before retiring fail2ban
+- name: Apply CrowdSec firewall bouncer config
   ansible.builtin.meta: flush_handlers
 
 - name: Verify CrowdSec firewall bouncer is active
@@ -74,12 +74,5 @@
   until: crowdsec_firewall_bouncer_active.stdout == "active"
   retries: 10
   delay: 3
-  failed_when: false
+  failed_when: crowdsec_firewall_bouncer_active.stdout != "active"
   when: not ansible_check_mode
-
-- name: Warn if bouncer not active after retries
-  ansible.builtin.debug:
-    msg: "WARNING: crowdsec-firewall-bouncer is '{{ crowdsec_firewall_bouncer_active.stdout | default('unknown') }}' — check API key and CrowdSec connectivity"
-  when:
-    - not ansible_check_mode
-    - crowdsec_firewall_bouncer_active.stdout | default('') != "active"

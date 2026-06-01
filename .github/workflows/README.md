@@ -10,10 +10,6 @@ Sequential deployment with validation, change detection, Ansible execution, summ
 
 It runs in check mode for pull requests and can deploy changed services only when the git diff is narrow enough.
 
-### Parallel Deploy (`deploy-parallel.yml`)
-
-Manual workflow that deploys hosts in parallel for better visibility and faster multi-host runs.
-
 ## Required GitHub Secrets
 
 Configure these secrets in your GitHub repository settings (Settings → Secrets and variables → Actions):
@@ -29,24 +25,12 @@ Configure these secrets in your GitHub repository settings (Settings → Secrets
 2. Generate OAuth client credentials
 3. Add tag `tag:ci` to the OAuth client permissions
 
-### Application Secrets
+### Ansible Vault
 | Secret | Description |
 |--------|-------------|
-| `NIGHTSCOUT_API_SECRET` | Nightscout API authentication secret |
-| `LINK_UP_USERNAME` | LibreLink Up account username |
-| `LINK_UP_PASSWORD` | LibreLink Up account password |
-| `NIGHTSCOUT_API_TOKEN` | Nightscout API token |
-| `NIGHTSCOUT_DOMAIN` | Nightscout domain (e.g., `nightscout.example.com`) |
-| `BICHON_ENCRYPT_PASSWORD` | Bichon email archiver encryption password |
-| `CADDY_AUTH_PASSWORD_HASH` | Bcrypt hash for Caddy basicauth |
-| `CADDY_AUTH_USER` | Username for Caddy basicauth |
-| `GRAFANA_ADMIN_USER` | Grafana admin user (optional, defaults to `admin`) |
-| `GRAFANA_ADMIN_PASSWORD` | Grafana admin password |
-| `CROWDSEC_WEB_UI_PASSWORD` | CrowdSec machine password for the web UI |
-| `CROWDSEC_WEB_UI_NOTIFICATION_SECRET` | CrowdSec web UI notification encryption key |
-| `CROWDSEC_FIREWALL_BOUNCER_KEY` | CrowdSec firewall bouncer API key for host-level remediation |
-| `NETRONOME_ADMIN_PASSWORD` | Netronome admin user password |
-| `NETRONOME_SESSION_SECRET` | Netronome session signing secret (optional but recommended) |
+| `ANSIBLE_VAULT_PASSWORD` | Password used to decrypt `ansible/inventory/group_vars/all/vault.yml` |
+
+Application secrets live in the encrypted Ansible Vault file. Update `ansible/inventory/group_vars/all/vault.yml.example` and `secrets.yml` when adding a new secret-backed service.
 
 ## How It Works
 
@@ -90,9 +74,8 @@ The weekly scheduled `deploy.yml` run also sets `docker_prune_enabled=true`, pru
 | `prune` | Prune unused Docker images/containers | rocky |
 | `services` | Deploy Docker Compose services | rocky |
 | `caddy` | Configure Caddy reverse proxy | mljr |
-| `security` | Security setup, CrowdSec bouncer, fail2ban retirement | mljr/rocky |
+| `security` | Security setup and CrowdSec bouncer | mljr |
 | `crowdsec` | CrowdSec firewall bouncer | mljr |
-| `fail2ban` | Legacy fail2ban setup/retirement | rocky |
 | `grafana-alloy` | Monitoring agent | rocky |
 | `monitoring` | Monitoring-related roles | rocky |
 | `backup` | Backup/restore setup | rocky |
@@ -102,9 +85,9 @@ The weekly scheduled `deploy.yml` run also sets `docker_prune_enabled=true`, pru
 - **No SSH keys in repository**: Uses Tailscale authentication
 - **Ephemeral connections**: VPN exists only during workflow run
 - **Scoped permissions**: OAuth client tagged with `tag:ci`
-- **Secrets as env vars**: Injected via Ansible `lookup('env', ...)`
+- **Secrets in Vault**: Ansible decrypts `vault.yml` with `ANSIBLE_VAULT_PASSWORD`
 - **No public exposure**: All communication over private Tailscale network
-- **CrowdSec enforcement**: `mljr` installs the nftables firewall bouncer before fail2ban is retired
+- **CrowdSec enforcement**: `mljr` installs the nftables firewall bouncer for host-level remediation
 
 ## Troubleshooting
 

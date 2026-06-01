@@ -37,16 +37,12 @@ ALL_YML = REPO_ROOT / "ansible/inventory/group_vars/all/all.yml"
 SKIP_NAMES = {
     "mailcow",        # SMTP/IMAP, complex web auth
     "nas",            # NAS UI, requires LAN or specific auth
-    "service-template",  # Example template, not deployed
 }
 
 # Services where 401/302/403 is expected (auth wall = service is up)
 AUTH_SERVICES = {
     "authelia",       # SSO redirect
     "goaccess",       # auth protected
-    "fail2ban-ui",    # auth protected
-    "sonarqube",      # auth protected
-    "dozzle",         # auth protected
 }
 
 # Accept these status codes as "service is up"

@@ -19,29 +19,30 @@
 # ============================================================================
 
 - name: Gather facts
-  hosts: "{{ service_host }},mljr"
+  hosts: "{{ service_host | default('mljr') }},mljr"
   gather_facts: true
   gather_subset:
     - min
     - network
 
 - name: Deploy service
-  hosts: "{{ service_host }}"
+  hosts: "{{ service_host | default('mljr') }}"
   become: true
   gather_facts: false
   roles:
     - services
   vars:
-    changed_services: "{{ target_service }}"
+    changed_services: "{{ target_service | default('homepage') }}"
 
 # Update Caddy snippet on mljr (runs directly on mljr so inventory_hostname
 # is 'mljr', which ensures correct is_local/target_host resolution in the template)
-- name: Update Caddy snippet for {{ target_service }}
+- name: Update Caddy snippet for target service
   hosts: mljr
   become: true
   gather_facts: false
   vars:
-    service: "{{ services | selectattr('name', 'equalto', target_service) | first }}"
+    deploy_service_name: "{{ target_service | default('homepage') }}"
+    service: "{{ services | selectattr('name', 'equalto', deploy_service_name) | first }}"
   tasks:
     - name: Ensure /etc/caddy/conf.d exists
       ansible.builtin.file:
@@ -51,15 +52,24 @@
         group: caddy
         mode: '0755'
 
-    - name: Generate Caddy snippet for {{ target_service }}
+    - name: Generate Caddy snippet for target service
       ansible.builtin.template:
         src: "{{ playbook_dir }}/../roles/caddy/templates/service_snippet.caddy.j2"
-        dest: "/etc/caddy/conf.d/{{ target_service }}.caddy"
+        dest: "/etc/caddy/conf.d/{{ deploy_service_name }}.caddy"
         owner: caddy
         group: caddy
         mode: '0644'
       notify: Reload Caddy
-      when: service.domain is defined
+      when:
+        - service.enabled | default(true)
+        - service.domain is defined
+
+    - name: Remove Caddy snippet when target service is disabled or has no domain
+      ansible.builtin.file:
+        path: "/etc/caddy/conf.d/{{ deploy_service_name }}.caddy"
+        state: absent
+      notify: Reload Caddy
+      when: not (service.enabled | default(true)) or service.domain is not defined
 
   handlers:
     - name: Reload Caddy

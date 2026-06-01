@@ -89,10 +89,6 @@ vault_pcloud_token: ""   # rclone config → copy token JSON value
 # HetrixTools monitoring
 vault_hetrixtools_api_token: ""
 
-# SonarQube
-vault_sonarqube_db_password: ""   # openssl rand -hex 16
-vault_sonarqube_admin_password: ""
-
 # SMTP (outbound email for notifications)
 vault_smtp_host: ""
 vault_smtp_port: "587"

@@ -1,6 +1,6 @@
 ---
 - name: Ensure Authelia directory exists
-  file:
+  ansible.builtin.file:
     path: "{{ authelia_config_path }}"
     state: directory
     mode: '0755'
@@ -29,21 +29,21 @@
   no_log: true
 
 - name: Copy Authelia configuration
-  template:
+  ansible.builtin.template:
     src: configuration.yml.j2
     dest: "{{ authelia_config_path }}/configuration.yml"
     mode: '0600'
   notify: Restart Authelia
 
 - name: Copy Authelia users database
-  template:
+  ansible.builtin.template:
     src: users_database.yml.j2
     dest: "{{ authelia_config_path }}/users_database.yml"
     mode: '0600'
   notify: Restart Authelia
 
 - name: Create Authelia Docker Compose file
-  template:
+  ansible.builtin.template:
     src: docker-compose.yml.j2
     dest: "{{ authelia_config_path }}/docker-compose.yml"
     mode: '0644'

@@ -70,7 +70,6 @@ homelab-automation/
 │       ├── services/
 │       ├── container-reconcile/
 │       ├── crowdsec-firewall-bouncer/
-│       ├── fail2ban-retire/
 │       ├── grafana-alloy/
 │       └── ...
 ├── services/
@@ -80,7 +79,7 @@ homelab-automation/
 │   └── ...
 └── .github/workflows/
     ├── deploy.yml
-    └── deploy-parallel.yml
+    └── deploy.yml
 ```
 
 ## Service Configuration
@@ -121,7 +120,6 @@ Disabled services can remain in the catalog so cleanup roles can remove old depl
 | CrowdSec | `mljr` | `crowdsec.mljr.eu`, `security.mljr.eu` |
 | Grafana | `nuc` | `monitor.mljr.eu`, `grafana.mljr.eu` |
 | Netronome | `nuc` | `speedtest.mljr.eu` |
-| Dozzle | `nuc` | `docker.mljr.eu` |
 
 ## Secrets Management
 
@@ -151,7 +149,7 @@ CrowdSec replaced fail2ban as the active security stack.
 - Dockerized CrowdSec runs on `mljr`.
 - The web UI is exposed through Caddy and protected with Authelia.
 - `crowdsec-firewall-bouncer-nftables` is installed on `mljr` by Ansible for host-level enforcement.
-- The `fail2ban-retire` role stops/removes old fail2ban state only after the CrowdSec bouncer is active.
+- Fail2ban is no longer managed by this playbook.
 
 ## Monitoring
 

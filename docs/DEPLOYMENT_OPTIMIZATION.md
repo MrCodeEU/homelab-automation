@@ -124,7 +124,7 @@ When deploying specific services:
 ansible-playbook playbooks/site.yml --tags services,caddy --skip-tags base
 ```
 
-Avoid skipping `security` during CrowdSec/fail2ban migrations unless you intentionally want to leave the current host enforcement state untouched.
+Avoid skipping `security` when changing CrowdSec enforcement unless you intentionally want to leave the current host enforcement state untouched.
 
 ### 4. Reconciliation and Cleanup
 
@@ -133,7 +133,6 @@ Normal full deployments include cleanup tasks:
 - `container-reconcile` removes retired standalone containers such as old telemetry agents.
 - The `services` role removes Docker Compose services that are no longer assigned to a host.
 - The `caddy` role removes orphaned service snippets and regenerates missing snippets.
-- `fail2ban-retire` removes legacy fail2ban only after the CrowdSec firewall bouncer has started.
 
 Use `force_redeploy=true` when hook scripts, `.env` templates, or service files changed but the checksum cache would otherwise skip a service sync.
 

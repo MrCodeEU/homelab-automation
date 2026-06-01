@@ -91,7 +91,7 @@ proxy_only:  # Caddy-only routing targets
 | File | Purpose |
 |------|---------|
 | `ansible/inventory/group_vars/all/all.yml` | Service catalog and global settings |
-| `ansible/inventory/group_vars/all/secrets.yml` | Environment variable lookups |
+| `ansible/inventory/group_vars/all/secrets.yml` | Vault variable mappings |
 | `ansible/inventory/hosts.yml` | Host and Tailscale target definitions |
 | `ansible/playbooks/site.yml` | Main playbook and role order |
 | `ansible/roles/services/` | Generic Docker Compose deployment role |
@@ -127,15 +127,13 @@ The main playbook order is:
 1. Gather facts
 2. Base setup
 3. Standalone container reconciliation
-4. Legacy fail2ban setup, only when `fail2ban_enabled=true`
-5. HetrixTools, backup, dashboard, mail, Authelia
-6. Generic Docker services
-7. CrowdSec firewall bouncer on `mljr`, when enabled
-8. Retire fail2ban after the bouncer is active
-9. Grafana Alloy, iperf3, Dozzle agent
-10. Caddy reverse proxy
+4. HetrixTools, backup, dashboard, mail, Authelia
+5. Generic Docker services
+6. CrowdSec firewall bouncer on `mljr`, when enabled
+7. Grafana Alloy, iperf3, Hawser agent
+8. Caddy reverse proxy
 
-This order is intentional. The CrowdSec bouncer must be configured before fail2ban is removed.
+This order is intentional. The CrowdSec bouncer runs after the Dockerized CrowdSec service is deployed.
 
 ## Docker Cleanup
 
@@ -147,14 +145,13 @@ CrowdSec is the primary security engine. The Dockerized CrowdSec service runs on
 
 Host-level enforcement is handled by `ansible/roles/crowdsec-firewall-bouncer`, which installs `crowdsec-firewall-bouncer-nftables` on `mljr` and points it at the Dockerized CrowdSec LAPI on `127.0.0.1:8088`.
 
-Fail2ban is retired by default:
+Fail2ban is no longer managed by this playbook. CrowdSec is the active security engine:
 
 ```yaml
-fail2ban_enabled: false
 crowdsec_firewall_bouncer_enabled: true
 ```
 
-Do not remove the retire role or disabled service definition casually; they make repeated deployments clean up old fail2ban state.
+Do not reintroduce fail2ban without also defining its migration and cleanup behavior.
 
 ## Monitoring
 
@@ -195,15 +192,15 @@ Staging is opt-in by creating `services/<name>/dev/docker-compose.yml`. When `is
 
 ## Secrets
 
-Secrets are always read from environment variables in `ansible/inventory/group_vars/all/secrets.yml`:
+Secrets are mapped from Ansible Vault variables in `ansible/inventory/group_vars/all/secrets.yml`:
 
 ```yaml
 secrets:
   grafana:
-    admin_password: "{{ lookup('env', 'GRAFANA_ADMIN_PASSWORD') }}"
+    admin_password: "{{ vault_grafana_admin_password | default('') }}"
 ```
 
-When adding a secret-backed service, update `secrets.yml`, `.github/workflows/deploy.yml`, `.github/workflows/deploy-parallel.yml` if needed, and `.github/workflows/README.md`.
+When adding a secret-backed service, update `secrets.yml`, `vault.yml.example`, and `.github/workflows/README.md`.
 
 ## Important Tags
 
@@ -213,13 +210,12 @@ When adding a secret-backed service, update `secrets.yml`, `.github/workflows/de
 | `prune` | Docker image/container pruning |
 | `services` | Generic Docker Compose services |
 | `caddy` | Reverse proxy configuration |
-| `security` | CrowdSec/fail2ban security tasks |
+| `security` | CrowdSec security tasks |
 | `crowdsec` | CrowdSec firewall bouncer tasks |
-| `fail2ban` | Legacy fail2ban setup/retirement |
 | `grafana-alloy` | Metrics/log collection agent |
 | `monitoring` | Monitoring-related roles |
 | `iperf3` | Network performance test server |
-| `dozzle-agent` | Remote Docker log agent |
+| `hawser-agent` | Remote Docker management agent |
 | `backup` | Backup and restore configuration |
 | `glance` | Dashboard |
 | `mailcow` | Mail server |

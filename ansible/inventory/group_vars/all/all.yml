@@ -237,8 +237,6 @@ services:
     description: "Netronome Network Monitor"
     icon: "mdi:speedometer"
 
-
-
   # NAS Services (Unraid)
   - name: nas
     enabled: true
@@ -415,15 +413,6 @@ services:
     host: nuc
     description: "GoDrive File Management Demo"
     icon: "mdi:folder-network-outline"
-
-  # Template for future services
-  - name: service-template
-    enabled: true
-    domain: "template.mljr.eu"
-    port: 8181
-    host: nuc
-    description: "Template Service"
-    icon: "mdi:shape-outline"
 
 # ============================================================================
 # Role-specific variables

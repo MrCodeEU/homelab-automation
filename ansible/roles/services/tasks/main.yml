@@ -76,9 +76,9 @@
     host_services: >-
       {%- set result = [] -%}
       {%- for service in services -%}
-        {%- if service.host == inventory_hostname 
-               and service.enabled | default(true) 
-               and service.managed | default(true) 
+        {%- if service.host == inventory_hostname
+               and service.enabled | default(true)
+               and service.managed | default(true)
                and not service.skip_deploy | default(false) -%}
           {%- if changed_services is defined and changed_services != 'all' -%}
             {%- if service.name in changed_services.split(',') -%}
@@ -95,7 +95,7 @@
   ansible.builtin.debug:
     msg: >-
       {{ 'Targeted deployment: ' if changed_services is defined and changed_services != 'all' else 'Full deployment: ' }}
-      Deploying {{ host_services | length }} service{{ 's' if host_services | length != 1 else '' }}: 
+      Deploying {{ host_services | length }} service{{ 's' if host_services | length != 1 else '' }}:
       {{ host_services | map(attribute='name') | join(', ') if host_services | length > 0 else 'none' }}
 
 - name: Validate required service secrets for this host
@@ -181,6 +181,32 @@
   delay: 10
   when: not ansible_check_mode
   failed_when: false
+
+- name: Collect failed production image pulls
+  ansible.builtin.set_fact:
+    failed_production_pulls: >-
+      {%- set failed = [] -%}
+      {%- for result in pull_wait.results | default([]) -%}
+        {%- if result.failed | default(false) or result.rc | default(0) != 0 -%}
+          {%- set service_name = result.item.item.name | default('unknown') -%}
+          {%- set error_msg = result.msg | default(result.stderr | default('Image pull failed')) -%}
+          {%- set _ = failed.append({'name': service_name, 'error': error_msg}) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ failed }}
+  when: not ansible_check_mode
+
+- name: Fail if production image pulls failed
+  ansible.builtin.fail:
+    msg: |
+      Production image pull failed.
+      Failed services:
+      {% for svc in failed_production_pulls %}
+        - {{ svc.name }}: {{ svc.error | regex_replace('\n', ' ') | truncate(160) }}
+      {% endfor %}
+  when:
+    - not ansible_check_mode
+    - failed_production_pulls | default([]) | length > 0
 
 - name: Deploy production services
   community.docker.docker_compose_v2:
@@ -293,7 +319,7 @@
     msg: |
       Post-deploy hook for {{ ((item.item.service | default(item.item.item)) | default({'name': 'unknown'})).name }}:
       {% if item.rc | default(0) == 0 %}SUCCESS{% else %}FAILED (rc={{ item.rc }}){% endif %}
-      
+
       {{ item.stdout_lines | default([]) | join('\n') }}
   loop: "{{ hook_job_result.results | default([]) }}"
   loop_control:
@@ -650,7 +676,8 @@
         {%- if result.failed | default(false) -%}
           {%- set service_name = result.service.name | default('unknown') -%}
           {%- set error_msg = result.msg | default('Deployment failed') -%}
-          {%- set _ = failed.append({'name': service_name, 'error': error_msg}) -%}
+          {%- set allow_failure = result.service.allow_failure | default(false) | bool -%}
+          {%- set _ = failed.append({'name': service_name, 'error': error_msg, 'allow_failure': allow_failure}) -%}
         {%- endif -%}
       {%- endfor -%}
       {{ failed }}
@@ -706,22 +733,24 @@
       ============================================================================
   when: not ansible_check_mode
 
-- name: Fail if critical services failed
+- name: Fail if production services failed
   ansible.builtin.fail:
-    msg: "Critical services failed to deploy: {{ failed_production_services | selectattr('name', 'in', critical_services) | map(attribute='name') | join(', ') }}"
+    msg: |
+      Production deployment failed.
+      Failed services:
+      {% for svc in failed_production_services | rejectattr('allow_failure') %}
+        - {{ svc.name }}: {{ svc.error | regex_replace('\n', ' ') | truncate(160) }}
+      {% endfor %}
   when:
     - not ansible_check_mode
-    - critical_services | default([]) | length > 0
-    - failed_production_services | default([]) | selectattr('name', 'in', critical_services) | list | length > 0
-  vars:
-    critical_services: ['caddy', 'kuma', 'ntfy']  # Services that must succeed for deployment to pass
+    - failed_production_services | default([]) | rejectattr('allow_failure') | list | length > 0
 
 - name: Fail if any staging services failed
   ansible.builtin.fail:
     msg: |
       Staging deployment failed!
       Failed services: {{ failed_staging_services | map(attribute='name') | join(', ') }}
-      
+
       Errors:
       {% for svc in failed_staging_services %}
         - {{ svc.name }}: {{ svc.error }}
