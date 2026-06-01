@@ -108,6 +108,11 @@
 
 - name: Enable swapfile
   ansible.builtin.command: "swapon {{ swap_file_path | default('/swapfile') }}"
+  register: swapfile_enable
+  changed_when: swapfile_enable.rc == 0
+  failed_when:
+    - swapfile_enable.rc != 0
+    - "'Device or resource busy' not in (swapfile_enable.stderr | default(''))"
   when:
     - swap_enabled | default(false) | bool
     - swap_file_path | default('/swapfile') not in active_swap_devices.stdout_lines
