@@ -4,3 +4,4 @@ skip-path:
   - .git
   - .githooks/.venv
   - docs/ansible-map.md
+  - tests
