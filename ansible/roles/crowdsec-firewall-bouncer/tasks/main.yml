@@ -68,11 +68,46 @@
   ansible.builtin.meta: flush_handlers
 
 - name: Verify CrowdSec firewall bouncer is active
-  ansible.builtin.command: systemctl is-active crowdsec-firewall-bouncer
-  register: crowdsec_firewall_bouncer_active
-  changed_when: false
-  until: crowdsec_firewall_bouncer_active.stdout == "active"
-  retries: 10
-  delay: 3
-  failed_when: crowdsec_firewall_bouncer_active.stdout != "active"
   when: not ansible_check_mode
+  block:
+    - name: Wait for CrowdSec firewall bouncer to become active
+      ansible.builtin.command: >-
+        systemctl show crowdsec-firewall-bouncer
+        --property=ActiveState
+        --property=SubState
+        --value
+      register: crowdsec_firewall_bouncer_state
+      changed_when: false
+      failed_when: false
+      until: >-
+        (crowdsec_firewall_bouncer_state.stdout_lines | default([]) | first | default(''))
+        == 'active'
+      retries: 30
+      delay: 5
+
+  rescue:
+    - name: Capture CrowdSec firewall bouncer service status
+      ansible.builtin.command: systemctl status crowdsec-firewall-bouncer --no-pager --full
+      register: crowdsec_firewall_bouncer_status
+      changed_when: false
+      failed_when: false
+
+    - name: Capture recent CrowdSec firewall bouncer logs
+      ansible.builtin.command: journalctl -u crowdsec-firewall-bouncer -n 80 --no-pager
+      register: crowdsec_firewall_bouncer_journal
+      changed_when: false
+      failed_when: false
+
+    - name: Fail when CrowdSec firewall bouncer is not active
+      ansible.builtin.fail:
+        msg: |
+          crowdsec-firewall-bouncer did not become active after 150 seconds.
+
+          Last observed state:
+          {{ crowdsec_firewall_bouncer_state.stdout | default('unknown') }}
+
+          systemctl status:
+          {{ crowdsec_firewall_bouncer_status.stdout | default('unavailable') }}
+
+          Recent journal:
+          {{ crowdsec_firewall_bouncer_journal.stdout | default('unavailable') }}

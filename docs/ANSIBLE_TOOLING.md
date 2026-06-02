@@ -20,6 +20,22 @@ ARA_DATABASE=sqlite:////path/to/artifact/ara/ansible.sqlite ara playbook list
 ARA_DATABASE=sqlite:////path/to/artifact/ara/ansible.sqlite ara host list
 ```
 
+Or download the latest completed deploy artifact and start the local ARA web UI:
+
+```bash
+make view-ara
+```
+
+The helper downloads the artifact to `/tmp/homelab-ara/<run id>`, writes a local `ARA_SETTINGS` file that points the ARA server at the artifact SQLite database, applies ARA's Django migrations to that local copy, and starts the UI on `127.0.0.1:8000`.
+
+Useful overrides:
+
+```bash
+make view-ara RUN_ID=26778287880
+make view-ara ARA_PORT=8001
+make view-ara RUN_ID=26778287880 ARA_PORT=8001
+```
+
 ### Static Ansible Map
 
 The repository includes a lightweight visualizer:

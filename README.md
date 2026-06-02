@@ -201,6 +201,16 @@ make docs-ansible-map
 
 The output is written to `docs/ansible-map.md`.
 
+## ARA Reports
+
+Download the latest completed deployment ARA artifact and open the local ARA web UI:
+
+```bash
+make view-ara
+```
+
+Use `RUN_ID=<github run id>` to inspect a specific deployment.
+
 ## Common Commands
 
 ```bash
