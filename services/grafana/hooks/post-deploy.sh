@@ -44,12 +44,16 @@ create_datasource() {
 delete_datasource "Prometheus"
 delete_datasource "Loki"
 
+# KEEP IN SYNC with provisioning/datasources/datasources.yml — this hook
+# re-creates the datasources via API on every deploy and therefore wins
+# over file provisioning. VictoriaMetrics replaced Prometheus (PromQL-
+# compatible); name/uid stay "prometheus" so dashboards are untouched.
 create_datasource '{
   "name": "Prometheus",
   "uid": "prometheus",
   "type": "prometheus",
   "access": "proxy",
-  "url": "http://prometheus:9090",
+  "url": "http://victoriametrics:8428",
   "isDefault": true
 }'
 
