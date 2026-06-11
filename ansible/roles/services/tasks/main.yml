@@ -213,6 +213,10 @@
     project_src: "{{ base_path }}/{{ service.name }}"
     state: present
     pull: never  # Images already pulled above
+    # Remove containers for services deleted/renamed in the compose file;
+    # otherwise the old container keeps running and can hold host ports
+    # (e.g. prometheus blocked victoriametrics on 19090).
+    remove_orphans: true
   loop: "{{ host_services }}"
   loop_control:
     loop_var: service
@@ -472,6 +476,7 @@
     project_src: "{{ base_path }}/staging/{{ service.name }}"
     state: present
     pull: never  # Images already pulled above
+    remove_orphans: true
   loop: "{{ staging_services | default([]) }}"
   loop_control:
     loop_var: service
