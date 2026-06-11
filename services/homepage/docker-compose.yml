@@ -14,6 +14,14 @@ services:
       - LINKEDIN_PASSWORD=${LINKEDIN_PASSWORD}
       - LINKEDIN_TOTP_SECRET=${LINKEDIN_TOTP_SECRET}
       - SCRAPER_CACHE_FILE=/data/scraper-cache.json
+      - UMAMI_SCRIPT_SRC=/umami/script.js
+      - UMAMI_WEBSITE_ID=${UMAMI_WEBSITE_ID}
+      - UMAMI_HOST_URL=/umami
+      - UMAMI_DOMAINS=mljr.eu,www.mljr.eu
+      # Live homelab panel sources (non-secret). PROM_URL goes over Tailscale;
+      # if MagicDNS doesn't resolve inside the container, use nuc's 100.x IP.
+      - HOMELAB_KUMA_URL=https://uptime.mljr.eu
+      - HOMELAB_PROM_URL=http://nuc.tail33930.ts.net:19090
     volumes:
       - homepage-data:/data
     networks:

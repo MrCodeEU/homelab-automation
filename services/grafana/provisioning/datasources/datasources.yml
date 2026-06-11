@@ -9,11 +9,13 @@ deleteDatasources:
     orgId: 1
 
 datasources:
+  # VictoriaMetrics is PromQL-compatible; keeping name/uid "prometheus" so
+  # existing dashboards keep working unchanged.
   - name: Prometheus
     uid: prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    url: http://victoriametrics:8428
     isDefault: true
     editable: true
 

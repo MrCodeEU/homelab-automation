@@ -157,6 +157,8 @@ Do not reintroduce fail2ban without also defining its migration and cleanup beha
 
 Grafana replaced SigNoz. The stack lives in `services/grafana/` and is deployed on `nuc`. Grafana Alloy runs on Rocky hosts and forwards host metrics, Docker metrics, Docker logs, Caddy logs, and CrowdSec metrics to the Grafana stack.
 
+The metrics store is VictoriaMetrics (replaced Prometheus): PromQL-compatible, retention 10y, accepts Prometheus `remote_write` natively at `/api/v1/write`. Host port 19090 maps to VM's 8428 so the Alloy remote-write URL in `roles/grafana-alloy/tasks/main.yml` stays unchanged. The Grafana datasource keeps name/uid `prometheus` (pointed at `http://victoriametrics:8428`) so dashboard JSON needs no changes. The mljr.eu homepage also queries this endpoint over Tailscale for its live homelab panel (`HOMELAB_PROM_URL` in `services/homepage/docker-compose.yml`). `services/grafana/prometheus/` is legacy config, kept only until first VM deploy is verified.
+
 Grafana datasources and dashboards are provisioned from the repo. Use stable datasource UIDs `prometheus` and `loki` in dashboard JSON. NAS/Unraid monitoring remains manual; use `services/grafana/nas-alloy.example.alloy` and label NAS telemetry with `instance="nas"` and `host="nas"`.
 
 ## Network Testing

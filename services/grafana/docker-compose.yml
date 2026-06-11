@@ -17,23 +17,24 @@ services:
       - ./provisioning:/etc/grafana/provisioning:ro
       - ./dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
-      - prometheus
+      - victoriametrics
       - loki
 
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
+  # VictoriaMetrics replaces Prometheus: accepts the same remote_write
+  # (/api/v1/write) and PromQL (/api/v1/query) APIs. Host port 19090 is kept
+  # so the Alloy agents' remote-write URL needs no change.
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:latest
+    container_name: victoriametrics
     restart: unless-stopped
     command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-      - --storage.tsdb.retention.time=30d
-      - --web.enable-remote-write-receiver
+      - -storageDataPath=/storage
+      - -retentionPeriod=10y
+      - -selfScrapeInterval=30s
     ports:
-      - "19090:9090"
+      - "19090:8428"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
+      - victoriametrics-data:/storage
 
   loki:
     image: grafana/loki:latest
@@ -49,7 +50,7 @@ services:
 volumes:
   grafana-data:
     name: grafana-data
-  prometheus-data:
-    name: prometheus-data
+  victoriametrics-data:
+    name: victoriametrics-data
   loki-data:
     name: loki-data

@@ -44,7 +44,7 @@ NAS/Unraid services are mostly managed manually and only proxied or monitored wh
 - Staging deployments through `services/<name>/dev/docker-compose.yml`.
 - Cleanup of disabled or moved services to avoid stale containers and Caddy snippets.
 - Weekly Docker image/container pruning during scheduled deployments.
-- Grafana/Loki/Prometheus monitoring with Grafana Alloy agents.
+- Grafana/Loki/VictoriaMetrics monitoring with Grafana Alloy agents.
 - CrowdSec security engine with nftables firewall enforcement on `mljr`.
 - Netronome network testing on `nuc`, exposed as `speedtest.mljr.eu`.
 - GitHub Actions deployment over Tailscale with secrets stored in Ansible Vault.
@@ -156,7 +156,7 @@ CrowdSec replaced fail2ban as the active security stack.
 SigNoz has been replaced by a Grafana stack on `nuc`:
 
 - Grafana UI
-- Prometheus for metrics
+- VictoriaMetrics for metrics (PromQL-compatible, 10y retention; accepts Prometheus remote_write on host port 19090)
 - Loki for logs
 - Grafana Alloy agents on Rocky hosts
 
