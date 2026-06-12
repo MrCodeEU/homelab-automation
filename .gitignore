@@ -67,3 +67,6 @@ deploy-logs/
 check.run
 # Added by ggshield
 .cache_ggshield
+
+# syncthing sync conflict files
+*.sync-conflict-*

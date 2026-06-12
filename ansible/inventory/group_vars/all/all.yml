@@ -218,6 +218,30 @@ services:
     staging: true
     description: "Personal Homepage (Go + Templ + HTMX)"
     icon: "mdi:account-circle"
+    caddy_extra_config: |
+      handle_path /umami* {
+          reverse_proxy nuc.tail33930.ts.net:3606
+      }
+
+  - name: umami
+    enabled: true
+    domain: "umami.mljr.eu"
+    port: 3606
+    host: nuc
+    description: "Umami Analytics"
+    icon: "mdi:chart-bar"
+
+  - name: forgejo
+    enabled: true
+    domain:
+      - "git.mljr.eu"
+      - "forge.mljr.eu"
+      - "fogrejo.mljr.eu"
+    port: 3300
+    host: nuc
+    description: "Git Hosting"
+    icon: "mdi:git"
+    backup_critical: true
 
   - name: ui-showcase
     enabled: true
@@ -414,6 +438,19 @@ services:
     description: "GoDrive File Management Demo"
     icon: "mdi:folder-network-outline"
 
+  - name: status
+    enabled: true
+    managed: false
+    domain: "status.mljr.eu"
+    port: 0
+    host: mljr
+    description: "Public Status Page"
+    icon: "mdi:list-status"
+    caddy_suppress_default_proxy: true
+    caddy_extra_config: |
+      redir https://hetrixtools.com/r/71c4b0a0c1f138d113d3557d81b472a4/ 302
+
+
 # ============================================================================
 # Role-specific variables
 # ============================================================================
@@ -440,12 +477,14 @@ homelab_standalone_paths:
 # TODO: NEED TO TEST THE BACKUP STRATEGY!!
 post_deploy_hook_services:
   - crowdsec    # CrowdSec web UI machine registration
+  - forgejo     # Forgejo Actions runner offline registration
   - grafana     # Stable datasource UID convergence
   - speedtest   # Netronome admin password convergence
   - godrive-demo  # Install systemd daily-reset timer
 
 critical_hook_services:
   - crowdsec
+  - forgejo
   - grafana
   - speedtest
 

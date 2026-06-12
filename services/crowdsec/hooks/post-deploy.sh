@@ -6,6 +6,11 @@ if [ -z "${CROWDSEC_WEB_UI_PASSWORD:-}" ]; then
   exit 1
 fi
 
+if [ -z "${CROWDSEC_FIREWALL_BOUNCER_KEY:-}" ]; then
+  echo "FAILED: CROWDSEC_FIREWALL_BOUNCER_KEY is empty. Set secrets.crowdsec.firewall_bouncer_key."
+  exit 1
+fi
+
 for attempt in $(seq 1 30); do
   if docker exec crowdsec cscli lapi status >/dev/null 2>&1; then
     break
@@ -58,6 +63,10 @@ for attempt in $(seq 1 30); do
 
   sleep 2
 done
+
+docker exec crowdsec cscli bouncers delete firewall --ignore-missing >/dev/null
+docker exec crowdsec cscli bouncers add firewall --key "${CROWDSEC_FIREWALL_BOUNCER_KEY}" >/dev/null
+echo "SUCCESS: CrowdSec firewall bouncer API key converged."
 
 if docker exec crowdsec cscli machines inspect crowdsec-web-ui >/dev/null 2>&1; then
   echo "SUCCESS: CrowdSec web UI machine already exists."

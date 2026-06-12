@@ -14,6 +14,8 @@ services:
       - LINKEDIN_PASSWORD=${LINKEDIN_PASSWORD}
       - LINKEDIN_TOTP_SECRET=${LINKEDIN_TOTP_SECRET}
       - SCRAPER_CACHE_FILE=/data/scraper-cache.json
+      - SCRAPER_DATA_DIR=/app/data
+      - SCRAPER_SEED_FILE=/app/data/seed-cache.json
       - UMAMI_SCRIPT_SRC=/umami/script.js
       - UMAMI_WEBSITE_ID=${UMAMI_WEBSITE_ID}
       - UMAMI_HOST_URL=/umami

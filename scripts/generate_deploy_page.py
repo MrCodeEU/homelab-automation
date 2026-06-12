@@ -199,6 +199,7 @@ def generate_html(data: dict) -> str:
         staging_badge = '<span class="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">staging</span>' if dep.get('is_staging') else ''
         run_url = html.escape(dep.get('run_url', ''))
         ara_artifact = html.escape(dep.get('ara_artifact', ''))
+        trigger = dep.get('trigger', '')
         links_html = ''
         if run_url:
             links_html += f'''
@@ -212,6 +213,13 @@ def generate_html(data: dict) -> str:
                 <span title="Download artifact '{ara_artifact}' from the GitHub Actions run" class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-500/15 text-blue-300 rounded">
                     <iconify-icon icon="mdi:database-search"></iconify-icon>
                     ARA
+                </span>
+            '''
+        if not links_html and trigger == 'local':
+            links_html = '''
+                <span title="Executed locally via make deploy" class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-slate-700/50 text-slate-300 rounded">
+                    <iconify-icon icon="mdi:console"></iconify-icon>
+                    Local
                 </span>
             '''
 

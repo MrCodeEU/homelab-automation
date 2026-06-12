@@ -75,6 +75,15 @@ vault_linkedin_email: ""
 vault_linkedin_password: ""
 vault_linkedin_totp_secret: ""
 
+# Umami
+vault_homepage_umami_website_id: ""
+vault_umami_app_secret: ""              # openssl rand -hex 32
+vault_umami_postgres_password: ""       # openssl rand -hex 16
+
+# Forgejo
+vault_forgejo_postgres_password: ""     # openssl rand -hex 16
+vault_forgejo_runner_secret: ""         # openssl rand -hex 20
+
 # Docker Hub (avoid pull rate limits)
 vault_dockerhub_username: ""
 vault_dockerhub_token: ""
