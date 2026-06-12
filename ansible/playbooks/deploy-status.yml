@@ -1,0 +1,152 @@
+---
+- name: Update deployment status page
+  hosts: mljr
+  become: true
+  gather_facts: false
+  vars:
+    deploy_status_site_path: "{{ base_path }}/caddy/site"
+    deploy_status_log_file: ""
+    deploy_status_start_time: ""
+    deploy_status_duration_seconds: 0
+    deploy_status_status: "unknown"
+    deploy_status_trigger: "local"
+    deploy_status_branch: "unknown"
+    deploy_status_commit_sha: ""
+    deploy_status_commit_message: ""
+    deploy_status_actor: "unknown"
+    deploy_status_check_mode: false
+    deploy_status_is_staging: false
+    deploy_status_limit: "all"
+    deploy_status_tags: "all"
+    deploy_status_run_url: ""
+    deploy_status_ara_artifact: ""
+    deploy_status_targeted_service: ""
+    deploy_status_target_environment: ""
+  tasks:
+    - name: Ensure deployment status directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: caddy
+        group: caddy
+        mode: '0755'
+      loop:
+        - "{{ deploy_status_site_path }}"
+        - "{{ deploy_status_site_path }}/data"
+
+    - name: Read existing deployment history
+      ansible.builtin.slurp:
+        src: "{{ deploy_status_site_path }}/data/deployments.json"
+      register: deploy_status_existing_json
+      failed_when: false
+
+    - name: Create local temporary deployment status workspace
+      delegate_to: localhost
+      become: false
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: homelab-deploy-status-
+      register: deploy_status_workspace
+
+    - name: Write existing deployment history locally
+      delegate_to: localhost
+      become: false
+      ansible.builtin.copy:
+        dest: "{{ deploy_status_workspace.path }}/deployments.json"
+        mode: '0644'
+        content: >-
+          {{
+            (
+              deploy_status_existing_json.content | default('') | b64decode
+            ) if not (deploy_status_existing_json.failed | default(true))
+            else '{"deployments":[],"services":[],"last_updated":""}'
+          }}
+
+    - name: Write service catalog locally
+      delegate_to: localhost
+      become: false
+      ansible.builtin.copy:
+        dest: "{{ deploy_status_workspace.path }}/services.json"
+        mode: '0644'
+        content: "{{ services | default([]) | to_json }}"
+
+    - name: Build deployment status command arguments
+      ansible.builtin.set_fact:
+        deploy_status_build_argv: >-
+          {{
+            [
+              'python3',
+              playbook_dir ~ '/../../scripts/build_deploy_status.py',
+              '--existing-json',
+              deploy_status_workspace.path ~ '/deployments.json',
+              '--services-json',
+              deploy_status_workspace.path ~ '/services.json',
+              '--ansible-log',
+              deploy_status_log_file,
+              '--output-json',
+              deploy_status_workspace.path ~ '/deployments-out.json',
+              '--output-html',
+              deploy_status_workspace.path ~ '/index.html',
+              '--start-time',
+              deploy_status_start_time,
+              '--duration-seconds',
+              deploy_status_duration_seconds | string,
+              '--status',
+              deploy_status_status,
+              '--trigger',
+              deploy_status_trigger,
+              '--branch',
+              deploy_status_branch,
+              '--commit-sha',
+              deploy_status_commit_sha,
+              '--commit-message',
+              deploy_status_commit_message,
+              '--actor',
+              deploy_status_actor,
+              '--limit',
+              deploy_status_limit,
+              '--tags',
+              deploy_status_tags,
+              '--run-url',
+              deploy_status_run_url,
+              '--ara-artifact',
+              deploy_status_ara_artifact,
+              '--targeted-service',
+              deploy_status_targeted_service,
+              '--target-environment',
+              deploy_status_target_environment,
+            ]
+            + (['--check-mode'] if deploy_status_check_mode | bool else [])
+            + (['--is-staging'] if deploy_status_is_staging | bool else [])
+          }}
+
+    - name: Build deployment status artifacts
+      delegate_to: localhost
+      become: false
+      ansible.builtin.command:
+        argv: "{{ deploy_status_build_argv }}"
+      changed_when: true
+
+    - name: Upload deployment history
+      ansible.builtin.copy:
+        src: "{{ deploy_status_workspace.path }}/deployments-out.json"
+        dest: "{{ deploy_status_site_path }}/data/deployments.json"
+        owner: caddy
+        group: caddy
+        mode: '0644'
+
+    - name: Upload deployment status page
+      ansible.builtin.copy:
+        src: "{{ deploy_status_workspace.path }}/index.html"
+        dest: "{{ deploy_status_site_path }}/index.html"
+        owner: caddy
+        group: caddy
+        mode: '0644'
+
+    - name: Remove local deployment status workspace
+      delegate_to: localhost
+      become: false
+      ansible.builtin.file:
+        path: "{{ deploy_status_workspace.path }}"
+        state: absent
+      when: deploy_status_workspace.path is defined

@@ -1,0 +1,108 @@
+services:
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:15
+    container_name: ${COMPOSE_PROJECT_NAME:-forgejo}-app
+    restart: unless-stopped
+    environment:
+      USER_UID: 1000
+      USER_GID: 1000
+      FORGEJO__security__INSTALL_LOCK: "true"
+      FORGEJO__database__DB_TYPE: postgres
+      FORGEJO__database__HOST: db:5432
+      FORGEJO__database__NAME: forgejo
+      FORGEJO__database__USER: forgejo
+      FORGEJO__database__PASSWD: ${POSTGRES_PASSWORD}
+      FORGEJO__server__DOMAIN: git.mljr.eu
+      FORGEJO__server__SSH_DOMAIN: git.mljr.eu
+      FORGEJO__server__ROOT_URL: https://git.mljr.eu/
+      FORGEJO__server__HTTP_PORT: 3000
+      FORGEJO__server__SSH_PORT: 2222
+      FORGEJO__server__SSH_LISTEN_PORT: 22
+      FORGEJO__actions__ENABLED: "true"
+      FORGEJO__actions__DEFAULT_ACTIONS_URL: https://data.forgejo.org
+      FORGEJO__service__DISABLE_REGISTRATION: "true"
+      FORGEJO__service__SHOW_REGISTRATION_BUTTON: "false"
+      FORGEJO__service__REQUIRE_SIGNIN_VIEW: "true"
+      FORGEJO__admin__DISABLE_REGULAR_ORG_CREATION: "true"
+      FORGEJO__security__GLOBAL_TWO_FACTOR_REQUIREMENT: admin
+    volumes:
+      - forgejo-data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "3300:3000"
+      - "2222:22"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - forgejo-internal
+
+  runner-dind:
+    image: docker:dind
+    container_name: ${COMPOSE_PROJECT_NAME:-forgejo}-runner-dind
+    restart: unless-stopped
+    privileged: true
+    command:
+      - dockerd
+      - -H
+      - tcp://0.0.0.0:2375
+      - --tls=false
+    networks:
+      - forgejo-internal
+
+  runner:
+    image: data.forgejo.org/forgejo/runner:12
+    container_name: ${COMPOSE_PROJECT_NAME:-forgejo}-runner
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      DOCKER_HOST: tcp://runner-dind:2375
+    volumes:
+      - ./runner-data:/data
+    command:
+      - /bin/sh
+      - -c
+      - |
+        while [ ! -s /data/runner-config.yml ]; do
+          echo "Waiting for /data/runner-config.yml"
+          sleep 5
+        done
+        exec forgejo-runner daemon --config /data/runner-config.yml
+    depends_on:
+      forgejo:
+        condition: service_started
+      runner-dind:
+        condition: service_started
+    networks:
+      - forgejo-internal
+
+  db:
+    image: postgres:15-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-forgejo}-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: forgejo
+      POSTGRES_USER: forgejo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - forgejo-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forgejo"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - forgejo-internal
+
+networks:
+  forgejo-internal:
+    driver: bridge
+
+volumes:
+  forgejo-data:
+    driver: local
+    name: forgejo-data
+  forgejo-db-data:
+    driver: local
+    name: forgejo-db-data
