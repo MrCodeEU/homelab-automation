@@ -80,6 +80,9 @@ vault_homepage_umami_website_id: ""
 vault_umami_app_secret: ""              # openssl rand -hex 32
 vault_umami_postgres_password: ""       # openssl rand -hex 16
 
+# Homepage contact form recipient (falls back to vault_smtp_from if unset)
+vault_homepage_contact_to: ""
+
 # Forgejo
 vault_forgejo_postgres_password: ""     # openssl rand -hex 16
 vault_forgejo_runner_secret: ""         # openssl rand -hex 20
