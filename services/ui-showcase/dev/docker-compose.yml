@@ -1,12 +1,12 @@
 services:
   ui-showcase:
-    image: ghcr.io/mrcodeeu/next-gen-web-dev/ui-showcase:${IMAGE_TAG:-latest}
+    image: ghcr.io/mrcodeeu/mljr-web/showcase:${IMAGE_TAG:-latest}
     container_name: ${COMPOSE_PROJECT_NAME:-ui-showcase-staging}
     restart: unless-stopped
     ports:
-      - "18083:8081"  # Staging port (+10000 offset)
+      - "18083:8091"  # Staging port (+10000 offset)
     environment:
-      - PORT=8081
+      - PORT=8091
     networks:
       - ui-showcase
 
