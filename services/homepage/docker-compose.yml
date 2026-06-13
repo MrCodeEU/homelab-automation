@@ -15,6 +15,12 @@ services:
       - UMAMI_WEBSITE_ID=${UMAMI_WEBSITE_ID}
       - UMAMI_HOST_URL=/umami
       - UMAMI_DOMAINS=mljr.eu,www.mljr.eu
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+      - CONTACT_TO=${CONTACT_TO}
       # Live homelab panel sources (non-secret). PROM_URL goes over Tailscale;
       # if MagicDNS doesn't resolve inside the container, use nuc's 100.x IP.
       - HOMELAB_KUMA_URL=https://uptime.mljr.eu
