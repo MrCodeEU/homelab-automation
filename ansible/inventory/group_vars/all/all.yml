@@ -100,9 +100,7 @@ services:
   # Health Monitoring
   - name: nocturne
     enabled: true
-    domain:
-      - "nocturne.mljr.eu"
-      - "nc.mljr.eu"
+    domain: "nc.mljr.eu"
     port: 8093
     host: nuc
     description: "Diabetes Management (Next-Gen)"

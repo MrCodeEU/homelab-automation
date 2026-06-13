@@ -74,7 +74,7 @@ flowchart LR
   svc_nextcloud --> host_nas
   svc_nightscout["nightscout<br/>managed<br/>nightscout.mljr.eu, ns.mljr.eu"]
   svc_nightscout --> host_nuc
-  svc_nocturne["nocturne<br/>managed<br/>nocturne.mljr.eu, nc.mljr.eu"]
+  svc_nocturne["nocturne<br/>managed<br/>nc.mljr.eu"]
   svc_nocturne --> host_nuc
   svc_ntfy["ntfy<br/>managed<br/>ntfy.mljr.eu"]
   svc_ntfy --> host_mljr
@@ -121,7 +121,7 @@ flowchart LR
 | `nas` | `nas` | proxy only | nas.mljr.eu |
 | `nextcloud` | `nas` | proxy only | cloud.mljr.eu |
 | `nightscout` | `nuc` | managed | nightscout.mljr.eu, ns.mljr.eu |
-| `nocturne` | `nuc` | managed | nocturne.mljr.eu, nc.mljr.eu |
+| `nocturne` | `nuc` | managed | nc.mljr.eu |
 | `ntfy` | `mljr` | managed | ntfy.mljr.eu |
 | `nuc-webui` | `nuc` | proxy only | nuc.mljr.eu |
 | `projects` | `nas` | proxy only | projects.mljr.eu |

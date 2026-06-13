@@ -15,6 +15,7 @@ services:
       - crowdsec-config:/etc/crowdsec
       - crowdsec-data:/var/lib/crowdsec/data
       - ./acquis.yaml:/etc/crowdsec/acquis.yaml:ro
+      - ./parsers/s02-enrich/nocturne-host-whitelist.yaml:/etc/crowdsec/parsers/s02-enrich/nocturne-host-whitelist.yaml:ro
       - /var/log:/var/log:ro
 
   crowdsec-web-ui:

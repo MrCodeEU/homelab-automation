@@ -1,0 +1,6 @@
+name: mljr/nocturne-host-whitelist
+description: "Ignore Nocturne Caddy access events so broken app auth cannot ban users globally"
+whitelist:
+  reason: "Nocturne auth can return repeated 403 responses during passkey/login failures"
+  expression:
+    - "evt.Meta.log_type == 'http_access-log' && evt.Meta.target_fqdn == 'nc.mljr.eu'"
