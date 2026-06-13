@@ -1,21 +1,16 @@
 services:
   homepage:
-    image: ghcr.io/mrcodeeu/next-gen-web-dev/homepage:${IMAGE_TAG:-latest}
+    image: ghcr.io/mrcodeeu/mljr-web/homepage:${IMAGE_TAG:-latest}
     container_name: ${COMPOSE_PROJECT_NAME:-homepage-staging}
     restart: unless-stopped
     ports:
       - "18082:8082"  # Staging port (+10000 offset)
     environment:
+      - PORT=8082
       - GITHUB_TOKEN=${GH_TOKEN}
       - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
       - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
       - STRAVA_REFRESH_TOKEN=${STRAVA_REFRESH_TOKEN}
-      - LINKEDIN_EMAIL=${LINKEDIN_EMAIL}
-      - LINKEDIN_PASSWORD=${LINKEDIN_PASSWORD}
-      - LINKEDIN_TOTP_SECRET=${LINKEDIN_TOTP_SECRET}
-      - SCRAPER_CACHE_FILE=/data/scraper-cache.json
-      - SCRAPER_DATA_DIR=/app/data
-      - SCRAPER_SEED_FILE=/app/data/seed-cache.json
     volumes:
       - homepage-data:/data
     networks:

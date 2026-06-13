@@ -438,6 +438,16 @@ services:
     description: "GoDrive File Management Demo"
     icon: "mdi:folder-network-outline"
 
+  # Template for future services and staging deployment checks.
+  - name: service-template
+    enabled: true
+    domain: "template.mljr.eu"
+    port: 8181
+    host: nuc
+    staging: true
+    description: "Prod/Staging Template Service"
+    icon: "mdi:shape-outline"
+
   - name: status
     enabled: true
     managed: false
