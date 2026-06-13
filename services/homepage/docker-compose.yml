@@ -25,8 +25,12 @@ services:
       # if MagicDNS doesn't resolve inside the container, use nuc's 100.x IP.
       - HOMELAB_KUMA_URL=https://uptime.mljr.eu
       - HOMELAB_PROM_URL=http://nuc.tail33930.ts.net:19090
+      # Live project/GitHub data synced by homepage-data-sync.timer
+      - HOMEPAGE_DATA_FILE=/data/synced/site-data.json
+      - HOMEPAGE_DATA_RELOAD_SECONDS=300
     volumes:
       - homepage-data:/data
+      - /opt/homepage/data:/data/synced:ro
     networks:
       - homepage
 

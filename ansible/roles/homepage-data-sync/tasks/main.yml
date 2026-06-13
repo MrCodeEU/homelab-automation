@@ -1,0 +1,49 @@
+---
+# Homepage Data Sync Role
+# ============================================================================
+# Periodically pulls mljr-data/generated/site-data.json from GitHub raw onto
+# the host, so the homepage container (HOMEPAGE_DATA_FILE pointed at the
+# bind-mounted /opt/homepage/data) hot-reloads live project/GitHub data
+# without a rebuild or redeploy.
+# ============================================================================
+
+- name: Ensure homepage data sync directory exists
+  ansible.builtin.file:
+    path: "{{ homepage_data_sync_path }}"
+    state: directory
+    mode: '0755'
+
+- name: Create homepage data sync service
+  ansible.builtin.template:
+    src: homepage-data-sync.service.j2
+    dest: /etc/systemd/system/homepage-data-sync.service
+    mode: '0644'
+  register: sync_service_created
+
+- name: Create homepage data sync timer
+  ansible.builtin.template:
+    src: homepage-data-sync.timer.j2
+    dest: /etc/systemd/system/homepage-data-sync.timer
+    mode: '0644'
+  register: sync_timer_created
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: sync_timer_created.changed or sync_service_created.changed
+
+- name: Enable and start homepage data sync timer
+  ansible.builtin.systemd:
+    name: homepage-data-sync.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Run initial homepage data sync
+  ansible.builtin.systemd:
+    name: homepage-data-sync.service
+    state: started
+  when:
+    - not ansible_check_mode
+    - sync_service_created.changed or sync_timer_created.changed

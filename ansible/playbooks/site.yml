@@ -191,6 +191,20 @@
     - hawser-agent
 
 # ============================================================================
+# Homepage Data Sync (mljr only - syncs mljr-data site-data.json for homepage)
+# ============================================================================
+- name: Homepage Data Sync
+  hosts: mljr
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - services
+    - homepage-data-sync
+  roles:
+    - homepage-data-sync
+
+# ============================================================================
 # Caddy Reverse Proxy (mljr only - main ingress point)
 # ============================================================================
 - name: Caddy Setup

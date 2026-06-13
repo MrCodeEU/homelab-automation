@@ -34,6 +34,17 @@ The Docker service receives `BOUNCER_KEY_firewall=${CROWDSEC_FIREWALL_BOUNCER_KE
 
 Fail2ban logs are no longer collected because fail2ban is retired.
 
+## Local Allowlist
+
+`parsers/s02-enrich/mljr-local-allowlist.yaml` ignores trusted owner and
+Tailscale sources before decisions are created:
+
+- `145.40.45.14`
+- `100.64.0.0/10`
+
+It also keeps the Nocturne Caddy access-log exception for `nc.mljr.eu` to avoid
+global bans from repeated app-auth failures.
+
 ## Hub Maintenance
 
 The post-deploy hook runs on every deployment:

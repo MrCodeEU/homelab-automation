@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodic sync of mljr-data site-data.json for homepage
+
+[Timer]
+OnBootSec=2min
+OnCalendar={{ homepage_data_sync_schedule }}
+Persistent=true
+RandomizedDelaySec=2min
+Unit=homepage-data-sync.service
+
+[Install]
+WantedBy=timers.target
