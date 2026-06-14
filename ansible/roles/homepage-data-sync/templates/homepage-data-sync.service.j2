@@ -1,12 +1,11 @@
 [Unit]
-Description=Sync mljr-data site-data.json for homepage
+Description=Sync mljr-data repo for homepage
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/curl -fsSL -o {{ homepage_data_sync_path }}/site-data.json.tmp {{ homepage_data_sync_url }}
-ExecStartPost=/bin/mv {{ homepage_data_sync_path }}/site-data.json.tmp {{ homepage_data_sync_path }}/site-data.json
+ExecStart=/bin/sh -c 'if [ -d {{ homepage_data_sync_path }}/.git ]; then git -C {{ homepage_data_sync_path }} fetch --depth 1 origin {{ homepage_data_sync_branch }} && git -C {{ homepage_data_sync_path }} reset --hard origin/{{ homepage_data_sync_branch }}; else git clone --depth 1 --branch {{ homepage_data_sync_branch }} {{ homepage_data_sync_repo }} {{ homepage_data_sync_path }}; fi'
 StandardOutput=journal
 StandardError=journal
 Nice=19

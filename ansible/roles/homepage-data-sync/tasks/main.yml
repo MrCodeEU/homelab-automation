@@ -1,17 +1,12 @@
 ---
 # Homepage Data Sync Role
 # ============================================================================
-# Periodically pulls mljr-data/generated/site-data.json from GitHub raw onto
-# the host, so the homepage container (HOMEPAGE_DATA_FILE pointed at the
-# bind-mounted /opt/homepage/data) hot-reloads live project/GitHub data
-# without a rebuild or redeploy.
+# Periodically clones/pulls the mljr-data repo onto the host (generated
+# site-data.json + assets/ images & PDFs), so the homepage container
+# (HOMEPAGE_DATA_FILE + /assets mount pointed at the bind-mounted
+# /opt/mljr-data) hot-reloads live project/GitHub/content data without a
+# rebuild or redeploy.
 # ============================================================================
-
-- name: Ensure homepage data sync directory exists
-  ansible.builtin.file:
-    path: "{{ homepage_data_sync_path }}"
-    state: directory
-    mode: '0755'
 
 - name: Create homepage data sync service
   ansible.builtin.template:
