@@ -250,6 +250,14 @@ services:
     description: "mljr-ui Component Showcase"
     icon: "mdi:palette-swatch"
 
+  - name: regex
+    enabled: true
+    domain: "regex.mljr.eu"
+    port: 8084
+    host: mljr
+    description: "Regex Lab — live PCRE tester (Go + Datastar)"
+    icon: "mdi:regex"
+
   # Network Testing
   - name: speedtest
     enabled: true

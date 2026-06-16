@@ -1,0 +1,15 @@
+services:
+  regex:
+    image: ghcr.io/mrcodeeu/mljr-web/regex:${IMAGE_TAG:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-regex}
+    restart: unless-stopped
+    ports:
+      - "8084:8092"
+    environment:
+      - PORT=8092
+    networks:
+      - regex
+
+networks:
+  regex:
+    driver: bridge
