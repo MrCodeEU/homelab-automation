@@ -1,0 +1,8 @@
+services:
+  codec:
+    image: ghcr.io/mrcodeeu/mljr-web/codec:${IMAGE_TAG:-latest}
+    ports:
+      - "8086:8094"
+    environment:
+      - PORT=8094
+    restart: unless-stopped

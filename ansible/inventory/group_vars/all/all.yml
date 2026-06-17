@@ -258,6 +258,22 @@ services:
     description: "Regex Lab — live PCRE tester (Go + Datastar)"
     icon: "mdi:regex"
 
+  - name: cron
+    enabled: true
+    domain: "cron.mljr.eu"
+    port: 8085
+    host: mljr
+    description: "Cron Explorer — cron expression parser & next-run previewer"
+    icon: "mdi:timer-outline"
+
+  - name: codec
+    enabled: true
+    domain: "codec.mljr.eu"
+    port: 8086
+    host: mljr
+    description: "Codec — hash (MD5/SHA) + Base64/URL/HTML encode-decode"
+    icon: "mdi:code-braces"
+
   # Network Testing
   - name: speedtest
     enabled: true

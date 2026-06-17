@@ -1,0 +1,8 @@
+services:
+  cron:
+    image: ghcr.io/mrcodeeu/mljr-web/cron:${IMAGE_TAG:-latest}
+    ports:
+      - "8085:8093"
+    environment:
+      - PORT=8093
+    restart: unless-stopped
