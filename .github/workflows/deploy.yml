@@ -65,7 +65,7 @@ on:
 
 # Prevent concurrent deployments
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: ${{ github.event_name == 'repository_dispatch' && format('deploy-svc-{0}', github.event.client_payload.service) || format('deploy-{0}', github.ref) }}
   cancel-in-progress: false
 
 jobs:
