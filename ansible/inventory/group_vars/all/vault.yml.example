@@ -67,6 +67,12 @@ vault_bichon_encrypt_password: ""
 vault_sudoku_api_user: ""
 vault_sudoku_api_password: ""
 
+# Homepage live mesh panel (Tailscale API, read-only devices scope)
+# Tailscale API keys cap out at 90 days — homepage ntfy-alerts to
+# ntfy.mljr.eu/homepage on failure, but you'll still need to rotate this by
+# hand: https://login.tailscale.com/admin/settings/keys
+vault_homepage_tailscale_api_key: ""
+
 # Homepage scrapers
 vault_strava_client_id: ""
 vault_strava_client_secret: ""
