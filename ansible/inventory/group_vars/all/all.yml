@@ -274,6 +274,15 @@ services:
     description: "Codec — hash (MD5/SHA) + Base64/URL/HTML encode-decode"
     icon: "mdi:code-braces"
 
+  - name: newsletter
+    enabled: true
+    domain: "newsletter.mljr.eu"
+    port: 8087
+    host: mljr
+    description: "Newsletter — recurring friend-group newsletter (PocketBase + Go)"
+    icon: "mdi:email-newsletter"
+    backup_critical: true
+
   # Network Testing
   - name: speedtest
     enabled: true

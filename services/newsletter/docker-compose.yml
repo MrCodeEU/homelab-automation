@@ -1,0 +1,26 @@
+services:
+  newsletter:
+    image: ghcr.io/mrcodeeu/mljr-web/newsletter:${IMAGE_TAG:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-newsletter}
+    restart: unless-stopped
+    ports:
+      - "8087:8096"
+    environment:
+      - PORT=8096
+      - TZ=${TZ}
+      - NEWSLETTER_PUBLIC_URL=https://${DOMAIN}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMTP_FROM=${SMTP_FROM}
+    volumes:
+      - newsletter-data:/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  newsletter-data:
