@@ -1,0 +1,28 @@
+services:
+  weather-cli:
+    image: ghcr.io/mrcodeeu/weather-cli:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-weather-cli}
+    restart: unless-stopped
+    ports:
+      - "8091:8080"
+    environment:
+      WEATHER_CLI_WEB_ADDR: ":8080"
+      WEATHER_CLI_LOCATION: "Vienna"
+      WEATHER_CLI_UNITS: "metric"
+      WEATHER_CLI_RENDER_MODE: "blocks"
+      TZ: ${TZ:-Europe/Vienna}
+    read_only: true
+    tmpfs:
+      - /tmp:uid=100,gid=101,mode=1770,size=128m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 256
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

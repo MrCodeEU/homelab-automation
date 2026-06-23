@@ -283,6 +283,14 @@ services:
     icon: "mdi:email-newsletter"
     backup_critical: true
 
+  - name: weather-cli
+    enabled: true
+    domain: "weather-cli.mljr.eu"
+    port: 8091
+    host: mljr
+    description: "Weather CLI - browser terminal weather dashboard"
+    icon: "mdi:weather-partly-cloudy"
+
   # Network Testing
   - name: speedtest
     enabled: true
