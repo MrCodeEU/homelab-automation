@@ -36,15 +36,16 @@
   failed_when: false
 
 # Login to GitHub Container Registry for private images
-# Prefer GHCR_TOKEN env var (workflow GITHUB_TOKEN, never expires) over vault PAT
+# Prefer vault PAT (full cross-repo package access) over workflow GITHUB_TOKEN (repo-scoped).
+# Fall back to GITHUB_TOKEN (via GHCR_TOKEN env) only when vault PAT is absent.
 - name: Login to GitHub Container Registry
   community.docker.docker_login:
     registry: ghcr.io
-    username: "{{ 'x-access-token' if lookup('env', 'GHCR_TOKEN') else secrets.github.username }}"
-    password: "{{ lookup('env', 'GHCR_TOKEN') | default(secrets.github.token, true) }}"
+    username: "{{ secrets.github.username if secrets.github.token | default('') | length > 0 else 'x-access-token' }}"
+    password: "{{ secrets.github.token if secrets.github.token | default('') | length > 0 else lookup('env', 'GHCR_TOKEN') }}"
   when:
     - not ansible_check_mode
-    - (lookup('env', 'GHCR_TOKEN') | length > 0) or (secrets.github.token | default('') | length > 0)
+    - (secrets.github.token | default('') | length > 0) or (lookup('env', 'GHCR_TOKEN') | length > 0)
   no_log: true
   failed_when: false
 
