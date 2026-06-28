@@ -35,6 +35,14 @@
   no_log: true
   failed_when: false
 
+# Clear any stale GHCR credentials before re-authenticating
+- name: Logout of GitHub Container Registry
+  community.docker.docker_login:
+    registry: ghcr.io
+    state: absent
+  when: not ansible_check_mode
+  failed_when: false
+
 # Login to GitHub Container Registry for private images
 # Prefer vault PAT (full cross-repo package access) over workflow GITHUB_TOKEN (repo-scoped).
 # Fall back to GITHUB_TOKEN (via GHCR_TOKEN env) only when vault PAT is absent.
