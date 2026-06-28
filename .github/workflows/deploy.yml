@@ -307,6 +307,7 @@ jobs:
           ARA_BASE_DIR: "/tmp/ara"
           ARA_DATABASE: "sqlite:////tmp/ara/ansible.sqlite"
           ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p /tmp/ara
 
