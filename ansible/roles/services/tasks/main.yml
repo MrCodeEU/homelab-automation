@@ -40,7 +40,7 @@
 - name: Login to GitHub Container Registry
   community.docker.docker_login:
     registry: ghcr.io
-    username: "{{ lookup('env', 'GHCR_TOKEN') | length > 0 | ternary('x-access-token', secrets.github.username) }}"
+    username: "{{ 'x-access-token' if lookup('env', 'GHCR_TOKEN') else secrets.github.username }}"
     password: "{{ lookup('env', 'GHCR_TOKEN') | default(secrets.github.token, true) }}"
   when:
     - not ansible_check_mode
