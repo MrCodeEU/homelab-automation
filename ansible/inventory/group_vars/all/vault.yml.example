@@ -73,14 +73,10 @@ vault_sudoku_api_password: ""
 # hand: https://login.tailscale.com/admin/settings/keys
 vault_homepage_tailscale_api_key: ""
 
-# Homepage scrapers
+# Homepage — Strava integration
 vault_strava_client_id: ""
 vault_strava_client_secret: ""
 vault_strava_refresh_token: ""
-vault_linkedin_email: ""
-vault_linkedin_password: ""
-vault_linkedin_totp_secret: ""
-
 # Umami
 vault_homepage_umami_website_id: ""
 vault_umami_app_secret: ""              # openssl rand -hex 32
