@@ -341,6 +341,10 @@ services:
     caddy_suppress_default_proxy: true
     caddy_extra_config: |
       reverse_proxy __TARGET_HOST__:__TARGET_PORT__ {
+          # Buffer upload bodies so slow mobile clients don't trickle into
+          # Apache's mod_reqtimeout (body=20,MinRate=500) -> 408 storms.
+          # Sized above the 10MB Nextcloud client chunk size.
+          request_buffers 16m
           transport http {
               versions 1.1
           }

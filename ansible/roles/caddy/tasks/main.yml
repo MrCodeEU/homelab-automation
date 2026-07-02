@@ -74,6 +74,13 @@
     immediate: true
     state: enabled
 
+- name: Open HTTP/3 (QUIC) UDP port in firewall
+  ansible.posix.firewalld:
+    port: 443/udp
+    permanent: true
+    immediate: true
+    state: enabled
+
 - name: Create Caddy directories
   ansible.builtin.file:
     path: "{{ item }}"
