@@ -68,6 +68,10 @@ swap_file_size_mb: 2048
 #   skip_deploy     - Skip generic deployment (uses dedicated role)
 #   backup_critical - If true, restore this service on fresh install
 #   https_backend   - If true, proxy to HTTPS with self-signed cert (e.g., mailcow)
+#   public_bind     - Interface docker publishes the service's port on. Defaults
+#                     to "127.0.0.1" (only reachable through Caddy). Set to
+#                     "0.0.0.0" only when the service must be reached directly
+#                     (e.g. a mail protocol port, not the generic services role).
 #
 # Staging environments:
 #   - Create a dev/ subfolder in services/<name>/ with docker-compose.yml

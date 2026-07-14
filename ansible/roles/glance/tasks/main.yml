@@ -47,7 +47,7 @@
     image: glanceapp/glance
     restart_policy: unless-stopped
     ports:
-      - "0.0.0.0:8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - /opt/glance/config:/app/config
       - /etc/timezone:/etc/timezone:ro

@@ -23,7 +23,7 @@ services:
     container_name: crowdsec-web-ui
     restart: unless-stopped
     ports:
-      - "8089:3000"
+      - "${BIND_ADDR:-127.0.0.1}:8089:3000"
     environment:
       - CROWDSEC_URL=http://crowdsec:8080
       - CROWDSEC_USER=crowdsec-web-ui

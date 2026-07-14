@@ -184,7 +184,7 @@ def run_caddy_validate(snippets: dict[str, str], gvars: dict) -> tuple[bool, str
 
         # Write minimal shared snippets file (empty macros, no real secrets needed)
         (conf_dir / "000-snippets.caddy").write_text(
-            "(authelia_auth) {\n}\n(basicauth_block) {\n}\n"
+            "(authelia_auth) {\n}\n(basicauth_block) {\n}\n(security_headers) {\n}\n"
         )
 
         # Write minimal Caddyfile — global block MUST use multi-line format

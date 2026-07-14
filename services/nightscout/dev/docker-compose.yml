@@ -55,7 +55,7 @@ services:
       INSECURE_USE_HTTP: 'true'
 
     ports:
-      - "11337:1337"  # Staging port (+10000 offset)
+      - "${BIND_ADDR:-127.0.0.1}:11337:1337"  # Staging port (+10000 offset)
     networks:
       - nightscout-internal
     logging:

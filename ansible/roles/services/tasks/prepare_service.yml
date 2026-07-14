@@ -122,6 +122,15 @@
     service_name: "{{ service.name }}"
     project_name: "{{ service.name if not is_staging else (service.name + '-staging') }}"
     image_tag: "latest"  # Default, can be overridden in docker-compose.yml
+    # Caddy only runs on mljr and reaches other hosts over Tailscale (not localhost),
+    # so loopback-only binding would cut off cross-host services. Default to loopback
+    # when co-located with Caddy, otherwise bind to this host's own Tailscale interface
+    # (still reachable from Caddy, no longer exposed on LAN/public interfaces).
+    bind_addr: >-
+      {{ service.public_bind | default(
+           '127.0.0.1' if inventory_hostname == 'mljr'
+           else hostvars[inventory_hostname]['tailscale_ip']
+         ) }}
   no_log: true
   # Always regenerate .env — secrets change independently of service files
 

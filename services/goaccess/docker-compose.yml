@@ -49,7 +49,7 @@ services:
     env_file:
       - .env
     ports:
-      - "0.0.0.0:7890:7890"
+      - "${BIND_ADDR:-127.0.0.1}:7890:7890"
     volumes:
       - goaccess-data:/goaccess:ro
       - goaccess-report:/var/www/goaccess:rw

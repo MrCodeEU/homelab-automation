@@ -1,6 +1,7 @@
 ---
 authelia_version: "latest"
 authelia_port: 9091
+authelia_bind_addr: "127.0.0.1"
 authelia_config_path: "{{ base_path }}/authelia"
 authelia_jwt_secret: "{{ secrets.authelia.jwt_secret }}"
 authelia_session_secret: "{{ secrets.authelia.session_secret }}"

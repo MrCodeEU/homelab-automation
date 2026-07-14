@@ -21,6 +21,7 @@
 {% endif %}
         }
     }
+    import security_headers
 {% if service.name == 'goaccess' %}
     # WebSocket requests go directly to GoAccess real-time server (no auth needed for WS)
     @websocket {
@@ -114,6 +115,7 @@
 {% endif %}
         }
     }
+    import security_headers
 {% if auth_type == 'basicauth' %}
     import basicauth_block
 {% elif auth_type == 'authelia' %}

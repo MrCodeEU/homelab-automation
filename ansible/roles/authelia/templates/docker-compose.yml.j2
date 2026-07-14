@@ -8,7 +8,7 @@ services:
       - ./db.sqlite3:/config/db.sqlite3
       - ./notification.txt:/config/notification.txt
     ports:
-      - "{{ authelia_port }}:9091"
+      - "{{ authelia_bind_addr }}:{{ authelia_port }}:9091"
     environment:
       - TZ={{ timezone }}
     restart: unless-stopped
