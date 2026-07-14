@@ -55,7 +55,7 @@ services:
       INSECURE_USE_HTTP: 'true'
       
     ports:
-      - "1337:1337"  # Exposed locally for LibreLink-Up connector
+      - "${BIND_ADDR:-127.0.0.1}:1337:1337"  # Exposed locally for LibreLink-Up connector
     networks:
       - nightscout-internal
     logging:
