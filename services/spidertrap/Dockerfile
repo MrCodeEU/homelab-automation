@@ -1,5 +1,5 @@
 FROM rust:1-alpine AS builder
-RUN apk add --no-cache musl-dev
+RUN apk add --no-cache musl-dev git
 WORKDIR /build
 RUN git clone --depth 1 https://github.com/acuciureanu/spidertrap-rs.git .
 RUN cargo build --release
