@@ -243,6 +243,7 @@ services:
     host: mljr
     description: "Spidertrap - infinite link maze for robots.txt-ignoring crawlers"
     icon: "mdi:spider-web"
+    build_from_source: true  # No published image - built from services/spidertrap/Dockerfile
 
   # Personal
   - name: homepage
