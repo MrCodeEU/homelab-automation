@@ -232,7 +232,11 @@
     project_src: "{{ base_path }}/{{ service.name }}"
     state: present
     pull: never  # Images already pulled above (or built locally, see build:)
-    build: "{{ 'policy' if service.build_from_source | default(false) else 'never' }}"
+    # 'always' (not 'policy') is deliberate: with pull=never, docker_compose_v2's
+    # 'policy' passes neither --build nor --no-build, and that combination
+    # silently no-ops instead of building when no image exists yet. 'always'
+    # maps to an explicit --build flag with no ambiguity.
+    build: "{{ 'always' if service.build_from_source | default(false) else 'never' }}"
     # Remove containers for services deleted/renamed in the compose file;
     # otherwise the old container keeps running and can hold host ports
     # (e.g. prometheus blocked victoriametrics on 19090).
