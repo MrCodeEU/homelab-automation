@@ -1,0 +1,11 @@
+---
+- name: Reload sshd
+  ansible.builtin.systemd:
+    name: sshd
+    state: reloaded
+
+- name: Reload systemd and restart cockpit socket
+  ansible.builtin.systemd:
+    name: cockpit.socket
+    daemon_reload: true
+    state: restarted

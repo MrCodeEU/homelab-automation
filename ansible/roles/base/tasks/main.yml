@@ -204,6 +204,85 @@
     immediate: true
 
 # ============================================================================
+# SSH deception cutover (mljr only): scope real sshd to Tailscale+loopback,
+# free the public interface's port 22 for a tarpit (Endlessh), and keep a
+# break-glass port reachable directly in case Tailscale itself is ever down.
+# ============================================================================
+
+- name: Open break-glass SSH port in firewalld public zone
+  ansible.posix.firewalld:
+    zone: public
+    port: "{{ ssh_breakglass_port }}/tcp"
+    state: enabled
+    permanent: true
+    immediate: true
+  when: public_ip is defined and ssh_breakglass_port is defined
+
+- name: Label break-glass SSH port for SELinux
+  community.general.seport:
+    ports: "{{ ssh_breakglass_port }}"
+    proto: tcp
+    setype: ssh_port_t
+    state: present
+  when: public_ip is defined and ssh_breakglass_port is defined
+
+- name: Scope sshd ListenAddress (Tailscale + loopback + break-glass port)
+  ansible.builtin.blockinfile:
+    path: /etc/ssh/sshd_config
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - ssh honeypot cutover"
+    block: |
+      ListenAddress {{ tailscale_ip }}:22
+      ListenAddress 127.0.0.1:22
+      ListenAddress {{ public_ip }}:{{ ssh_breakglass_port }}
+    validate: /usr/sbin/sshd -t -f %s
+  when: public_ip is defined and ssh_breakglass_port is defined
+  notify: Reload sshd
+
+# ============================================================================
+# Cockpit break-glass console (mljr only): loopback-only, fronted by Caddy's
+# cockpit.mljr.eu vhost (Authelia-gated) - never exposed on the public
+# interface directly.
+# ============================================================================
+
+- name: Scope Cockpit socket to loopback only
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/cockpit.socket.d/override.conf
+    content: |
+      [Socket]
+      ListenStream=
+      ListenStream=127.0.0.1:9090
+    mode: "0644"
+  when: cockpit_console_enabled | default(false) | bool
+  notify: Reload systemd and restart cockpit socket
+
+- name: Configure Cockpit for reverse-proxy origins
+  ansible.builtin.copy:
+    dest: /etc/cockpit/cockpit.conf
+    content: |
+      [WebService]
+      Origins = https://cockpit.{{ domain }} wss://cockpit.{{ domain }}
+      ProtocolHeader = X-Forwarded-Proto
+    mode: "0644"
+  when: cockpit_console_enabled | default(false) | bool
+  notify: Reload systemd and restart cockpit socket
+
+- name: Enable Cockpit socket
+  ansible.builtin.systemd:
+    name: cockpit.socket
+    enabled: true
+    state: started
+  when: cockpit_console_enabled | default(false) | bool
+
+- name: Remove direct public firewalld allowance for Cockpit
+  ansible.posix.firewalld:
+    zone: public
+    service: cockpit
+    state: disabled
+    permanent: true
+    immediate: true
+  when: cockpit_console_enabled | default(false) | bool
+
+# ============================================================================
 # Docker Prune (weekly maintenance or explicit prune tag)
 # ============================================================================
 

@@ -202,6 +202,17 @@ services:
     icon: "mdi:shield-search"
     caddy_auth: "authelia"
 
+  - name: cockpit
+    enabled: true
+    managed: false  # OS-level systemd service, not a docker-compose deployment
+    domain: "cockpit.mljr.eu"
+    port: 9090
+    host: mljr
+    description: "Cockpit - system admin console (break-glass access)"
+    icon: "mdi:desktop-classic"
+    caddy_auth: "authelia"
+    https_backend: true  # Cockpit's own listener does TLS internally (self-signed)
+
   # Container Management
   - name: diun
     enabled: true
@@ -210,6 +221,28 @@ services:
     host: mljr
     description: "Docker Image Update Notifier"
     icon: "mdi:docker"
+
+  # Security / Deception
+  - name: hellpot
+    enabled: true
+    port: 8098  # No domain - only reachable via homepage's bait-path handle block
+    host: mljr
+    description: "HellPot - endless honeypot for robots.txt-ignoring bots"
+    icon: "mdi:fire"
+
+  - name: endlessh
+    enabled: true
+    port: 0  # No web UI, no domain - binds public :22 directly (not via Caddy)
+    host: mljr
+    description: "Endlessh - SSH tarpit for scanners hitting the public port"
+    icon: "mdi:ssh"
+
+  - name: spidertrap
+    enabled: true
+    port: 8099  # No domain - only reachable via homepage's @maze bait-path handle block
+    host: mljr
+    description: "Spidertrap - infinite link maze for robots.txt-ignoring crawlers"
+    icon: "mdi:spider-web"
 
   # Personal
   - name: homepage
@@ -223,6 +256,32 @@ services:
     caddy_extra_config: |
       handle_path /umami* {
           reverse_proxy nuc.tail33930.ts.net:3606
+      }
+
+      # robots.txt disallows a handful of decoy paths that no real route on
+      # mljr.eu ever uses. Bots that respect it never touch them. Bots that
+      # don't get routed straight into HellPot instead of the real backend.
+      respond /robots.txt 200 {
+          body "User-agent: *
+      Disallow: /wp-admin/
+      Disallow: /wp-login.php
+      Disallow: /xmlrpc.php
+      Disallow: /.env
+      Disallow: /.git/
+      Disallow: /admin-panel/
+      Disallow: /archive-2019/
+      "
+      }
+
+      @hellbait path /wp-admin/* /wp-login.php /xmlrpc.php /.env /.git/* /admin-panel/*
+      handle @hellbait {
+          reverse_proxy localhost:8098
+      }
+
+      # Unlinked path, only exists in robots.txt's Disallow list above. Bots
+      # that ignore it fall into an infinite generated link maze.
+      handle_path /archive-2019/* {
+          reverse_proxy localhost:8099
       }
 
   - name: umami
