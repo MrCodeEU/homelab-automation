@@ -55,6 +55,9 @@ def parse_args(argv):
     parser.add_argument("--noop", action="store_true",
                         help="print the resolved configuration and exit; the compose "
                              "default command, so a deploy never sends a report")
+    parser.add_argument("--html-out",
+                        help="also write the HTML email body here, for inspecting "
+                             "the render without sending mail")
     parser.add_argument("--pretty", action="store_true", help="indent JSON output")
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args(argv)
@@ -244,6 +247,21 @@ def main(argv=None):
 
     body, fallback = render.render(facts, narrative)
     title = render.headline(facts, narrative, fallback)
+    try:
+        body_html = render.render_html(facts, narrative, title, config.state_dir)
+    except Exception as exc:
+        # The HTML part is a presentation nicety. If it fails the report must
+        # still go out as text rather than not at all.
+        LOG.warning("HTML rendering failed, sending text only: %s", exc)
+        body_html = None
+
+    if args.html_out and body_html:
+        try:
+            with open(args.html_out, "w") as fh:
+                fh.write(body_html)
+            LOG.info("HTML body written to %s", args.html_out)
+        except OSError as exc:
+            LOG.warning("could not write HTML body: %s", exc)
 
     # --- delivery -----------------------------------------------------------
     if args.send:
@@ -251,7 +269,7 @@ def main(argv=None):
         for error in (
             deliver.send_ntfy(config, facts, title,
                               render.ntfy_body(facts, narrative, fallback)),
-            deliver.send_email(config, facts, deliver.subject_line(facts), body),
+            deliver.send_email(config, facts, deliver.subject_line(facts), body, body_html),
         ):
             if error and not error.startswith("skipped"):
                 errors.append(error)

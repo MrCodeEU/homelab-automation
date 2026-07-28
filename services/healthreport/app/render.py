@@ -2,17 +2,30 @@
 
 import os
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader
 
+from . import history
 from .model import severity_rank
 
 TEMPLATE_DIR = os.environ.get("HEALTHREPORT_TEMPLATES", "/app/templates")
 
 
+def _autoescape(template_name):
+    """Escape anything HTML, including the .html.j2 double extension.
+
+    select_autoescape's extension match looks at the final suffix only, so
+    "report.html.j2" would render unescaped. That matters here: normalized log
+    signatures contain literal <ts>, <path>, <n> and <ip> placeholders, which a
+    mail client would silently swallow as unknown tags - and arbitrary log text
+    would be injected into the markup.
+    """
+    return bool(template_name) and ".html" in template_name
+
+
 def _env():
     return Environment(
         loader=FileSystemLoader(TEMPLATE_DIR),
-        autoescape=select_autoescape(enabled_extensions=("html",)),
+        autoescape=_autoescape,
         trim_blocks=True,
         lstrip_blocks=True,
         keep_trailing_newline=True,
@@ -39,6 +52,52 @@ def _worst_new(facts, by_id):
     if not candidates:
         return None
     return max(candidates, key=lambda o: severity_rank(o["severity"]))
+
+
+def render_html(facts, narrative, headline, state_dir):
+    """HTML part of the email.
+
+    Charts are table cells with background colours, because email clients have
+    no JavaScript and several strip SVG. Severity uses the reserved status
+    palette; `warning` is sub-3:1 on a light surface by design, so every
+    segment carries a visible number and the full table is always present -
+    colour never carries meaning alone.
+    """
+    env = _env()
+    by_id = {obs["id"]: obs for obs in facts["observations"]}
+    summary = facts["summary"]
+    diff = facts["diff"]
+
+    def rows(ids):
+        return [by_id[i] for i in ids if i in by_id]
+
+    sections = [
+        {"title": "New today", "rows": rows(diff["new"]), "show_age": False},
+        {"title": "Reopened", "rows": rows(diff["reopened"]), "show_age": True},
+        {"title": "Still open", "rows": rows(diff["persisting"]), "show_age": True},
+    ]
+
+    hosts = history.by_host(facts)
+    trend_points = history.trend(state_dir)
+
+    return env.get_template("report.html.j2").render(
+        facts=facts,
+        narrative=narrative,
+        headline=headline,
+        sections=sections,
+        by_host=hosts,
+        # Guard every denominator: a clean run has zero of everything.
+        host_max=max([r["total"] for r in hosts] or [1]) or 1,
+        trend=trend_points,
+        trend_max=max([p["crit"] + p["warn"] for p in trend_points] or [1]) or 1,
+        trend_height=90,
+        tiles=[
+            {"label": "Critical", "value": summary.get("crit", 0), "color": "#d03b3b"},
+            {"label": "Warnings", "value": summary.get("warn", 0), "color": "#fab219"},
+            {"label": "New", "value": len(diff["new"]), "color": "#0b0b0b"},
+            {"label": "Resolved", "value": len(diff["resolved"]), "color": "#0ca30c"},
+        ],
+    )
 
 
 def render(facts, narrative):
