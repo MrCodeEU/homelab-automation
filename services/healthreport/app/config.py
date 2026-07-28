@@ -54,7 +54,9 @@ class Config:
     # runs the script directly instead of dialling itself over SSH.
     ssh_hosts: Dict[str, str] = field(default_factory=dict)
     ssh_key_path: str = "/ssh/id_ed25519"
-    local_host: str = "nuc"
+    # Empty by default: see all_hosts(). Set only if the facts script is
+    # somehow available inside the container.
+    local_host: str = ""
     local_facts_bin: str = "/usr/local/bin/homelab-facts"
 
     github_token: str = ""
@@ -107,6 +109,9 @@ class Config:
 
     def all_hosts(self) -> List[str]:
         hosts = list(self.ssh_hosts.keys())
-        if self.local_host not in hosts:
+        # local_host is normally empty: the facts script lives on the host, not
+        # in this container, so every host is reached over SSH including the
+        # one the agent runs on.
+        if self.local_host and self.local_host not in hosts:
             hosts.append(self.local_host)
         return hosts
