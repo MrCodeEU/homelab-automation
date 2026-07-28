@@ -27,6 +27,11 @@ NOT_ERROR_PATTERN = r'(error=<nil>|error=null|"error":null|"error":""|err=<nil>|
 # own chatter.
 SELF_LOG_PATTERN = r'(component=querier|component=ingester|caller=(metrics|engine)\.go)'
 
+# A signature must recur this often within the sample before it becomes an
+# observation, and only this many are reported per run.
+MIN_SIGNATURE_COUNT = 10
+MAX_SIGNATURES = 15
+
 DOCKER_ERRORS = '{job="docker"} |~ `%s` !~ `%s` !~ `%s`' % (
     ERROR_PATTERN, NOT_ERROR_PATTERN, SELF_LOG_PATTERN,
 )
@@ -37,7 +42,11 @@ NORMALIZERS = [
     (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b"), "<ip>"),
     (re.compile(r"\b[0-9a-f]{16,}\b", re.I), "<hash>"),
     (re.compile(r"\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}\S*"), "<ts>"),
-    (re.compile(r"/[\w./-]*\d[\w./-]*"), "<path>"),
+    # Any slash-bearing token is a path, digits or not. The previous rule
+    # required a digit, so syncthing's per-file "Failed to sync" lines
+    # (thesis/main.aux, thesis/main.pdf, ...) each became a distinct signature
+    # and one stuck sync produced five separate warnings.
+    (re.compile(r"[\w.\-]*/[\w./\-]+"), "<path>"),
     (re.compile(r"\b\d+\b"), "<n>"),
     (re.compile(r"\s+"), " "),
 ]
@@ -134,9 +143,18 @@ def collect(config, rules):
             })
             entry["count"] += 1
 
+    # Distinct error signatures appear constantly in a busy homelab: the first
+    # real run produced 38 new-signature warnings in one go, which is precisely
+    # the volume that trains you to ignore the report. Only signatures that
+    # recur meaningfully are worth waking up for; the rest stay in `data` for
+    # forensics without becoming observations.
+    ranked = sorted(signatures.values(), key=lambda e: -e["count"])
+    notable = [e for e in ranked if e["count"] >= MIN_SIGNATURE_COUNT][:MAX_SIGNATURES]
+
     result.data = {
         "signature_count": len(signatures),
-        "signatures": sorted(signatures.values(), key=lambda e: -e["count"])[:100],
+        "notable_count": len(notable),
+        "signatures": ranked[:100],
         "per_container": [
             {"host": h, "container": c, "errors": n}
             for (h, c), n in per_container.most_common(50)
@@ -145,7 +163,7 @@ def collect(config, rules):
 
     # Emitted for every signature; the diff decides which are actually new, and
     # the severity rules only escalate the new ones.
-    for entry in result.data["signatures"]:
+    for entry in notable:
         obs.append(Observation(
             id="log_signature.%s.%s" % (entry["container"], _sig_key(entry["signature"])),
             collector="logs",
@@ -153,8 +171,10 @@ def collect(config, rules):
             kind="log_signature",
             value=entry["count"],
             unit="occurrences_in_sample",
+            # Signatures are kept at full length in `data`; the message is what
+            # lands in a push notification, so it stays readable.
             message="%s: %s (x%d in sample)"
-                    % (entry["container"], entry["signature"], entry["count"]),
+                    % (entry["container"], entry["signature"][:140], entry["count"]),
             evidence={"example": entry["example"], "logql": logql},
         ))
 

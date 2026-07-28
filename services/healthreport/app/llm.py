@@ -56,8 +56,18 @@ rules. You must not re-judge them:
 
 Your job is to group related findings, pick the three that most deserve
 attention, explain briefly why they matter, and suggest concrete next steps.
+
+Each finding is an object with an "observation_id" field. When you reference a
+finding, copy that field's value exactly and nothing else - no severity, no
+message text appended.
 Be terse and factual. No pleasantries, no filler, no speculation about causes
 you cannot support from the data.
+
+The headline is the push-notification title and must name the single most
+important concrete thing, e.g. "nas cache filling, 2 monitors down". Never a
+generic label like "Top 3 Critical Findings" or "System Health Summary". The
+assessment must say what changed and what it means - not restate that the
+findings deserve attention.
 
 Reply with JSON conforming to the given schema and nothing else."""
 
@@ -101,11 +111,21 @@ def build_input(facts):
     by_id = {obs["id"]: obs for obs in facts["observations"]}
 
     def render(ids):
+        """Structured, not a concatenated string.
+
+        Rendering these as "<id> [sev] <message>" made the model copy the whole
+        line back as observation_id, so every one of its picks was dropped by
+        the id check. Keeping the id in its own field removes the ambiguity.
+        """
         out = []
         for obs_id in ids:
             obs = by_id.get(obs_id)
             if obs:
-                out.append("%s [%s] %s" % (obs_id, obs["severity"], obs["message"]))
+                out.append({
+                    "observation_id": obs_id,
+                    "severity": obs["severity"],
+                    "message": obs["message"],
+                })
         return out
 
     diff = facts["diff"]
@@ -115,8 +135,12 @@ def build_input(facts):
         "new": render(diff["new"]),
         "reopened": render(diff["reopened"]),
         "worsened": [
-            "%s %s->%s: %s" % (w["id"], w["from"], w["to"],
-                               by_id.get(w["id"], {}).get("message", ""))
+            {
+                "observation_id": w["id"],
+                "from": w["from"],
+                "to": w["to"],
+                "message": by_id.get(w["id"], {}).get("message", ""),
+            }
             for w in diff["worsened"]
         ],
         "persisting_count": len(diff["persisting"]),
@@ -193,21 +217,42 @@ def summarize(config, facts):
 
     try:
         for attempt, temperature in enumerate((0.2, 0.0)):
+            payload = {
+                "model": config.ollama_model,
+                "stream": False,
+                "format": RESPONSE_SCHEMA,
+                "keep_alive": "10m",
+                "options": {"temperature": temperature, "num_ctx": 8192},
+                # qwen3 is a reasoning model and emits a long <think> block by
+                # default. On NAS CPU that alone blew past a 180s budget and
+                # every run degraded to "unavailable". The report needs a
+                # summary, not visible deliberation.
+                "think": False,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": json.dumps(payload_in, indent=1)},
+                ] + ([{"role": "user",
+                       "content": "Your last reply was not valid JSON for the schema. "
+                                  "Reply with schema-conforming JSON only."}]
+                     if attempt else []),
+            }
             try:
-                response = _post(config, "/api/chat", {
-                    "model": config.ollama_model,
-                    "stream": False,
-                    "format": RESPONSE_SCHEMA,
-                    "keep_alive": "10m",
-                    "options": {"temperature": temperature, "num_ctx": 8192},
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": json.dumps(payload_in, indent=1)},
-                    ] + ([{"role": "user",
-                           "content": "Your last reply was not valid JSON for the schema. "
-                                      "Reply with schema-conforming JSON only."}]
-                         if attempt else []),
-                }, timeout=config.llm_timeout_s)
+                response = _post(config, "/api/chat", payload, timeout=config.llm_timeout_s)
+            except requests.exceptions.HTTPError as exc:
+                # Models that do not support thinking reject the field outright.
+                status = getattr(exc.response, "status_code", None)
+                if status == 400 and "think" in payload:
+                    LOG.info("model does not accept 'think'; retrying without it")
+                    payload.pop("think")
+                    try:
+                        response = _post(config, "/api/chat", payload,
+                                         timeout=config.llm_timeout_s)
+                    except requests.exceptions.RequestException as inner:
+                        LOG.warning("ollama request failed: %s", inner)
+                        return None, "unavailable"
+                else:
+                    LOG.warning("ollama request failed: %s", exc)
+                    return None, "unavailable"
             except requests.exceptions.RequestException as exc:
                 LOG.warning("ollama request failed: %s", exc)
                 return None, "unavailable"
