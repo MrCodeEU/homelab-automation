@@ -57,14 +57,34 @@
     enabled: false
   failed_when: false
 
+# DANGER: do not replace this with ansible.builtin.dnf.
+# /etc/dnf/dnf.conf sets clean_requirements_on_remove=True, so a plain removal
+# of fail2ban also takes firewalld, firewalld-filesystem, python3-firewall,
+# ipset and python3-nftables with it as "unused dependencies". firewalld is
+# active on mljr and owns a live nftables table, so that would drop the
+# firewall on the public host. --noautoremove keeps the transaction to the
+# fail2ban packages themselves.
+- name: Find installed fail2ban packages
+  ansible.builtin.shell: rpm -qa 'fail2ban*' --qf '%{NAME}\n'
+  register: fail2ban_pkgs
+  changed_when: false
+  failed_when: false
+
 - name: Remove fail2ban packages
-  ansible.builtin.dnf:
-    name:
-      - fail2ban
-      - fail2ban-server
-      - fail2ban-firewalld
-    state: absent
+  ansible.builtin.command:
+    argv: "{{ ['dnf', 'remove', '-y', '--noautoremove'] + fail2ban_pkgs.stdout_lines }}"
+  when: fail2ban_pkgs.stdout_lines | default([]) | length > 0
   register: fail2ban_removed
+  changed_when: fail2ban_removed.rc == 0
+
+# Fail loudly rather than leave a public host without a firewall if the
+# transaction above ever takes more than it should.
+- name: Verify firewalld survived the fail2ban removal
+  ansible.builtin.command: rpm -q firewalld
+  register: firewalld_present
+  changed_when: false
+  failed_when: firewalld_present.rc != 0
+  when: fail2ban_removed is changed
 
 # A unit that was failed when it was removed stays in systemd's failed list
 # until it is explicitly reset.
