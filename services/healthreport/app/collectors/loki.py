@@ -42,7 +42,11 @@ NORMALIZERS = [
     (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b"), "<ip>"),
     (re.compile(r"\b[0-9a-f]{16,}\b", re.I), "<hash>"),
     (re.compile(r"\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}\S*"), "<ts>"),
-    (re.compile(r"/[\w./-]*\d[\w./-]*"), "<path>"),
+    # Any slash-bearing token is a path, digits or not. The previous rule
+    # required a digit, so syncthing's per-file "Failed to sync" lines
+    # (thesis/main.aux, thesis/main.pdf, ...) each became a distinct signature
+    # and one stuck sync produced five separate warnings.
+    (re.compile(r"[\w.\-]*/[\w./\-]+"), "<path>"),
     (re.compile(r"\b\d+\b"), "<n>"),
     (re.compile(r"\s+"), " "),
 ]
@@ -167,8 +171,10 @@ def collect(config, rules):
             kind="log_signature",
             value=entry["count"],
             unit="occurrences_in_sample",
+            # Signatures are kept at full length in `data`; the message is what
+            # lands in a push notification, so it stays readable.
             message="%s: %s (x%d in sample)"
-                    % (entry["container"], entry["signature"], entry["count"]),
+                    % (entry["container"], entry["signature"][:140], entry["count"]),
             evidence={"example": entry["example"], "logql": logql},
         ))
 
