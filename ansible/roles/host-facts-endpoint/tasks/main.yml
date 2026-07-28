@@ -42,18 +42,24 @@
     force: true
   when: inventory_hostname in (groups['unraid'] | default([]))
 
-- name: Require the client public key before installing the restriction
-  ansible.builtin.assert:
-    that:
-      - hostvars[host_facts_client_host]['healthreport_pubkey'] is defined
-      - hostvars[host_facts_client_host]['healthreport_pubkey'] | length > 0
-    fail_msg: >-
-      healthreport_pubkey is not set on {{ host_facts_client_host }}. The
-      healthreport role must run there first - see the play ordering in
-      playbooks/site.yml.
-    quiet: true
+# The key can only be installed when the healthreport role has run on the
+# client host in this same invocation. Under `--limit nas` that play is
+# filtered out, which is a legitimate staged rollout rather than an error:
+# install the script now and authorize the key on a later full run.
+- name: Check whether the client public key is available
+  ansible.builtin.set_fact:
+    host_facts_pubkey: "{{ hostvars[host_facts_client_host]['healthreport_pubkey'] | default('') }}"
+
+- name: Warn when the key cannot be installed yet
+  ansible.builtin.debug:
+    msg: >-
+      Skipping the authorized_key step: healthreport_pubkey is not set on
+      {{ host_facts_client_host }}. Include {{ host_facts_client_host }} in the
+      run (or drop --limit) to finish wiring the facts endpoint.
+  when: host_facts_pubkey | length == 0
 
 - name: Authorize the health report key for the facts command only
+  when: host_facts_pubkey | length > 0
   ansible.posix.authorized_key:
     user: root
     key: "{{ hostvars[host_facts_client_host]['healthreport_pubkey'] }}"
@@ -66,7 +72,9 @@
 # Unraid rebuilds /root/.ssh from the flash at boot, so the live file alone
 # would be lost on the next reboot.
 - name: Persist authorized_keys to the boot flash (Unraid)
-  when: inventory_hostname in (groups['unraid'] | default([]))
+  when:
+    - inventory_hostname in (groups['unraid'] | default([]))
+    - host_facts_pubkey | length > 0
   block:
     - name: Ensure the persisted ssh directory exists
       ansible.builtin.file:
