@@ -58,7 +58,7 @@ def send_ntfy(config, facts, title, body):
         return "ntfy: %s" % exc
 
 
-def send_email(config, facts, subject, body_markdown):
+def send_email(config, facts, subject, body_markdown, body_html=None):
     if not config.email_to or not config.smtp_host:
         return "skipped: no SMTP configuration"
 
@@ -66,7 +66,13 @@ def send_email(config, facts, subject, body_markdown):
     message["Subject"] = subject[:250]
     message["From"] = config.smtp_from
     message["To"] = config.email_to
+
+    # multipart/alternative: the Markdown stays as the text/plain part so the
+    # report is still readable in a plain-text client, or if the HTML fails to
+    # render. The HTML part is additive, never the only copy.
     message.set_content(body_markdown)
+    if body_html:
+        message.add_alternative(body_html, subtype="html")
 
     # Attach the raw facts so the full data is retained even after the state
     # directory rotates.
