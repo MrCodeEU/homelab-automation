@@ -28,7 +28,17 @@ def fetch(config, host, address):
     if host == config.local_host:
         args = [config.local_facts_bin]
     else:
-        args = ["ssh"] + SSH_OPTIONS + ["-i", config.ssh_key_path, "root@%s" % address]
+        # The command is named explicitly rather than relying on the
+        # authorized_keys forced command. Tailscale SSH (RunSSH=true on all
+        # hosts) terminates port 22 on the tailnet interface and authorizes
+        # from the tailnet ACL without ever reading authorized_keys, so the
+        # forced command does not apply on this path and a bare `ssh` yields a
+        # login shell that returns nothing.
+        #
+        # Naming it is correct in both worlds: where real sshd does handle the
+        # connection, the forced command overrides whatever is requested here.
+        args = (["ssh"] + SSH_OPTIONS
+                + ["-i", config.ssh_key_path, "root@%s" % address, config.local_facts_bin])
     proc = subprocess.run(
         args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=180, shell=False,
     )
@@ -351,14 +361,33 @@ def _unraid(obs, host, sections):
             evidence={"path": docker_image.get("image_path")},
         ))
 
+    # Unraid keeps every unread notification as its own file, so a recurring
+    # problem produces one per occurrence - AppdataBackup alone accounted for
+    # 13 identical observations on the first run. Collapse by event and
+    # severity so a repeating issue is one finding with a count.
+    grouped = {}
     for note in _section(sections, "unraid_notifications") or []:
+        event = note.get("event") or "notification"
+        importance = note.get("importance", "normal")
+        entry = grouped.setdefault((event, importance), {
+            "count": 0, "subject": note.get("subject", "?"),
+            "description": note.get("description") or "",
+        })
+        entry["count"] += 1
+
+    for (event, importance), entry in sorted(grouped.items()):
+        suffix = "" if entry["count"] == 1 else " (x%d unread)" % entry["count"]
         obs.append(Observation(
-            id="unraid_notification.%s.%s" % (host, note.get("file")),
+            # Importance is part of the identity: grouping only by event made
+            # an "alert" and a "warning" for the same event collide on one id,
+            # so the more severe one could be silently overwritten.
+            id="unraid_notification.%s.%s/%s" % (host, event, importance),
             collector="ssh_facts",
             subject=host,
             kind="unraid_notification",
-            value=note.get("importance", "normal"),
-            message="%s notification: %s - %s"
-                    % (host, note.get("subject", "?"), (note.get("description") or "")[:120]),
-            evidence={"event": note.get("event"), "importance": note.get("importance")},
+            value=importance,
+            unit=None,
+            message="%s notification: %s - %s%s"
+                    % (host, entry["subject"], entry["description"][:120], suffix),
+            evidence={"event": event, "importance": importance, "unread": entry["count"]},
         ))

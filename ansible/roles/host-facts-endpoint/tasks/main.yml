@@ -8,6 +8,14 @@
 #
 # The key grants exactly one capability: run this script. It takes no
 # arguments and ignores SSH_ORIGINAL_COMMAND, so there is nothing to inject.
+#
+# IMPORTANT: Tailscale SSH is enabled on every host (RunSSH=true), and it
+# terminates port 22 on the tailnet interface without ever reading
+# authorized_keys. Over the tailnet the real access control is therefore the
+# Tailscale ACL, not this key - the forced command only applies to connections
+# that reach the host's own sshd (public IP, breakglass port). It is kept as
+# defence in depth, and the collector names the command explicitly so it works
+# on both paths. Do not assume this restriction is what is protecting mljr.
 # ============================================================================
 
 - name: Set per-host script destination
