@@ -5,12 +5,20 @@ nuc (and nas once services/nas-alloy is deployed), so nearly everything here
 is a PromQL query rather than a login to a box.
 """
 
+import re
+
 from ..model import CollectorResult, Observation
 from .base import collector, http_get
 
 # Pseudo-filesystems that are always ~100% full or always empty, and say
 # nothing about the health of the machine.
 FS_EXCLUDE = 'fstype!~"tmpfs|overlay|squashfs|ramfs|devtmpfs|fuse.*|iso9660|autofs"'
+
+# Containers that are supposed to appear and disappear. Reporting these as
+# "missing since yesterday" would be a daily false positive:
+#   - `docker compose run` creates <project>-run-<hash>
+#   - one-shot jobs (this report itself) exit by design
+EPHEMERAL_CONTAINER = re.compile(r"(-run-[0-9a-f]+$|^healthreport$|_run_[0-9]+$)")
 
 
 def query(config, promql):
@@ -223,8 +231,15 @@ def collect_containers(config, rules):
     now_q = 'count by(instance, name) (container_last_seen{name!=""})'
     then_q = 'count by(instance, name) (container_last_seen{name!=""} offset %s)' % lookback
 
-    current = {(m.get("instance"), m.get("name")) for m, _ in query(config, now_q)}
-    previous = {(m.get("instance"), m.get("name")) for m, _ in query(config, then_q)}
+    def inventory(promql):
+        return {
+            (m.get("instance"), m.get("name"))
+            for m, _ in query(config, promql)
+            if not EPHEMERAL_CONTAINER.search(m.get("name") or "")
+        }
+
+    current = inventory(now_q)
+    previous = inventory(then_q)
 
     # Only compare hosts present on both sides of the window. This suppresses
     # two false-positive floods: a host that was down for the whole lookback,

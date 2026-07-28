@@ -71,12 +71,8 @@ backup_service_configs:
       - ntfy_ntfy-cache
     backup_critical: false
 
-  bichon:
-    backup_paths:
-      - /opt/bichon/data
-    backup_critical: false
-
-  glance:
-    backup_paths:
-      - /opt/glance/data
-    backup_critical: false
+  # bichon and glance were listed here but neither path has ever existed:
+  # bichon is not configured yet (no /opt/bichon/data), and glance keeps only
+  # /opt/glance/config, which Ansible templates from the repo. Both produced a
+  # non-critical failure every single night. Re-add bichon once it has state
+  # worth keeping.

@@ -14,7 +14,7 @@ SCHEDULE="${HEALTHREPORT_SCHEDULE:-*-*-* 06:00:00}"
 cd "$SERVICE_DIR"
 
 echo "==> building health report image"
-docker compose --profile cron build healthreport
+docker compose build healthreport
 
 install -d -m 0755 /opt/healthreport/state
 install -d -m 0700 /opt/healthreport/ssh
@@ -28,8 +28,10 @@ Requires=docker.service
 [Service]
 Type=oneshot
 WorkingDirectory=${SERVICE_DIR}
-# --send is the image's default CMD; stated explicitly so the unit is readable.
-ExecStart=/usr/bin/docker compose --profile cron run --rm healthreport --send
+# The compose default command is --noop, so --send must be explicit here.
+# `run --rm` gives a fresh transient container instead of restarting the
+# deploy-time one.
+ExecStart=/usr/bin/docker compose run --rm healthreport --send
 TimeoutStartSec=1800
 EOF
 

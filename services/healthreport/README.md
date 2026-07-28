@@ -47,24 +47,41 @@ behind an SSH key restricted to that one command
 
 ## Running it
 
-The container is one-shot and sits behind the `cron` compose profile, so a
-deploy never starts it. A systemd timer installed by `hooks/post-deploy.sh`
-owns the schedule.
+The container is one-shot. Its compose default command is `--noop`, so the
+deploy step (`docker compose up -d`) starts it, it prints its configuration and
+exits without collecting or sending anything. A systemd timer installed by
+`hooks/post-deploy.sh` owns the real schedule and passes `--send` explicitly.
+
+A compose `profiles:` entry would be the more obvious way to keep the deploy
+from starting it, but `docker compose up -d` fails with "no service selected"
+when every service in a project is profiled, which breaks the services role.
+
+To trigger a full run by hand, without waiting for the timer:
+
+```bash
+# on nuc — exactly what the timer does, including delivery
+systemctl start homelab-healthreport.service
+journalctl -u homelab-healthreport.service -f
+
+# or directly, e.g. to a test topic first
+cd /opt/healthreport && docker compose run --rm healthreport \
+  --send --ntfy-topic homelab-health-test
+```
 
 ```bash
 # one collector, no state, no delivery
-docker compose --profile cron run --rm healthreport \
+docker compose run --rm healthreport \
   --collect-only --collector host_metrics --pretty
 
 # full run: collect, classify, diff, render. Prints Markdown, sends nothing,
 # does not rotate state.
-docker compose --profile cron run --rm healthreport --dry-run
+docker compose run --rm healthreport --dry-run
 
 # the real thing (what the timer runs)
-docker compose --profile cron run --rm healthreport --send
+docker compose run --rm healthreport --send
 
 # delivery smoke test on a throwaway topic
-docker compose --profile cron run --rm healthreport \
+docker compose run --rm healthreport \
   --send --ntfy-topic homelab-health-test --email-to you@example.com
 ```
 
@@ -72,18 +89,18 @@ Failure paths, all of which must still produce a report and exit 0:
 
 ```bash
 # Ollama unreachable  -> llm_status=unavailable
-docker compose --profile cron run --rm healthreport \
+docker compose run --rm healthreport \
   --dry-run --ollama-url http://127.0.0.1:1
 
 # model returns junk   -> llm_status=degraded_invalid
-docker compose --profile cron run --rm healthreport \
+docker compose run --rm healthreport \
   --dry-run --llm-fixture tests/fixtures/bad-llm.json
 ```
 
 Offline diff against fixtures, no network at all:
 
 ```bash
-docker compose --profile cron run --rm healthreport \
+docker compose run --rm healthreport \
   --diff-only --facts tests/fixtures/facts-day2.json \
               --facts-previous tests/fixtures/facts-day1.json
 ```

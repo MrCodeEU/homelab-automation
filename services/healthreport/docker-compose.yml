@@ -3,10 +3,14 @@ services:
     build: .
     image: healthreport:local
     container_name: healthreport
-    # One-shot, invoked by a systemd timer. The profile keeps the services
-    # role's `docker compose up` from starting (and therefore sending) a
-    # report on every deploy.
-    profiles: ["cron"]
+    # One-shot, invoked by a systemd timer via `docker compose run`.
+    #
+    # No compose profile here on purpose: `docker compose up -d` on a project
+    # whose only service is profiled fails with "no service selected", which
+    # would break the services role's deploy step. Instead the default command
+    # is a no-op, so the role's `up -d` starts the container, it prints its
+    # configuration and exits 0, and no report is ever sent at deploy time.
+    command: ["--noop"]
     restart: "no"
     # Reaches VictoriaMetrics, Loki and Kuma on nuc's own interfaces, plus the
     # Tailscale addresses of mljr and nas, with no port plumbing.

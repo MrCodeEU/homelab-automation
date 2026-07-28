@@ -52,6 +52,9 @@ def parse_args(argv):
     parser.add_argument("--ntfy-topic", help="override the ntfy topic")
     parser.add_argument("--email-to", help="override the email recipient")
     parser.add_argument("--state-dir", help="override the state directory")
+    parser.add_argument("--noop", action="store_true",
+                        help="print the resolved configuration and exit; the compose "
+                             "default command, so a deploy never sends a report")
     parser.add_argument("--pretty", action="store_true", help="indent JSON output")
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args(argv)
@@ -161,6 +164,29 @@ def main(argv=None):
         stream=sys.stderr,
     )
     config = build_config(args)
+
+    # --- no-op ---------------------------------------------------------------
+    # What `docker compose up -d` runs at deploy time. Touches nothing.
+    if args.noop:
+        print("healthreport configuration:")
+        for label, value in (
+            ("victoria", config.victoria_url),
+            ("loki", config.loki_url),
+            ("kuma", "%s (api key %s)" % (config.kuma_url,
+                                          "set" if config.kuma_api_key else "MISSING")),
+            ("ollama", "%s model=%s enabled=%s" % (config.ollama_url, config.ollama_model,
+                                                   config.llm_enabled)),
+            ("ssh hosts", ", ".join(sorted(config.ssh_hosts)) or "NONE"),
+            ("github", "token %s owner=%s" % ("set" if config.github_token else "MISSING",
+                                              config.github_owner or "?")),
+            ("ntfy", "%s/%s" % (config.ntfy_url, config.ntfy_topic)),
+            ("email", config.email_to or "MISSING"),
+            ("state", config.state_dir),
+        ):
+            print("  %-10s %s" % (label, value))
+        print("no-op: nothing collected, nothing sent")
+        return 0
+
     rules = severity.load_rules(config.rules_path)
 
     # --- offline diff -------------------------------------------------------
