@@ -16,8 +16,11 @@ cd "$SERVICE_DIR"
 echo "==> building health report image"
 docker compose build healthreport
 
-install -d -m 0755 /opt/healthreport/state
-install -d -m 0700 /opt/healthreport/ssh
+# Owned by the ansible role; created here too so a manual `docker compose run`
+# works on a host that has not had a full play run yet. uid 10001 matches the
+# unprivileged user in the Dockerfile.
+install -d -o 10001 -g 10001 -m 0755 /var/lib/healthreport/state
+install -d -o 10001 -g 10001 -m 0700 /var/lib/healthreport/ssh
 
 cat > /etc/systemd/system/${UNIT_NAME}.service <<EOF
 [Unit]

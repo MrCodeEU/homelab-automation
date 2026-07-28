@@ -2,7 +2,11 @@
 # Host-side layout for the health report agent. The agent itself is a compose
 # service deployed by roles/services; this role only owns the state that must
 # outlive the container.
-healthreport_root: /opt/healthreport
+# NOT under /opt/<service>: the services role rsyncs into that path with
+# delete: true, which wipes anything it does not know about. Putting the facts
+# history, the seen-state and the SSH key there meant every deploy destroyed
+# the run-over-run history the whole report is built on.
+healthreport_root: /var/lib/healthreport
 healthreport_state_dir: "{{ healthreport_root }}/state"
 healthreport_ssh_dir: "{{ healthreport_root }}/ssh"
 healthreport_key_path: "{{ healthreport_ssh_dir }}/id_ed25519"

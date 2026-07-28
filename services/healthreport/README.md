@@ -120,13 +120,13 @@ finding is noise, either raise its threshold or move its rule to `new_only`.
 
 ## State
 
-`/opt/healthreport/state` on nuc:
+`/var/lib/healthreport/state` on nuc:
 
 - `facts-latest.json`, `facts-previous.json` — the two runs being compared
 - `history/facts-YYYYMMDD.json` — 30 days
 - `seen/observations.json` — first/last seen per observation id; this is what
   makes "since 2026-07-21" and SMART sector trends possible
 
-`/opt/healthreport/ssh/id_ed25519` is the facts-endpoint key. It is
+`/var/lib/healthreport/ssh/id_ed25519` is the facts-endpoint key. It is
 forced-command restricted on the remote side, but keep it 0600 and out of the
 backup set regardless.

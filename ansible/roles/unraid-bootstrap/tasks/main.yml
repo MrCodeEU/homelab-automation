@@ -83,12 +83,22 @@
   register: unraid_schedule_raw
   failed_when: false
 
+# `backup: true` cannot be used here: the Unraid boot flash is vfat, and
+# Ansible's backup filenames embed a timestamp containing colons, which vfat
+# rejects with EINVAL. Keep a single fixed-name copy instead.
+- name: Back up the existing User Scripts schedule
+  ansible.builtin.copy:
+    src: "{{ unraid_userscripts_path }}/schedule.json"
+    dest: "{{ unraid_userscripts_path }}/schedule.json.ansible-bak"
+    remote_src: true
+    mode: "0644"
+  when: unraid_schedule_raw.content is defined
+
 - name: Merge the bootstrap entry into the schedule and drop retired entries
   ansible.builtin.copy:
     content: "{{ unraid_schedule_merged | to_nice_json(indent=4) }}\n"
     dest: "{{ unraid_userscripts_path }}/schedule.json"
     mode: "0644"
-    backup: true
   vars:
     unraid_schedule_existing: >-
       {{ (unraid_schedule_raw.content | b64decode | from_json)
