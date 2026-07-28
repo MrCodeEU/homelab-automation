@@ -668,10 +668,11 @@ backup_auto_detect_volumes: true
 # services/healthreport/rules.yml; the LLM only writes prose and ranks issues.
 healthreport_schedule: "*-*-* 06:00:00"  # Daily at 6 AM (systemd calendar format)
 healthreport_lookback_hours: 24
-# Ollama on the NAS. Keep disabled until the collectors have run for a few
-# days and rules.yml is tuned against real data - the report is fully useful
-# without it, and the fallback narrative covers every failure mode.
-healthreport_llm_enabled: false
+# Ollama on the NAS. Enabled after rules.yml was tuned against two real runs
+# and the LLM path was verified end to end (llm=ok, no dropped ids, model
+# unloaded even when generation fails). The report stays fully useful without
+# it: any LLM failure degrades to the mechanical narrative and still sends.
+healthreport_llm_enabled: true
 healthreport_model: "qwen3:8b"
 
 # Mailcow configuration
