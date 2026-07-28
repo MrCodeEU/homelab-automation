@@ -27,6 +27,11 @@ NOT_ERROR_PATTERN = r'(error=<nil>|error=null|"error":null|"error":""|err=<nil>|
 # own chatter.
 SELF_LOG_PATTERN = r'(component=querier|component=ingester|caller=(metrics|engine)\.go)'
 
+# A signature must recur this often within the sample before it becomes an
+# observation, and only this many are reported per run.
+MIN_SIGNATURE_COUNT = 10
+MAX_SIGNATURES = 15
+
 DOCKER_ERRORS = '{job="docker"} |~ `%s` !~ `%s` !~ `%s`' % (
     ERROR_PATTERN, NOT_ERROR_PATTERN, SELF_LOG_PATTERN,
 )
@@ -134,9 +139,18 @@ def collect(config, rules):
             })
             entry["count"] += 1
 
+    # Distinct error signatures appear constantly in a busy homelab: the first
+    # real run produced 38 new-signature warnings in one go, which is precisely
+    # the volume that trains you to ignore the report. Only signatures that
+    # recur meaningfully are worth waking up for; the rest stay in `data` for
+    # forensics without becoming observations.
+    ranked = sorted(signatures.values(), key=lambda e: -e["count"])
+    notable = [e for e in ranked if e["count"] >= MIN_SIGNATURE_COUNT][:MAX_SIGNATURES]
+
     result.data = {
         "signature_count": len(signatures),
-        "signatures": sorted(signatures.values(), key=lambda e: -e["count"])[:100],
+        "notable_count": len(notable),
+        "signatures": ranked[:100],
         "per_container": [
             {"host": h, "container": c, "errors": n}
             for (h, c), n in per_container.most_common(50)
@@ -145,7 +159,7 @@ def collect(config, rules):
 
     # Emitted for every signature; the diff decides which are actually new, and
     # the severity rules only escalate the new ones.
-    for entry in result.data["signatures"]:
+    for entry in notable:
         obs.append(Observation(
             id="log_signature.%s.%s" % (entry["container"], _sig_key(entry["signature"])),
             collector="logs",

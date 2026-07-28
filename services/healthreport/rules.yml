@@ -218,7 +218,11 @@ rules:
   log_error_rate:
     type: threshold
     direction: above
-    warn: 500
+    # Tuned against real volume: normal chatty containers sit in the tens of
+    # thousands per day (grafana-alloy ~59k, nextcloud-aio-database ~234k), so
+    # 500 flagged ten containers on the first run and meant nothing. This
+    # catches genuine spew, not background noise.
+    warn: 5000
 
   caddy_5xx:
     type: threshold

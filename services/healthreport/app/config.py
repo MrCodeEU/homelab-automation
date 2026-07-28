@@ -48,7 +48,9 @@ class Config:
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen3:8b"
     llm_enabled: bool = False
-    llm_timeout_s: int = 180
+    # CPU inference on the NAS. 8B at ~10-18 tok/s needs headroom even with
+    # thinking disabled; 180s was not enough and every run degraded.
+    llm_timeout_s: int = 300
 
     # Hosts reachable through the forced-command SSH endpoint. The local host
     # runs the script directly instead of dialling itself over SSH.
