@@ -1,0 +1,37 @@
+services:
+  nas-alloy:
+    image: grafana/alloy:latest
+    container_name: nas-alloy
+    restart: unless-stopped
+    # Mirrors the rocky-host setup in ansible/roles/grafana-alloy, but as a
+    # compose project because Unraid has no docker Python SDK for
+    # community.docker.docker_container.
+    network_mode: host
+    pid: host
+    user: root
+    command:
+      - run
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+      - /:/hostfs:ro
+      - /proc:/hostfs/proc:ro
+      - /sys:/hostfs/sys:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+      - /var/log:/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  alloy-data:

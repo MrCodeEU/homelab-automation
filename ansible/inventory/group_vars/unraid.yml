@@ -1,0 +1,27 @@
+---
+# Unraid-specific overrides
+# ============================================================================
+# Unraid's root filesystem is a RAM tmpfs rebuilt from /boot/config on every
+# boot. Anything Ansible writes outside the array or /boot is lost on reboot.
+# Docker itself persists (docker.img lives on the array) and containers with
+# `restart: unless-stopped` do come back, but their compose files do not.
+#
+# Only services explicitly marked `managed: true` in the service catalog are
+# deployed here. Everything else on the NAS remains owned by the Unraid UI.
+# ============================================================================
+
+# /opt is tmpfs on Unraid. Deploy onto the array instead.
+base_path: /mnt/user/appdata/homelab
+
+# CRITICAL: the services role's orphan cleanup must never run against the NAS.
+# Most containers there were created through the Unraid UI and are invisible to
+# the service catalog, so cleanup would treat them as retired and remove them.
+cleanup_enabled: false
+
+# Anything that must survive a reboot is written here and restored at array
+# start by the unraid-bootstrap user script.
+unraid_persist_path: /boot/config
+
+# Verified present: Python 3.9.16 (2026-07-28). Without this, Ansible would
+# fall back to interpreter discovery, which is unreliable on Slackware.
+ansible_python_interpreter: /usr/bin/python3

@@ -1,0 +1,75 @@
+{% macro line(obs) -%}
+- **{{ obs.severity | upper }}** `{{ obs.id }}` — {{ obs.message }}{% if obs.first_seen and obs.id in facts.diff.persisting %} _(since {{ obs.first_seen[:10] }})_{% endif %}
+{%- endmacro %}
+# Homelab health — {{ facts.run.id[:10] }}
+
+{% if narrative %}**{{ narrative.headline }}**
+
+{{ narrative.assessment }}
+{% else %}{{ fallback }}
+{% endif %}
+
+{{ summary_counts }}
+
+{% if facts.diff.new %}
+## New today ({{ facts.diff.new | length }})
+{% for id in facts.diff.new %}{{ line(by_id[id]) }}
+{% endfor %}
+
+{% endif %}
+{% if facts.diff.worsened %}
+## Worsened ({{ facts.diff.worsened | length }})
+{% for item in facts.diff.worsened %}
+- **{{ item.from | upper }} → {{ item.to | upper }}** `{{ item.id }}` — {{ by_id[item.id].message }}
+{% endfor %}
+
+{% endif %}
+{% if facts.diff.reopened %}
+## Reopened ({{ facts.diff.reopened | length }})
+{% for id in facts.diff.reopened %}{{ line(by_id[id]) }}
+{% endfor %}
+
+{% endif %}
+{% if narrative and narrative.top_issues %}
+## What to look at first
+{% for issue in narrative.top_issues %}
+{{ loop.index }}. `{{ issue.observation_id }}` — {{ issue.why_it_matters }}
+{% endfor %}
+
+{% endif %}
+{% if narrative and narrative.suggested_actions %}
+### Suggested actions
+{% for action in narrative.suggested_actions %}
+- {{ action }}
+{% endfor %}
+
+{% endif %}
+{% if narrative and narrative.correlations %}
+### Possible correlations
+{% for correlation in narrative.correlations %}
+- {{ correlation }}
+{% endfor %}
+
+{% endif %}
+{% if facts.diff.resolved %}
+## Resolved since last run ({{ facts.diff.resolved | length }})
+{% for id in facts.diff.resolved %}
+- `{{ id }}`
+{% endfor %}
+
+{% endif %}
+{% if facts.diff.persisting %}
+## Still open ({{ facts.diff.persisting | length }})
+{% for id in facts.diff.persisting %}{{ line(by_id[id]) }}
+{% endfor %}
+
+{% endif %}
+{% if facts.summary.collectors_failed %}
+## Collectors that did not run
+{% for name in facts.summary.collectors_failed %}
+- `{{ name }}` — {{ facts.collectors[name].error }}
+{% endfor %}
+{% endif %}
+
+---
+Run {{ facts.run.id }} on {{ facts.run.host }} · LLM: {{ facts.llm_status }} · {{ facts.observations | length }} observations from {{ facts.collectors | length }} collectors.

@@ -1,0 +1,109 @@
+"""Deterministic severity classification.
+
+Every observation gets its severity from rules.yml, before the LLM runs. The
+model is handed already-classified data and is not permitted to change it -
+see llm.py, which strips severity-like keys from the response.
+"""
+
+from typing import Dict, List
+
+import yaml
+
+from .model import Observation
+
+FALSE_STRINGS = {"false", "0", "no", "none", "null", ""}
+
+
+def load_rules(path: str) -> Dict:
+    with open(path, "r") as fh:
+        return yaml.safe_load(fh) or {}
+
+
+def _numeric(value):
+    if isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _truthy(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() not in FALSE_STRINGS
+
+
+def classify(observation: Observation, rule: Dict, is_new: bool = False) -> str:
+    """Return the severity for one observation. Unknown kinds stay info."""
+    if not rule:
+        return "info"
+
+    subjects = rule.get("subjects")
+    if subjects and observation.subject not in subjects:
+        return "info"
+
+    rule_type = rule.get("type")
+
+    if rule_type == "threshold":
+        value = _numeric(observation.value)
+        if value is None:
+            return "info"
+        direction = rule.get("direction", "above")
+        for level in ("crit", "warn"):
+            limit = rule.get(level)
+            if limit is None:
+                continue
+            limit = float(limit)
+            if direction == "above" and value > limit:
+                observation.threshold = limit
+                return level
+            if direction == "below" and value < limit:
+                observation.threshold = limit
+                return level
+        return "info"
+
+    if rule_type == "equals":
+        value = str(observation.value)
+        if value in [str(v) for v in rule.get("crit_values", [])]:
+            return "crit"
+        if value in [str(v) for v in rule.get("warn_values", [])]:
+            return "warn"
+        return "info"
+
+    if rule_type == "not_equals":
+        ok = [str(v) for v in rule.get("ok_values", [])]
+        if str(observation.value) not in ok:
+            return rule.get("level", "warn")
+        return "info"
+
+    if rule_type == "truthy":
+        return rule.get("level", "warn") if _truthy(observation.value) else "info"
+
+    if rule_type == "falsy":
+        return rule.get("level", "warn") if not _truthy(observation.value) else "info"
+
+    if rule_type == "present":
+        return rule.get("level", "warn")
+
+    if rule_type == "new_only":
+        # Only interesting the first time it is seen. Steady-state noise stays
+        # info so it never reaches the report body.
+        return rule.get("level", "warn") if is_new else "info"
+
+    return "info"
+
+
+def apply(observations: List[Observation], rules: Dict, new_ids=frozenset()) -> List[Observation]:
+    table = (rules or {}).get("rules", {})
+    for observation in observations:
+        observation.severity = classify(
+            observation,
+            table.get(observation.kind, {}),
+            is_new=observation.id in new_ids,
+        )
+    return observations

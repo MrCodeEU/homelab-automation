@@ -63,7 +63,12 @@ swap_file_size_mb: 2048
 #   host            - Target host from inventory
 #   description     - Human-readable description
 #   icon            - Material Design Icon for dashboard
-#   managed         - If false, only configure Caddy (external service)
+#   managed         - If false, only configure Caddy (external service).
+#                     Most host: nas entries are managed: false because those
+#                     containers belong to the Unraid UI. A handful are
+#                     deliberately managed: true and deployed by the Unraid play
+#                     in playbooks/site.yml - see inventory/group_vars/unraid.yml.
+#                     Do not "correct" those back to false.
 #   caddy_auth      - Authentication method: "basicauth" or "authelia" (SSO)
 #   skip_deploy     - Skip generic deployment (uses dedicated role)
 #   backup_critical - If true, restore this service on fresh install
@@ -129,6 +134,17 @@ services:
     description: "Uptime Monitoring"
     icon: "mdi:heart-pulse"
     backup_critical: true  # Restore on fresh install
+
+  # One-shot container behind a compose "cron" profile: nothing runs at deploy
+  # time. The post-deploy hook builds the image and installs a systemd timer.
+  # No domain and no port, so Caddy and Kuma both stay out of it.
+  - name: healthreport
+    enabled: true
+    port: 0
+    host: nuc
+    build_from_source: true  # No published image - built from services/healthreport/Dockerfile
+    description: "Daily homelab health report (collect, triage, ntfy + email)"
+    icon: "mdi:clipboard-pulse"
 
   - name: grafana
     enabled: true
@@ -365,6 +381,25 @@ services:
     icon: "mdi:speedometer"
 
   # NAS Services (Unraid)
+  # Ansible-managed on Unraid (managed: true). Deployed by the Unraid play in
+  # playbooks/site.yml into /mnt/user/appdata/homelab. No domain, so Caddy is
+  # not involved and Kuma does not auto-provision an HTTP monitor.
+  - name: nas-alloy
+    enabled: true
+    managed: true
+    port: 0
+    host: nas
+    description: "Grafana Alloy telemetry agent for the NAS"
+    icon: "mdi:chart-line"
+
+  - name: ollama
+    enabled: true
+    managed: true
+    port: 11434
+    host: nas
+    description: "Ollama LLM runtime (health report triage). Tailscale-only, no Caddy route."
+    icon: "mdi:robot"
+
   - name: nas
     enabled: true
     managed: false
@@ -607,6 +642,8 @@ post_deploy_hook_services:
   - grafana     # Stable datasource UID convergence
   - speedtest   # Netronome admin password convergence
   - godrive-demo  # Install systemd daily-reset timer
+  - ollama      # Pull the health report triage model
+  - healthreport  # Build the image and install the systemd timer
 
 critical_hook_services:
   - crowdsec
@@ -623,6 +660,19 @@ backup_remote_path: "homelab-backups"
 backup_local_path: "{{ backup_path }}"
 backup_rclone_config_path: "/root/.config/rclone"
 backup_auto_detect_volumes: true
+
+# ============================================================================
+# Health Report Agent
+# ============================================================================
+# Runs on nuc. Collectors are deterministic and severity comes from
+# services/healthreport/rules.yml; the LLM only writes prose and ranks issues.
+healthreport_schedule: "*-*-* 06:00:00"  # Daily at 6 AM (systemd calendar format)
+healthreport_lookback_hours: 24
+# Ollama on the NAS. Keep disabled until the collectors have run for a few
+# days and rules.yml is tuned against real data - the report is fully useful
+# without it, and the fallback narrative covers every failure mode.
+healthreport_llm_enabled: false
+healthreport_model: "qwen3:8b"
 
 # Mailcow configuration
 mailcow_install_path: "{{ base_path }}/mailcow-dockerized"

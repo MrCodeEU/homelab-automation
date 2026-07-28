@@ -47,7 +47,9 @@
 # Container Reconciliation (remove retired standalone containers before deploy)
 # ============================================================================
 - name: Container Reconciliation
-  hosts: managed
+  # rocky only: container-reconcile uses community.docker.docker_container_info,
+  # which needs the docker Python SDK. Unraid does not have it.
+  hosts: rocky
   become: true
   gather_facts: false
   strategy: free
@@ -123,6 +125,41 @@
   roles:
     - authelia
 
+# ============================================================================
+# Health Report Agent - host-side state (nuc only)
+# ============================================================================
+# Must run before both the Docker Services play (the container mounts these
+# directories) and the Host Facts Endpoint play (which authorizes the public
+# key generated here).
+- name: Health Report Agent State
+  hosts: nuc
+  become: true
+  gather_facts: false
+  tags:
+    - services
+    - healthreport
+    - monitoring
+  roles:
+    - healthreport
+
+# ============================================================================
+# Host Facts Endpoint (all managed hosts)
+# ============================================================================
+# Read-only facts script plus a forced-command SSH key, so the agent on nuc can
+# read CrowdSec, nftables and Unraid array state without opening a new port.
+- name: Host Facts Endpoint
+  hosts: managed
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - services
+    - healthreport
+    - monitoring
+    - security
+  roles:
+    - host-facts-endpoint
+
 - name: Docker Services
   hosts: rocky
   become: true
@@ -131,6 +168,25 @@
   tags:
     - services
   roles:
+    - services
+
+# ============================================================================
+# Unraid Services (nas - only catalog entries marked `managed: true`)
+# ============================================================================
+# The NAS is partially managed: most containers still belong to the Unraid UI.
+# cleanup_enabled is forced false in group_vars/unraid.yml so orphan cleanup can
+# never touch them. unraid-bootstrap must run first - it creates the array-side
+# layout the services role deploys into.
+- name: Unraid Services
+  hosts: unraid
+  become: true
+  gather_facts: false
+  strategy: free
+  tags:
+    - services
+    - unraid
+  roles:
+    - unraid-bootstrap
     - services
 
 # ============================================================================

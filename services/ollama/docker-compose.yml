@@ -1,0 +1,31 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      # BIND_ADDR resolves to the NAS Tailscale IP, so the health report on nuc
+      # can reach it while the LAN and public interfaces cannot.
+      - "${BIND_ADDR:-127.0.0.1}:11434:11434"
+      # Loopback too, so the services role's post-deploy health check against
+      # http://localhost:11434 reports HEALTHY instead of a permanent PENDING.
+      # Safe only because this service is pinned to host: nas, where BIND_ADDR
+      # is always the Tailscale IP - on mljr the two would collide.
+      - "127.0.0.1:11434:11434"
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+      # The health report explicitly unloads its model after each run. This is
+      # the backstop: if the reporter crashes mid-run, the model still cannot
+      # stay resident in NAS RAM.
+      - OLLAMA_KEEP_ALIVE=30s
+      - OLLAMA_MAX_LOADED_MODELS=1
+      - OLLAMA_NUM_PARALLEL=1
+    volumes:
+      # Explicit array path, not a named volume: models are several GB and
+      # Unraid users expect them under appdata.
+      - /mnt/user/appdata/ollama:/root/.ollama
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

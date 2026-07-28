@@ -70,3 +70,6 @@ check.run
 
 # syncthing sync conflict files
 *.sync-conflict-*
+# Python bytecode (health report agent, test scripts)
+__pycache__/
+*.pyc

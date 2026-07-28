@@ -4,7 +4,9 @@ services:
     container_name: uptime-kuma
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      # BIND_ADDR resolves to the host's Tailscale IP on nuc, so Caddy on mljr
+      # still reaches it while the LAN/public interfaces do not.
+      - "${BIND_ADDR:-127.0.0.1}:3001:3001"
     volumes:
       - uptime-kuma-data:/app/data
     environment:

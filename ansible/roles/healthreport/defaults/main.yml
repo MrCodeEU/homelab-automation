@@ -1,0 +1,14 @@
+---
+# Host-side layout for the health report agent. The agent itself is a compose
+# service deployed by roles/services; this role only owns the state that must
+# outlive the container.
+healthreport_root: /opt/healthreport
+healthreport_state_dir: "{{ healthreport_root }}/state"
+healthreport_ssh_dir: "{{ healthreport_root }}/ssh"
+healthreport_key_path: "{{ healthreport_ssh_dir }}/id_ed25519"
+
+# The container runs unprivileged as this uid (see services/healthreport/
+# Dockerfile). The state directory and the SSH key must be owned by it, or the
+# agent cannot write facts and ssh refuses the key.
+healthreport_uid: 10001
+

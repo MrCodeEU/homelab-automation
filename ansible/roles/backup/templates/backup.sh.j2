@@ -104,9 +104,18 @@ backup_volume() {
 
 backup_path() {
     local source_path="$1"
+    # "optional" means the path is expected not to exist yet, for a service
+    # that is registered for backup but not configured. Without this, such a
+    # service reports a failure every single night until someone gets round to
+    # setting it up, which trains you to ignore backup warnings.
+    local optional="${2:-false}"
     local backup_name=$(basename "$source_path")
 
     if [ ! -d "$source_path" ]; then
+        if [ "$optional" = "true" ]; then
+            log "Skipping optional path $source_path (not configured yet)"
+            return 0
+        fi
         log_warn "Path $source_path not found"
         return 1
     fi
@@ -192,7 +201,7 @@ main() {
 
 {% if config.backup_paths is defined %}
 {% for path in config.backup_paths %}
-    backup_path "{{ path }}" || service_failed=true
+    backup_path "{{ path }}" "{{ config.backup_optional | default(false) | string | lower }}" || service_failed=true
 {% endfor %}
 {% endif %}
 

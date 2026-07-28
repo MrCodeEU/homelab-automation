@@ -276,6 +276,11 @@ jobs:
             echo '  - name: https://github.com/ansible-collections/community.library_inventory_filtering.git' >> requirements-fallback.yml
             echo '    type: git' >> requirements-fallback.yml
             echo '    version: stable-1' >> requirements-fallback.yml
+            # openssh_keypair, used by roles/healthreport. Without it the
+            # fallback path installs a set that cannot run site.yml.
+            echo '  - name: https://github.com/ansible-collections/community.crypto.git' >> requirements-fallback.yml
+            echo '    type: git' >> requirements-fallback.yml
+            echo '    version: main' >> requirements-fallback.yml
 
             echo "Installing collections from GitHub (with --no-deps to skip Galaxy)..."
             if ansible-galaxy collection install -r requirements-fallback.yml --no-deps --force 2>&1; then

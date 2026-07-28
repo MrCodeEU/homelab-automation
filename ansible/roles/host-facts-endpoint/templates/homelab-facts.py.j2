@@ -1,0 +1,470 @@
+#!/usr/bin/env python3
+"""Read-only host facts endpoint for the homelab health report.
+
+Managed by Ansible (roles/host-facts-endpoint) - do not edit manually.
+
+Invoked through a restricted SSH key that forces this exact command:
+
+    restrict,from="<nuc>",command="/usr/local/bin/homelab-facts"
+
+It takes no arguments and deliberately ignores SSH_ORIGINAL_COMMAND, so there
+is no input to inject into. Every subprocess call below is a fixed argument
+list with shell=False. Nothing here writes, deletes or mutates state.
+
+Targets Python 3.9 (mljr and nas ship 3.9), so no match statements and no
+dict union operator.
+"""
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+
+TIMEOUT = 20
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
+OS_FAMILY = "{{ 'unraid' if inventory_hostname in (groups['unraid'] | default([])) else 'rocky' }}"
+HOSTNAME = "{{ inventory_hostname }}"
+
+
+def run(args, timeout=TIMEOUT):
+    """Run a fixed argument list. Never raises; returns a result dict."""
+    try:
+        proc = subprocess.run(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+            shell=False,
+        )
+        return {
+            "ok": proc.returncode == 0,
+            "rc": proc.returncode,
+            "stdout": proc.stdout.decode("utf-8", "replace"),
+            "stderr": proc.stderr.decode("utf-8", "replace")[:2000],
+        }
+    except FileNotFoundError:
+        return {"ok": False, "rc": 127, "stdout": "", "stderr": "not installed"}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "rc": 124, "stdout": "", "stderr": "timeout"}
+    except Exception as exc:  # never let one probe kill the whole payload
+        return {"ok": False, "rc": 1, "stdout": "", "stderr": str(exc)[:2000]}
+
+
+def run_json(args, timeout=TIMEOUT):
+    """Run a command expected to emit JSON. Returns (data, error)."""
+    res = run(args, timeout)
+    if not res["ok"]:
+        return None, res["stderr"].strip() or ("exit %d" % res["rc"])
+    try:
+        return json.loads(res["stdout"]), None
+    except ValueError as exc:
+        return None, "unparseable JSON: %s" % exc
+
+
+def section(fn):
+    """Wrap a collector so a failure is reported, not fatal."""
+    try:
+        return {"status": "ok", "error": None, "data": fn()}
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)[:500], "data": None}
+
+
+# ---------------------------------------------------------------------------
+# Shared
+# ---------------------------------------------------------------------------
+
+def collect_uptime():
+    with open("/proc/uptime") as fh:
+        return {"uptime_seconds": float(fh.read().split()[0])}
+
+
+def collect_filesystems():
+    res = run(["df", "-P", "-k"])
+    rows = []
+    for line in res["stdout"].splitlines()[1:]:
+        parts = line.split(None, 5)
+        if len(parts) < 6:
+            continue
+        fs, blocks, used, avail, _pct, mount = parts
+        try:
+            total_b = int(blocks) * 1024
+            used_b = int(used) * 1024
+            avail_b = int(avail) * 1024
+        except ValueError:
+            continue
+        if total_b == 0:
+            continue
+        rows.append({
+            "filesystem": fs,
+            "mount": mount,
+            "total_bytes": total_b,
+            "used_bytes": used_b,
+            "available_bytes": avail_b,
+            "used_percent": round(used_b * 100.0 / total_b, 2),
+        })
+    return rows
+
+
+def collect_docker():
+    """Container inventory including exit codes and restart counts."""
+    res = run([
+        "docker", "ps", "-a",
+        "--format", "{{ '{{json .}}' }}",
+    ])
+    containers = []
+    for line in res["stdout"].splitlines():
+        try:
+            containers.append(json.loads(line))
+        except ValueError:
+            continue
+
+    # Restart counts are not in `docker ps`; inspect is the only source.
+    names = [c.get("Names", "") for c in containers if c.get("Names")]
+    restarts = {}
+    if names:
+        fmt = "{{ '{{.Name}} {{.RestartCount}} {{.State.Health.Status}}' }}"
+        insp = run(["docker", "inspect", "--format", fmt] + names, timeout=30)
+        for line in insp["stdout"].splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                restarts[parts[0].lstrip("/")] = {
+                    "restart_count": int(parts[1]) if parts[1].isdigit() else None,
+                    "health": parts[2] if len(parts) > 2 else None,
+                }
+    for c in containers:
+        c["_meta"] = restarts.get(c.get("Names", ""), {})
+    return containers
+
+
+# ---------------------------------------------------------------------------
+# Rocky
+# ---------------------------------------------------------------------------
+
+# Transient per-login scopes that fail routinely when a session is torn down.
+# On mljr these accounted for 14 of 15 "failed" units and carry no signal.
+SYSTEMD_NOISE = re.compile(r"^session-c?\d+\.scope$")
+
+
+def collect_systemd_failed():
+    res = run(["systemctl", "list-units", "--failed", "--output=json", "--no-pager"])
+    try:
+        units = json.loads(res["stdout"] or "[]")
+    except ValueError:
+        return []
+    return [u for u in units if not SYSTEMD_NOISE.match(u.get("unit", ""))]
+
+
+def collect_nftables():
+    """Ruleset digest plus counts. The full ruleset is large and mostly the
+    CrowdSec IP set, so ship a shape summary rather than every element."""
+    data, err = run_json(["nft", "-j", "list", "ruleset"], timeout=30)
+    if err:
+        return {"error": err}
+    nftables = data.get("nftables", [])
+    tables, chains, rules, set_elements = [], 0, 0, {}
+    for item in nftables:
+        if "table" in item:
+            tables.append(item["table"].get("name"))
+        elif "chain" in item:
+            chains += 1
+        elif "rule" in item:
+            rules += 1
+        elif "set" in item:
+            name = item["set"].get("name")
+            elems = item["set"].get("elem", [])
+            set_elements[name] = len(elems) if isinstance(elems, list) else 0
+    return {
+        "tables": tables,
+        "chain_count": chains,
+        "rule_count": rules,
+        "set_element_counts": set_elements,
+    }
+
+
+def collect_security_updates():
+    res = run(["dnf", "-q", "updateinfo", "list", "security"], timeout=120)
+    advisories = []
+    for line in res["stdout"].splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[0].startswith(("RHSA", "FEDORA", "RLSA", "ALSA")):
+            advisories.append({
+                "advisory": parts[0],
+                "severity": parts[1],
+                "package": parts[2],
+            })
+    return {"count": len(advisories), "advisories": advisories[:50]}
+
+
+def collect_crowdsec():
+    """CrowdSec runs in a container; cscli is only available inside it."""
+    if not shutil.which("docker"):
+        return {"available": False, "reason": "docker not installed"}
+    probe = run(["docker", "inspect", "-f", "{{ '{{.State.Running}}' }}", "crowdsec"])
+    if not probe["ok"] or probe["stdout"].strip() != "true":
+        return {"available": False, "reason": "crowdsec container not running"}
+
+    out = {"available": True}
+    decisions, err = run_json(
+        ["docker", "exec", "crowdsec", "cscli", "decisions", "list", "-o", "json"], timeout=30)
+    # cscli emits "null" when there are no decisions.
+    out["decisions"] = decisions or []
+    out["decisions_error"] = err
+
+    alerts, err = run_json(
+        ["docker", "exec", "crowdsec", "cscli", "alerts", "list", "-o", "json"], timeout=30)
+    out["alerts"] = alerts or []
+    out["alerts_error"] = err
+
+    bouncers, err = run_json(
+        ["docker", "exec", "crowdsec", "cscli", "bouncers", "list", "-o", "json"], timeout=30)
+    out["bouncers"] = bouncers or []
+    out["bouncers_error"] = err
+    return out
+
+
+def collect_backup_log():
+    log_dir = "{{ backup_local_path | default('/opt/backups') }}/logs"
+    if not os.path.isdir(log_dir):
+        return {"available": False, "reason": "no log directory"}
+    logs = sorted(
+        (os.path.join(log_dir, f) for f in os.listdir(log_dir) if f.startswith("backup-")),
+        key=os.path.getmtime,
+        reverse=True,
+    )
+    if not logs:
+        return {"available": False, "reason": "no backup logs"}
+    newest = logs[0]
+    with open(newest, "r", errors="replace") as fh:
+        lines = fh.readlines()
+
+    # The script writes colour codes; strip them or every comparison downstream
+    # has to know about escape sequences.
+    clean = [ANSI.sub("", line).rstrip("\n") for line in lines]
+
+    # Trust the summary block, not a substring search. A log can contain both
+    # "SUCCESS" and "failed" in the same run (a non-critical service failing
+    # while critical ones succeed), which makes naive matching useless.
+    summary = {}
+    for line in clean:
+        m = re.search(r"(Total services|Successful|Critical failures|Non-critical failures):\s*(\d+)", line)
+        if m:
+            summary[m.group(1).lower().replace(" ", "_").replace("-", "_")] = int(m.group(2))
+
+    failed_services = []
+    for line in clean:
+        m = re.search(r"backup failures?:\s*(.+)$", line)
+        if m:
+            failed_services = [s.strip() for s in m.group(1).split(",") if s.strip()]
+
+    critical = summary.get("critical_failures")
+    noncritical = summary.get("non_critical_failures")
+    return {
+        "available": True,
+        "file": newest,
+        "age_seconds": time.time() - os.path.getmtime(newest),
+        "summary": summary,
+        "failed_services": failed_services,
+        "critical_failures": critical,
+        "non_critical_failures": noncritical,
+        # Only true when the run actually reported a complete summary.
+        "completed": critical is not None,
+        "tail": clean[-40:],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Unraid
+# ---------------------------------------------------------------------------
+
+def _mdcmd_status():
+    res = run(["mdcmd", "status"])
+    out = {}
+    for line in res["stdout"].splitlines():
+        if "=" in line:
+            key, _, value = line.partition("=")
+            out[key.strip()] = value.strip()
+    return out
+
+
+def collect_unraid_array():
+    md = _mdcmd_status()
+    disks = {}
+    for key, value in md.items():
+        m = re.match(r"^rdev(Status|Name|Id)\.(\d+)$", key)
+        if m:
+            field, idx = m.group(1), m.group(2)
+            disks.setdefault(idx, {})[field.lower()] = value
+
+    def as_int(key):
+        try:
+            return int(md.get(key, ""))
+        except (TypeError, ValueError):
+            return None
+
+    synced = as_int("sbSynced")
+    synced2 = as_int("sbSynced2")
+    return {
+        "state": md.get("mdState"),
+        "num_disks": as_int("mdNumDisks"),
+        "sync_errors": as_int("sbSyncErrs"),
+        "sync_exit_code": as_int("sbSyncExit"),
+        "sync_action": md.get("mdResyncAction"),
+        # mdResync is non-zero while a parity check is running.
+        "resync_active": (as_int("mdResync") or 0) > 0,
+        "resync_position": as_int("mdResyncPos"),
+        "resync_size": as_int("mdResync"),
+        "last_check_started_epoch": synced,
+        "last_check_finished_epoch": synced2,
+        "last_check_age_seconds": (time.time() - synced2) if synced2 else None,
+        "disks": [
+            {
+                "slot": idx,
+                "name": info.get("name"),
+                "id": info.get("id"),
+                "status": info.get("status"),
+            }
+            for idx, info in sorted(disks.items(), key=lambda kv: int(kv[0]))
+            # Empty slots report an empty id; not a fault.
+            if info.get("id")
+        ],
+    }
+
+
+def collect_unraid_smart():
+    scan, err = run_json(["smartctl", "--scan-open", "-j"], timeout=30)
+    if err:
+        return {"error": err, "devices": []}
+    devices = []
+    for dev in (scan or {}).get("devices", []):
+        name = dev.get("name")
+        if not name:
+            continue
+        args = ["smartctl", "-H", "-A", "-i", "-j", "-d", dev.get("type", "auto"), name]
+        data, derr = run_json(args, timeout=30)
+        if derr or not data:
+            devices.append({"device": name, "error": derr or "no data"})
+            continue
+
+        attrs = {}
+        for attr in (data.get("ata_smart_attributes", {}) or {}).get("table", []):
+            attrs[attr.get("name")] = attr.get("raw", {}).get("value")
+
+        devices.append({
+            "device": name,
+            "model": data.get("model_name"),
+            "serial": data.get("serial_number"),
+            "passed": (data.get("smart_status", {}) or {}).get("passed"),
+            "temperature_c": (data.get("temperature", {}) or {}).get("current"),
+            "power_on_hours": (data.get("power_on_time", {}) or {}).get("hours"),
+            # The two attributes that predict failure before any threshold trips.
+            "reallocated_sectors": attrs.get("Reallocated_Sector_Ct"),
+            "pending_sectors": attrs.get("Current_Pending_Sector"),
+            "offline_uncorrectable": attrs.get("Offline_Uncorrectable"),
+            "udma_crc_errors": attrs.get("UDMA_CRC_Error_Count"),
+            # NVMe reports differently.
+            "nvme_percentage_used": (data.get("nvme_smart_health_information_log", {}) or {})
+                .get("percentage_used"),
+            "nvme_media_errors": (data.get("nvme_smart_health_information_log", {}) or {})
+                .get("media_errors"),
+        })
+    return {"devices": devices}
+
+
+def collect_unraid_notifications():
+    """Unread notifications raised by Unraid itself (disk, plugin, update)."""
+    path = "/tmp/notifications/unread"
+    if not os.path.isdir(path):
+        return []
+    out = []
+    for name in sorted(os.listdir(path))[:100]:
+        full = os.path.join(path, name)
+        if not os.path.isfile(full):
+            continue
+        entry = {"file": name}
+        try:
+            with open(full, "r", errors="replace") as fh:
+                for line in fh:
+                    key, _, value = line.partition("=")
+                    key = key.strip()
+                    if key in ("event", "subject", "description", "importance", "timestamp"):
+                        entry[key] = value.strip().strip('"')
+        except OSError as exc:
+            entry["error"] = str(exc)
+        out.append(entry)
+    return out
+
+
+def collect_unraid_version():
+    info = {}
+    try:
+        with open("/etc/unraid-version") as fh:
+            info["version"] = fh.read().strip().split("=")[-1].strip('"')
+    except OSError as exc:
+        info["error"] = str(exc)
+    # The plugin system drops .plg files here when an update is available.
+    update_dir = "/tmp/plugins"
+    if os.path.isdir(update_dir):
+        info["plugin_update_files"] = sorted(os.listdir(update_dir))[:50]
+    return info
+
+
+def collect_unraid_docker_image():
+    """A full docker.img silently breaks container writes."""
+    for path in ("/mnt/user/system/docker/docker.img", "/mnt/cache/system/docker/docker.img"):
+        if os.path.exists(path):
+            res = run(["df", "-P", "-k", "/var/lib/docker"])
+            lines = res["stdout"].splitlines()
+            if len(lines) >= 2:
+                parts = lines[1].split(None, 5)
+                if len(parts) >= 5:
+                    total = int(parts[1]) * 1024
+                    used = int(parts[2]) * 1024
+                    return {
+                        "image_path": path,
+                        "image_size_bytes": os.path.getsize(path),
+                        "total_bytes": total,
+                        "used_bytes": used,
+                        "used_percent": round(used * 100.0 / total, 2) if total else None,
+                    }
+    return {"available": False}
+
+
+# ---------------------------------------------------------------------------
+
+def main():
+    payload = {
+        "schema_version": 1,
+        "host": HOSTNAME,
+        "os_family": OS_FAMILY,
+        "collected_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "sections": {},
+    }
+    sections = payload["sections"]
+
+    sections["uptime"] = section(collect_uptime)
+    sections["filesystems"] = section(collect_filesystems)
+    sections["docker"] = section(collect_docker)
+
+    if OS_FAMILY == "unraid":
+        sections["unraid_array"] = section(collect_unraid_array)
+        sections["unraid_smart"] = section(collect_unraid_smart)
+        sections["unraid_notifications"] = section(collect_unraid_notifications)
+        sections["unraid_version"] = section(collect_unraid_version)
+        sections["unraid_docker_image"] = section(collect_unraid_docker_image)
+    else:
+        sections["systemd_failed"] = section(collect_systemd_failed)
+        sections["nftables"] = section(collect_nftables)
+        sections["security_updates"] = section(collect_security_updates)
+        sections["crowdsec"] = section(collect_crowdsec)
+        sections["backup"] = section(collect_backup_log)
+
+    json.dump(payload, sys.stdout)
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
