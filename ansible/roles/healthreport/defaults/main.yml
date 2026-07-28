@@ -1,0 +1,8 @@
+---
+# Host-side layout for the health report agent. The agent itself is a compose
+# service deployed by roles/services; this role only owns the state that must
+# outlive the container.
+healthreport_root: /opt/healthreport
+healthreport_state_dir: "{{ healthreport_root }}/state"
+healthreport_ssh_dir: "{{ healthreport_root }}/ssh"
+healthreport_key_path: "{{ healthreport_ssh_dir }}/id_ed25519"

@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Build the report image and install the systemd timer that runs it.
+#
+# The container is one-shot and lives behind the "cron" compose profile, so
+# nothing starts at deploy time. systemd (not an in-container scheduler) owns
+# the schedule, which gives Persistent=true catch-up after downtime and
+# matches roles/backup and roles/homepage-data-sync.
+set -euo pipefail
+
+SERVICE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+UNIT_NAME="homelab-healthreport"
+SCHEDULE="${HEALTHREPORT_SCHEDULE:-*-*-* 06:00:00}"
+
+cd "$SERVICE_DIR"
+
+echo "==> building health report image"
+docker compose --profile cron build healthreport
+
+install -d -m 0755 /opt/healthreport/state
+install -d -m 0700 /opt/healthreport/ssh
+
+cat > /etc/systemd/system/${UNIT_NAME}.service <<EOF
+[Unit]
+Description=Homelab daily health report
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=${SERVICE_DIR}
+# --send is the image's default CMD; stated explicitly so the unit is readable.
+ExecStart=/usr/bin/docker compose --profile cron run --rm healthreport --send
+TimeoutStartSec=1800
+EOF
+
+cat > /etc/systemd/system/${UNIT_NAME}.timer <<EOF
+[Unit]
+Description=Daily homelab health report
+
+[Timer]
+OnCalendar=${SCHEDULE}
+RandomizedDelaySec=5min
+# Catch up after the host was down at the scheduled time.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now ${UNIT_NAME}.timer
+
+echo "==> ${UNIT_NAME}.timer active; next run:"
+systemctl list-timers ${UNIT_NAME}.timer --no-pager || true

@@ -1,0 +1,86 @@
+---
+# Host facts endpoint
+# ============================================================================
+# Installs a read-only facts script and an SSH key restricted to running only
+# that script, so the health report on nuc can read state that is otherwise
+# loopback-bound (CrowdSec LAPI), root-only (nftables) or not a network
+# resource at all (Unraid array/SMART state).
+#
+# The key grants exactly one capability: run this script. It takes no
+# arguments and ignores SSH_ORIGINAL_COMMAND, so there is nothing to inject.
+# ============================================================================
+
+- name: Set per-host script destination
+  ansible.builtin.set_fact:
+    host_facts_dest: >-
+      {{ host_facts_unraid_bin_path
+         if inventory_hostname in (groups['unraid'] | default([]))
+         else host_facts_bin_path }}
+
+- name: Ensure the array-side bin directory exists (Unraid)
+  ansible.builtin.file:
+    path: "{{ host_facts_unraid_bin_path | dirname }}"
+    state: directory
+    mode: "0755"
+  when: inventory_hostname in (groups['unraid'] | default([]))
+
+- name: Install the facts script
+  ansible.builtin.template:
+    src: homelab-facts.py.j2
+    dest: "{{ host_facts_dest }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+# /usr/local/bin is tmpfs on Unraid. The symlink is recreated at array start by
+# roles/unraid-bootstrap; this makes it usable immediately after a deploy too.
+- name: Link the facts script into PATH (Unraid)
+  ansible.builtin.file:
+    src: "{{ host_facts_unraid_bin_path }}"
+    dest: "{{ host_facts_bin_path }}"
+    state: link
+    force: true
+  when: inventory_hostname in (groups['unraid'] | default([]))
+
+- name: Require the client public key before installing the restriction
+  ansible.builtin.assert:
+    that:
+      - hostvars[host_facts_client_host]['healthreport_pubkey'] is defined
+      - hostvars[host_facts_client_host]['healthreport_pubkey'] | length > 0
+    fail_msg: >-
+      healthreport_pubkey is not set on {{ host_facts_client_host }}. The
+      healthreport role must run there first - see the play ordering in
+      playbooks/site.yml.
+    quiet: true
+
+- name: Authorize the health report key for the facts command only
+  ansible.posix.authorized_key:
+    user: root
+    key: "{{ hostvars[host_facts_client_host]['healthreport_pubkey'] }}"
+    key_options: >-
+      restrict,from="{{ hostvars[host_facts_client_host]['tailscale_ip'] }}",command="{{ host_facts_bin_path }}"
+    comment: homelab-healthreport
+    exclusive: false
+    state: present
+
+# Unraid rebuilds /root/.ssh from the flash at boot, so the live file alone
+# would be lost on the next reboot.
+- name: Persist authorized_keys to the boot flash (Unraid)
+  when: inventory_hostname in (groups['unraid'] | default([]))
+  block:
+    - name: Ensure the persisted ssh directory exists
+      ansible.builtin.file:
+        path: "{{ host_facts_unraid_ssh_persist }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Copy the live authorized_keys onto the flash
+      ansible.builtin.copy:
+        src: /root/.ssh/authorized_keys
+        dest: "{{ host_facts_unraid_ssh_persist }}/authorized_keys"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0600"

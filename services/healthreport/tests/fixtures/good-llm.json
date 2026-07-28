@@ -1,0 +1,12 @@
+{
+  "headline": "One host is low on disk, everything else steady",
+  "assessment": "Disk pressure on mljr is the only change since yesterday. Two collectors could not run, so this report is incomplete.",
+  "top_issues": [
+    {"observation_id": "caddy_5xx.mljr.", "why_it_matters": "Users are seeing errors from proxied services."},
+    {"observation_id": "does.not.exist", "why_it_matters": "This id was never produced and must be dropped."}
+  ],
+  "suggested_actions": ["Check Caddy upstream health", "Configure the Kuma API key"],
+  "correlations": ["5xx spike overlaps the error-log increase"],
+  "severity": "crit",
+  "priority": "urgent"
+}

@@ -2,11 +2,15 @@ prometheus.exporter.unix "host" {
   rootfs_path = "/hostfs"
   procfs_path = "/hostfs/proc"
   sysfs_path  = "/hostfs/sys"
+
+  // systemd exposes node_systemd_unit_state, which the health report uses to
+  // detect failed units. Not enabled by default.
+  enable_collectors = ["systemd"]
 }
 
 prometheus.scrape "host" {
   targets    = prometheus.exporter.unix.host.targets
-  forward_to = [prometheus.remote_write.homelab.receiver]
+  forward_to = [prometheus.relabel.identity.receiver]
   job_name   = "node"
 }
 
@@ -17,7 +21,7 @@ prometheus.exporter.cadvisor "docker" {
 
 prometheus.scrape "docker" {
   targets    = prometheus.exporter.cadvisor.docker.targets
-  forward_to = [prometheus.remote_write.homelab.receiver]
+  forward_to = [prometheus.relabel.identity.receiver]
   job_name   = "docker"
 }
 
@@ -30,10 +34,28 @@ prometheus.scrape "security" {
       "instance"    = "{{ inventory_hostname }}",
     },
   ]
-  forward_to = [prometheus.remote_write.homelab.receiver]
+  forward_to = [prometheus.relabel.identity.receiver]
 }
 
 {% endif %}
+// prometheus.scrape attaches its own `instance` label from the scrape target,
+// which wins over remote_write's external_labels. That made mljr report as
+// "vmi2945702.contaboserver.net" instead of its inventory name. Rewrite it
+// here, before remote_write, so every series carries the inventory hostname.
+prometheus.relabel "identity" {
+  forward_to = [prometheus.remote_write.homelab.receiver]
+
+  rule {
+    target_label = "instance"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "host"
+    replacement  = "{{ inventory_hostname }}"
+  }
+}
+
 prometheus.remote_write "homelab" {
   endpoint {
     url = "{{ grafana_prometheus_remote_write_url }}"
@@ -49,9 +71,22 @@ discovery.docker "containers" {
   host = "unix:///var/run/docker.sock"
 }
 
+// Without this, the static `labels` block below replaces everything discovery
+// produced and the container name is lost - every Docker log line arrives
+// unattributable. Promote the name to a real `container` label first.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?(.*)"
+    target_label  = "container"
+  }
+}
+
 loki.source.docker "containers" {
   host       = "unix:///var/run/docker.sock"
-  targets    = discovery.docker.containers.targets
+  targets    = discovery.relabel.containers.output
   labels     = {
     job      = "docker",
     instance = "{{ inventory_hostname }}",

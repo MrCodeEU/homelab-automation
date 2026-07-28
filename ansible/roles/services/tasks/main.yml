@@ -24,12 +24,15 @@
   when: service.enabled | default(true)
 
 # Login to Docker Hub (avoid rate limits for Docker Hub images)
+# Registry logins are skipped on Unraid: docker_login requires the docker Python
+# SDK, which Unraid does not ship. Unraid only runs public images today.
 - name: Login to Docker Hub
   community.docker.docker_login:
     username: "{{ secrets.dockerhub.username }}"
     password: "{{ secrets.dockerhub.password }}"
   when:
     - not ansible_check_mode
+    - inventory_hostname not in (groups['unraid'] | default([]))
     - secrets.dockerhub.username | default('') | length > 0
     - secrets.dockerhub.password | default('') | length > 0
   no_log: true
@@ -40,7 +43,9 @@
   community.docker.docker_login:
     registry: ghcr.io
     state: absent
-  when: not ansible_check_mode
+  when:
+    - not ansible_check_mode
+    - inventory_hostname not in (groups['unraid'] | default([]))
   failed_when: false
 
 # Login to GitHub Container Registry for private images
@@ -53,8 +58,32 @@
     password: "{{ secrets.github.token if secrets.github.token | default('') | length > 0 else lookup('env', 'GHCR_TOKEN') }}"
   when:
     - not ansible_check_mode
+    - inventory_hostname not in (groups['unraid'] | default([]))
     - (secrets.github.token | default('') | length > 0) or (lookup('env', 'GHCR_TOKEN') | length > 0)
   no_log: true
+  failed_when: false
+
+# Unraid has no docker Python SDK, so docker_login cannot run there. Use the
+# docker CLI instead, feeding the token over stdin so it never lands in the
+# process table. DOCKER_CONFIG points at the array because /root is tmpfs and
+# the credentials would otherwise be lost on every reboot; unraid-bootstrap
+# re-links it at array start.
+- name: Login to GitHub Container Registry (Unraid)
+  ansible.builtin.command:
+    cmd: >-
+      docker login ghcr.io
+      --username {{ secrets.github.username }}
+      --password-stdin
+    stdin: "{{ secrets.github.token }}"
+  environment:
+    DOCKER_CONFIG: "{{ base_path }}/.docker"
+  when:
+    - not ansible_check_mode
+    - inventory_hostname in (groups['unraid'] | default([]))
+    - secrets.github.username | default('') | length > 0
+    - secrets.github.token | default('') | length > 0
+  no_log: true
+  changed_when: false
   failed_when: false
 
 # Network connectivity check for container registries

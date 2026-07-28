@@ -1,0 +1,12 @@
+---
+# Host that is allowed to invoke the endpoint. Its Tailscale IP is pinned into
+# the authorized_keys `from=` restriction.
+host_facts_client_host: nuc
+
+# Where the script lives. On Unraid /usr/local/bin is tmpfs, so the canonical
+# copy sits on the array and unraid-bootstrap re-links it at array start.
+host_facts_bin_path: /usr/local/bin/homelab-facts
+host_facts_unraid_bin_path: "{{ base_path }}/bin/homelab-facts"
+
+# Unraid restores /root/.ssh from here at boot.
+host_facts_unraid_ssh_persist: /boot/config/ssh/root

@@ -1,0 +1,23 @@
+services:
+  healthreport:
+    build: .
+    image: healthreport:local
+    container_name: healthreport
+    # One-shot, invoked by a systemd timer. The profile keeps the services
+    # role's `docker compose up` from starting (and therefore sending) a
+    # report on every deploy.
+    profiles: ["cron"]
+    restart: "no"
+    # Reaches VictoriaMetrics, Loki and Kuma on nuc's own interfaces, plus the
+    # Tailscale addresses of mljr and nas, with no port plumbing.
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - /opt/healthreport/state:/state
+      - /opt/healthreport/ssh:/ssh:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

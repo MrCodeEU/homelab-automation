@@ -80,9 +80,18 @@ ansible-playbook playbooks/site.yml --tags prune -e docker_prune_enabled=true
 ```yaml
 managed:
   rocky:     # Full Ansible control: mljr, nuc
-  unraid:    # Limited management; NAS apps are mostly manual
+  unraid:    # Partial: most NAS apps stay manual (Unraid UI), but catalog
+             # entries marked `managed: true` are deployed by the Unraid play
 proxy_only:  # Caddy-only routing targets
 ```
+
+The NAS is partially managed. `inventory/group_vars/unraid.yml` sets
+`base_path: /mnt/user/appdata/homelab` (because `/` is tmpfs) and, critically,
+`cleanup_enabled: false` so orphan cleanup can never remove UI-created
+containers. `roles/unraid-bootstrap` installs a User Scripts entry that runs at
+array start to restore compose projects, helper binaries and registry
+credentials after the tmpfs root is rebuilt. Do not "correct" the
+`managed: true` NAS entries back to false.
 
 `mljr` is the public ingress and critical infrastructure host. `nuc` is the stronger compute node and hosts heavier internal services such as Grafana and Netronome.
 
@@ -159,7 +168,17 @@ Grafana replaced SigNoz. The stack lives in `services/grafana/` and is deployed 
 
 The metrics store is VictoriaMetrics (replaced Prometheus): PromQL-compatible, retention 10y, accepts Prometheus `remote_write` natively at `/api/v1/write`. Host port 19090 maps to VM's 8428 so the Alloy remote-write URL in `roles/grafana-alloy/tasks/main.yml` stays unchanged. The Grafana datasource keeps name/uid `prometheus` (pointed at `http://victoriametrics:8428`) so dashboard JSON needs no changes. The mljr.eu homepage also queries this endpoint over Tailscale for its live homelab panel (`HOMELAB_PROM_URL` in `services/homepage/docker-compose.yml`). `services/grafana/prometheus/` is legacy config, kept only until first VM deploy is verified.
 
-Grafana datasources and dashboards are provisioned from the repo. Use stable datasource UIDs `prometheus` and `loki` in dashboard JSON. NAS/Unraid monitoring remains manual; use `services/grafana/nas-alloy.example.alloy` and label NAS telemetry with `instance="nas"` and `host="nas"`.
+Grafana datasources and dashboards are provisioned from the repo. Use stable datasource UIDs `prometheus` and `loki` in dashboard JSON. NAS telemetry is now deployed from `services/nas-alloy/` by the Unraid play (`services/grafana/nas-alloy.example.alloy` is superseded).
+
+Two Alloy details that are easy to get wrong, both fixed in `roles/grafana-alloy/templates/config.alloy.j2`:
+- `prometheus.scrape` attaches its own `instance` label from the scrape target, which **wins over** `remote_write`'s `external_labels`. mljr therefore reported as `vmi2945702.contaboserver.net` until a `prometheus.relabel` component was added to force the inventory hostname.
+- `loki.source.docker`'s static `labels` block **replaces** everything `discovery.docker` produced, so the container name was lost and Docker logs were unattributable. A `discovery.relabel` promotes `__meta_docker_container_name` to a `container` label first.
+
+## Health Report
+
+`services/healthreport/` is a one-shot container on `nuc`, run by a systemd timer, that collects facts, assigns severity from `services/healthreport/rules.yml`, diffs against the previous run, and sends a report via ntfy and email. See its README for the design.
+
+Two invariants: severity is decided by the rules file **before** the LLM runs and the model may not change it; and a collector that fails becomes a finding in the report rather than a silent gap. Facts that are not reachable over the network (CrowdSec LAPI, nftables, Unraid array/SMART) come from `roles/host-facts-endpoint` — a read-only script behind an SSH key restricted with `command=`, not an open port.
 
 ## Network Testing
 

@@ -46,6 +46,24 @@ vault_google_client_secret: ""
 # Uptime Kuma
 vault_kuma_username: "admin"
 vault_kuma_password: ""
+vault_kuma_api_key: ""  # Kuma UI -> Profile -> API Keys; used as the basic-auth
+                        # password (empty username) against /metrics
+
+# ntfy notification bus
+# Leave these empty to accept the defaults. The backup role only sends
+# notifications when secrets.ntfy.url is defined.
+vault_ntfy_url: "https://ntfy.mljr.eu"
+vault_ntfy_topic: "backup"
+vault_ntfy_token: ""  # only needed once ACLs are enabled in services/ntfy/server.yml
+
+# Health report agent
+vault_healthreport_ntfy_topic: "homelab-health"
+vault_healthreport_email_to: ""  # where the daily report is mailed
+# Fine-grained PAT owned by the account, "All repositories", read-only:
+#   Metadata, Actions, Dependabot alerts, Code scanning alerts, Contents.
+# Deliberately separate from vault_github_token (GHCR pull credential).
+# Fine-grained PATs expire; the report warns about its own token at <14 days.
+vault_github_readonly_token: ""
 
 # Grafana
 vault_grafana_admin_user: "admin"

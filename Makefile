@@ -45,10 +45,11 @@ ANSIBLE_CFG        := ANSIBLE_CONFIG=$(CURDIR)/$(ANSIBLE_DIR)/ansible.cfg
 # Disable Mitogen for container tests (not installed in containers)
 E2E_ANSIBLE_OPTS   := -e ansible_strategy=linear
 
-.PHONY: test test-quick test-e2e test-services docs-ansible-map view-ara up down clean \
+.PHONY: test test-quick test-e2e test-services test-services-verbose test-healthreport \
+        docs-ansible-map view-ara up down clean help \
         _check-validate _check-templates _check-syntax _check-compose \
         _e2e-deploy _ssh-keys _wait-ssh \
-        deploy deploy-check deploy-diff deploy-caddy deploy-services deploy-mljr deploy-nuc
+        deploy deploy-check deploy-diff deploy-caddy deploy-services deploy-mljr deploy-nuc deploy-svc
 
 ################################################################################
 # DEFAULT: fast local tests (no Docker)
@@ -145,6 +146,15 @@ test-services:
 test-services-verbose:
 	@echo "==> Checking production service reachability (verbose)"
 	python3 $(TESTS_DIR)/scripts/check_services.py --verbose
+
+# Health report unit tests. Pure logic (severity rules + run-over-run diff),
+# no network and no container needed.
+test-healthreport:
+	@python3 -c "import yaml" 2>/dev/null || { echo "ERROR: pip install pyyaml"; exit 1; }
+	@echo "==> Health report: severity rules"
+	@cd services/healthreport && python3 tests/test_severity.py
+	@echo "==> Health report: diff engine"
+	@cd services/healthreport && python3 tests/test_diff.py
 
 docs-ansible-map:
 	@echo "==> Generating Ansible inventory/service map"
