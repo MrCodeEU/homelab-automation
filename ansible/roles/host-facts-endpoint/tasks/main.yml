@@ -71,24 +71,25 @@
 
 # Unraid rebuilds /root/.ssh from the flash at boot, so the live file alone
 # would be lost on the next reboot.
-- name: Persist authorized_keys to the boot flash (Unraid)
+- name: Ensure the persisted ssh directory exists (Unraid)
+  ansible.builtin.file:
+    path: "{{ host_facts_unraid_ssh_persist }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
   when:
     - inventory_hostname in (groups['unraid'] | default([]))
     - host_facts_pubkey | length > 0
-  block:
-    - name: Ensure the persisted ssh directory exists
-      ansible.builtin.file:
-        path: "{{ host_facts_unraid_ssh_persist }}"
-        state: directory
-        owner: root
-        group: root
-        mode: "0700"
 
-    - name: Copy the live authorized_keys onto the flash
-      ansible.builtin.copy:
-        src: /root/.ssh/authorized_keys
-        dest: "{{ host_facts_unraid_ssh_persist }}/authorized_keys"
-        remote_src: true
-        owner: root
-        group: root
-        mode: "0600"
+- name: Copy the live authorized_keys onto the flash (Unraid)
+  ansible.builtin.copy:
+    src: /root/.ssh/authorized_keys
+    dest: "{{ host_facts_unraid_ssh_persist }}/authorized_keys"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - inventory_hostname in (groups['unraid'] | default([]))
+    - host_facts_pubkey | length > 0

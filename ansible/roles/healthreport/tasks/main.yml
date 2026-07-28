@@ -9,12 +9,14 @@
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: directory
-    owner: root
-    group: root
+    owner: "{{ item.owner | default(healthreport_uid) }}"
+    group: "{{ item.owner | default(healthreport_uid) }}"
     mode: "{{ item.mode }}"
   loop:
+    # The root stays root-owned; only what the container must write does not.
     - path: "{{ healthreport_root }}"
       mode: "0755"
+      owner: root
     # Facts history and the seen-sets that make the day-over-day diff possible.
     - path: "{{ healthreport_state_dir }}"
       mode: "0755"
@@ -29,17 +31,23 @@
 
 # Restricted to a forced command on the remote side, but still treated as a
 # real private key: root-owned, 0600, and excluded from the pCloud backup.
+# openssh_keypair writes for real even in check mode, so it fails when the
+# directory above was only simulated. Skipping keeps `--check` runs (including
+# the PR gate) meaningful instead of always red.
 - name: Generate the health report SSH keypair
+  when: not ansible_check_mode
   community.crypto.openssh_keypair:
     path: "{{ healthreport_key_path }}"
     type: ed25519
     comment: homelab-healthreport
-    owner: root
-    group: root
+    owner: "{{ healthreport_uid }}"
+    group: "{{ healthreport_uid }}"
     mode: "0600"
     regenerate: never
   register: healthreport_key
 
+# Empty in check mode, which makes host-facts-endpoint skip the authorized_key
+# step with an explanatory message rather than fail.
 - name: Publish the public key for host-facts-endpoint
   ansible.builtin.set_fact:
-    healthreport_pubkey: "{{ healthreport_key.public_key }}"
+    healthreport_pubkey: "{{ healthreport_key.public_key | default('') }}"
