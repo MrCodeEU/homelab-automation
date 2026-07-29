@@ -10,6 +10,35 @@
 # of scope - this role only owns the schedule and the path list.
 # ============================================================================
 
+# Same cross-host key as roles/backup installs on mljr, generated once on nuc
+# by roles/backup-remote-key. Lives on the array (real disk, not tmpfs), so
+# unlike the facts-endpoint key it needs no boot-time restore trick.
+- name: Ensure the backup-remote key directory exists on the array
+  ansible.builtin.file:
+    path: "{{ base_path }}/backup-remote/ssh"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: hostvars['nuc']['backup_remote_privkey'] | default('') | length > 0
+
+- name: Install the Ugreen backup private key
+  ansible.builtin.copy:
+    content: "{{ hostvars['nuc']['backup_remote_privkey'] }}"
+    dest: "{{ base_path }}/backup-remote/ssh/id_ed25519"
+    owner: root
+    group: root
+    mode: "0600"
+  when: hostvars['nuc']['backup_remote_privkey'] | default('') | length > 0
+  no_log: true
+
+- name: Render the ugreen-only rclone config
+  ansible.builtin.template:
+    src: rclone-ugreen.conf.j2
+    dest: "{{ base_path }}/backup-remote/rclone-ugreen.conf"
+    mode: "0600"
+  when: hostvars['nuc']['backup_remote_privkey'] | default('') | length > 0
+
 - name: Ensure the backup log directory exists on the array
   ansible.builtin.file:
     path: "{{ unraid_backup_log_path }}"

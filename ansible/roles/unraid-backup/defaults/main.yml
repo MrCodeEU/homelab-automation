@@ -20,19 +20,60 @@ unraid_backup_script_path: "{{ base_path }}/backup/backup.sh"
 # daily schedule, same slot the manual script already used.
 unraid_backup_frequency: daily
 
-# Each entry syncs one local path to one rclone remote path with `rclone
-# sync`. The Fotos/Fotos -> pcloud:Fotos pairing is unchanged from the manual
-# script that has been running since before this repo touched Unraid -
-# changing the destination would force a full 588GB re-upload for no reason.
-# The other Fotos subfolders were never covered; new pcloud paths for them,
-# matching the existing pcloud:Fotos naming rather than inventing a new tree.
+# Each entry syncs one local path. `tier: critical` (the default) goes to
+# both pCloud and, best-effort, ugreen; `tier: important` goes to ugreen only
+# - already duplicated elsewhere, so it doesn't need pCloud's ongoing cost.
+# `name` is the ugreen-side directory name; required on every entry regardless
+# of tier so the ugreen leg never has to derive one from `dest`, which
+# `important` entries don't have.
+#
+# The Fotos/Fotos -> pcloud:Fotos pairing is unchanged from the manual script
+# that has been running since before this repo touched Unraid - changing the
+# destination would force a full 588GB re-upload for no reason. The other
+# Fotos subfolders were never covered; new pcloud paths for them, matching the
+# existing pcloud:Fotos naming rather than inventing a new tree.
 unraid_backup_paths:
   - src: /mnt/user/Fotos/Fotos
     dest: "pcloud:Fotos"
+    name: fotos
+    tier: critical
   - src: "/mnt/user/Fotos/Videos"
     dest: "pcloud:Fotos-Videos"
+    name: fotos-videos
+    tier: critical
   - src: "/mnt/user/Fotos/Wichtiges Scans Adressen"
     dest: "pcloud:Fotos-Wichtiges-Scans-Adressen"
+    name: fotos-wichtiges-scans-adressen
+    tier: critical
+
+  # Syncthing content folders (source of truth: mounted at /data1 in the
+  # syncthing container -> host path /mnt/user/Sync/<folder>). Not previously
+  # backed up anywhere. ugreen-only per the user's tiering: these already live
+  # on a laptop too via Syncthing, so losing the NAS copy isn't total loss and
+  # doesn't need pCloud's cost. "Games" is deliberately absent (tier: none,
+  # i.e. no entry at all). "Backups" and "Manuell" are also absent - their
+  # contents were never confirmed, so no tier was guessed for them.
+  - src: "/mnt/user/Sync/Persönliches"
+    name: sync-personliches
+    tier: important
+  - src: "/mnt/user/Sync/CAD_and_Printing"
+    name: sync-cad-and-printing
+    tier: important
+  - src: "/mnt/user/Sync/JKU Semester 7"
+    name: sync-jku-semester-7
+    tier: important
+  - src: "/mnt/user/Sync/JKU Semester 8"
+    name: sync-jku-semester-8
+    tier: important
+  - src: "/mnt/user/Sync/JKU Semester 9"
+    name: sync-jku-semester-9
+    tier: important
+  - src: "/mnt/user/Sync/WebDev"
+    name: sync-webdev
+    tier: important
+  - src: "/mnt/user/Sync/Projects"
+    name: sync-projekte
+    tier: important
 
 # Retired: the manual "rclone backup" User Script this role replaces.
 unraid_backup_retired_scripts:

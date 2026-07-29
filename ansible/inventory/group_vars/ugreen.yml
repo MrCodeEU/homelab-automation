@@ -1,0 +1,16 @@
+---
+# Ugreen NAS overrides
+# ============================================================================
+# Real Debian 12, confirmed via direct SSH 2026-07-29: systemd, apt, docker
+# all already present. /volume1 is the bcache-accelerated btrfs pool on the
+# 2x12TB HDD RAID1 (real disk, persists across reboots normally - no tmpfs
+# special-casing needed here the way Unraid's root filesystem requires).
+# ============================================================================
+
+base_path: /volume1/homelab
+ansible_python_interpreter: /usr/bin/python3
+
+# Nothing here is part of the service catalog / Caddy routing, so
+# cleanup_enabled has no meaning for this host today - roles/services does not
+# currently target `ugreen`. Set for forward-compatibility if that changes.
+cleanup_enabled: false

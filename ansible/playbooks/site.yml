@@ -33,6 +33,38 @@
   tags:
     - always
 
+# ============================================================================
+# Backup-to-Ugreen keypair (nuc only, runs before anything that consumes it)
+# ============================================================================
+# Backup Setup (below, rocky) and Unraid Services (unraid-backup) both read
+# hostvars['nuc']['backup_remote_privkey'], so this must run before either.
+# Placed right after fact-gathering rather than near Health Report Agent State
+# (which also runs on nuc) because Backup Setup runs earlier in this file than
+# that play does.
+- name: Backup Remote Key
+  hosts: nuc
+  become: true
+  gather_facts: false
+  tags:
+    - backup
+    - services
+  roles:
+    - backup-remote-key
+
+# ============================================================================
+# Ugreen NAS - backup target (chrooted sftp user, sshd Match block)
+# ============================================================================
+- name: Backup Remote Target
+  hosts: ugreen
+  become: true
+  gather_facts: false
+  tags:
+    - backup
+    - services
+    - ugreen
+  roles:
+    - backup-remote-target
+
 - name: Base Setup
   hosts: rocky
   become: true

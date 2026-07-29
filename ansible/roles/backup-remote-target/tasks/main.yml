@@ -1,0 +1,130 @@
+---
+# Ugreen backup target
+# ============================================================================
+# A dedicated, shell-less, password-locked user that owns exactly one
+# directory. Authorized with only the public half of the key
+# roles/backup-remote-key generated on nuc.
+#
+# IMPORTANT - verified by hand on the real box before this role existed in its
+# current form: Tailscale SSH is enabled here too (RunSSH=true, same as every
+# other host in this repo - see roles/host-facts-endpoint for the first time
+# this was discovered). It intercepts port 22 on the tailnet interface and
+# handles the session itself (`tailscaled be-child ssh ... --sftp`), which
+# means for every connection this backup pipeline actually makes - nuc, mljr
+# and nas all reach ugreen over its Tailscale IP - none of sshd_config,
+# authorized_keys, or ChrootDirectory below is ever consulted. The real
+# boundary for that path is Tailscale's ACL policy plus plain Unix file
+# permissions on this user's home directory, exactly like every other
+# cross-host root SSH path already trusted throughout this repo.
+#
+# The sshd Match block is kept anyway as defense-in-depth for the one case it
+# DOES cover: a leaked private key used from off the tailnet, where the real
+# sshd (which does check authorized_keys and does honor ChrootDirectory) is
+# what answers port 22. It is deliberately not the primary control.
+#
+# Consequence: the user's real home directory must be a genuine, absolute,
+# writable path - not a chroot-relative one - because that is what Tailscale
+# SSH's sftp mode uses directly (`--home-dir=<passwd home>`, verified via the
+# process listing during a live test session). ChrootDirectory then reuses
+# that same absolute path as its jail root, which is imperfect for the
+# hypothetical off-tailnet case (home would resolve twice-nested under the
+# chroot) but correct and load-bearing for the path that actually runs daily.
+# ============================================================================
+
+- name: Create the backup group
+  ansible.builtin.group:
+    name: "{{ backup_remote_user }}"
+    system: true
+
+- name: Create the backup user (no shell, no password, real home dir)
+  ansible.builtin.user:
+    name: "{{ backup_remote_user }}"
+    group: "{{ backup_remote_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    home: "{{ backup_remote_data_dir }}"
+    create_home: false
+    password_lock: true
+
+- name: Ensure the chroot root is root-owned and not writable by the backup user
+  ansible.builtin.file:
+    path: "{{ backup_remote_chroot }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Ensure the writable data directory exists, owned by the backup user
+  ansible.builtin.file:
+    path: "{{ backup_remote_data_dir }}"
+    state: directory
+    owner: "{{ backup_remote_user }}"
+    group: "{{ backup_remote_user }}"
+    mode: "0750"
+
+- name: Ensure the backup user's .ssh directory exists, owned by the backup user
+  ansible.builtin.file:
+    path: "{{ backup_remote_data_dir }}/.ssh"
+    state: directory
+    owner: "{{ backup_remote_user }}"
+    group: "{{ backup_remote_user }}"
+    mode: "0700"
+
+- name: Require the generator host's public key before authorizing it
+  ansible.builtin.assert:
+    that:
+      - hostvars['nuc']['backup_remote_pubkey'] is defined
+      - hostvars['nuc']['backup_remote_pubkey'] | default('') | length > 0
+    fail_msg: >-
+      backup_remote_pubkey is not set on nuc. roles/backup-remote-key must run
+      there first - see the play ordering in playbooks/site.yml. Skipping the
+      authorized_key step rather than failing outright would leave this host
+      accepting no valid key at all, which is safe but silently incomplete;
+      failing loudly here is the better trade for a target that grants write
+      access.
+    quiet: true
+
+# Owned by the target user, not root: sshd reads authorized_keys with its
+# privileges temporarily dropped to that user, so a root-owned 0600 file is
+# unreadable to the read itself and silently breaks pubkey auth on the
+# fallback (real sshd) path. Confirmed the hard way - this exact mistake
+# produced "Permission denied (publickey)" in sshd's own debug log. Self-write
+# access is not a real risk here: the account has no shell and is forced into
+# sftp, so it cannot use write access to its own key file for anything.
+- name: Authorize the backup key for this user only
+  ansible.posix.authorized_key:
+    user: "{{ backup_remote_user }}"
+    key: "{{ hostvars['nuc']['backup_remote_pubkey'] }}"
+    path: "{{ backup_remote_data_dir }}/.ssh/authorized_keys"
+    manage_dir: false
+    state: present
+
+- name: Install the sshd Match block restricting this user to chrooted sftp
+  ansible.builtin.blockinfile:
+    path: /etc/ssh/sshd_config
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - backup-remote-target"
+    block: |
+      Match User {{ backup_remote_user }}
+        ChrootDirectory {{ backup_remote_chroot }}
+        ForceCommand internal-sftp
+        AllowTcpForwarding no
+        AllowAgentForwarding no
+        X11Forwarding no
+        PermitTTY no
+        PasswordAuthentication no
+  register: backup_remote_sshd_config
+
+- name: Validate the new sshd config before reloading
+  ansible.builtin.command: sshd -t
+  changed_when: false
+  when: backup_remote_sshd_config is changed
+
+# reload (SIGHUP) was observed NOT to fully re-evaluate Match-block state for
+# already-listening connections during manual verification; restart is what
+# actually applies it. Root access was reconfirmed immediately after doing
+# this by hand before it went into this role.
+- name: Restart sshd to pick up the Match block
+  ansible.builtin.systemd_service:
+    name: ssh
+    state: restarted
+  when: backup_remote_sshd_config is changed

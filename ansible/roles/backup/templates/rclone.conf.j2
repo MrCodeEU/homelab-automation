@@ -12,3 +12,22 @@ token = {{ pcloud_token }}
 {% else %}
 token = {"access_token":"{{ pcloud_token }}","token_type":"bearer"}
 {% endif %}
+
+# On-prem second copy. key_file is the default; backup.sh.j2 also passes
+# --sftp-key-file explicitly so a run doesn't depend on this file existing at
+# rclone-config-render time (the key crosses hosts via a separate, later task).
+#
+# This connection goes over Tailscale (RunSSH=true on ugreen, same as every
+# other host here), which intercepts and handles it directly - the target's
+# sshd_config, ChrootDirectory and authorized_keys are never consulted for
+# this path. See roles/backup-remote-target for the full explanation; the
+# real boundary is Tailscale ACL policy plus plain Unix permissions on the
+# rclone-backup account's home directory.
+[ugreen]
+type = sftp
+host = {{ hostvars['ugreen']['tailscale_ip'] | default('100.100.10.4') }}
+user = rclone-backup
+key_file = /opt/backup-remote/ssh/id_ed25519
+shell_type = unix
+md5sum_command = none
+sha1sum_command = none
