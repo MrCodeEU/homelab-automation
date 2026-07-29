@@ -137,6 +137,15 @@
     - prepare_needed | default(true) | bool
     - (is_staging | default(false) and dev_config.stat.exists | default(false)) or prod_config.stat.exists
     - inventory_hostname in (groups['ugreen'] | default([]))
+  # copy's pre-transfer stat over UGOS's SFTP has shown transient
+  # "Input/output error" (seen 2026-07-29, deploy run 30480362979) - not a
+  # real error, just the same flaky SFTP subsystem that already forced this
+  # task to exist instead of synchronize. Retry rather than fail the whole
+  # deploy over a blip.
+  retries: 3
+  delay: 5
+  register: ugreen_copy_result
+  until: ugreen_copy_result is not failed
 
 # Generate .env file with secrets
 - name: "{{ service.name }} - Generate .env file"
