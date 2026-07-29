@@ -3,6 +3,30 @@
 # ============================================================================
 # Uses .initialized flag to detect fresh installations and trigger restore
 
+# The Ugreen backup target key was generated once on nuc (roles/backup-remote-key)
+# and crosses hosts via hostvars, same pattern roles/host-facts-endpoint already
+# uses for the facts-endpoint key. Absent under --limit runs that skip nuc -
+# degrade to "no ugreen destination this run" rather than fail, matching how
+# host-facts-endpoint handles the same situation.
+- name: Ensure the backup-remote key directory exists
+  ansible.builtin.file:
+    path: /opt/backup-remote/ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: hostvars['nuc']['backup_remote_privkey'] | default('') | length > 0
+
+- name: Install the Ugreen backup private key
+  ansible.builtin.copy:
+    content: "{{ hostvars['nuc']['backup_remote_privkey'] }}"
+    dest: /opt/backup-remote/ssh/id_ed25519
+    owner: root
+    group: root
+    mode: "0600"
+  when: hostvars['nuc']['backup_remote_privkey'] | default('') | length > 0
+  no_log: true
+
 # Check if this is a fresh installation
 - name: Check for initialization flag
   ansible.builtin.stat:

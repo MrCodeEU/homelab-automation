@@ -16,6 +16,12 @@ LOG_DIR="{{ unraid_backup_log_path }}"
 LOG_FILE="${LOG_DIR}/backup-$(date +%Y%m%d).log"
 mkdir -p "$LOG_DIR"
 
+UGREEN_CONFIG="{{ base_path }}/backup-remote/rclone-ugreen.conf"
+UGREEN_AVAILABLE=0
+[ -f "$UGREEN_CONFIG" ] && UGREEN_AVAILABLE=1
+# No "data/" prefix: the sftp session already lands directly in the backup
+# user's home, which IS the data directory (see roles/backup-remote-target).
+
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
 log_error() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $1" | tee -a "$LOG_FILE"; }
 log_warn() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: $1" | tee -a "$LOG_FILE"; }
@@ -33,15 +39,36 @@ send_notification() { log "Notification: $1"; }
 total_count=0
 declare -a failed_paths=()
 
+# tier "critical": pCloud (authoritative) + best-effort on-prem copy.
+# tier "important": on-prem only - already duplicated elsewhere (a laptop, in
+# these cases), so it doesn't need pCloud's ongoing storage cost, just a local
+# copy that survives this NAS dying.
 {% for pair in unraid_backup_paths %}
+{% set tier = pair.tier | default('critical') %}
 total_count=$((total_count + 1))
-log "Backing up {{ pair.src }} -> {{ pair.dest }}"
+{% if tier == 'critical' %}
+log "Backing up {{ pair.src }} -> {{ pair.dest }} (pCloud)"
 if rclone sync "{{ pair.src }}" "{{ pair.dest }}" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
-    log "SUCCESS: {{ pair.src }} backed up"
+    log "SUCCESS: {{ pair.src }} backed up to pCloud"
 else
-    log_error "Failed to sync {{ pair.src }}"
+    log_error "Failed to sync {{ pair.src }} to pCloud"
     failed_paths+=("{{ pair.dest }}")
+fi
+{% endif %}
+if [ "$UGREEN_AVAILABLE" = "1" ]; then
+    log "Backing up {{ pair.src }} -> ugreen:{{ inventory_hostname }}/{{ pair.name }}"
+    if rclone --config "$UGREEN_CONFIG" sync "{{ pair.src }}" "ugreen:{{ inventory_hostname }}/{{ pair.name }}" \
+        --transfers 2 --checkers 4 --log-file="$LOG_FILE" --log-level INFO; then
+        log "SUCCESS: {{ pair.src }} backed up to ugreen"
+    else
+{% if tier == 'critical' %}
+        log_warn "Failed to sync {{ pair.src }} to ugreen (on-prem copy only, pCloud leg above is authoritative)"
+{% else %}
+        log_error "Failed to sync {{ pair.src }} to ugreen (its only backup destination)"
+        failed_paths+=("{{ pair.name }} (ugreen)")
+{% endif %}
+    fi
 fi
 {% endfor %}
 

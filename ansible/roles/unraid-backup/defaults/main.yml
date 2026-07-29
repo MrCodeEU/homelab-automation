@@ -20,19 +20,42 @@ unraid_backup_script_path: "{{ base_path }}/backup/backup.sh"
 # daily schedule, same slot the manual script already used.
 unraid_backup_frequency: daily
 
-# Each entry syncs one local path to one rclone remote path with `rclone
-# sync`. The Fotos/Fotos -> pcloud:Fotos pairing is unchanged from the manual
-# script that has been running since before this repo touched Unraid -
-# changing the destination would force a full 588GB re-upload for no reason.
-# The other Fotos subfolders were never covered; new pcloud paths for them,
-# matching the existing pcloud:Fotos naming rather than inventing a new tree.
+# Each entry syncs one local path. `tier: critical` (the default) goes to
+# both pCloud and, best-effort, ugreen; `tier: important` goes to ugreen only
+# - already duplicated elsewhere, so it doesn't need pCloud's ongoing cost.
+# `name` is the ugreen-side directory name; required on every entry regardless
+# of tier so the ugreen leg never has to derive one from `dest`, which
+# `important` entries don't have.
+#
+# The Fotos/Fotos -> pcloud:Fotos pairing is unchanged from the manual script
+# that has been running since before this repo touched Unraid - changing the
+# destination would force a full 588GB re-upload for no reason. The other
+# Fotos subfolders were never covered; new pcloud paths for them, matching the
+# existing pcloud:Fotos naming rather than inventing a new tree.
 unraid_backup_paths:
   - src: /mnt/user/Fotos/Fotos
     dest: "pcloud:Fotos"
+    name: fotos
+    tier: critical
   - src: "/mnt/user/Fotos/Videos"
     dest: "pcloud:Fotos-Videos"
+    name: fotos-videos
+    tier: critical
   - src: "/mnt/user/Fotos/Wichtiges Scans Adressen"
     dest: "pcloud:Fotos-Wichtiges-Scans-Adressen"
+    name: fotos-wichtiges-scans-adressen
+    tier: critical
+
+  # Syncthing content folders (mounted at /data1 in the syncthing container ->
+  # host path /mnt/user/Sync/<folder>) are DELIBERATELY NOT listed here yet.
+  # The user wants the folder restructuring done first - JKU-semester-per-
+  # folder, wrong/missing .stignore entries, oversized folders - so this
+  # doesn't back up a layout that's about to be reorganized and need
+  # re-syncing anyway. Add these as `tier: important` (ugreen-only, already
+  # duplicated on a laptop via Syncthing) once that restructuring lands.
+  # "Games" stays out permanently (tier: none). "Backups" and "Manuell" are
+  # automediasort container artifacts on this NAS, not source data - excluded
+  # permanently too, not just deferred.
 
 # Retired: the manual "rclone backup" User Script this role replaces.
 unraid_backup_retired_scripts:
