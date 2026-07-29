@@ -400,6 +400,17 @@ services:
     description: "Ollama LLM runtime (health report triage). Tailscale-only, no Caddy route."
     icon: "mdi:robot"
 
+  # First managed service on ugreen. The `services` role deploys here because
+  # `host: ugreen` resolves in inventory (ansible/inventory/hosts.yml), the
+  # same as any rocky/unraid entry - no special-casing needed.
+  - name: syncthing-ugreen
+    enabled: true
+    managed: true
+    port: 0
+    host: ugreen
+    description: "Syncthing node on the on-prem backup NAS. No Caddy route - GUI reached over Tailscale."
+    icon: "mdi:sync"
+
   - name: nas
     enabled: true
     managed: false
@@ -644,6 +655,7 @@ post_deploy_hook_services:
   - godrive-demo  # Install systemd daily-reset timer
   - ollama      # Pull the health report triage model
   - healthreport  # Build the image and install the systemd timer
+  - syncthing-ugreen  # Join the existing Syncthing cluster, create archive folders
 
 critical_hook_services:
   - crowdsec

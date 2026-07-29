@@ -58,8 +58,15 @@ apps/homepage/backend/data/cache/
 # Git hooks venv
 .githooks/.venv/
 
+# This repo's own working copy is itself synced via Syncthing on some
+# machines - ignore Syncthing's internal marker files/dirs, not anything
+# with "syncthing" in the name (that blocked services/syncthing-ugreen/,
+# a real service, until narrowed here).
+.stfolder
+.stignore
+.stversions/
+
 # Misc
-*syncthing*
 package-lock.json
 
 # Local deploy logs
