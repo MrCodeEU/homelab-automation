@@ -226,7 +226,10 @@ def collect_crowdsec():
 
 
 def collect_backup_log():
-    log_dir = "{{ backup_local_path | default('/opt/backups') }}/logs"
+    # unraid-backup logs to {{ base_path }}/backup/logs (see its role
+    # defaults); the rocky backup role logs to {{ backup_local_path }}/logs.
+    # Same summary-block format on both, so this one parser covers either.
+    log_dir = "{{ (base_path ~ '/backup/logs') if inventory_hostname in (groups['unraid'] | default([])) else (backup_local_path | default('/opt/backups') ~ '/logs') }}"
     if not os.path.isdir(log_dir):
         return {"available": False, "reason": "no log directory"}
     logs = sorted(
@@ -454,6 +457,7 @@ def main():
         sections["unraid_notifications"] = section(collect_unraid_notifications)
         sections["unraid_version"] = section(collect_unraid_version)
         sections["unraid_docker_image"] = section(collect_unraid_docker_image)
+        sections["backup"] = section(collect_backup_log)
     else:
         sections["systemd_failed"] = section(collect_systemd_failed)
         sections["nftables"] = section(collect_nftables)

@@ -187,6 +187,7 @@
     - unraid
   roles:
     - unraid-bootstrap
+    - unraid-backup
     - services
 
 # ============================================================================

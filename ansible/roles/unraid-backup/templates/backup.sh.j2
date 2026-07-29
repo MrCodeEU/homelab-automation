@@ -1,0 +1,69 @@
+#!/bin/bash
+# Unraid rclone backup
+# Managed by Ansible (roles/unraid-backup) - do not edit manually
+#
+# Rides the rclone config that was already set up manually on this NAS
+# (/root/.config/rclone/rclone.conf) - this script only owns the schedule and
+# the path list.
+#
+# Summary block format matches ansible/roles/backup/templates/backup.sh.j2 so
+# the health report's backup-log parser (homelab-facts.py.j2 collect_backup_log)
+# works unmodified against either host's log.
+
+set -uo pipefail
+
+LOG_DIR="{{ unraid_backup_log_path }}"
+LOG_FILE="${LOG_DIR}/backup-$(date +%Y%m%d).log"
+mkdir -p "$LOG_DIR"
+
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
+log_error() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $1" | tee -a "$LOG_FILE"; }
+log_warn() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: $1" | tee -a "$LOG_FILE"; }
+
+{% if secrets.ntfy is defined and secrets.ntfy.url is defined %}
+send_notification() {
+    curl -s -X POST "{{ secrets.ntfy.url }}/{{ secrets.ntfy.topic | default('backup') }}" \
+        -H "Title: NAS Backup" -H "Priority: ${2:-default}" -H "Tags: backup,homelab,nas" \
+        -d "$1" >/dev/null 2>&1 || log_warn "Failed to send notification"
+}
+{% else %}
+send_notification() { log "Notification: $1"; }
+{% endif %}
+
+total_count=0
+declare -a failed_paths=()
+
+{% for pair in unraid_backup_paths %}
+total_count=$((total_count + 1))
+log "Backing up {{ pair.src }} -> {{ pair.dest }}"
+if rclone sync "{{ pair.src }}" "{{ pair.dest }}" \
+    --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
+    log "SUCCESS: {{ pair.src }} backed up"
+else
+    log_error "Failed to sync {{ pair.src }}"
+    failed_paths+=("{{ pair.dest }}")
+fi
+{% endfor %}
+
+log "=========================================="
+log "Backup Summary"
+log "=========================================="
+log "Total services: $total_count"
+log "Successful: $((total_count - {% raw %}${#failed_paths[@]}{% endraw %}))"
+# Every path here is currently non-critical (tier: important, ugreen-only in
+# the wider backup plan) - nothing on the NAS backup path is marked
+# critical yet, so this always reports 0 to match the rocky log's schema
+# without asserting a severity this role does not yet enforce.
+log "Critical failures: 0"
+log "Non-critical failures: {% raw %}${#failed_paths[@]}{% endraw %}"
+
+if [ {% raw %}${#failed_paths[@]}{% endraw %} -gt 0 ]; then
+    log_warn "Non-critical backup failures: ${failed_paths[*]}"
+    send_notification "⚠️ NAS backup failures: ${failed_paths[*]}" "default"
+else
+    log "SUCCESS: All backups completed successfully!"
+    send_notification "✅ NAS backups completed successfully ($total_count/$total_count)"
+fi
+
+# 30-day retention, matching the rocky backup role's default.
+find "$LOG_DIR" -name "backup-*.log" -mtime +30 -delete 2>/dev/null || true
