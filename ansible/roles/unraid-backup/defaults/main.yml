@@ -46,34 +46,16 @@ unraid_backup_paths:
     name: fotos-wichtiges-scans-adressen
     tier: critical
 
-  # Syncthing content folders (source of truth: mounted at /data1 in the
-  # syncthing container -> host path /mnt/user/Sync/<folder>). Not previously
-  # backed up anywhere. ugreen-only per the user's tiering: these already live
-  # on a laptop too via Syncthing, so losing the NAS copy isn't total loss and
-  # doesn't need pCloud's cost. "Games" is deliberately absent (tier: none,
-  # i.e. no entry at all). "Backups" and "Manuell" are also absent - their
-  # contents were never confirmed, so no tier was guessed for them.
-  - src: "/mnt/user/Sync/Persönliches"
-    name: sync-personliches
-    tier: important
-  - src: "/mnt/user/Sync/CAD_and_Printing"
-    name: sync-cad-and-printing
-    tier: important
-  - src: "/mnt/user/Sync/JKU Semester 7"
-    name: sync-jku-semester-7
-    tier: important
-  - src: "/mnt/user/Sync/JKU Semester 8"
-    name: sync-jku-semester-8
-    tier: important
-  - src: "/mnt/user/Sync/JKU Semester 9"
-    name: sync-jku-semester-9
-    tier: important
-  - src: "/mnt/user/Sync/WebDev"
-    name: sync-webdev
-    tier: important
-  - src: "/mnt/user/Sync/Projects"
-    name: sync-projekte
-    tier: important
+  # Syncthing content folders (mounted at /data1 in the syncthing container ->
+  # host path /mnt/user/Sync/<folder>) are DELIBERATELY NOT listed here yet.
+  # The user wants the folder restructuring done first - JKU-semester-per-
+  # folder, wrong/missing .stignore entries, oversized folders - so this
+  # doesn't back up a layout that's about to be reorganized and need
+  # re-syncing anyway. Add these as `tier: important` (ugreen-only, already
+  # duplicated on a laptop via Syncthing) once that restructuring lands.
+  # "Games" stays out permanently (tier: none). "Backups" and "Manuell" are
+  # automediasort container artifacts on this NAS, not source data - excluded
+  # permanently too, not just deferred.
 
 # Retired: the manual "rclone backup" User Script this role replaces.
 unraid_backup_retired_scripts:
