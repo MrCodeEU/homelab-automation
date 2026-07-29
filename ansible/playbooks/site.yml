@@ -65,6 +65,22 @@
   roles:
     - backup-remote-target
 
+# ============================================================================
+# NAS Syncthing key (nas only, runs before Ugreen Services consumes it)
+# ============================================================================
+# Reads the NAS's existing Syncthing API key so syncthing-ugreen's post-deploy
+# hook can provision the cluster join. Must run before the Ugreen Services
+# play below - same cross-play hostvars pattern as Backup Remote Key.
+- name: Syncthing NAS Key
+  hosts: nas
+  become: true
+  gather_facts: false
+  tags:
+    - services
+    - ugreen
+  roles:
+    - syncthing-nas-key
+
 - name: Base Setup
   hosts: rocky
   become: true
@@ -220,6 +236,27 @@
   roles:
     - unraid-bootstrap
     - unraid-backup
+    - services
+
+# ============================================================================
+# Ugreen Services (real Debian, persistent root filesystem - no bootstrap
+# role needed the way Unraid's tmpfs root requires one; base_path just needs
+# to exist once)
+# ============================================================================
+- name: Ugreen Services
+  hosts: ugreen
+  become: true
+  gather_facts: false
+  tags:
+    - services
+    - ugreen
+  pre_tasks:
+    - name: Ensure base_path exists
+      ansible.builtin.file:
+        path: "{{ base_path }}"
+        state: directory
+        mode: "0755"
+  roles:
     - services
 
 # ============================================================================

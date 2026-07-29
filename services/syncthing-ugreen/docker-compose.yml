@@ -1,0 +1,22 @@
+services:
+  syncthing:
+    image: syncthing/syncthing:latest
+    container_name: syncthing
+    restart: unless-stopped
+    # Syncthing's LAN discovery and relay protocols expect to see the host's
+    # real network, same reasoning as grafana-alloy's host networking.
+    network_mode: host
+    volumes:
+      - /volume1/homelab/syncthing/config:/var/syncthing/config
+      # Every folder root lives under here, one subdirectory per folder name
+      # - see hooks/provision-syncthing.py.
+      - /volume1/homelab/syncthing/data:/var/syncthing
+    environment:
+      - PUID=0
+      - PGID=0
+      - TZ=${TZ:-Europe/Vienna}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

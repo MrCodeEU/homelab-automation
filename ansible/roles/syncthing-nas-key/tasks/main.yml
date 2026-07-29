@@ -1,0 +1,21 @@
+---
+# Publishes the NAS's existing Syncthing API key for the syncthing-ugreen
+# provisioning hook to consume, same cross-play hostvars pattern already used
+# for the backup-to-ugreen key and the health-report facts-endpoint key.
+#
+# Does not create anything - the NAS's Syncthing instance and its API key
+# already exist (set up manually, outside this repo, before Ansible touched
+# the NAS). This role only reads it.
+
+- name: Read the NAS Syncthing config
+  ansible.builtin.slurp:
+    src: /mnt/user/appdata/syncthing/config.xml
+  register: nas_syncthing_config_raw
+
+- name: Publish the NAS Syncthing API key
+  ansible.builtin.set_fact:
+    # regex_search with a capture-group reference returns a one-element list
+    # even for a single group - verified locally before relying on it here.
+    nas_syncthing_api_key: >-
+      {{ ((nas_syncthing_config_raw.content | b64decode)
+          | regex_search('<apikey>([^<]+)</apikey>', '\1')) | first }}

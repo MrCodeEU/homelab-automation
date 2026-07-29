@@ -92,6 +92,15 @@
 
 # Synchronize service files from determined source path
 # Note: mitogen_task_isolation: fork is required because Mitogen doesn't handle synchronize correctly
+#
+# Skipped on ugreen: confirmed live (both via a PR check-mode run and by hand)
+# that UGOS ships a patched rsync whose --server mode rejects every
+# destination with "invalid path" - reproduced against /tmp, an existing
+# subvolume, and the real deploy path alike, so it isn't about the path.
+# `ug_start_server, check access user: 0, group: 0` in the output confirms
+# it's UGOS's own access-control wrapper around --server mode, not a stock
+# rsync error. SFTP (used by roles/backup-remote-target) is unaffected -
+# this is specific to ad-hoc rsync-over-ssh.
 - name: "{{ service.name }} - Synchronize service files"
   ansible.posix.synchronize:
     src: "{{ service_source_path }}"
@@ -111,6 +120,23 @@
   when:
     - prepare_needed | default(true) | bool
     - (is_staging | default(false) and dev_config.stat.exists | default(false)) or prod_config.stat.exists
+    - inventory_hostname not in (groups['ugreen'] | default([]))
+
+# ugreen equivalent: ansible.builtin.copy transfers over Ansible's own
+# SFTP/SCP connection plugin, never invoking the remote rsync binary at all.
+# Trade-off, accepted for now: no `delete: true` equivalent, so a file
+# removed from the repo won't be removed from an already-deployed copy on
+# ugreen. Acceptable for a small, single-purpose service directory; revisit
+# if ugreen ever hosts something where stale files would matter.
+- name: "{{ service.name }} - Copy service files (ugreen: rsync --server is blocked by UGOS)"
+  ansible.builtin.copy:
+    src: "{{ service_source_path }}/"
+    dest: "{{ deploy_path }}/"
+    mode: preserve
+  when:
+    - prepare_needed | default(true) | bool
+    - (is_staging | default(false) and dev_config.stat.exists | default(false)) or prod_config.stat.exists
+    - inventory_hostname in (groups['ugreen'] | default([]))
 
 # Generate .env file with secrets
 - name: "{{ service.name }} - Generate .env file"
