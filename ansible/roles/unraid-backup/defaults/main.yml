@@ -37,14 +37,27 @@ unraid_backup_paths:
     dest: "pcloud:Fotos"
     name: fotos
     tier: critical
+    wd_cloud: true
+    wd_cloud_dest: "wd-cloud:Fotos"
   - src: "/mnt/user/Fotos/Videos"
     dest: "pcloud:Fotos-Videos"
     name: fotos-videos
     tier: critical
+    wd_cloud: true
+    wd_cloud_dest: "wd-cloud:Videos"
   - src: "/mnt/user/Fotos/Wichtiges Scans Adressen"
     dest: "pcloud:Fotos-Wichtiges-Scans-Adressen"
     name: fotos-wichtiges-scans-adressen
     tier: critical
+  # Migrated off the old WD MyCloud (42.8GB) - see wd_cloud push-only note
+  # below; this entry both backs it up AND pushes it straight back to WD
+  # Cloud so the device still has a current copy after the migration.
+  - src: "/mnt/user/Fotos/Musik"
+    dest: "pcloud:Musik"
+    name: musik
+    tier: critical
+    wd_cloud: true
+    wd_cloud_dest: "wd-cloud:Musik"
 
   # Syncthing content folders (mounted at /data1 in the syncthing container ->
   # host path /mnt/user/Sync/<folder>) are DELIBERATELY NOT listed here yet.

@@ -31,3 +31,16 @@ key_file = /opt/backup-remote/ssh/id_ed25519
 shell_type = unix
 md5sum_command = none
 sha1sum_command = none
+
+# Semi-offsite, push-only (see roles/backup/templates/backup.sh.j2 -
+# sync_to_wdcloud is only ever called from backup_path(), never
+# backup_volume(), and nothing in this repo ever reads from this remote).
+# LAN-only device; reachable from mljr/nuc via an accepted Tailscale subnet
+# route - confirmed live, not assumed.
+{% if secrets.backup.wd_cloud_password | default('') | length > 0 %}
+[wd-cloud]
+type = smb
+host = 192.168.50.32
+user = {{ secrets.backup.wd_cloud_user | default('admin') }}
+pass = {{ secrets.backup.wd_cloud_password }}
+{% endif %}

@@ -70,6 +70,19 @@ if [ "$UGREEN_AVAILABLE" = "1" ]; then
 {% endif %}
     fi
 fi
+{% if pair.wd_cloud | default(false) %}
+# Semi-offsite, push-only WD MyCloud - rides the [wd-cloud] remote already
+# present in this NAS's own /root/.config/rclone/rclone.conf (manually set
+# up, not managed by this role). Best-effort like ugreen: never turns an
+# otherwise-successful pCloud backup into a reported failure.
+log "Backing up {{ pair.src }} -> {{ pair.wd_cloud_dest }}"
+if rclone sync "{{ pair.src }}" "{{ pair.wd_cloud_dest }}" \
+    --transfers 2 --checkers 4 --log-file="$LOG_FILE" --log-level INFO; then
+    log "SUCCESS: {{ pair.src }} backed up to wd-cloud"
+else
+    log_warn "Failed to sync {{ pair.src }} to wd-cloud (push-only copy, not fatal)"
+fi
+{% endif %}
 {% endfor %}
 
 log "=========================================="

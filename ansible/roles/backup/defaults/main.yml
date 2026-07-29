@@ -36,6 +36,7 @@ backup_service_configs:
     backup_volumes:
       - authelia_redis_data
     backup_critical: true
+    backup_wd_cloud: true
 
   mailcow:
     backup_volumes:

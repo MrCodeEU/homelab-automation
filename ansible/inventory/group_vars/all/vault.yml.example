@@ -118,6 +118,12 @@ vault_github_token: ""   # PAT with read:packages scope
 # pCloud backup
 vault_pcloud_token: ""   # rclone config → copy token JSON value
 
+# WD MyCloud (semi-offsite, push-only). Copy both values verbatim from the
+# existing [wd-cloud] remote in /root/.config/rclone/rclone.conf on nas -
+# `pass` is already in rclone's obscured format, not plaintext.
+vault_wd_cloud_user: "admin"
+vault_wd_cloud_password: ""
+
 # HetrixTools monitoring
 vault_hetrixtools_api_token: ""
 
