@@ -216,13 +216,21 @@ rules:
     level: warn
 
   log_error_rate:
-    type: threshold
+    type: threshold_or_spike
     direction: above
-    # Tuned against real volume: normal chatty containers sit in the tens of
-    # thousands per day (grafana-alloy ~59k, nextcloud-aio-database ~234k), so
-    # 500 flagged ten containers on the first run and meant nothing. This
-    # catches genuine spew, not background noise.
+    # Deliberately left at 5000 rather than raised. Any threshold high enough
+    # to silence routine chatter (mailcow ofelia ~9k) also silences a genuinely
+    # broken service at moderate volume (bichon ~5.5k), so coverage is not
+    # traded away - the spike rule is added on top of it.
     warn: 5000
+    # Daily volumes are stable, so a sudden multiple is the real signal: a
+    # container going 800 -> 5000 never crosses the line above, but is exactly
+    # the thing worth looking at.
+    spike_factor: 3.0
+    # Below this a jump is arithmetic noise, not a change in behaviour
+    # (2 -> 10 is a tripling and means nothing).
+    spike_floor: 500
+    spike_level: warn
 
   caddy_5xx:
     type: threshold

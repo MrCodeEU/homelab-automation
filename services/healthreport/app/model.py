@@ -6,10 +6,21 @@ maps to the same id on every run - that is what makes "new since yesterday"
 and "broken for six days" derivable instead of guessed.
 """
 
+import re
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List, Optional
 
 SEVERITIES = ("info", "warn", "crit")
+
+# Containers that are supposed to appear and disappear, and must never become
+# findings: `docker compose run` mints <project>-run-<hash> for every
+# invocation, so this report would otherwise create a permanent new observation
+# id every time it runs and keep it in the seen-state forever.
+EPHEMERAL_CONTAINER = re.compile(r"(-run-[0-9a-f]+$|^healthreport$|_run_[0-9]+$)")
+
+
+def is_ephemeral(name: str) -> bool:
+    return bool(name) and bool(EPHEMERAL_CONTAINER.search(name))
 
 
 def severity_rank(severity: str) -> int:
@@ -38,6 +49,9 @@ class Observation:
     unit: Optional[str] = None
     threshold: Optional[Any] = None
     evidence: Dict[str, Any] = field(default_factory=dict)
+    # Same observation's value on the previous run, filled in by diff.compute.
+    # Lets a rule escalate on a jump rather than only on an absolute level.
+    previous_value: Optional[Any] = None
     # Filled in by the diff stage from the previous run's state.
     first_seen: Optional[str] = None
 

@@ -9,6 +9,7 @@ Identity is the observation `id`, which is value-free by construction, so the
 same underlying problem keeps the same id as its value fluctuates.
 """
 
+import datetime
 import json
 import os
 from typing import Dict, List
@@ -49,6 +50,31 @@ def previous_ids(previous: Dict) -> set:
     }
 
 
+def attach_previous_values(observations: List[Observation], seen: Dict) -> None:
+    """Give each observation its value from the last run.
+
+    Must run before severity classification, because a spike rule needs the
+    comparison to decide a severity - whereas compute() runs after, since it
+    diffs the severities that classification produced.
+    """
+    for obs in observations:
+        record = seen.get(obs.id)
+        if record is not None:
+            obs.previous_value = record.get("last_value")
+
+
+def _remember_value(record: Dict, obs: Observation) -> None:
+    """Store the current value for the next run's spike comparison.
+
+    Only numeric values are useful here, and bools are excluded: `True` would
+    otherwise compare as 1 and read as a rate.
+    """
+    if isinstance(obs.value, bool):
+        return
+    if isinstance(obs.value, (int, float)):
+        record["last_value"] = obs.value
+
+
 def compute(observations: List[Observation], previous: Dict, seen: Dict, now_iso: str) -> Dict:
     """Compare this run against the last and update the seen-state in place."""
     previous_by_id = {
@@ -87,6 +113,7 @@ def compute(observations: List[Observation], previous: Dict, seen: Dict, now_iso
             record["count"] = record.get("count", 0) + 1
             record["last_actionable_run"] = now_iso
             record["severity"] = obs.severity
+            _remember_value(record, obs)
         else:
             obs.first_seen = now_iso
             seen[obs_id] = {
@@ -98,6 +125,7 @@ def compute(observations: List[Observation], previous: Dict, seen: Dict, now_iso
                 "kind": obs.kind,
                 "subject": obs.subject,
             }
+            _remember_value(seen[obs_id], obs)
 
     resolved = sorted(previous_actionable - set(current_actionable))
     for obs_id in resolved:
@@ -115,6 +143,9 @@ def compute(observations: List[Observation], previous: Dict, seen: Dict, now_iso
             obs.first_seen = record.get("first_seen", now_iso)
             record["last_seen"] = now_iso
             record["count"] = record.get("count", 0) + 1
+            # Recorded for info-level observations too: a rate only becomes a
+            # spike by being compared against the quiet days that preceded it.
+            _remember_value(record, obs)
         else:
             obs.first_seen = now_iso
             seen[obs.id] = {
@@ -126,6 +157,7 @@ def compute(observations: List[Observation], previous: Dict, seen: Dict, now_iso
                 "kind": obs.kind,
                 "subject": obs.subject,
             }
+            _remember_value(seen[obs.id], obs)
 
     return {
         "new": sorted(new),
@@ -147,9 +179,45 @@ def first_run_ids(state_dir: str) -> set:
     return set(load_seen(state_dir).keys())
 
 
+def prune_seen(seen: Dict, now_iso: str, retention_days: int = 60) -> int:
+    """Drop identities not seen for a long time. Returns the number removed.
+
+    Without this the seen-state grows forever. Ephemeral ids are the worst
+    case - a `docker compose run` container name never recurs, so every run
+    would leave one behind permanently.
+
+    An entry that is currently actionable is never pruned, whatever its age.
+    """
+    try:
+        cutoff = datetime.datetime.fromisoformat(now_iso) - datetime.timedelta(days=retention_days)
+    except ValueError:
+        return 0
+
+    stale = []
+    for obs_id, record in seen.items():
+        if record.get("last_actionable_run") == now_iso:
+            continue
+        last_seen = record.get("last_seen")
+        if not last_seen:
+            continue
+        try:
+            if datetime.datetime.fromisoformat(last_seen) < cutoff:
+                stale.append(obs_id)
+        except ValueError:
+            continue
+
+    for obs_id in stale:
+        del seen[obs_id]
+    return len(stale)
+
+
 def save(state_dir: str, facts: Dict, seen: Dict, history_days: int = 30) -> None:
     os.makedirs(os.path.join(state_dir, "history"), exist_ok=True)
     os.makedirs(os.path.join(state_dir, "seen"), exist_ok=True)
+
+    pruned = prune_seen(seen, facts.get("run", {}).get("started_at", ""))
+    if pruned:
+        facts.setdefault("summary", {})["seen_pruned"] = pruned
 
     latest = os.path.join(state_dir, STATE_FILE_LATEST)
     previous = os.path.join(state_dir, STATE_FILE_PREVIOUS)

@@ -67,6 +67,45 @@ def classify(observation: Observation, rule: Dict, is_new: bool = False) -> str:
                 return level
         return "info"
 
+    if rule_type == "threshold_or_spike":
+        # Two independent ways to escalate, whichever fires first.
+        #
+        # The absolute threshold is deliberately NOT raised to compensate for
+        # the spike rule: this widens coverage rather than trading one signal
+        # for another. A container that is loud every day keeps reporting, and
+        # one that quietly triples while staying under the line now reports too.
+        value = _numeric(observation.value)
+        if value is None:
+            return "info"
+
+        direction = rule.get("direction", "above")
+        for level in ("crit", "warn"):
+            limit = rule.get(level)
+            if limit is None:
+                continue
+            limit = float(limit)
+            if (direction == "above" and value > limit) or \
+               (direction == "below" and value < limit):
+                observation.threshold = limit
+                return level
+
+        previous = _numeric(observation.previous_value)
+        factor = float(rule.get("spike_factor", 3.0))
+        floor = float(rule.get("spike_floor", 0))
+        # A first sighting has no baseline and must not read as a spike, and a
+        # previous value of zero would make any growth infinite.
+        if previous and previous > 0 and value >= floor and value >= previous * factor:
+            # Say why this escalated. Without it the reader sees a number well
+            # under the stated threshold and no reason for the warning.
+            # (classify already mutates `threshold`, so annotating here is
+            # consistent with how the absolute path reports itself.)
+            observation.message = "%s — up %.1fx from %s" % (
+                observation.message, value / previous, f"{previous:,.0f}",
+            )
+            return rule.get("spike_level", "warn")
+
+        return "info"
+
     if rule_type == "equals":
         value = str(observation.value)
         if value in [str(v) for v in rule.get("crit_values", [])]:

@@ -129,6 +129,10 @@ def assemble(config, rules, results, now):
         LOG.info("no seen-state yet; suppressing new-only rules for this run")
         candidate_new = set()
 
+    # Spike rules compare against the last run, so the previous values must be
+    # attached before classification. The full diff runs after, because it
+    # diffs the severities classification produces.
+    diff.attach_previous_values(observations, seen)
     severity.apply(observations, rules, new_ids=candidate_new)
 
     now_iso = now.isoformat()
