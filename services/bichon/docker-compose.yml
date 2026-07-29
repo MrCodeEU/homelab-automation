@@ -1,6 +1,9 @@
 services:
   bichon:
-    image: rustmailer/bichon:latest
+    # Pinned deliberately: `:latest` pulled 2.0.0-alpha.1 the day it was
+    # published and crash-looped forever ("Legacy data layout detected") on
+    # data written by 1.x. 1.6.2 is the current stable release.
+    image: rustmailer/bichon:1.6.2
     container_name: bichon
     restart: unless-stopped
     ports:

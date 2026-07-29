@@ -71,13 +71,14 @@ backup_service_configs:
       - ntfy_ntfy-cache
     backup_critical: false
 
-  # Registered now so it is covered the moment it is configured. Until
-  # /opt/bichon/data exists, backup_optional makes the run skip it quietly
-  # instead of reporting a failure every night.
+  # Was backup_paths: [/opt/bichon/data], which never existed - bichon writes
+  # to a named Docker volume, not a bind mount. Confirmed via
+  # `docker inspect bichon`: the volume is compose-project-prefixed
+  # (bichon-data -> bichon_bichon-data), same convention docker_compose_v2
+  # applies to every service here.
   bichon:
-    backup_paths:
-      - /opt/bichon/data
-    backup_optional: true
+    backup_volumes:
+      - bichon_bichon-data
     backup_critical: false
 
   # glance is deliberately absent: it only keeps /opt/glance/config, which
