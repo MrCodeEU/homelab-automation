@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.diff import compute      # noqa: E402
+from app.diff import compute, attach_previous_values, prune_seen  # noqa: E402
 from app.model import Observation  # noqa: E402
 
 NOW = "2026-07-28T06:00:00+02:00"
@@ -77,6 +77,58 @@ def test_info_still_recorded_in_seen():
     compute([obs("a", "info")], {}, seen, NOW)
     assert "a" in seen, "new_only rules depend on info observations being tracked"
     assert seen["a"]["last_actionable_run"] is None
+
+
+def test_last_value_is_recorded_and_read_back():
+    seen = {}
+    item = obs("a")
+    item.value = 1200
+    compute([item], {}, seen, NOW)
+    assert seen["a"]["last_value"] == 1200
+
+    # Next run reads it back as the baseline for a spike comparison.
+    later = obs("a")
+    attach_previous_values([later], seen)
+    assert later.previous_value == 1200
+
+
+def test_last_value_ignores_non_numeric_and_bools():
+    seen = {}
+    text = obs("t")
+    text.value = "DISK_DSBL"
+    flag = obs("f")
+    flag.value = True
+    compute([text, flag], {}, seen, NOW)
+    # A bool would compare as 1 and read as a rate.
+    assert "last_value" not in seen["t"]
+    assert "last_value" not in seen["f"]
+
+
+def test_prune_drops_stale_entries():
+    seen = {
+        "old": {"last_seen": "2026-01-01T06:00:00+02:00", "last_actionable_run": None},
+        "recent": {"last_seen": "2026-07-27T06:00:00+02:00", "last_actionable_run": None},
+    }
+    removed = prune_seen(seen, NOW, retention_days=60)
+    assert removed == 1
+    assert "old" not in seen and "recent" in seen
+
+
+def test_prune_never_drops_a_currently_actionable_entry():
+    # Stale by date, but reported in this very run: keeping it is what
+    # preserves its first_seen and therefore "broken for N days".
+    seen = {"a": {"last_seen": "2026-01-01T06:00:00+02:00", "last_actionable_run": NOW}}
+    assert prune_seen(seen, NOW, retention_days=60) == 0
+    assert "a" in seen
+
+
+def test_prune_tolerates_missing_or_bad_timestamps():
+    seen = {
+        "no_ts": {"last_actionable_run": None},
+        "bad_ts": {"last_seen": "not-a-date", "last_actionable_run": None},
+    }
+    assert prune_seen(seen, NOW, retention_days=60) == 0
+    assert len(seen) == 2
 
 
 if __name__ == "__main__":

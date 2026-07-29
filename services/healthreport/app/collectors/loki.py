@@ -10,7 +10,7 @@ import re
 import time
 from collections import Counter
 
-from ..model import CollectorResult, Observation
+from ..model import CollectorResult, Observation, is_ephemeral
 from .base import collector, http_get
 
 ERROR_PATTERN = "(?i)(error|fatal|panic|traceback|exception)"
@@ -118,6 +118,11 @@ def collect(config, rules):
     for metric, value in query_instant(config, count_q):
         host = metric.get("host") or metric.get("instance") or "unknown"
         container = metric.get("container") or "unknown"
+        # This report runs as a transient compose container with a fresh name
+        # every time, so its own log lines would mint a brand-new observation
+        # id per run and leave it in the seen-state forever.
+        if is_ephemeral(container):
+            continue
         per_container[(host, container)] = int(value)
 
     # Signatures need the actual lines, so this one stays a range query. The
@@ -129,6 +134,8 @@ def collect(config, rules):
         labels = stream.get("stream", {})
         container = labels.get("container") or "unknown"
         host = labels.get("host") or labels.get("instance") or "unknown"
+        if is_ephemeral(container):
+            continue
         for _ts, line in stream.get("values", []):
             sig = normalize(line)
             if not sig:
@@ -186,7 +193,7 @@ def collect(config, rules):
             kind="log_error_rate",
             value=count,
             unit="lines",
-            message="%s/%s logged %d error lines in %dh" % (host, container, count, hours),
+            message="%s/%s logged %s error lines in %dh" % (host, container, f"{count:,}", hours),
             evidence={"logql": logql},
         ))
 

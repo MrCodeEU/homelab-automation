@@ -76,6 +76,57 @@ def test_new_only_needs_the_diff():
     assert classify(signature, rule, is_new=True) == "warn"
 
 
+def _rate(value, previous=None):
+    o = obs("log_error_rate", value, subject="nuc")
+    o.previous_value = previous
+    return o
+
+
+def _rate_severity(value, previous=None):
+    return classify(_rate(value, previous), TABLE["log_error_rate"])
+
+
+def test_spike_absolute_threshold_still_applies():
+    # The spike rule is additive: the existing absolute coverage must not have
+    # been traded away for it.
+    assert _rate_severity(6000) == "warn"
+    assert _rate_severity(4999) == "info"
+
+
+def test_spike_escalates_below_the_absolute_threshold():
+    # 800 -> 3000 never crosses 5000 but is the case the rule exists for.
+    assert _rate_severity(3000, previous=800) == "warn"
+
+
+def test_spike_needs_a_baseline():
+    # A first sighting has no previous value and must not read as a spike.
+    assert _rate_severity(3000, previous=None) == "info"
+    # A previous value of zero would make any growth infinite.
+    assert _rate_severity(3000, previous=0) == "info"
+
+
+def test_spike_respects_the_floor():
+    # 10 -> 100 is a tenfold rise and means nothing at that volume.
+    assert _rate_severity(100, previous=10) == "info"
+    # Exactly at the floor, with the factor met, does escalate.
+    assert _rate_severity(500, previous=100) == "warn"
+
+
+def test_spike_boundary_is_inclusive():
+    assert _rate_severity(3000, previous=1000) == "warn"   # exactly 3x
+    assert _rate_severity(2999, previous=1000) == "info"   # just under
+
+
+def test_spike_never_fires_on_a_drop():
+    assert _rate_severity(600, previous=50000) == "info"
+
+
+def test_spike_annotates_the_message():
+    o = _rate(3000, previous=600)
+    classify(o, TABLE["log_error_rate"])
+    assert "up 5.0x from 600" in o.message, o.message
+
+
 def test_unknown_kind_stays_info():
     assert classify(obs("something_invented", 999), TABLE.get("something_invented", {})) == "info"
 
