@@ -11,6 +11,9 @@
 # same group-level unraid_persist_path rather than depending on another
 # role's defaults being visible.
 unraid_userscripts_path: "{{ unraid_persist_path }}/plugins/user.scripts"
+# Not persisted on purpose: this is the tmpfs copy startSchedule.php actually
+# reads. The flash copy above stays authoritative across reboots.
+unraid_userscripts_runtime_path: /tmp/user.scripts
 unraid_backup_script_name: nas-backup
 
 unraid_backup_log_path: "{{ base_path }}/backup/logs"

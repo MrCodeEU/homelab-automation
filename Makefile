@@ -155,6 +155,10 @@ test-healthreport:
 	@cd services/healthreport && python3 tests/test_severity.py
 	@echo "==> Health report: diff engine"
 	@cd services/healthreport && python3 tests/test_diff.py
+	@echo "==> Health report: log signature normalization"
+	@cd services/healthreport && python3 tests/test_normalize.py
+	@echo "==> Health report: maintenance windows"
+	@cd services/healthreport && python3 tests/test_maintenance.py
 
 docs-ansible-map:
 	@echo "==> Generating Ansible inventory/service map"

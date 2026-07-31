@@ -480,8 +480,12 @@ services:
     icon: "mdi:sync"
     https_backend: true  # Syncthing uses self-signed HTTPS
 
+  # Disabled 2026-07-31: the FileRun container no longer exists on nas and
+  # nothing listens on 9200, so Caddy was proxying into a void - 4,782 of the
+  # host's 5,781 daily 5xx came from this one vhost. Kept (not deleted) because
+  # the domain may be revived later; flip back to true and redeploy Caddy.
   - name: filerun
-    enabled: true
+    enabled: false
     managed: false
     domain: "files.mljr.eu"
     port: 9200

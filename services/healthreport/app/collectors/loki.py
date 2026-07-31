@@ -38,6 +38,14 @@ DOCKER_ERRORS = '{job="docker"} |~ `%s` !~ `%s` !~ `%s`' % (
 
 # Order matters: mask the most specific shapes first.
 NORMALIZERS = [
+    # ANSI colour codes must go first, and not only because they are ugly in a
+    # notification. A sequence like `\x1b[2m` ends in a word character, so a
+    # timestamp glued straight to it ("\x1b[2m2026-07-29T08:05:31") has no word
+    # boundary in front of the digits and the <ts> rule below silently fails to
+    # match. The timestamp then falls through to the generic <n> rule, every
+    # run produces a different signature for the same event, and one four-line
+    # error block from bichon became four separate "new signature" warnings.
+    (re.compile(r"\x1b\[[0-9;]*[A-Za-z]"), ""),
     (re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I), "<uuid>"),
     (re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b"), "<ip>"),
     (re.compile(r"\b[0-9a-f]{16,}\b", re.I), "<hash>"),
@@ -57,6 +65,113 @@ def normalize(line: str) -> str:
     for pattern, replacement in NORMALIZERS:
         text = pattern.sub(replacement, text)
     return text[:200]
+
+
+WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+WINDOW_RE = re.compile(
+    r"^\s*(?P<day>daily|mon|tue|wed|thu|fri|sat|sun)\s+"
+    r"(?P<from_h>\d{1,2}):(?P<from_m>\d{2})\s*-\s*"
+    r"(?P<to_h>\d{1,2}):(?P<to_m>\d{2})\s*$",
+    re.I,
+)
+
+
+def parse_windows(specs):
+    """Parse "sun 05:00-08:00" strings into (day_index, start_min, end_min).
+
+    day_index is None for `daily`. Unparseable entries are dropped rather than
+    raising: a typo in one window must not take the whole report down, and the
+    evidence carries the raw strings so a window that never matches is visible.
+    """
+    out = []
+    for spec in specs or []:
+        match = WINDOW_RE.match(spec)
+        if not match:
+            continue
+        day = match.group("day").lower()
+        start = int(match.group("from_h")) * 60 + int(match.group("from_m"))
+        end = int(match.group("to_h")) * 60 + int(match.group("to_m"))
+        out.append((None if day == "daily" else WEEKDAYS.index(day), start, end))
+    return out
+
+
+def in_window(when, windows) -> bool:
+    """Is this local-time struct inside any window?
+
+    Windows that wrap past midnight (23:00-01:00) are handled by treating the
+    range as two: the day it starts on and the small hours of the next one. The
+    weekday of a wrapping window is the day it *starts*.
+    """
+    minute = when.tm_hour * 60 + when.tm_min
+    weekday = when.tm_wday
+    for day, start, end in windows:
+        if start <= end:
+            if (day is None or day == weekday) and start <= minute < end:
+                return True
+            continue
+        # Wraps midnight: before the end means it belongs to the previous day.
+        if (day is None or day == weekday) and minute >= start:
+            return True
+        previous_day = (weekday - 1) % 7
+        if (day is None or day == previous_day) and minute < end:
+            return True
+    return False
+
+
+def split_maintenance(series, windows):
+    """Split [(unix_ts, value)] into (kept, suppressed) by maintenance window.
+
+    A bucket produced by `count_over_time([1h])` at timestamp T covers the hour
+    ending at T, so it is judged by the hour it *starts*: a window at 05:00-08:00
+    should swallow the bucket stamped 06:00, which covers 05:00-06:00.
+    """
+    if not windows:
+        return list(series), []
+    kept, suppressed = [], []
+    for ts, value in series:
+        started = time.localtime(ts - 3600)
+        (suppressed if in_window(started, windows) else kept).append((ts, value))
+    return kept, suppressed
+
+
+def _hour_label(ts) -> str:
+    if not ts:
+        return "n/a"
+    return time.strftime("%a %H:%M", time.localtime(ts))
+
+
+def query_matrix(config, logql, hours, step=3600):
+    """Range query returning [(labels, [(unix_ts, value), ...])].
+
+    Unlike query_range below this expects a *metric* query, so Loki returns a
+    matrix of samples rather than log lines - no `limit` truncation to worry
+    about.
+    """
+    end = time.time()
+    start = end - hours * 3600
+    response = http_get(
+        config.loki_url.rstrip("/") + "/loki/api/v1/query_range",
+        params={
+            "query": logql,
+            "start": "%d" % int(start * 1e9),
+            "end": "%d" % int(end * 1e9),
+            "step": "%d" % int(step),
+        },
+        timeout=60,
+    )
+    payload = response.json()
+    if payload.get("status") != "success":
+        raise RuntimeError("loki query failed: %s" % payload)
+    out = []
+    for series in payload.get("data", {}).get("result", []):
+        points = []
+        for pair in series.get("values", []):
+            try:
+                points.append((int(float(pair[0])), float(pair[1])))
+            except (IndexError, TypeError, ValueError):
+                continue
+        out.append((series.get("metric", {}), points))
+    return out
 
 
 def query_instant(config, logql):
@@ -217,22 +332,71 @@ def collect(config, rules):
         ))
 
     # Caddy 5xx: the user-visible failure mode for every proxied service.
-    caddy_logql = ('sum by (host) (count_over_time({job="caddy"} | json | status >= 500 [%dh]))'
-                   % hours)
-    caddy_counts = Counter()
-    for metric, value in query_instant(config, caddy_logql):
-        caddy_counts[metric.get("host", "mljr")] = int(value)
-    result.data["caddy_5xx"] = dict(caddy_counts)
-    for host, count in caddy_counts.items():
+    #
+    # Bucketed hourly rather than summed over the window, because a single
+    # 24h total cannot tell a planned maintenance window from an outage. The
+    # Sunday appdata backup alone contributes ~8,750 5xx across three hours;
+    # summed flat, that buries a real incident and trains you to ignore the
+    # number. Hours inside a declared window are dropped, and what is reported
+    # is how many hours were actually bad.
+    caddy_logql = ('sum by (host) (count_over_time({job="caddy"} | json | status >= 500 [1h]))')
+    windows = parse_windows(config.maintenance_windows)
+    hour_threshold = config.caddy_5xx_hour_threshold
+    per_host_buckets = {}
+    for metric, series in query_matrix(config, caddy_logql, hours, step=3600):
+        per_host_buckets.setdefault(metric.get("host", "mljr"), []).extend(series)
+
+    result.data["caddy_5xx"] = {}
+    for host, series in per_host_buckets.items():
+        kept, suppressed = split_maintenance(series, windows)
+        total = int(sum(v for _ts, v in kept))
+        suppressed_total = int(sum(v for _ts, v in suppressed))
+        bad_hours = [(ts, v) for ts, v in kept if v >= hour_threshold]
+        peak_ts, peak = max(kept, key=lambda p: p[1], default=(0, 0.0))
+
+        result.data["caddy_5xx"][host] = {
+            "total": total,
+            "suppressed": suppressed_total,
+            "suppressed_hours": len(suppressed),
+            "bad_hours": len(bad_hours),
+            "peak": int(peak),
+        }
+        evidence = {
+            "logql": caddy_logql,
+            "hour_threshold": hour_threshold,
+            "peak_hour": _hour_label(peak_ts),
+            "peak": int(peak),
+            "maintenance_windows": config.maintenance_windows,
+            "suppressed_responses": suppressed_total,
+            "suppressed_hours": len(suppressed),
+        }
+
         obs.append(Observation(
             id="caddy_5xx.%s." % host,
             collector="logs",
             subject=host,
             kind="caddy_5xx",
-            value=count,
+            value=total,
             unit="responses",
-            message="%s served %d 5xx responses in %dh" % (host, count, hours),
-            evidence={"logql": caddy_logql},
+            message="%s served %s 5xx responses in %dh (excluding %d maintenance hour(s))"
+                    % (host, f"{total:,}", hours, len(suppressed)),
+            evidence=evidence,
+        ))
+
+        # The shape signal. One restart burst is one bad hour; a service that
+        # is actually broken stays bad for many.
+        obs.append(Observation(
+            id="caddy_5xx_hours.%s." % host,
+            collector="logs",
+            subject=host,
+            kind="caddy_5xx_hours",
+            value=len(bad_hours),
+            unit="hours",
+            threshold=hour_threshold,
+            message="%s had %d hour(s) above %d 5xx in %dh (peak %s at %s)"
+                    % (host, len(bad_hours), hour_threshold, hours,
+                       f"{int(peak):,}", _hour_label(peak_ts)),
+            evidence=evidence,
         ))
 
     return result

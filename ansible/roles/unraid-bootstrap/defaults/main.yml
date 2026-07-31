@@ -8,6 +8,9 @@ unraid_persist_path: /boot/config
 
 # User Scripts plugin paths.
 unraid_userscripts_path: "{{ unraid_persist_path }}/plugins/user.scripts"
+# Not persisted on purpose: this is the tmpfs copy startSchedule.php actually
+# reads. The flash copy above stays authoritative across reboots.
+unraid_userscripts_runtime_path: /tmp/user.scripts
 unraid_bootstrap_script_name: homelab-compose-up
 
 # Legacy User Scripts entries superseded by Ansible. These are removed from the
