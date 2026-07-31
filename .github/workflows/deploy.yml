@@ -58,7 +58,13 @@ on:
 
   # Weekly full deployment to keep all systems and containers up to date
   schedule:
-    - cron: '0 4 * * 0'  # Every Sunday at 04:00 UTC
+    # Sunday 00:00 UTC = 02:00 CEST / 01:00 CET. Deliberately not 04:00 UTC:
+    # that is 06:00 CEST, in the middle of the Unraid appdata backup window
+    # (05:00-07:47 CEST), which stops thirteen containers one at a time - a
+    # full deploy and that backup were fighting over the same machine every
+    # week. Local midnight is no good either: nas runs Community Applications
+    # docker auto-update at 00:00-00:10 CEST daily. 02:00 CEST is clear of both.
+    - cron: '0 0 * * 0'
 
   repository_dispatch:
     types: [service-update]

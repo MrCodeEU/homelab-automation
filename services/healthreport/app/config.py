@@ -102,6 +102,10 @@ class Config:
         "daily 00:00-00:10",
         # Unraid appdata backup (plugin cron: Sunday 05:00), ~2h45 wall clock.
         "sun 04:55-08:00",
+        # Weekly full deploy (.github/workflows/deploy.yml, Sunday 00:00 UTC),
+        # which restarts changed containers. An hour is generous: the deploy
+        # itself runs ~15 minutes.
+        "sun 02:00-03:00",
     ])
     # A single hour above this many 5xx counts as a bad hour. Sustained badness
     # is the signal; one restart burst is not.
