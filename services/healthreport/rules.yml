@@ -136,7 +136,18 @@ rules:
     direction: above
     # Pending advisories are normal between patch windows; the diff surfaces
     # growth, and the count only escalates when it gets genuinely stale.
+    # Deliberately not raised despite the count being inflated by advisories
+    # that are installed-but-not-booted: reboot_required below is what names
+    # that case, and this staying noisy is the reminder to act on it.
     warn: 1
+
+  # Only emitted when a reboot is actually outstanding, so its presence is the
+  # finding. mljr sat 15 weeks on a superseded kernel with every fix already on
+  # disk, and nothing in the report said so - the advisory count looked like
+  # missing patches instead of a missing reboot.
+  reboot_required:
+    type: present
+    level: warn
 
   crowdsec_absent:
     type: present
@@ -232,10 +243,22 @@ rules:
     spike_floor: 500
     spike_level: warn
 
+  # Total for the window, already excluding declared maintenance hours (see
+  # Config.maintenance_windows). Kept as a volume signal: a low-rate but
+  # constant trickle of 5xx never trips the bad-hours rule below.
   caddy_5xx:
     type: threshold
     direction: above
-    warn: 50
+    warn: 500
+
+  # The shape signal, and the one that matters. Restarts and deploys produce a
+  # single ugly hour; something actually broken produces many. Six bad hours in
+  # a day is no longer an incident, it is a state.
+  caddy_5xx_hours:
+    type: threshold
+    direction: above
+    warn: 2
+    crit: 6
 
   # --- pipeline ------------------------------------------------------------
   facts_unreachable:

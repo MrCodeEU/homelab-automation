@@ -6,7 +6,7 @@ value here has a matching block there.
 
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 def _bool(name: str, default: bool = False) -> bool:
@@ -21,6 +21,18 @@ def _int(name: str, default: int) -> int:
         return int(os.environ.get(name, "").strip())
     except ValueError:
         return default
+
+
+def _windows(raw: Optional[str], default: List[str]) -> List[str]:
+    """Parse "sun 05:00-08:00,daily 00:00-00:10" into a list.
+
+    An unset variable keeps the defaults; an explicitly empty one
+    ("HEALTHREPORT_MAINTENANCE_WINDOWS=") disables suppression entirely, which
+    is what you want when checking whether a window is hiding a real problem.
+    """
+    if raw is None:
+        return list(default)
+    return [chunk.strip() for chunk in raw.split(",") if chunk.strip()]
 
 
 def _hosts(raw: str) -> Dict[str, str]:
@@ -78,6 +90,23 @@ class Config:
     grafana_url: str = "https://monitor.mljr.eu"
     lookback_hours: int = 24
 
+    # Scheduled outages, in the container's local time (TZ comes from the
+    # services role's env.j2). Traffic-derived findings - 5xx above all - would
+    # otherwise report planned maintenance as an incident: the Unraid appdata
+    # backup stops thirteen containers for ~2h45 every Sunday and produced
+    # ~8,750 5xx, dwarfing a genuine outage. Syntax: "<day> HH:MM-HH:MM" where
+    # day is `daily` or a three-letter weekday. Windows may cross midnight.
+    maintenance_windows: List[str] = field(default_factory=lambda: [
+        # Community Applications docker auto-update stops and restarts every
+        # container it manages on nas.
+        "daily 00:00-00:10",
+        # Unraid appdata backup (plugin cron: Sunday 05:00), ~2h45 wall clock.
+        "sun 04:55-08:00",
+    ])
+    # A single hour above this many 5xx counts as a bad hour. Sustained badness
+    # is the signal; one restart burst is not.
+    caddy_5xx_hour_threshold: int = 100
+
     @classmethod
     def from_env(cls) -> "Config":
         return cls(
@@ -107,6 +136,10 @@ class Config:
             email_to=os.environ.get("HEALTHREPORT_EMAIL_TO", ""),
             grafana_url=os.environ.get("HEALTHREPORT_GRAFANA_URL", cls.grafana_url),
             lookback_hours=_int("HEALTHREPORT_LOOKBACK_HOURS", 24),
+            maintenance_windows=_windows(
+                os.environ.get("HEALTHREPORT_MAINTENANCE_WINDOWS"),
+                cls.__dataclass_fields__["maintenance_windows"].default_factory()),
+            caddy_5xx_hour_threshold=_int("HEALTHREPORT_5XX_HOUR_THRESHOLD", 100),
         )
 
     def all_hosts(self) -> List[str]:
