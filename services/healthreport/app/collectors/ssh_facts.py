@@ -132,16 +132,53 @@ def _rocky(obs, host, sections):
 
     updates = _section(sections, "security_updates")
     if updates is not None:
+        count = updates.get("count", 0)
+        packages = updates.get("distinct_package_count")
+        reboot_required = updates.get("reboot_required")
+
+        # The advisory count alone is misleading: dnf lists every superseded
+        # advisory until the new kernel is actually running, so a host that is
+        # fully patched but unrebooted looks catastrophically behind. Lead with
+        # how many distinct packages are affected, which is the honest number.
+        detail = "%d advisories" % count
+        if packages is not None:
+            detail += " across %d package(s)" % packages
+        if reboot_required:
+            detail += ", already installed and pending reboot"
+
         obs.append(Observation(
             id="security_updates.%s." % host,
             collector="ssh_facts",
             subject=host,
             kind="security_updates",
-            value=updates.get("count", 0),
+            value=count,
             unit="advisories",
-            message="%s has %d pending security advisories" % (host, updates.get("count", 0)),
-            evidence={"advisories": (updates.get("advisories") or [])[:10]},
+            message="%s: %s" % (host, detail),
+            evidence={
+                "advisories": (updates.get("advisories") or [])[:10],
+                "distinct_packages": (updates.get("distinct_packages") or [])[:20],
+                "reboot_required": reboot_required,
+                "running_kernel": updates.get("running_kernel"),
+            },
         ))
+
+        # Emitted only when true, so the `present` rule can speak for itself.
+        # This is the finding that actually needs an action: the packages are
+        # on disk, nothing is running them.
+        if reboot_required:
+            obs.append(Observation(
+                id="reboot_required.%s." % host,
+                collector="ssh_facts",
+                subject=host,
+                kind="reboot_required",
+                value=updates.get("running_kernel") or True,
+                message="%s needs a reboot to activate installed updates (running %s)"
+                        % (host, updates.get("running_kernel") or "unknown kernel"),
+                evidence={
+                    "running_kernel": updates.get("running_kernel"),
+                    "advisories_pending_reboot": count,
+                },
+            ))
 
     crowdsec = _section(sections, "crowdsec")
     if crowdsec and crowdsec.get("available"):

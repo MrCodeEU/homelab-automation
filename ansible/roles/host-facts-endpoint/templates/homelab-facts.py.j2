@@ -195,7 +195,33 @@ def collect_security_updates():
                 "severity": parts[1],
                 "package": parts[2],
             })
-    return {"count": len(advisories), "advisories": advisories[:50]}
+
+    # A pending advisory does not mean an unpatched package. roles/base runs
+    # `dnf update *` on every deploy, so kernel fixes are installed almost
+    # immediately - they just are not running until a reboot, and dnf keeps
+    # listing every superseded advisory until then. mljr reported 94 "pending"
+    # advisories that were in fact one missing reboot: only 6 distinct packages
+    # were behind, and rebooting cleared all 94. Reporting the raw count as
+    # unpatched software is alarming and wrong, so say which it is.
+    reboot = run(["needs-restarting", "-r"], timeout=60)
+    # needs-restarting -r: 0 = no reboot needed, 1 = reboot needed. Any other
+    # code (127 not installed, 124 timeout) means "do not know" - not "fine".
+    reboot_required = None
+    if reboot["rc"] in (0, 1):
+        reboot_required = reboot["rc"] == 1
+
+    distinct = sorted(set(
+        re.sub(r"-[0-9].*$", "", a["package"]) for a in advisories
+    ))
+
+    return {
+        "count": len(advisories),
+        "advisories": advisories[:50],
+        "distinct_packages": distinct[:50],
+        "distinct_package_count": len(distinct),
+        "reboot_required": reboot_required,
+        "running_kernel": os.uname().release,
+    }
 
 
 def collect_crowdsec():
