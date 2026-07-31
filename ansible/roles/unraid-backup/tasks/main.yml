@@ -108,6 +108,26 @@
            }
          }) }}
 
+# The scheduler does not read the flash copy. cron.daily runs
+# startSchedule.php, which loads /tmp/user.scripts/schedule.json - a runtime
+# copy the plugin refreshes only at boot or when its settings page is saved.
+# Writing only the flash copy left this entry invisible to cron, so the backup
+# silently never ran while the retired entry it replaced kept firing.
+# Copied from the flash file rather than re-rendered, so the runtime copy also
+# picks up whatever unraid-bootstrap merged in earlier in the same play.
+- name: Ensure the User Scripts runtime directory exists
+  ansible.builtin.file:
+    path: "{{ unraid_userscripts_runtime_path }}"
+    state: directory
+    mode: "0755"
+
+- name: Mirror the schedule into the runtime copy the scheduler reads
+  ansible.builtin.copy:
+    src: "{{ unraid_userscripts_path }}/schedule.json"
+    dest: "{{ unraid_userscripts_runtime_path }}/schedule.json"
+    remote_src: true
+    mode: "0600"
+
 # Removing the file does not delete anything it already synced to pCloud -
 # rclone.conf and remote content are untouched.
 - name: Remove the retired manual backup script from the flash

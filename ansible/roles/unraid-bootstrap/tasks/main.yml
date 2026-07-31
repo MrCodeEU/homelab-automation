@@ -122,6 +122,24 @@
            }
          }) }}
 
+# The scheduler does not read the flash copy. cron.daily/hourly/weekly run
+# startSchedule.php, which loads /tmp/user.scripts/schedule.json - a runtime
+# copy the plugin refreshes only at boot or when its settings page is saved.
+# Without this mirror, an Ansible-managed entry stays invisible to cron until
+# the next reboot.
+- name: Ensure the User Scripts runtime directory exists
+  ansible.builtin.file:
+    path: "{{ unraid_userscripts_runtime_path }}"
+    state: directory
+    mode: "0755"
+
+- name: Mirror the schedule into the runtime copy the scheduler reads
+  ansible.builtin.copy:
+    src: "{{ unraid_userscripts_path }}/schedule.json"
+    dest: "{{ unraid_userscripts_runtime_path }}/schedule.json"
+    remote_src: true
+    mode: "0600"
+
 # Retired User Scripts. "GHCR Auth" stored a plaintext GitHub PAT on the boot
 # flash; registry login now happens in roles/services from the vault-held token.
 # Removing the file does not revoke the leaked token - rotate it separately.
