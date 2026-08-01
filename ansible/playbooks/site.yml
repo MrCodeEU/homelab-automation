@@ -58,12 +58,19 @@
   hosts: ugreen
   become: true
   gather_facts: false
+  # ugreen is a backup *target*, never a source. When its filesystem died on
+  # 2026-07-31 this play failed on "Operation not permitted" creating the chroot
+  # root, which aborted the whole run before Caddy or Docker Services - so one
+  # dead backup target took every other host's deploy with it. Skipped by flag
+  # rather than removed, and unreachable is not fatal either.
+  ignore_unreachable: true
   tags:
     - backup
     - services
     - ugreen
   roles:
-    - backup-remote-target
+    - role: backup-remote-target
+      when: ugreen_enabled | default(true) | bool
 
 # ============================================================================
 # NAS Syncthing key (nas only, runs before Ugreen Services consumes it)
@@ -247,6 +254,7 @@
   hosts: ugreen
   become: true
   gather_facts: false
+  ignore_unreachable: true
   tags:
     - services
     - ugreen
@@ -256,8 +264,10 @@
         path: "{{ base_path }}"
         state: directory
         mode: "0755"
+      when: ugreen_enabled | default(true) | bool
   roles:
-    - services
+    - role: services
+      when: ugreen_enabled | default(true) | bool
 
 # ============================================================================
 # CrowdSec Firewall Bouncer (mljr only - host-level enforcement)
