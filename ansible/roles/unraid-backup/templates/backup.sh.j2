@@ -18,7 +18,18 @@ mkdir -p "$LOG_DIR"
 
 UGREEN_CONFIG="{{ base_path }}/backup-remote/rclone-ugreen.conf"
 UGREEN_AVAILABLE=0
-[ -f "$UGREEN_CONFIG" ] && UGREEN_AVAILABLE=1
+# A present config file does not mean a writable target. When ugreen's btrfs
+# failed on 2026-07-31 the SFTP login still succeeded, so this leg was still
+# attempted and every single file failed with
+#   Put mkParentDir failed: mkdir "/nas" failed: permission denied
+# One run spent three hours writing a 66MB log of those, and - worse - the
+# remaining paths never got their pCloud sync because they were queued behind
+# it. Probe for writability, not for the config file.
+if [ -f "$UGREEN_CONFIG" ] && rclone --config "$UGREEN_CONFIG" mkdir "ugreen:probe-$$" \
+        --timeout 20s --contimeout 20s --retries 1 >/dev/null 2>&1; then
+    rclone --config "$UGREEN_CONFIG" rmdir "ugreen:probe-$$" >/dev/null 2>&1
+    UGREEN_AVAILABLE=1
+fi
 # No "data/" prefix: the sftp session already lands directly in the backup
 # user's home, which IS the data directory (see roles/backup-remote-target).
 

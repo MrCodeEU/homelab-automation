@@ -82,5 +82,79 @@ backup_service_configs:
       - bichon_bichon-data
     backup_critical: false
 
+  # Added 2026-08-01. Before this, 6 of 34 deployed services had any backup at
+  # all, and the ones below hold state that exists nowhere else. All container
+  # backups together occupy 1.1 GiB on pCloud, so coverage was never a storage
+  # question - these were simply never added.
+  #
+  # The two Postgres-backed services get a dump hook rather than a raw copy of
+  # the data directory: archiving a running Postgres is what produced three
+  # consecutive weeks of failed appdata backups on the NAS (tar caught
+  # pg_internal.init changing mid-read). pg_dump gives a consistent snapshot,
+  # and the volume is kept as well so a dump failure is not a total loss.
+
+  # Self-hosted Git: repositories, issues, CI config, and the mirror target for
+  # the user's own code. It had no backup of its own.
+  forgejo:
+    backup_volumes:
+      - forgejo-data
+      - forgejo-db-data
+    # Dumped into a directory, not a bare file: backup_paths entries are
+    # rclone-synced, and `rclone sync` takes a directory as its source.
+    backup_pre_hook: |
+      mkdir -p /opt/backups/forgejo-dumps && \
+      docker exec forgejo-db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+        > /opt/backups/forgejo-dumps/forgejo.sql
+    backup_paths:
+      - /opt/backups/forgejo-dumps
+    backup_post_hook: |
+      rm -rf /opt/backups/forgejo-dumps
+    backup_critical: true
+
+  # Analytics history: years of it, and not reconstructible from anything else.
+  umami:
+    backup_volumes:
+      - umami_umami-db-data
+    backup_pre_hook: |
+      mkdir -p /opt/backups/umami-dumps && \
+      docker exec umami-db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+        > /opt/backups/umami-dumps/umami.sql
+    backup_paths:
+      - /opt/backups/umami-dumps
+    backup_post_hook: |
+      rm -rf /opt/backups/umami-dumps
+    backup_critical: false
+
+  # Dashboards and datasource config. victoriametrics-data and loki-data are
+  # deliberately NOT included: they are bulky time series that regenerate from
+  # the running estate, and losing them costs history, not configuration.
+  grafana:
+    backup_volumes:
+      - grafana-data
+    backup_critical: false
+
+  # Subscriber list.
+  newsletter:
+    backup_volumes:
+      - newsletter_newsletter-data
+    backup_critical: true
+
+  # Analytics history derived from Caddy logs, which rotate away - so this is
+  # not reproducible after the fact.
+  goaccess:
+    backup_volumes:
+      - goaccess_goaccess-data
+      - goaccess_goaccess-report
+    backup_critical: false
+
+  # Local decisions plus the machine credentials that register this instance
+  # with the central API. Re-registerable, but tedious.
+  crowdsec:
+    backup_volumes:
+      - crowdsec-config
+      - crowdsec-data
+      - crowdsec-web-ui-data
+    backup_critical: false
+
   # glance is deliberately absent: it only keeps /opt/glance/config, which
   # Ansible templates from the repo, so there is no state to back up.
