@@ -92,6 +92,10 @@ if rclone sync "{{ pair.src }}" "{{ pair.wd_cloud_dest }}" \
     log "SUCCESS: {{ pair.src }} backed up to wd-cloud"
 else
     log_warn "Failed to sync {{ pair.src }} to wd-cloud (push-only copy, not fatal)"
+    # Not fatal to the run (pCloud/ugreen legs above are authoritative), but
+    # still needs to be visible - previously this only hit the log file, so a
+    # dead or unreachable WD Cloud device could fail silently forever.
+    failed_paths+=("{{ pair.name }} (wd-cloud)")
 fi
 {% endif %}
 {% endfor %}

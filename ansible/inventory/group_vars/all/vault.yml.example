@@ -49,6 +49,10 @@ vault_kuma_password: ""
 vault_kuma_api_key: ""  # Kuma UI -> Profile -> API Keys; used as the basic-auth
                         # password (empty username) against /metrics
 
+# Home Assistant (health report collector)
+vault_homeassistant_token: ""  # HA -> profile (bottom left) -> Security ->
+                                # Long-Lived Access Tokens -> Create Token
+
 # ntfy notification bus
 # Leave these empty to accept the defaults. The backup role only sends
 # notifications when secrets.ntfy.url is defined.

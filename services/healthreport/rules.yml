@@ -302,3 +302,20 @@ rules:
     direction: below
     warn: 14
     crit: 3
+
+  # --- Home Assistant --------------------------------------------------------
+  ha_safe_mode:
+    type: present
+    level: crit
+
+  # Baseline measured 2026-08-01: 661 entities already sit in "unavailable"
+  # (mostly orphaned `sensor.*` from removed integrations/devices, never
+  # cleaned up). A low threshold here would crit every single run forever -
+  # exactly the noise problem log_signature already solves elsewhere. Rebased
+  # above the known pile so this only fires on further drift; once the HA
+  # side is cleaned up, lower these back down.
+  ha_unavailable_entities:
+    type: threshold
+    direction: above
+    warn: 700
+    crit: 750

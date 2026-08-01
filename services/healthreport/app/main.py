@@ -23,13 +23,13 @@ from .model import CollectorResult, Observation
 from .collectors import base
 
 # Importing the modules is what populates base.REGISTRY.
-from .collectors import github, kuma, loki, ntfy_updates, ssh_facts, victoria  # noqa: F401
+from .collectors import github, homeassistant, kuma, loki, ntfy_updates, ssh_facts, victoria  # noqa: F401
 
 LOG = logging.getLogger("healthreport")
 
 DEFAULT_COLLECTORS = [
     "host_metrics", "containers", "logs", "uptime_kuma",
-    "ssh_facts", "github", "updates",
+    "ssh_facts", "github", "updates", "homeassistant",
 ]
 
 
@@ -186,6 +186,8 @@ def main(argv=None):
             ("ssh hosts", ", ".join(sorted(config.ssh_hosts)) or "NONE"),
             ("github", "token %s owner=%s" % ("set" if config.github_token else "MISSING",
                                               config.github_owner or "?")),
+            ("homeassistant", "%s (token %s)" % (config.ha_url,
+                                                  "set" if config.ha_token else "MISSING")),
             ("ntfy", "%s/%s" % (config.ntfy_url, config.ntfy_topic)),
             ("email", config.email_to or "MISSING"),
             ("state", config.state_dir),

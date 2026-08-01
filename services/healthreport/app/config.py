@@ -76,6 +76,9 @@ class Config:
     github_token: str = ""
     github_owner: str = ""
 
+    ha_url: str = "http://100.100.10.200:8123"
+    ha_token: str = ""
+
     ntfy_url: str = "https://ntfy.mljr.eu"
     ntfy_topic: str = "homelab-health"
     ntfy_token: str = ""
@@ -129,6 +132,8 @@ class Config:
             local_host=os.environ.get("HEALTHREPORT_LOCAL_HOST", cls.local_host),
             github_token=os.environ.get("HEALTHREPORT_GITHUB_TOKEN", ""),
             github_owner=os.environ.get("HEALTHREPORT_GITHUB_OWNER", ""),
+            ha_url=os.environ.get("HEALTHREPORT_HA_URL", cls.ha_url),
+            ha_token=os.environ.get("HEALTHREPORT_HA_TOKEN", ""),
             ntfy_url=os.environ.get("HEALTHREPORT_NTFY_URL", cls.ntfy_url),
             ntfy_topic=os.environ.get("HEALTHREPORT_NTFY_TOPIC", cls.ntfy_topic),
             ntfy_token=os.environ.get("HEALTHREPORT_NTFY_TOKEN", ""),
