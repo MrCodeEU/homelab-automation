@@ -125,12 +125,42 @@ backup_service_configs:
       rm -rf /opt/backups/umami-dumps
     backup_critical: false
 
-  # Dashboards and datasource config. victoriametrics-data and loki-data are
-  # deliberately NOT included: they are bulky time series that regenerate from
-  # the running estate, and losing them costs history, not configuration.
+  # Dashboards, datasources, and the observability history behind them.
+  #
+  # The time series were initially left out as "regenerable", which is wrong:
+  # they regenerate only going forward. Losing them loses the past, and at
+  # 2.8G + 1.7G against 2.2 TiB free on pCloud there is no reason to.
+  #
+  # Copied live rather than snapshotted, which is a deliberate trade. Loki's
+  # chunks are immutable once flushed and VictoriaMetrics tolerates a
+  # crash-consistent copy; the alternative is VM's snapshot API, which writes
+  # the snapshot inside the same volume and would roughly double it during the
+  # run. For monitoring history that is not a worthwhile trade - but it does
+  # mean these two restore to "as if the host lost power", not to a clean
+  # point-in-time.
   grafana:
     backup_volumes:
       - grafana-data
+      - victoriametrics-data
+      - loki-data
+    backup_critical: false
+
+  # The user's own application database. Unlike forgejo and umami, this one
+  # sets --auth-local=scram-sha-256, so pg_dump needs a password even over the
+  # local socket - taken from the container's own environment rather than
+  # duplicated into the vault.
+  nocturne:
+    backup_volumes:
+      - nocturne_nocturne-postgres-data
+    backup_pre_hook: |
+      mkdir -p /opt/backups/nocturne-dumps && \
+      docker exec nocturne-postgres sh -c \
+        'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+        > /opt/backups/nocturne-dumps/nocturne.sql
+    backup_paths:
+      - /opt/backups/nocturne-dumps
+    backup_post_hook: |
+      rm -rf /opt/backups/nocturne-dumps
     backup_critical: false
 
   # Subscriber list.
