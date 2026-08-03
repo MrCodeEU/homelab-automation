@@ -148,8 +148,8 @@ backup_volume() {
     # Sync to remote
     timeout "$ITEM_TIMEOUT" rclone sync "$snapshot_dir" "${REMOTE}/volumes/${volume_name}" \
         --progress \
-        --transfers 4 \
-        --checkers 8 \
+        --transfers 8 \
+        --checkers 16 \
         --timeout 60s --contimeout 20s --low-level-retries 3 \
         --log-file="$LOG_FILE" \
         --log-level INFO || {
@@ -187,8 +187,8 @@ backup_path() {
     # Sync to remote
     timeout "$ITEM_TIMEOUT" rclone sync "$source_path" "${REMOTE}/paths/${backup_name}" \
         --progress \
-        --transfers 4 \
-        --checkers 8 \
+        --transfers 8 \
+        --checkers 16 \
         --timeout 60s --contimeout 20s --low-level-retries 3 \
         --log-file="$LOG_FILE" \
         --log-level INFO || {

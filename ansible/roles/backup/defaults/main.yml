@@ -18,7 +18,7 @@ backup_retention_days: 30
 # Wall-clock cap per rsync/rclone call (rclone syntax, e.g. "20m"). Bounds a
 # single slow or hung item so it can't consume the whole systemd
 # TimeoutStartSec and take every service queued after it down too.
-backup_item_timeout: "20m"
+backup_item_timeout: "40m"
 
 # pCloud OAuth token (from environment)
 # To get token: run `rclone config` interactively, copy the token JSON
