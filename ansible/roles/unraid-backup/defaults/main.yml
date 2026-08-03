@@ -62,6 +62,18 @@ unraid_backup_paths:
     wd_cloud: true
     wd_cloud_dest: "wd-cloud:Musik"
 
+  # The Unraid USB flash itself (config, network/share definitions, docker
+  # templates, plugin config, and the license key file) - previously backed
+  # up nowhere: no Connect/flash-backup plugin installed on this box, no
+  # entry in this list either. Small (2.3GB) and irreplaceable in a different
+  # way than the data disks - losing it without a backup means rebuilding
+  # every setting by hand and potentially a support ticket to get the license
+  # key reissued, even though the array data itself survives untouched.
+  - src: /boot
+    dest: "pcloud:unraid-flash"
+    name: unraid-flash
+    tier: critical
+
   # Syncthing content folders (mounted at /data1 in the syncthing container ->
   # host path /mnt/user/Sync/<folder>) are DELIBERATELY NOT listed here yet.
   # The user wants the folder restructuring done first - JKU-semester-per-
