@@ -24,6 +24,15 @@ WD_CLOUD_REMOTE="wd-cloud:"
 LOG_FILE="${LOCAL_PATH}/logs/backup-$(date +%Y%m%d).log"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 RETENTION_DAYS={{ backup_retention_days }}
+# Wall-clock budget per rsync/rclone call. Without this, one slow item (a huge
+# tiny-file volume like loki-data, or a stalled remote connection that outlasts
+# rclone's own retry/backoff budget) burns the whole systemd TimeoutStartSec
+# and SIGTERMs the script mid-list - which fails every service queued after
+# it too, not just the slow one. 2026-08-03: this is exactly what happened -
+# nuc died on loki-data and never got to bichon/umami/forgejo; mljr stalled on
+# mailcow's data path and never got to crowdsec/newsletter. Wrapping each call
+# means a timeout only fails that one item; everything else still runs.
+ITEM_TIMEOUT="{{ backup_item_timeout | default('20m') }}"
 {% if secrets.ntfy is defined and secrets.ntfy.url is defined %}
 NTFY_URL="{{ secrets.ntfy.url | default('https://ntfy.mljr.eu') }}"
 NTFY_TOPIC="{{ secrets.ntfy.topic | default('backup') }}"
@@ -88,9 +97,10 @@ sync_to_ugreen() {
         return 0
     fi
 
-    rclone sync "$snapshot_dir" "${UGREEN_REMOTE}/${remote_suffix}" \
+    timeout "$ITEM_TIMEOUT" rclone sync "$snapshot_dir" "${UGREEN_REMOTE}/${remote_suffix}" \
         --sftp-key-file "$UGREEN_KEY" \
         --transfers 2 --checkers 4 \
+        --timeout 60s --contimeout 20s --low-level-retries 3 \
         --log-file="$LOG_FILE" --log-level INFO || {
         log_warn "Failed to sync ${remote_suffix} to ugreen (on-prem copy only, not fatal)"
         return 1
@@ -102,8 +112,9 @@ sync_to_wdcloud() {
     local snapshot_dir="$1"
     local remote_suffix="$2"
 
-    rclone sync "$snapshot_dir" "${WD_CLOUD_REMOTE}backup/${remote_suffix}" \
+    timeout "$ITEM_TIMEOUT" rclone sync "$snapshot_dir" "${WD_CLOUD_REMOTE}backup/${remote_suffix}" \
         --transfers 2 --checkers 4 \
+        --timeout 60s --contimeout 20s --low-level-retries 3 \
         --log-file="$LOG_FILE" --log-level INFO || {
         log_warn "Failed to sync ${remote_suffix} to wd-cloud (push-only copy, not fatal)"
         return 1
@@ -129,16 +140,17 @@ backup_volume() {
     mkdir -p "$snapshot_dir"
 
     # Use rsync for incremental backup
-    rsync -a --delete --info=progress2 "$volume_path/" "$snapshot_dir/" 2>> "$LOG_FILE" || {
+    timeout "$ITEM_TIMEOUT" rsync -a --delete --info=progress2 "$volume_path/" "$snapshot_dir/" 2>> "$LOG_FILE" || {
         log_error "Failed to rsync volume $volume_name"
         return 1
     }
 
     # Sync to remote
-    rclone sync "$snapshot_dir" "${REMOTE}/volumes/${volume_name}" \
+    timeout "$ITEM_TIMEOUT" rclone sync "$snapshot_dir" "${REMOTE}/volumes/${volume_name}" \
         --progress \
         --transfers 4 \
         --checkers 8 \
+        --timeout 60s --contimeout 20s --low-level-retries 3 \
         --log-file="$LOG_FILE" \
         --log-level INFO || {
         log_error "Failed to sync volume $volume_name to remote"
@@ -173,10 +185,11 @@ backup_path() {
     log "Backing up path: $source_path"
 
     # Sync to remote
-    rclone sync "$source_path" "${REMOTE}/paths/${backup_name}" \
+    timeout "$ITEM_TIMEOUT" rclone sync "$source_path" "${REMOTE}/paths/${backup_name}" \
         --progress \
         --transfers 4 \
         --checkers 8 \
+        --timeout 60s --contimeout 20s --low-level-retries 3 \
         --log-file="$LOG_FILE" \
         --log-level INFO || {
         log_error "Failed to sync path $source_path to remote"

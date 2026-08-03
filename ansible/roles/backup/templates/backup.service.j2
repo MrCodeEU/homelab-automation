@@ -8,7 +8,12 @@ Type=oneshot
 ExecStart={{ backup_local_path }}/scripts/backup.sh
 StandardOutput=journal
 StandardError=journal
-TimeoutStartSec=3600
+# Backstop only - each individual rsync/rclone call inside backup.sh.j2 is
+# now capped at ITEM_TIMEOUT (default 20m), so a single stuck item can no
+# longer silently consume this whole budget and take every service queued
+# after it down too. This just needs headroom for several capped items in a
+# row, not protection against one unbounded one.
+TimeoutStartSec=10800
 Nice=19
 IOSchedulingClass=idle
 
