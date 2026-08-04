@@ -130,6 +130,27 @@ rules:
     type: present
     level: crit
 
+  # Kernel messages naming disk, filesystem or memory trouble. Not a general
+  # dmesg error count: the pattern list is specific (I/O errors, XFS/btrfs
+  # corruption, NVMe resets, OOM kills, MCE). ugreen's btrfs failed on
+  # 2026-07-31 and this is where the warning would have been, unread.
+  kernel_storage_errors:
+    type: threshold
+    direction: above
+    warn: 0
+    crit: 10
+
+  # Offset large enough to break TOTP windows and make log correlation lie.
+  time_offset:
+    type: threshold
+    direction: above
+    warn: 1.0
+    crit: 5.0
+
+  time_unsynchronised:
+    type: present
+    level: warn
+
   # --- security ------------------------------------------------------------
   security_updates:
     type: threshold

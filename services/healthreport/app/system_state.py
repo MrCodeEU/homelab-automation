@@ -139,6 +139,27 @@ def notes(facts: Dict) -> List[str]:
     if isinstance(days, (int, float)) and days <= TOKEN_WARN_DAYS:
         out.append("GitHub token expires in %d days" % int(days))
 
+    # CrowdSec throughput, purely informational: what the edge actually stopped.
+    # `unparsed_percent` is the one worth watching over time - a parser that
+    # stops understanding its log silently stops protecting anything.
+    hosts = (_collector_data(facts, "ssh_facts") or {}).get("payloads") or {}
+    for host, payload in sorted(hosts.items()):
+        section = ((payload or {}).get("sections") or {}).get("crowdsec") or {}
+        metrics = ((section.get("data") or {}).get("metrics")) or {}
+        if not metrics:
+            continue
+        dropped_gib = (metrics.get("dropped_bytes") or 0) / (1024.0 ** 3)
+        out.append(
+            "CrowdSec on %s: %s active decisions, %s packets dropped (%.1f GiB), "
+            "%.1f%% of log lines unparsed" % (
+                host,
+                "{:,}".format(metrics.get("active_decisions", 0)),
+                "{:,}".format(metrics.get("dropped_packets", 0)),
+                dropped_gib,
+                metrics.get("unparsed_percent", 0.0),
+            )
+        )
+
     ha = _collector_data(facts, "homeassistant")
     if ha.get("version"):
         out.append("Home Assistant %s" % ha["version"])
