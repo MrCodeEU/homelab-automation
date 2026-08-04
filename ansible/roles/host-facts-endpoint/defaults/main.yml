@@ -10,3 +10,19 @@ host_facts_unraid_bin_path: "{{ base_path }}/bin/homelab-facts"
 
 # Unraid restores /root/.ssh from here at boot.
 host_facts_unraid_ssh_persist: /boot/config/ssh/root
+
+# Backup destinations to report capacity for (Unraid only - it is the host that
+# owns the rclone config and the backup share).
+#
+# Reported so a full destination is visible before it bites: the report could
+# previously say a backup succeeded without saying the target was nearly out of
+# space, and "succeeded" stops meaning much at 100%. `rclone about` is a single
+# API call per remote, no listing, so this is cheap.
+#
+# wd-cloud is included deliberately even though it has no quota API - it is
+# reported as "quota unsupported", which is honestly different from "0 free".
+facts_backup_remotes:
+  - pcloud
+  - wd-cloud
+facts_backup_paths:
+  - /mnt/user/backup

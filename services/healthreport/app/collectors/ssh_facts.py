@@ -233,6 +233,30 @@ def _rocky(obs, host, sections):
             evidence={"set_element_counts": nft.get("set_element_counts")},
         ))
 
+    # Capacity of the backup destinations themselves. A successful backup into a
+    # target with no room left is not a successful backup for very long, and
+    # nothing else in the report was watching this.
+    targets = _section(sections, "backup_targets") or {}
+    for target in targets.get("targets") or []:
+        if not target.get("quota_supported") or target.get("used_percent") is None:
+            continue
+        free_gib = (target.get("free_bytes") or 0) / (1024.0 ** 3)
+        obs.append(Observation(
+            id="backup_target_usage.%s.%s" % (host, target["name"]),
+            collector="ssh_facts",
+            subject=host,
+            kind="backup_target_usage",
+            value=target["used_percent"],
+            unit="percent",
+            message="backup target %s is %.1f%% full (%.0f GiB free)"
+                    % (target["name"], target["used_percent"], free_gib),
+            evidence={
+                "kind": target.get("kind"),
+                "total_bytes": target.get("total_bytes"),
+                "free_bytes": target.get("free_bytes"),
+            },
+        ))
+
     backup = _section(sections, "backup")
     if backup and backup.get("available"):
         age_h = (backup.get("age_seconds") or 0) / 3600.0

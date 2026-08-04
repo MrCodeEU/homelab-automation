@@ -251,6 +251,65 @@ def collect_crowdsec():
     return out
 
 
+def collect_backup_targets():
+    """Capacity of the places backups actually land.
+
+    Until now the report could tell you a backup succeeded but not that its
+    destination was nearly full - and "succeeded" stops being reassuring at
+    100%. rclone about is cheap (one API call, no listing), so this stays well
+    inside the endpoint's time budget even with several remotes.
+
+    Not every backend supports quota: WD MyCloud returns `{}`, which is
+    reported as unknown rather than as zero, because a target that cannot tell
+    you its free space is a different situation from one that has none.
+    """
+    targets = []
+
+    for remote in [{% for r in (facts_backup_remotes | default(['pcloud'])) %}"{{ r }}", {% endfor %}]:
+        info, err = run_json(["rclone", "about", remote + ":", "--json"], timeout=60)
+        entry = {"name": remote, "kind": "remote"}
+        if err or not info:
+            entry["error"] = err or "no data"
+        elif "total" not in info:
+            # Backend has no quota API (WD MyCloud, plain SFTP targets).
+            entry["quota_supported"] = False
+        else:
+            entry.update({
+                "quota_supported": True,
+                "total_bytes": info.get("total"),
+                "used_bytes": info.get("used"),
+                "free_bytes": info.get("free"),
+            })
+            total = info.get("total") or 0
+            if total:
+                entry["used_percent"] = round(info.get("used", 0) * 100.0 / total, 1)
+        targets.append(entry)
+
+    # The local side: where borg, the appdata archives and the rclone staging
+    # copies live before they are pushed anywhere.
+    for path in [{% for p in (facts_backup_paths | default([])) %}"{{ p }}", {% endfor %}]:
+        if not os.path.isdir(path):
+            continue
+        try:
+            st = os.statvfs(path)
+        except OSError as exc:
+            targets.append({"name": path, "kind": "local", "error": str(exc)[:200]})
+            continue
+        total = st.f_blocks * st.f_frsize
+        free = st.f_bavail * st.f_frsize
+        targets.append({
+            "name": path,
+            "kind": "local",
+            "quota_supported": True,
+            "total_bytes": total,
+            "used_bytes": total - free,
+            "free_bytes": free,
+            "used_percent": round((total - free) * 100.0 / total, 1) if total else None,
+        })
+
+    return {"targets": targets}
+
+
 def collect_backup_log():
     # unraid-backup logs to {{ base_path }}/backup/logs (see its role
     # defaults); the rocky backup role logs to {{ backup_local_path }}/logs.
@@ -484,6 +543,7 @@ def main():
         sections["unraid_version"] = section(collect_unraid_version)
         sections["unraid_docker_image"] = section(collect_unraid_docker_image)
         sections["backup"] = section(collect_backup_log)
+        sections["backup_targets"] = section(collect_backup_targets)
     else:
         sections["systemd_failed"] = section(collect_systemd_failed)
         sections["nftables"] = section(collect_nftables)

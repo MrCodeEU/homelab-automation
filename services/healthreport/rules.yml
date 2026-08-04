@@ -303,6 +303,17 @@ rules:
     warn: 14
     crit: 3
 
+  # Backup destinations. A backup that succeeds into a full target stops being
+  # a backup, and nothing else here was watching the destination side.
+  # pCloud sits around 28% and the local backup share around 65%, so these
+  # thresholds leave real headroom while still giving warning before a run
+  # starts failing for space.
+  backup_target_usage:
+    type: threshold
+    direction: above
+    warn: 85
+    crit: 93
+
   # --- Home Assistant --------------------------------------------------------
   ha_safe_mode:
     type: present
