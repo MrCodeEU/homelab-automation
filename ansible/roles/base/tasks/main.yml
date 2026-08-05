@@ -370,3 +370,62 @@
     - docker_prune_result.msg | length > 0
   tags:
     - prune
+
+# ============================================================================
+# Gated reboot
+# ============================================================================
+# Packages are updated on every deploy ("Upgrade all installed packages" above),
+# but nothing ever rebooted, so kernel fixes sat installed-and-not-running
+# indefinitely. mljr spent 15 weeks that way and reported 94 pending advisories
+# that were in fact one missing reboot - rebooting cleared all 94 at once.
+#
+# Deliberately opt-in per host and off by default: this reboots a machine. It is
+# also gated on `needs-restarting -r`, so a host with nothing to activate is
+# never restarted just because the timer fired.
+#
+# Intended trigger is the weekly scheduled deploy rather than every push, which
+# is why the workflow passes reboot_if_needed=true only when
+# github.event_name == 'schedule'.
+- name: Check whether a reboot is required to activate installed updates
+  ansible.builtin.command: needs-restarting -r
+  register: base_needs_restarting
+  changed_when: false
+  # rc 0 = no reboot needed, 1 = reboot needed, 127 = tool absent (Unraid).
+  # Anything else means "do not know", and not knowing must not mean rebooting.
+  failed_when: false
+  when:
+    - reboot_if_needed | default(false) | bool
+    - reboot_enabled | default(true) | bool
+  tags:
+    - reboot
+
+- name: Reboot to activate installed updates
+  ansible.builtin.reboot:
+    msg: "Rebooting to activate installed kernel/library updates (Ansible)"
+    # Generous: mljr runs 41 containers and mailcow is slow to come back.
+    reboot_timeout: 900
+    post_reboot_delay: 30
+    # Proves the host is genuinely back rather than merely answering ping.
+    test_command: systemctl is-system-running --wait
+  when:
+    - reboot_if_needed | default(false) | bool
+    - reboot_enabled | default(true) | bool
+    - base_needs_restarting is defined
+    - base_needs_restarting.rc is defined
+    - base_needs_restarting.rc == 1
+  tags:
+    - reboot
+
+- name: Report reboot decision
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}:
+      {% if base_needs_restarting.rc | default(-1) == 1 %}rebooted to activate updates
+      {% elif base_needs_restarting.rc | default(-1) == 0 %}no reboot needed
+      {% else %}reboot state unknown (needs-restarting rc={{ base_needs_restarting.rc | default('n/a') }}) - not rebooting
+      {% endif %}
+  when:
+    - reboot_if_needed | default(false) | bool
+    - reboot_enabled | default(true) | bool
+  tags:
+    - reboot
