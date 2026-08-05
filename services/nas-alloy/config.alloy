@@ -5,12 +5,34 @@
 // Kept as a static file rather than a template because the values never vary
 // per-host: there is exactly one Unraid box.
 
+// Alloy's own logs are not a monitoring signal, and at info level cadvisor
+// narrates every failed device stat. On 2026-08-05 that was 475,000 lines in a
+// day - more than every other container on this host combined - all of it
+//   level=info msg="Unable to get btrfs mountpoint IDs: stat failed on /dev/sde1"
+// because Docker's storage moved to a btrfs pool whose device node the
+// container cannot see. The lines are informational but contain the word
+// "error", so the health report counted every one of them.
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
 prometheus.exporter.unix "host" {
   rootfs_path = "/hostfs"
   procfs_path = "/hostfs/proc"
   sysfs_path  = "/hostfs/sys"
 
   // No systemd collector here: Unraid is Slackware and does not run systemd.
+
+  // btrfs is disabled deliberately. The collector stats the block device
+  // directly, and Alloy runs in a container without those device nodes, so
+  // every scrape logs
+  //   Unable to get btrfs mountpoint IDs: stat failed on /dev/sde1
+  // That began the moment the btrfs pool was created on 2026-08-04 and produced
+  // ~1.1M lines a day - more than every other container on the estate combined.
+  // Capacity for those filesystems still comes from the `filesystem` collector,
+  // which reads /proc/mounts and works fine, so no metrics are lost.
+  disable_collectors = ["btrfs"]
 }
 
 prometheus.scrape "host" {

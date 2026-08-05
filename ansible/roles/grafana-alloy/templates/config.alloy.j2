@@ -6,6 +6,16 @@ prometheus.exporter.unix "host" {
   // systemd exposes node_systemd_unit_state, which the health report uses to
   // detect failed units. Not enabled by default.
   enable_collectors = ["systemd"]
+
+  // btrfs is disabled deliberately. The collector stats the block device
+  // directly, and Alloy runs in a container without the device nodes, so on a
+  // host with a btrfs filesystem every scrape logs
+  //   Unable to get btrfs mountpoint IDs: stat failed on /dev/sde1
+  // On nas that started the moment the new pool was created and produced
+  // ~1.1M log lines a day - more than every other container on the estate
+  // combined. Capacity for those filesystems already comes from the `filesystem`
+  // collector, which reads /proc/mounts and works fine, so nothing is lost.
+  disable_collectors = ["btrfs"]
 }
 
 prometheus.scrape "host" {
