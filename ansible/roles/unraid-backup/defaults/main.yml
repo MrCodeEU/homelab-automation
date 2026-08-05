@@ -62,6 +62,21 @@ unraid_backup_paths:
     wd_cloud: true
     wd_cloud_dest: "wd-cloud:Musik"
 
+  # Nextcloud's borg repository. Critical rather than important because of where
+  # it now lives: the repo moved to the fastpool on 2026-08-05 for speed, and the
+  # volumes it backs up - nextcloud_aio_database, nextcloud_aio_nextcloud, and
+  # the mastercontainer volume holding the borg passphrase - sit on that same
+  # pool. A single SSD failure would otherwise take the data and its only backup
+  # together, leaving the user files on the array orphaned without a database.
+  # This offsite copy is what makes that survivable.
+  #
+  # Deduplicated and compressed by borg already (~126GB for 502GB of archives),
+  # so it costs pCloud far less than the raw data would.
+  - src: "/mnt/user/borgbackup/borg"
+    dest: "pcloud:Nextcloud-Borg"
+    name: nextcloud-borg
+    tier: critical
+
   # The Unraid USB flash itself (config, network/share definitions, docker
   # templates, plugin config, and the license key file) - previously backed
   # up nowhere: no Connect/flash-backup plugin installed on this box, no
