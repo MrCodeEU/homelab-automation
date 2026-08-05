@@ -248,7 +248,209 @@ def collect_crowdsec():
         ["docker", "exec", "crowdsec", "cscli", "bouncers", "list", "-o", "json"], timeout=30)
     out["bouncers"] = bouncers or []
     out["bouncers_error"] = err
+
+    # Informational throughput. `cscli metrics` is verbose and mostly
+    # per-scenario detail; only the totals are worth carrying across the wire.
+    metrics, err = run_json(
+        ["docker", "exec", "crowdsec", "cscli", "metrics", "-o", "json"], timeout=30)
+    if metrics:
+        acquisition = metrics.get("acquisition") or {}
+        parsed = sum((v or {}).get("parsed", 0) for v in acquisition.values())
+        unparsed = sum((v or {}).get("unparsed", 0) for v in acquisition.values())
+        whitelisted = sum((v or {}).get("whitelisted", 0) for v in acquisition.values())
+
+        # Bouncer counters are nested {bouncer: {origin: {metric: {unit: n}}}}.
+        # The interesting pair is what it dropped and how many decisions are
+        # currently active, which includes the community blocklist.
+        dropped_packets = dropped_bytes = active_decisions = 0
+        for origins in (metrics.get("bouncers") or {}).values():
+            for counters in (origins or {}).values():
+                dropped = (counters or {}).get("dropped") or {}
+                dropped_packets += dropped.get("packet", 0)
+                dropped_bytes += dropped.get("byte", 0)
+                active = (counters or {}).get("active_decisions") or {}
+                active_decisions += active.get("ip", 0)
+
+        out["metrics"] = {
+            "parsed": parsed,
+            "unparsed": unparsed,
+            "whitelisted": whitelisted,
+            # A parser that stops understanding its log silently stops
+            # protecting you, and the ratio is the only thing that shows it.
+            "unparsed_percent": round(unparsed * 100.0 / (parsed + unparsed), 1)
+                                if (parsed + unparsed) else 0.0,
+            "dropped_packets": dropped_packets,
+            "dropped_bytes": dropped_bytes,
+            "active_decisions": active_decisions,
+            "alerts_by_scenario": sorted(
+                ((k, v) for k, v in (metrics.get("alerts") or {}).items()),
+                key=lambda kv: -kv[1],
+            )[:10],
+        }
+    out["metrics_error"] = err
     return out
+
+
+# Kernel messages that mean hardware or a filesystem is in trouble, as opposed
+# to the routine complaints every boot produces. This list is deliberately
+# specific: ugreen's btrfs died on 2026-07-31 and the only early warning would
+# have been here, in messages nothing was reading.
+KERNEL_SERIOUS = re.compile(
+    r"(I/O error"
+    r"|Buffer I/O error"
+    r"|EXT4-fs error"
+    r"|XFS \(.*\): (metadata|Corruption|Internal error|Log I/O)"
+    # Any btrfs line that reaches error level is worth reading. The original
+    # pattern listed specific failures and missed "parent transid verify
+    # failed" - which is exactly how ugreen's filesystem announced itself.
+    r"|btrfs"
+    r"|Remounting filesystem read-only"
+    r"|nvme.*(reset|timeout|controller is down|not ready)"
+    r"|ata\d+\.\d+: (failed|exception|status)"
+    r"|medium error|Unrecovered read error"
+    r"|Out of memory: Kill(ed)? process"
+    r"|Machine [Cc]heck|mce:|EDAC.*(CE|UE) error"
+    r"|hung_task|blocked for more than)",
+    re.I,
+)
+
+# dmesg -T prefixes each line with a bracketed local timestamp.
+DMESG_STAMP = re.compile(r"^\[[^\]]+\]\s*")
+
+
+def collect_kernel_errors():
+    """Error-level kernel messages, split into "serious" and "the rest".
+
+    Nothing in the estate reads dmesg today. Disk and filesystem failures
+    announce themselves here long before a service notices, which is exactly
+    the warning that was missed when ugreen's cache NVMe started failing.
+    """
+    res = run(["dmesg", "--level=err,crit,alert,emerg", "-T"], timeout=30)
+    if not res["ok"]:
+        return {"available": False, "reason": res["stderr"][:200] or ("exit %d" % res["rc"])}
+
+    serious, signatures = [], {}
+    lines = [l for l in res["stdout"].splitlines() if l.strip()]
+    for line in lines:
+        body = DMESG_STAMP.sub("", line).strip()
+        if not body:
+            continue
+        if KERNEL_SERIOUS.search(body):
+            serious.append(body[:300])
+        # Numbers vary per occurrence (sector, pid, device index); masking them
+        # collapses a repeated fault into one signature instead of hundreds.
+        norm = re.sub(r"\d+", "<n>", body)[:200]
+        signatures[norm] = signatures.get(norm, 0) + 1
+
+    ranked = sorted(signatures.items(), key=lambda kv: -kv[1])
+    return {
+        "available": True,
+        "error_lines": len(lines),
+        "serious_count": len(serious),
+        "serious_sample": serious[:15],
+        "signatures": [{"signature": s, "count": n} for s, n in ranked[:15]],
+    }
+
+
+def collect_time_sync():
+    """Clock offset. Drift breaks log correlation and TOTP before anything else
+    complains, and nothing was watching it."""
+    if shutil.which("chronyc"):
+        # -c is CSV: refid,ip,stratum,reftime,system_time_offset,last_offset,...
+        res = run(["chronyc", "-c", "tracking"], timeout=15)
+        if res["ok"] and res["stdout"].strip():
+            parts = res["stdout"].strip().split(",")
+            try:
+                return {
+                    "available": True,
+                    "source": "chrony",
+                    "stratum": int(parts[2]),
+                    "offset_seconds": abs(float(parts[4])),
+                    "synchronised": parts[2] not in ("0", "16"),
+                }
+            except (IndexError, ValueError):
+                pass
+        return {"available": False, "source": "chrony", "reason": res["stderr"][:200]}
+
+    if shutil.which("ntpq"):
+        res = run(["ntpq", "-pn"], timeout=20)
+        for line in res["stdout"].splitlines():
+            # The selected peer is prefixed with '*'; offset is column 9, in ms.
+            if line.startswith("*"):
+                cols = line.split()
+                try:
+                    return {
+                        "available": True,
+                        "source": "ntp",
+                        "stratum": int(cols[2]),
+                        "offset_seconds": abs(float(cols[8])) / 1000.0,
+                        "synchronised": True,
+                    }
+                except (IndexError, ValueError):
+                    break
+        return {"available": True, "source": "ntp", "synchronised": False,
+                "reason": "no peer selected"}
+
+    return {"available": False, "reason": "no chronyc or ntpq"}
+
+
+def collect_backup_targets():
+    """Capacity of the places backups actually land.
+
+    Until now the report could tell you a backup succeeded but not that its
+    destination was nearly full - and "succeeded" stops being reassuring at
+    100%. rclone about is cheap (one API call, no listing), so this stays well
+    inside the endpoint's time budget even with several remotes.
+
+    Not every backend supports quota: WD MyCloud returns `{}`, which is
+    reported as unknown rather than as zero, because a target that cannot tell
+    you its free space is a different situation from one that has none.
+    """
+    targets = []
+
+    for remote in [{% for r in (facts_backup_remotes | default(['pcloud'])) %}"{{ r }}", {% endfor %}]:
+        info, err = run_json(["rclone", "about", remote + ":", "--json"], timeout=30)
+        entry = {"name": remote, "kind": "remote"}
+        if err or not info:
+            entry["error"] = err or "no data"
+        elif "total" not in info:
+            # Backend has no quota API (WD MyCloud, plain SFTP targets).
+            entry["quota_supported"] = False
+        else:
+            entry.update({
+                "quota_supported": True,
+                "total_bytes": info.get("total"),
+                "used_bytes": info.get("used"),
+                "free_bytes": info.get("free"),
+            })
+            total = info.get("total") or 0
+            if total:
+                entry["used_percent"] = round(info.get("used", 0) * 100.0 / total, 1)
+        targets.append(entry)
+
+    # The local side: where borg, the appdata archives and the rclone staging
+    # copies live before they are pushed anywhere.
+    for path in [{% for p in (facts_backup_paths | default([])) %}"{{ p }}", {% endfor %}]:
+        if not os.path.isdir(path):
+            continue
+        try:
+            st = os.statvfs(path)
+        except OSError as exc:
+            targets.append({"name": path, "kind": "local", "error": str(exc)[:200]})
+            continue
+        total = st.f_blocks * st.f_frsize
+        free = st.f_bavail * st.f_frsize
+        targets.append({
+            "name": path,
+            "kind": "local",
+            "quota_supported": True,
+            "total_bytes": total,
+            "used_bytes": total - free,
+            "free_bytes": free,
+            "used_percent": round((total - free) * 100.0 / total, 1) if total else None,
+        })
+
+    return {"targets": targets}
 
 
 def collect_backup_log():
@@ -476,6 +678,17 @@ def main():
     sections["uptime"] = section(collect_uptime)
     sections["filesystems"] = section(collect_filesystems)
     sections["docker"] = section(collect_docker)
+    # Both families: disks fail and clocks drift everywhere, and neither was
+    # being watched on any host.
+    sections["kernel_errors"] = section(collect_kernel_errors)
+    sections["time_sync"] = section(collect_time_sync)
+    # Not Unraid-specific despite the historical name of the collector: nuc has
+    # two NVMe drives whose wear and media errors nothing read. Skipped on
+    # Unraid, which emits the same data as `unraid_smart` below - running it
+    # twice would probe every disk twice and doubles this endpoint's slowest
+    # step for nothing.
+    if shutil.which("smartctl") and OS_FAMILY != "unraid":
+        sections["smart"] = section(collect_unraid_smart)
 
     if OS_FAMILY == "unraid":
         sections["unraid_array"] = section(collect_unraid_array)
@@ -484,6 +697,7 @@ def main():
         sections["unraid_version"] = section(collect_unraid_version)
         sections["unraid_docker_image"] = section(collect_unraid_docker_image)
         sections["backup"] = section(collect_backup_log)
+        sections["backup_targets"] = section(collect_backup_targets)
     else:
         sections["systemd_failed"] = section(collect_systemd_failed)
         sections["nftables"] = section(collect_nftables)

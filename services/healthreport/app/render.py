@@ -4,7 +4,7 @@ import os
 
 from jinja2 import Environment, FileSystemLoader
 
-from . import history
+from . import history, system_state
 from .model import severity_rank
 
 TEMPLATE_DIR = os.environ.get("HEALTHREPORT_TEMPLATES", "/app/templates")
@@ -79,6 +79,12 @@ def render_html(facts, narrative, headline, state_dir):
 
     hosts = history.by_host(facts)
     trend_points = history.trend(state_dir)
+    state = {
+        "hosts": system_state.hosts(facts),
+        "counts": system_state.counts(facts),
+        "notes": system_state.notes(facts),
+        "backup_targets": system_state.backup_targets(facts),
+    }
 
     return env.get_template("report.html.j2").render(
         facts=facts,
@@ -91,6 +97,7 @@ def render_html(facts, narrative, headline, state_dir):
         trend=trend_points,
         trend_max=max([p["crit"] + p["warn"] for p in trend_points] or [1]) or 1,
         trend_height=90,
+        state=state,
         tiles=[
             {"label": "Critical", "value": summary.get("crit", 0), "color": "#d03b3b"},
             {"label": "Warnings", "value": summary.get("warn", 0), "color": "#fab219"},

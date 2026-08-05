@@ -129,6 +129,89 @@
   </td></tr>
   {% endif %}
 
+  {# ---- system state: what the estate looks like when nothing is wrong ----
+       A quiet day used to produce an almost empty email, which told you
+       nothing - not whether disks were filling, not that a token expires
+       soon. None of this is newly collected; it is the same numbers the
+       threshold rules already read. ---- #}
+  {% if state and state.hosts %}
+  <tr><td style="padding-top:22px;">
+    <div class="hr-ink" style="color:#0b0b0b;font-size:14px;font-weight:600;margin-bottom:10px;">System state</div>
+
+    {% if state.counts %}
+    <div class="hr-ink-2" style="color:#52514e;font-size:12px;margin-bottom:10px;">
+      {% for c in state.counts %}{{ c.label }} <span class="hr-ink" style="color:#0b0b0b;font-weight:600;">{{ c.value }}</span>{% if not loop.last %} · {% endif %}{% endfor %}
+    </div>
+    {% endif %}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
+      {% for h in state.hosts %}
+      <tr>
+        <td class="hr-rule" style="border-top:1px solid #e6e5e1;padding:7px 8px 7px 0;vertical-align:top;width:1%;white-space:nowrap;">
+          <span class="hr-ink" style="color:#0b0b0b;font-size:13px;font-weight:600;">{{ h.name }}</span>
+          <div class="hr-ink-2" style="color:#52514e;font-size:11px;">up {{ h.uptime }}</div>
+        </td>
+        <td class="hr-rule" style="border-top:1px solid #e6e5e1;padding:7px 0;vertical-align:top;">
+          <div class="hr-ink-2" style="color:#52514e;font-size:12px;margin-bottom:4px;">
+            memory {{ h.memory_percent | round(1) if h.memory_percent is not none else '?' }}% ·
+            load/core {{ h.load_per_core if h.load_per_core is not none else '?' }}
+          </div>
+          {% for m in h.filesystems %}
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:2px;">
+            <tr>
+              <td class="hr-ink-2" style="color:#52514e;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding-right:8px;white-space:nowrap;width:1%;">{{ m.mountpoint }}</td>
+              <td style="padding-right:8px;">
+                {# Bar is decorative; the number beside it always carries the value. #}
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;">
+                  <tr><td style="background:#e6e5e1;border-radius:3px;height:8px;padding:0;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:{{ m.used_percent | round(0) }}%;">
+                      <tr><td style="background:{{ '#d03b3b' if m.used_percent >= 85 else ('#fab219' if m.used_percent >= 70 else '#0ca30c') }};border-radius:3px;height:8px;"></td></tr>
+                    </table>
+                  </td></tr>
+                </table>
+              </td>
+              <td class="hr-ink-2" style="color:#52514e;font-size:11px;white-space:nowrap;width:1%;">{{ m.used_percent | round(1) }}%</td>
+            </tr>
+          </table>
+          {% endfor %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    {% if state.backup_targets %}
+    <div class="hr-ink" style="color:#0b0b0b;font-size:12px;font-weight:600;margin-top:12px;margin-bottom:4px;">Backup destinations</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
+      {% for t in state.backup_targets %}
+      <tr>
+        <td class="hr-ink-2" style="color:#52514e;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;padding:3px 8px 3px 0;white-space:nowrap;width:1%;">{{ t.name }}</td>
+        <td style="padding:3px 8px 3px 0;">
+          {% if t.used_percent is not none %}
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:separate;">
+            <tr><td style="background:#e6e5e1;border-radius:3px;height:8px;padding:0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:{{ t.used_percent | round(0) }}%;">
+                <tr><td style="background:{{ '#d03b3b' if t.used_percent >= 93 else ('#fab219' if t.used_percent >= 85 else '#0ca30c') }};border-radius:3px;height:8px;"></td></tr>
+              </table>
+            </td></tr>
+          </table>
+          {% endif %}
+        </td>
+        <td class="hr-ink-2" style="color:#52514e;font-size:11px;white-space:nowrap;width:1%;">
+          {% if t.used_percent is not none %}{{ t.used_percent | round(1) }}% · {{ t.free_gib }} GiB free{% else %}{{ t.note or 'unknown' }}{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if state.notes %}
+    <div class="hr-ink-2" style="color:#52514e;font-size:12px;line-height:1.7;margin-top:8px;">
+      {% for note in state.notes %}· {{ note }}<br>{% endfor %}
+    </div>
+    {% endif %}
+  </td></tr>
+  {% endif %}
+
   {# ---- the table view: identity never rests on colour ---- #}
   {% for section in sections %}
   {% if section.rows %}

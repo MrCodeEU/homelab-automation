@@ -126,7 +126,13 @@ class Config:
             ollama_url=os.environ.get("HEALTHREPORT_OLLAMA_URL", cls.ollama_url),
             ollama_model=os.environ.get("HEALTHREPORT_MODEL", cls.ollama_model),
             llm_enabled=_bool("HEALTHREPORT_LLM_ENABLED", False),
-            llm_timeout_s=_int("HEALTHREPORT_LLM_TIMEOUT", 180),
+            # Defaults to the dataclass value, not a second hard-coded number.
+            # These drifted apart: the field said 300 with a comment explaining
+            # that 180 was too short, while this line still defaulted to 180, so
+            # the deployed budget never changed. On 2026-08-05 that aborted a
+            # cold model load at exactly 3m01s and the report shipped with
+            # llm_status=unavailable.
+            llm_timeout_s=_int("HEALTHREPORT_LLM_TIMEOUT", cls.llm_timeout_s),
             ssh_hosts=_hosts(os.environ.get("HEALTHREPORT_SSH_HOSTS", "")),
             ssh_key_path=os.environ.get("HEALTHREPORT_SSH_KEY", cls.ssh_key_path),
             local_host=os.environ.get("HEALTHREPORT_LOCAL_HOST", cls.local_host),

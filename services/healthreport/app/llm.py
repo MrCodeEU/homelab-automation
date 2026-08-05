@@ -15,6 +15,10 @@ import requests
 
 LOG = logging.getLogger("healthreport.llm")
 
+# Floor for loading the model into RAM, independent of the generation budget.
+# An 8B model read cold off the NAS array takes minutes; warm it is ~24s.
+LOAD_TIMEOUT_S = 600
+
 RESPONSE_SCHEMA = {
     "type": "object",
     "required": ["headline", "assessment", "top_issues", "suggested_actions"],
@@ -88,10 +92,19 @@ def _post(config, path, payload, timeout):
 
 
 def load(config):
-    """Empty prompt loads the model into memory without generating."""
+    """Empty prompt loads the model into memory without generating.
+
+    Given its own, larger budget than a generation. Reading 5GB of weights off
+    disk into RAM is one-off and slow, and is not the thing the generation
+    timeout is protecting against - a cold load on the NAS is minutes, a warm
+    one is ~24 seconds. Capping this at the generation timeout meant the daily
+    run aborted the load at 3m01s (ollama logged HTTP 499, "client connection
+    closed before llama-server finished loading") whenever the model was not
+    already resident, which is every morning after an overnight restart.
+    """
     _post(config, "/api/generate",
           {"model": config.ollama_model, "prompt": "", "keep_alive": "10m"},
-          timeout=min(config.llm_timeout_s, 300))
+          timeout=max(config.llm_timeout_s, LOAD_TIMEOUT_S))
 
 
 def unload(config):

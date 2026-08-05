@@ -233,6 +233,75 @@ def _rocky(obs, host, sections):
             evidence={"set_element_counts": nft.get("set_element_counts")},
         ))
 
+    # Capacity of the backup destinations themselves. A successful backup into a
+    # target with no room left is not a successful backup for very long, and
+    # nothing else in the report was watching this.
+    targets = _section(sections, "backup_targets") or {}
+    for target in targets.get("targets") or []:
+        if not target.get("quota_supported") or target.get("used_percent") is None:
+            continue
+        free_gib = (target.get("free_bytes") or 0) / (1024.0 ** 3)
+        obs.append(Observation(
+            id="backup_target_usage.%s.%s" % (host, target["name"]),
+            collector="ssh_facts",
+            subject=host,
+            kind="backup_target_usage",
+            value=target["used_percent"],
+            unit="percent",
+            message="backup target %s is %.1f%% full (%.0f GiB free)"
+                    % (target["name"], target["used_percent"], free_gib),
+            evidence={
+                "kind": target.get("kind"),
+                "total_bytes": target.get("total_bytes"),
+                "free_bytes": target.get("free_bytes"),
+            },
+        ))
+
+    # Kernel-level trouble. Disks and filesystems complain here long before a
+    # service notices - this is the signal that was missing when ugreen's cache
+    # NVMe began failing and took the filesystem with it.
+    kernel = _section(sections, "kernel_errors") or {}
+    if kernel.get("available") and kernel.get("serious_count"):
+        obs.append(Observation(
+            id="kernel_storage_errors.%s." % host,
+            collector="ssh_facts",
+            subject=host,
+            kind="kernel_storage_errors",
+            value=kernel["serious_count"],
+            unit="messages",
+            message="%s: %d kernel message(s) indicating disk, filesystem or memory trouble"
+                    % (host, kernel["serious_count"]),
+            evidence={"sample": kernel.get("serious_sample", [])[:5]},
+        ))
+
+    # Clock drift breaks log correlation and TOTP before anything else notices.
+    clock = _section(sections, "time_sync") or {}
+    if clock.get("available"):
+        if not clock.get("synchronised", True):
+            obs.append(Observation(
+                id="time_unsynchronised.%s." % host,
+                collector="ssh_facts",
+                subject=host,
+                kind="time_unsynchronised",
+                value=clock.get("source", "unknown"),
+                message="%s: clock is not synchronised (%s)"
+                        % (host, clock.get("reason") or clock.get("source")),
+                evidence={"source": clock.get("source")},
+            ))
+        elif clock.get("offset_seconds") is not None:
+            obs.append(Observation(
+                id="time_offset.%s." % host,
+                collector="ssh_facts",
+                subject=host,
+                kind="time_offset",
+                value=round(clock["offset_seconds"], 3),
+                unit="seconds",
+                message="%s clock offset %.3fs (%s, stratum %s)"
+                        % (host, clock["offset_seconds"], clock.get("source"),
+                           clock.get("stratum")),
+                evidence={"source": clock.get("source")},
+            ))
+
     backup = _section(sections, "backup")
     if backup and backup.get("available"):
         age_h = (backup.get("age_seconds") or 0) / 3600.0
@@ -340,7 +409,10 @@ def _unraid(obs, host, sections):
                 evidence={"id": disk.get("id")},
             ))
 
-    smart = _section(sections, "unraid_smart")
+    # "smart" is emitted by every host that has smartctl; "unraid_smart" is the
+    # older Unraid-only key, kept as a fallback so a facts endpoint that has not
+    # been redeployed yet still reports disks.
+    smart = _section(sections, "smart") or _section(sections, "unraid_smart")
     if smart:
         for device in smart.get("devices") or []:
             name = device.get("device", "unknown")

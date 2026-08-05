@@ -130,6 +130,27 @@ rules:
     type: present
     level: crit
 
+  # Kernel messages naming disk, filesystem or memory trouble. Not a general
+  # dmesg error count: the pattern list is specific (I/O errors, XFS/btrfs
+  # corruption, NVMe resets, OOM kills, MCE). ugreen's btrfs failed on
+  # 2026-07-31 and this is where the warning would have been, unread.
+  kernel_storage_errors:
+    type: threshold
+    direction: above
+    warn: 0
+    crit: 10
+
+  # Offset large enough to break TOTP windows and make log correlation lie.
+  time_offset:
+    type: threshold
+    direction: above
+    warn: 1.0
+    crit: 5.0
+
+  time_unsynchronised:
+    type: present
+    level: warn
+
   # --- security ------------------------------------------------------------
   security_updates:
     type: threshold
@@ -303,19 +324,39 @@ rules:
     warn: 14
     crit: 3
 
+  # Backup destinations. A backup that succeeds into a full target stops being
+  # a backup, and nothing else here was watching the destination side.
+  # pCloud sits around 28% and the local backup share around 65%, so these
+  # thresholds leave real headroom while still giving warning before a run
+  # starts failing for space.
+  backup_target_usage:
+    type: threshold
+    direction: above
+    warn: 85
+    crit: 93
+
   # --- Home Assistant --------------------------------------------------------
   ha_safe_mode:
     type: present
     level: crit
 
-  # Baseline measured 2026-08-01: 661 entities already sit in "unavailable"
-  # (mostly orphaned `sensor.*` from removed integrations/devices, never
-  # cleaned up). A low threshold here would crit every single run forever -
-  # exactly the noise problem log_signature already solves elsewhere. Rebased
-  # above the known pile so this only fires on further drift; once the HA
-  # side is cleaned up, lower these back down.
+  # This counts *integrations or devices* with 5+ dead entities, not entities.
+  # It used to count entities, which forced the thresholds up to 700/750 and
+  # left the rule unable to detect anything: 704 of 1152 entities were
+  # unavailable, but that was 4 broken integrations repeated - a single expired
+  # Strava token alone produced 467, and 32 more were `button`/`notify`/`tts`
+  # entities whose resting state is "unknown" by design and which can never
+  # recover. Clusters smaller than 5 are excluded too: this estate has ~50 of
+  # them at any moment, one device_tracker plus one switch per phone, laptop or
+  # PC that happens to be switched off, so counting them tracked how many people
+  # were out of the house.
+  #
+  # Measured 2026-08-04: 17 significant clusters, dropping to 1 (a powered-off
+  # Prusa printer) once Strava/GitHub/desktop are removed and the FRITZ!Repeater
+  # config entry is re-pointed. warn: 2 therefore means "something broke that
+  # was not already broken".
   ha_unavailable_entities:
     type: threshold
     direction: above
-    warn: 700
-    crit: 750
+    warn: 2
+    crit: 5
