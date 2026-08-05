@@ -372,6 +372,52 @@
     - prune
 
 # ============================================================================
+# Persistent journald
+# ============================================================================
+# Without /var/log/journal, `Storage=auto` keeps logs in /run and every reboot
+# erases them. That is how the evidence for nuc's unexplained 2026-08-02 reboot
+# was lost - it had to be reconstructed from dnf history afterwards. It matters
+# more now that this role can reboot hosts deliberately: a reboot that eats its
+# own explanation is not a good trade.
+#
+# Storage is set explicitly rather than relying on `auto` detecting the
+# directory. nuc had the directory, with correct ownership, and journald was
+# still writing 119MB to /run - auto only makes that decision at startup.
+- name: Ensure the persistent journal directory exists
+  ansible.builtin.file:
+    path: /var/log/journal
+    state: directory
+    owner: root
+    group: systemd-journal
+    mode: "2755"
+
+# A drop-in rather than an edit of journald.conf, because the two hosts do not
+# agree on where that file is: Rocky 9 (mljr) ships /etc/systemd/journald.conf,
+# Rocky 10 (nuc) ships only /usr/lib/systemd/journald.conf and expects drop-ins.
+# Editing the /etc path would have worked on mljr and silently done nothing on
+# nuc, which is the failure this task exists to prevent in the first place.
+- name: Ensure the journald drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Make journald storage persistent
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/99-persistent.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible (roles/base).
+      # Without this, Storage=auto keeps logs in /run and a reboot erases them.
+      [Journal]
+      Storage=persistent
+  notify: Restart journald
+
+# ============================================================================
 # Gated reboot
 # ============================================================================
 # Packages are updated on every deploy ("Upgrade all installed packages" above),
