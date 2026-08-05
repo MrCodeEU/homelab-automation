@@ -35,6 +35,11 @@ on:
         required: false
         default: false
         type: boolean
+      reboot_if_needed:
+        description: 'Reboot hosts that need it to activate installed updates (gated on needs-restarting)'
+        required: false
+        default: false
+        type: boolean
 
   # Deliberately no `push` trigger on main: this repo pushes straight to main
   # often (branch protection is bypassable), and every push auto-deploying
@@ -405,6 +410,19 @@ jobs:
           if [ "${{ github.event_name }}" == "schedule" ] || [ "${{ inputs.docker_prune }}" == "true" ]; then
             EXTRA_VARS="$EXTRA_VARS docker_prune_enabled=true"
             echo "Docker prune enabled: unused images/containers will be removed"
+          fi
+
+          # Weekly maintenance is also the only time a host may reboot. Packages
+          # are upgraded on every deploy, but nothing activated a new kernel, so
+          # mljr once accumulated 94 "pending" advisories that were really one
+          # missing reboot. roles/base gates this on `needs-restarting -r`, so a
+          # host with nothing to activate is not restarted just because the
+          # schedule fired, and each host must opt in via reboot_enabled.
+          # Deliberately never set on a push or dispatch deploy: those happen
+          # during the day and must stay non-disruptive.
+          if [ "${{ github.event_name }}" == "schedule" ] || [ "${{ inputs.reboot_if_needed }}" == "true" ]; then
+            EXTRA_VARS="$EXTRA_VARS reboot_if_needed=true"
+            echo "Gated reboot enabled: hosts with pending kernel updates will restart"
           fi
 
           # Check mode for non-main branches (dry run)

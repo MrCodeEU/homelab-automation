@@ -370,3 +370,108 @@
     - docker_prune_result.msg | length > 0
   tags:
     - prune
+
+# ============================================================================
+# Persistent journald
+# ============================================================================
+# Without /var/log/journal, `Storage=auto` keeps logs in /run and every reboot
+# erases them. That is how the evidence for nuc's unexplained 2026-08-02 reboot
+# was lost - it had to be reconstructed from dnf history afterwards. It matters
+# more now that this role can reboot hosts deliberately: a reboot that eats its
+# own explanation is not a good trade.
+#
+# Storage is set explicitly rather than relying on `auto` detecting the
+# directory. nuc had the directory, with correct ownership, and journald was
+# still writing 119MB to /run - auto only makes that decision at startup.
+- name: Ensure the persistent journal directory exists
+  ansible.builtin.file:
+    path: /var/log/journal
+    state: directory
+    owner: root
+    group: systemd-journal
+    mode: "2755"
+
+# A drop-in rather than an edit of journald.conf, because the two hosts do not
+# agree on where that file is: Rocky 9 (mljr) ships /etc/systemd/journald.conf,
+# Rocky 10 (nuc) ships only /usr/lib/systemd/journald.conf and expects drop-ins.
+# Editing the /etc path would have worked on mljr and silently done nothing on
+# nuc, which is the failure this task exists to prevent in the first place.
+- name: Ensure the journald drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Make journald storage persistent
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/99-persistent.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible (roles/base).
+      # Without this, Storage=auto keeps logs in /run and a reboot erases them.
+      [Journal]
+      Storage=persistent
+  notify: Restart journald
+
+# ============================================================================
+# Gated reboot
+# ============================================================================
+# Packages are updated on every deploy ("Upgrade all installed packages" above),
+# but nothing ever rebooted, so kernel fixes sat installed-and-not-running
+# indefinitely. mljr spent 15 weeks that way and reported 94 pending advisories
+# that were in fact one missing reboot - rebooting cleared all 94 at once.
+#
+# Deliberately opt-in per host and off by default: this reboots a machine. It is
+# also gated on `needs-restarting -r`, so a host with nothing to activate is
+# never restarted just because the timer fired.
+#
+# Intended trigger is the weekly scheduled deploy rather than every push, which
+# is why the workflow passes reboot_if_needed=true only when
+# github.event_name == 'schedule'.
+- name: Check whether a reboot is required to activate installed updates
+  ansible.builtin.command: needs-restarting -r
+  register: base_needs_restarting
+  changed_when: false
+  # rc 0 = no reboot needed, 1 = reboot needed, 127 = tool absent (Unraid).
+  # Anything else means "do not know", and not knowing must not mean rebooting.
+  failed_when: false
+  when:
+    - reboot_if_needed | default(false) | bool
+    - reboot_enabled | default(true) | bool
+  tags:
+    - reboot
+
+- name: Reboot to activate installed updates
+  ansible.builtin.reboot:
+    msg: "Rebooting to activate installed kernel/library updates (Ansible)"
+    # Generous: mljr runs 41 containers and mailcow is slow to come back.
+    reboot_timeout: 900
+    post_reboot_delay: 30
+    # Proves the host is genuinely back rather than merely answering ping.
+    test_command: systemctl is-system-running --wait
+  when:
+    - reboot_if_needed | default(false) | bool
+    - reboot_enabled | default(true) | bool
+    - base_needs_restarting is defined
+    - base_needs_restarting.rc is defined
+    - base_needs_restarting.rc == 1
+  tags:
+    - reboot
+
+- name: Report reboot decision
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}:
+      {% if base_needs_restarting.rc | default(-1) == 1 %}rebooted to activate updates
+      {% elif base_needs_restarting.rc | default(-1) == 0 %}no reboot needed
+      {% else %}reboot state unknown (needs-restarting rc={{ base_needs_restarting.rc | default('n/a') }}) - not rebooting
+      {% endif %}
+  when:
+    - reboot_if_needed | default(false) | bool
+    - reboot_enabled | default(true) | bool
+  tags:
+    - reboot
