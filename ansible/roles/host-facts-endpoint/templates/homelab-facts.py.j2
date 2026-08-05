@@ -409,7 +409,7 @@ def collect_backup_targets():
     targets = []
 
     for remote in [{% for r in (facts_backup_remotes | default(['pcloud'])) %}"{{ r }}", {% endfor %}]:
-        info, err = run_json(["rclone", "about", remote + ":", "--json"], timeout=60)
+        info, err = run_json(["rclone", "about", remote + ":", "--json"], timeout=30)
         entry = {"name": remote, "kind": "remote"}
         if err or not info:
             entry["error"] = err or "no data"
@@ -682,9 +682,12 @@ def main():
     # being watched on any host.
     sections["kernel_errors"] = section(collect_kernel_errors)
     sections["time_sync"] = section(collect_time_sync)
-    if shutil.which("smartctl"):
-        # Not Unraid-specific despite the historical name of the collector:
-        # nuc has two NVMe drives whose wear and media errors nothing read.
+    # Not Unraid-specific despite the historical name of the collector: nuc has
+    # two NVMe drives whose wear and media errors nothing read. Skipped on
+    # Unraid, which emits the same data as `unraid_smart` below - running it
+    # twice would probe every disk twice and doubles this endpoint's slowest
+    # step for nothing.
+    if shutil.which("smartctl") and OS_FAMILY != "unraid":
         sections["smart"] = section(collect_unraid_smart)
 
     if OS_FAMILY == "unraid":
