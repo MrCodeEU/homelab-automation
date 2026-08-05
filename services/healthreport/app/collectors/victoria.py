@@ -162,7 +162,17 @@ def collect(config, rules):
         ))
 
     # --- failed systemd units ---------------------------------------------
-    # Requires enable_collectors = ["systemd"] in the Alloy config.
+    # Deliberately dormant. This needs Alloy's systemd collector, which cannot
+    # work from a container without the host's systemd private socket, so it
+    # failed on every scrape and never produced a metric - this query has never
+    # matched anything. The collector was disabled on 2026-08-05 to stop ~60k
+    # error lines a day per host; see roles/grafana-alloy/templates.
+    #
+    # Failed units are covered by collectors/ssh_facts.py, which runs
+    # `systemctl list-units --failed` on the host and emits the same
+    # systemd_failed kind - every such finding to date came from there. Kept
+    # rather than deleted so that enabling the collector later needs no code
+    # change, and the ids match either way.
     promql = 'node_systemd_unit_state{state="failed"} == 1'
     for metric, _value in query(config, promql):
         host = metric.get("instance", "unknown")

@@ -3,9 +3,21 @@ prometheus.exporter.unix "host" {
   procfs_path = "/hostfs/proc"
   sysfs_path  = "/hostfs/sys"
 
-  // systemd exposes node_systemd_unit_state, which the health report uses to
-  // detect failed units. Not enabled by default.
-  enable_collectors = ["systemd"]
+  // systemd is NOT enabled, despite node_systemd_unit_state looking like the
+  // natural source for failed units. Alloy runs in a container without
+  // /run/systemd/private, so the collector fails on every single scrape:
+  //   level=error msg="collector failed" name=systemd
+  //   err="couldn't get dbus connection: dial unix /run/systemd/private"
+  // That was ~60k error lines a day on mljr and ~54k on nuc, and it never
+  // produced a metric - so the PromQL in collectors/victoria.py that reads
+  // node_systemd_unit_state has never matched anything. Failed units are
+  // detected instead by the facts endpoint running `systemctl list-units
+  // --failed` over SSH (collectors/ssh_facts.py), which works and is what
+  // every systemd_failed finding to date has come from.
+  //
+  // Enabling it properly would mean mounting systemd's private socket into the
+  // container, which grants control over the host's init system - not a
+  // reasonable trade for a metric that is already covered.
 
   // btrfs is disabled deliberately. The collector stats the block device
   // directly, and Alloy runs in a container without the device nodes, so on a

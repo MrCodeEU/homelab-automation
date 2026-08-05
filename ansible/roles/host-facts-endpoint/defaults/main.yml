@@ -26,3 +26,9 @@ facts_backup_remotes:
   - wd-cloud
 facts_backup_paths:
   - /mnt/user/backup
+  # The pool that now holds appdata, docker and system (moved off the failing
+  # Intenso on 2026-08-04) and, from 2026-08-05, the Nextcloud borg repo. It is
+  # where every container's live state sits, so it filling up is an outage, not
+  # a capacity note - but nothing was watching it: the old `cache` pool was only
+  # covered incidentally via /var/lib/docker in host_metrics.
+  - /mnt/fastpool

@@ -48,6 +48,15 @@
       - /dev/disk:/dev/disk:ro
       - /var/log:/var/log:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # cadvisor asks containerd about image layers for every container it
+      # discovers. Without this socket it cannot, and logs one error per
+      # container per scan:
+      #   "Failed to create existing container: /system.slice/docker-<id>.scope:
+      #    unable to create containerd client for overlayfs storage driver"
+      # That was ~2,400 error lines an hour on mljr and nuc - the single largest
+      # log source on either host - for metrics cadvisor then silently omits.
+      # Read-only: cadvisor only queries.
+      - /run/containerd/containerd.sock:/run/containerd/containerd.sock:ro
     labels:
       homelab.managed: "true"
       homelab.component: "standalone-container"
