@@ -1,0 +1,137 @@
+---
+# WD My Cloud EX2 Ultra: busybox userland, no systemd, no apt/opkg, no
+# os-release. Tailscale lives entirely on the persistent data partition
+# (wd_tailscale_base) since the system partition is wiped on firmware
+# updates - see the layout note below. This role is the only thing keeping
+# it patched; nothing here can lean on a package manager.
+#
+# Layout (stable across updates):
+#   {{ wd_tailscale_base }}/tailscale_lib/   persistent auth/node state,
+#                                             never moves between versions
+#   {{ wd_tailscale_base }}/releases/<ver>/  each version's binaries
+#   {{ wd_tailscale_base }}/current          symlink to the active release
+#   {{ wd_tailscale_base }}/watchdog.sh      restarts+reauths tailscaled if
+#                                             it isn't running (cron, 5min)
+#
+# IMPORTANT: never chain `cd X && nohup Y & sleep N && ...` on one line -
+# a `&&`-then-`&` sequence backgrounds the `cd` in its own subshell, so
+# anything after the `&` runs back in the original directory and silently
+# fails to find the binaries. Always use absolute paths for anything that
+# runs after a backgrounded command, as done throughout this file.
+
+- name: Get latest stable Tailscale release info
+  ansible.builtin.uri:
+    url: https://pkgs.tailscale.com/stable/?mode=json
+    return_content: true
+  register: wd_tailscale_latest
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Determine latest version and arm tarball name
+  ansible.builtin.set_fact:
+    wd_tailscale_latest_version: "{{ wd_tailscale_latest.json.TarballsVersion }}"
+    wd_tailscale_latest_tarball: "{{ wd_tailscale_latest.json.Tarballs.arm }}"
+
+- name: Check current tailscale version on the device
+  ansible.builtin.command: "{{ wd_tailscale_base }}/current/tailscale version"
+  register: wd_tailscale_current
+  changed_when: false
+  failed_when: false
+
+- name: Set current version fact
+  ansible.builtin.set_fact:
+    wd_tailscale_current_version: "{{ (wd_tailscale_current.stdout_lines[0] | default('')) if wd_tailscale_current.rc == 0 else '' }}"
+
+- name: Update Tailscale on wd-mycloud
+  when: wd_tailscale_current_version != wd_tailscale_latest_version
+  block:
+    - name: Ensure releases directory exists
+      ansible.builtin.file:
+        path: "{{ wd_tailscale_base }}/releases"
+        state: directory
+        mode: "0755"
+
+    - name: Download the new release tarball
+      ansible.builtin.get_url:
+        url: "https://pkgs.tailscale.com/stable/{{ wd_tailscale_latest_tarball }}"
+        dest: "{{ wd_tailscale_base }}/{{ wd_tailscale_latest_tarball }}"
+        mode: "0644"
+
+    - name: Extract the new release
+      ansible.builtin.unarchive:
+        src: "{{ wd_tailscale_base }}/{{ wd_tailscale_latest_tarball }}"
+        dest: "{{ wd_tailscale_base }}/releases"
+        remote_src: true
+        creates: "{{ wd_tailscale_base }}/releases/tailscale_{{ wd_tailscale_latest_version }}_arm"
+
+    - name: Stop the running daemon before swapping the binary out from under it
+      ansible.builtin.command: pkill -f "tailscaled --statedir"
+      failed_when: false
+      changed_when: true
+
+    - name: Wait for the old daemon to exit
+      ansible.builtin.pause:
+        seconds: 3
+
+    - name: Point current at the new release
+      ansible.builtin.file:
+        src: "releases/tailscale_{{ wd_tailscale_latest_version }}_arm"
+        dest: "{{ wd_tailscale_base }}/current"
+        state: link
+        force: true
+
+    - name: Start the new daemon
+      ansible.builtin.shell: |
+        nohup {{ wd_tailscale_base }}/current/tailscaled --statedir=/var/lib/tailscale >> {{ wd_tailscale_base }}/tailscaled.log 2>&1 &
+        disown
+      changed_when: true
+
+    - name: Wait for the daemon to come up
+      ansible.builtin.pause:
+        seconds: 4
+
+    - name: Reconnect and re-enable Tailscale SSH
+      ansible.builtin.command: >
+        {{ wd_tailscale_base }}/current/tailscale up
+        --hostname={{ inventory_hostname }} --accept-dns=false --ssh
+      changed_when: true
+
+    - name: Remove the downloaded tarball
+      ansible.builtin.file:
+        path: "{{ wd_tailscale_base }}/{{ wd_tailscale_latest_tarball }}"
+        state: absent
+
+    - name: Find old release directories
+      ansible.builtin.find:
+        paths: "{{ wd_tailscale_base }}/releases"
+        file_type: directory
+      register: wd_tailscale_old_releases
+
+    - name: Remove releases other than the current one (keep only the active version - no rollback path needed for a single-node backup target)
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ wd_tailscale_old_releases.files }}"
+      when: item.path != wd_tailscale_base + '/releases/tailscale_' + wd_tailscale_latest_version + '_arm'
+
+- name: Report tailscale version
+  ansible.builtin.command: "{{ wd_tailscale_base }}/current/tailscale version"
+  register: wd_tailscale_final_version
+  changed_when: false
+
+- name: Show wd-mycloud tailscale version
+  ansible.builtin.debug:
+    msg: "wd-mycloud tailscale: {{ wd_tailscale_final_version.stdout_lines[0] }}"
+
+- name: Deploy the watchdog script (always, in case it drifts)
+  ansible.builtin.template:
+    src: watchdog.sh.j2
+    dest: "{{ wd_tailscale_base }}/watchdog.sh"
+    mode: "0755"
+
+- name: Ensure the watchdog cron entry exists
+  ansible.builtin.cron:
+    name: "tailscale watchdog"
+    minute: "*/5"
+    job: "{{ wd_tailscale_base }}/watchdog.sh"

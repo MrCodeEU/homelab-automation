@@ -90,6 +90,11 @@ ugreen:      # Separate group, NOT part of managed. Real Debian NAS (UGOS),
              # iperf3, and backup-remote-target (SFTP chroot as a backup
              # destination). Individual plays list `ugreen` explicitly rather
              # than folding it into `managed` or `rocky`.
+wd_mycloud:  # WD My Cloud EX2 Ultra - backup-target-only. BusyBox userland,
+             # no systemd/apt/opkg/os-release, no package manager at all.
+             # Tailscale lives entirely on the persistent data partition
+             # (roles/wd-mycloud-tailscale) since the system partition is
+             # wiped on firmware updates. Not a services/base target.
 proxy_only:  # Caddy-only routing targets
 ```
 
@@ -282,3 +287,5 @@ When adding a secret-backed service, update `secrets.yml`, `vault.yml.example`, 
 | `hetrixtools` | External uptime monitoring agent |
 | `homepage-data-sync` | Syncs site-data.json for the homepage service |
 | `cleanup` | Standalone container reconciliation |
+| `tailscale-update` | Tailscale version check/update on hosts with no other patch coverage (ugreen, wd_mycloud) |
+| `wd-mycloud` | Plays that explicitly include the WD My Cloud host |

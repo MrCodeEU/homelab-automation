@@ -1,0 +1,23 @@
+---
+# ugreen stays deliberately unmanaged for general OS patching (UGOS's own
+# A/B overlay update mechanism owns that, same posture as Unraid). Tailscale
+# is the one exception: it is the security-relevant network boundary, apt
+# already has it as a real package here, and a single-package upgrade never
+# touches anything else UGOS manages.
+
+- name: Update apt package index for tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    update_cache: true
+    cache_valid_time: 3600
+    state: latest
+  register: ugreen_tailscale_pkg
+
+- name: Report ugreen tailscale version after update
+  ansible.builtin.command: tailscale version
+  register: ugreen_tailscale_version
+  changed_when: false
+
+- name: Show ugreen tailscale version
+  ansible.builtin.debug:
+    msg: "ugreen tailscale: {{ ugreen_tailscale_version.stdout_lines[0] }}{{ ' (updated)' if ugreen_tailscale_pkg is changed else '' }}"
