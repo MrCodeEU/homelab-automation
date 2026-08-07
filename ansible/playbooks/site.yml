@@ -322,6 +322,37 @@
     - grafana-alloy
 
 # ============================================================================
+# Tailscale security updates (hosts with no other patch-management coverage)
+# ============================================================================
+# ugreen and unraid stay deliberately unmanaged for general OS patching (their
+# own vendor update mechanisms own that), but Tailscale is the
+# security-relevant network boundary and gets kept current regardless.
+# mljr/nuc need nothing here - roles/base's routine apt/dnf upgrades already
+# cover Tailscale on those. Runs on every deploy (cheap, idempotent version
+# check) and is what the weekly untargeted schedule run actually catches.
+- name: Ugreen Tailscale Update
+  hosts: ugreen
+  become: true
+  gather_facts: false
+  ignore_unreachable: true
+  tags:
+    - ugreen
+    - tailscale-update
+  roles:
+    - ugreen-tailscale
+
+- name: WD MyCloud Tailscale Update
+  hosts: wd_mycloud
+  become: true
+  gather_facts: false
+  ignore_unreachable: true
+  tags:
+    - wd-mycloud
+    - tailscale-update
+  roles:
+    - wd-mycloud-tailscale
+
+# ============================================================================
 # iperf3 (all Rocky hosts, plus ugreen - network performance testing)
 # ============================================================================
 - name: iperf3 Network Test Server

@@ -1,0 +1,9 @@
+#!/bin/sh
+TS_DIR={{ wd_tailscale_base }}/current
+LOG={{ wd_tailscale_base }}/tailscaled.log
+if ! pgrep -f "tailscaled --statedir" >/dev/null 2>&1; then
+    cd "$TS_DIR"
+    nohup ./tailscaled --statedir=/var/lib/tailscale >> "$LOG" 2>&1 &
+    sleep 3
+    ./tailscale up --hostname={{ inventory_hostname }} --accept-dns=false --ssh >> "$LOG" 2>&1
+fi
