@@ -17,7 +17,8 @@
   ansible.builtin.command: tailscale version
   register: ugreen_tailscale_version
   changed_when: false
+  check_mode: false
 
 - name: Show ugreen tailscale version
   ansible.builtin.debug:
-    msg: "ugreen tailscale: {{ ugreen_tailscale_version.stdout_lines[0] }}{{ ' (updated)' if ugreen_tailscale_pkg is changed else '' }}"
+    msg: "ugreen tailscale: {{ ugreen_tailscale_version.stdout_lines[0] | default('unknown - check mode') }}{{ ' (updated)' if ugreen_tailscale_pkg is changed else '' }}"

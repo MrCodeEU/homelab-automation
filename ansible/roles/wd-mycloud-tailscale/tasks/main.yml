@@ -38,6 +38,7 @@
   register: wd_tailscale_current
   changed_when: false
   failed_when: false
+  check_mode: false
 
 - name: Set current version fact
   ansible.builtin.set_fact:
@@ -149,10 +150,12 @@
   ansible.builtin.command: "{{ wd_tailscale_base }}/current/tailscale version"
   register: wd_tailscale_final_version
   changed_when: false
+  check_mode: false
+  failed_when: false
 
 - name: Show wd-mycloud tailscale version
   ansible.builtin.debug:
-    msg: "wd-mycloud tailscale: {{ wd_tailscale_final_version.stdout_lines[0] }}"
+    msg: "wd-mycloud tailscale: {{ wd_tailscale_final_version.stdout_lines[0] | default('unknown - check mode or unreachable') }}"
 
 - name: Deploy the watchdog script (always, in case it drifts)
   ansible.builtin.template:
