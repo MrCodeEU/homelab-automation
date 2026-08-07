@@ -23,7 +23,9 @@
     host_facts_dest: >-
       {{ host_facts_unraid_bin_path
          if inventory_hostname in (groups['unraid'] | default([]))
-         else host_facts_bin_path }}
+         else (host_facts_ugreen_bin_path
+               if inventory_hostname in (groups['ugreen'] | default([]))
+               else host_facts_bin_path) }}
 
 - name: Ensure the array-side bin directory exists (Unraid)
   ansible.builtin.file:
@@ -31,6 +33,13 @@
     state: directory
     mode: "0755"
   when: inventory_hostname in (groups['unraid'] | default([]))
+
+- name: Ensure the pool-side bin directory exists (ugreen)
+  ansible.builtin.file:
+    path: "{{ host_facts_ugreen_bin_path | dirname }}"
+    state: directory
+    mode: "0755"
+  when: inventory_hostname in (groups['ugreen'] | default([]))
 
 - name: Install the facts script
   ansible.builtin.template:
@@ -49,6 +58,14 @@
     state: link
     force: true
   when: inventory_hostname in (groups['unraid'] | default([]))
+
+- name: Link the facts script into PATH (ugreen)
+  ansible.builtin.file:
+    src: "{{ host_facts_ugreen_bin_path }}"
+    dest: "{{ host_facts_bin_path }}"
+    state: link
+    force: true
+  when: inventory_hostname in (groups['ugreen'] | default([]))
 
 # The key can only be installed when the healthreport role has run on the
 # client host in this same invocation. Under `--limit nas` that play is

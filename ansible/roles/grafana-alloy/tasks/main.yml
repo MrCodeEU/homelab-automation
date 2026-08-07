@@ -1,6 +1,16 @@
 ---
 # Grafana Alloy Role - host, Docker, and log telemetry for Grafana LGTM
 
+# The docker_container module below runs on the target and needs the Python
+# docker SDK there. Rocky hosts get python3-docker from roles/base (dnf), but
+# that role never targets ugreen - installing it here too makes this role
+# self-contained rather than depending on base having run first, and the
+# package name is identical on apt and dnf so this needs no OS branching.
+- name: Ensure the Python docker SDK is present
+  ansible.builtin.package:
+    name: python3-docker
+    state: present
+
 - name: Set Grafana telemetry endpoints
   ansible.builtin.set_fact:
     grafana_prometheus_remote_write_url: "http://{{ hostvars['nuc']['tailscale_ip'] }}:19090/api/v1/write"
@@ -44,7 +54,7 @@
       - /proc:/hostfs/proc:ro
       - /sys:/hostfs/sys:ro
       - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
+      - "{{ grafana_alloy_docker_root }}:{{ grafana_alloy_docker_root }}:ro"
       - /dev/disk:/dev/disk:ro
       - /var/log:/var/log:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro

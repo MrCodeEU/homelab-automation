@@ -25,7 +25,7 @@ import time
 
 TIMEOUT = 20
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
-OS_FAMILY = "{{ 'unraid' if inventory_hostname in (groups['unraid'] | default([])) else 'rocky' }}"
+OS_FAMILY = "{{ 'unraid' if inventory_hostname in (groups['unraid'] | default([])) else ('ugreen' if inventory_hostname in (groups['ugreen'] | default([])) else 'rocky') }}"
 HOSTNAME = "{{ inventory_hostname }}"
 
 
@@ -291,6 +291,100 @@ def collect_crowdsec():
     return out
 
 
+# ---------------------------------------------------------------------------
+# ugreen
+# ---------------------------------------------------------------------------
+
+MDADM_ARRAY = re.compile(r"^(md\d+)\s*:\s*active\s+(\S+)\s+(.+)$")
+MDADM_STATUS = re.compile(r"\[([U_]+)\]")
+BTRFS_STAT_LINE = re.compile(r"^\[.*?\]\.(\w+)\s+(\d+)")
+
+
+def collect_ugreen_storage():
+    """mdraid, LVM and btrfs pool health.
+
+    ugreen's data path is mdraid1 (2 HDDs) -> LVM -> btrfs, with a second
+    mdraid1 (2 NVMe) -> LVM bcache tier in front of it. None of the generic
+    collectors above see any of this - dmesg only catches a failure once it is
+    loud, and the btrfs corruption that took this host down on 2026-07-31 grew
+    for a while as device-level errors before the filesystem became
+    unmountable. `btrfs device stats` is exactly the counter that would have
+    shown it early, and nothing was reading it.
+    """
+    out = {}
+
+    # mdraid: [UU] is healthy, any '_' in the status field means degraded.
+    res = run(["cat", "/proc/mdstat"], timeout=10)
+    arrays = []
+    if res["ok"]:
+        current = None
+        for line in res["stdout"].splitlines():
+            match = MDADM_ARRAY.match(line)
+            if match:
+                current = {
+                    "array": match.group(1),
+                    "level": match.group(2),
+                    "members": match.group(3),
+                }
+                arrays.append(current)
+                continue
+            if current is not None:
+                status = MDADM_STATUS.search(line)
+                if status:
+                    current["status"] = status.group(1)
+                    current["degraded"] = "_" in status.group(1)
+                    current = None
+    out["mdraid"] = arrays
+
+    # LVM: which logical volumes exist and how full each is. The bcache tier
+    # (NVMe) is the one worth watching - it is far smaller than the HDD pool
+    # and has no user-facing free-space warning the way the btrfs pool does.
+    res = run(["lvs", "--noheadings", "--units", "b", "--nosuffix",
+               "-o", "vg_name,lv_name,lv_size,data_percent"], timeout=15)
+    volumes = []
+    if res["ok"]:
+        for line in res["stdout"].splitlines():
+            parts = line.split()
+            if len(parts) < 3:
+                continue
+            try:
+                size_bytes = int(parts[2])
+            except ValueError:
+                size_bytes = None
+            data_percent = None
+            if len(parts) > 3 and parts[3] not in ("", "-"):
+                try:
+                    data_percent = float(parts[3])
+                except ValueError:
+                    pass
+            volumes.append({
+                "vg": parts[0], "lv": parts[1],
+                "size_bytes": size_bytes, "data_percent": data_percent,
+            })
+    out["lvm"] = volumes
+
+    # btrfs: the pool(s) actually mounted, plus per-device error counters.
+    # `btrfs device stats` is key-value text, not JSON.
+    res = run(["findmnt", "-t", "btrfs", "-n", "-o", "TARGET"], timeout=10)
+    mounts = [m for m in res["stdout"].splitlines() if m.strip()] if res["ok"] else []
+    pools = []
+    for mount in mounts:
+        stats = run(["btrfs", "device", "stats", mount], timeout=15)
+        errors = {}
+        for line in stats["stdout"].splitlines():
+            match = BTRFS_STAT_LINE.match(line)
+            if match:
+                errors[match.group(1)] = int(match.group(2))
+        pools.append({
+            "mount": mount,
+            "errors": errors,
+            "has_errors": any(v > 0 for v in errors.values()),
+        })
+    out["btrfs_pools"] = pools
+
+    return out
+
+
 # Kernel messages that mean hardware or a filesystem is in trouble, as opposed
 # to the routine complaints every boot produces. This list is deliberately
 # specific: ugreen's btrfs died on 2026-07-31 and the only early warning would
@@ -391,7 +485,21 @@ def collect_time_sync():
         return {"available": True, "source": "ntp", "synchronised": False,
                 "reason": "no peer selected"}
 
-    return {"available": False, "reason": "no chronyc or ntpq"}
+    # ugreen runs systemd-timesyncd, not chrony or the standalone ntpd this
+    # collector was originally written against. timedatectl exposes only a
+    # synchronised boolean here (no stratum/offset - timesyncd does not track
+    # them the way chrony does), which is enough to catch "stopped syncing
+    # entirely" even without the precision the other two paths give.
+    if shutil.which("timedatectl"):
+        res = run(["timedatectl", "show", "--property=NTPSynchronized", "--value"], timeout=15)
+        if res["ok"]:
+            return {
+                "available": True,
+                "source": "timedatectl",
+                "synchronised": res["stdout"].strip().lower() == "yes",
+            }
+
+    return {"available": False, "reason": "no chronyc, ntpq or timedatectl"}
 
 
 def collect_backup_targets():
@@ -698,6 +806,15 @@ def main():
         sections["unraid_docker_image"] = section(collect_unraid_docker_image)
         sections["backup"] = section(collect_backup_log)
         sections["backup_targets"] = section(collect_backup_targets)
+    elif OS_FAMILY == "ugreen":
+        # systemd_failed is genuinely portable (Debian, real systemd) and worth
+        # having. nftables/security_updates/crowdsec/backup are rocky-only
+        # concepts: security_updates shells out to dnf, which does not exist on
+        # Debian, and ugreen is a backup *target* here, not a source that runs
+        # backup.sh - collect_backup_log would just report "no log directory"
+        # for a path that was never going to exist.
+        sections["systemd_failed"] = section(collect_systemd_failed)
+        sections["ugreen_storage"] = section(collect_ugreen_storage)
     else:
         sections["systemd_failed"] = section(collect_systemd_failed)
         sections["nftables"] = section(collect_nftables)
