@@ -198,15 +198,29 @@
     - healthreport
 
 # ============================================================================
-# Host Facts Endpoint (all managed hosts)
+# Host Facts Endpoint (all managed hosts, plus ugreen explicitly)
 # ============================================================================
 # Read-only facts script plus a forced-command SSH key, so the agent on nuc can
 # read CrowdSec, nftables and Unraid array state without opening a new port.
+#
+# ugreen is listed by name rather than folded into `managed`, per the
+# inventory's own note: it stays out of that group so plays that assume a
+# dnf-based rocky host (host-facts-endpoint's `security_updates`/`nftables`
+# sections, previously) do not silently misfire there. The facts template now
+# has a real ugreen branch (systemd_failed + mdraid/LVM/btrfs pool health), so
+# this is the first play deliberately extended to include it - light,
+# read-only monitoring, not the full `services`/`base` machinery.
+#
+# Deliberately NOT gated on ugreen_enabled: that flag protects the write path
+# (backup-remote-target's chroot, the Docker services role) while recovery is
+# in progress. This play only reads, so it stays on even while ugreen_enabled
+# is false - which is the whole point of bringing monitoring up first.
 - name: Host Facts Endpoint
-  hosts: managed
+  hosts: managed,ugreen
   become: true
   gather_facts: false
   strategy: free
+  ignore_unreachable: true
   tags:
     - services
     - healthreport
@@ -285,13 +299,22 @@
       when: crowdsec_firewall_bouncer_enabled | default(false) | bool
 
 # ============================================================================
-# Grafana Alloy Agent (Rocky hosts only - NAS/Unraid is managed manually)
+# Grafana Alloy Agent (Rocky hosts, plus ugreen - NAS/Unraid is managed
+# manually via services/nas-alloy, a separate compose service rather than this
+# role, because Unraid's tmpfs root needs different persistence handling)
 # ============================================================================
+# The role is fully generic (plain docker_container + template, no OS
+# branching), so extending it to ugreen needed only two things: the Python
+# docker SDK, which roles/base normally provides but never targets ugreen (now
+# installed by the role itself), and grafana_alloy_docker_root, because UGOS
+# puts Docker's data on the storage pool rather than /var/lib/docker
+# (group_vars/ugreen.yml).
 - name: Grafana Alloy Telemetry Agent
-  hosts: rocky
+  hosts: rocky,ugreen
   become: true
   gather_facts: false
   strategy: free
+  ignore_unreachable: true
   tags:
     - grafana-alloy
     - monitoring
@@ -299,13 +322,14 @@
     - grafana-alloy
 
 # ============================================================================
-# iperf3 (all Rocky hosts - network performance testing)
+# iperf3 (all Rocky hosts, plus ugreen - network performance testing)
 # ============================================================================
 - name: iperf3 Network Test Server
-  hosts: rocky
+  hosts: rocky,ugreen
   become: true
   gather_facts: false
   strategy: free
+  ignore_unreachable: true
   tags:
     - iperf3
     - monitoring

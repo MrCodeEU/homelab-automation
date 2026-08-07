@@ -89,6 +89,7 @@ def collect(config, rules):
         sections = payload.get("sections", {})
         _rocky(obs, host, sections)
         _unraid(obs, host, sections)
+        _ugreen(obs, host, sections)
 
         for name, section in sections.items():
             if section.get("status") != "ok":
@@ -361,6 +362,62 @@ def _rocky(obs, host, sections):
             message="%s: no backup log found (%s)" % (host, backup.get("reason")),
             evidence={},
         ))
+
+
+def _ugreen(obs, host, sections):
+    # systemd_failed is handled by _rocky() above - it is a generic section
+    # name, not a rocky-only concept, and ugreen now populates it too.
+    storage = _section(sections, "ugreen_storage")
+    if not storage:
+        return
+
+    for array in storage.get("mdraid") or []:
+        if array.get("degraded"):
+            obs.append(Observation(
+                id="mdraid_degraded.%s.%s" % (host, array.get("array")),
+                collector="ssh_facts",
+                subject=host,
+                kind="mdraid_degraded",
+                value=array.get("status"),
+                message="%s: mdraid array %s is degraded (%s, status %s)"
+                        % (host, array.get("array"), array.get("members"), array.get("status")),
+                evidence=array,
+            ))
+
+    for pool in storage.get("btrfs_pools") or []:
+        if pool.get("has_errors"):
+            errors = pool.get("errors") or {}
+            nonzero = {k: v for k, v in errors.items() if v}
+            obs.append(Observation(
+                id="btrfs_pool_errors.%s.%s" % (host, pool.get("mount")),
+                collector="ssh_facts",
+                subject=host,
+                kind="btrfs_pool_errors",
+                value=sum(nonzero.values()),
+                unit="errors",
+                message="%s: btrfs pool %s has device errors: %s"
+                        % (host, pool.get("mount"),
+                           ", ".join("%s=%d" % (k, v) for k, v in nonzero.items())),
+                evidence=pool,
+            ))
+
+    # LVM free space, mainly for the NVMe bcache tier: it is far smaller than
+    # the HDD pool behind it and has no user-facing free-space warning the way
+    # the btrfs pool itself does.
+    for lv in storage.get("lvm") or []:
+        percent = lv.get("data_percent")
+        if percent is not None:
+            obs.append(Observation(
+                id="lvm_usage.%s.%s-%s" % (host, lv.get("vg"), lv.get("lv")),
+                collector="ssh_facts",
+                subject=host,
+                kind="lvm_usage",
+                value=round(percent, 1),
+                unit="percent",
+                message="%s: LV %s/%s is %.1f%% full"
+                        % (host, lv.get("vg"), lv.get("lv"), percent),
+                evidence=lv,
+            ))
 
 
 def _unraid(obs, host, sections):

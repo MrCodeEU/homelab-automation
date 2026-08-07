@@ -241,6 +241,26 @@ rules:
     crit_values: ["alert"]
     warn_values: ["warning"]
 
+  # --- storage health (ugreen) ---------------------------------------------
+  # ugreen's data path is mdraid1 -> LVM -> btrfs, with a second mdraid1 (NVMe)
+  # -> LVM bcache tier in front. None of the generic collectors above see any
+  # of it. crit throughout: this is exactly the layer that failed silently on
+  # 2026-07-31, and by the time dmesg or the app layer noticed, the filesystem
+  # was already unmountable.
+  mdraid_degraded:
+    type: present
+    level: crit
+
+  btrfs_pool_errors:
+    type: present
+    level: crit
+
+  lvm_usage:
+    type: threshold
+    direction: above
+    warn: 85
+    crit: 95
+
   # --- logs ----------------------------------------------------------------
   log_signature:
     # Steady-state error noise is not news. A signature never seen before is.

@@ -8,6 +8,15 @@ host_facts_client_host: nuc
 host_facts_bin_path: /usr/local/bin/homelab-facts
 host_facts_unraid_bin_path: "{{ base_path }}/bin/homelab-facts"
 
+# ugreen's root is a writable overlay (mmcblk0p7, real ext4, not tmpfs), so
+# unlike Unraid this has not been observed to wipe /usr/local/bin. But it is
+# also unconfirmed to survive a vendor OS update, which can reasonably reset
+# an overlay to match a new base image. Storing the canonical copy on the
+# storage pool costs nothing and means that if it ever does happen, the next
+# deploy re-creates the symlink rather than needing the same live rescue
+# Unraid needed on 2026-08-01.
+host_facts_ugreen_bin_path: "{{ base_path }}/bin/homelab-facts"
+
 # Unraid restores /root/.ssh from here at boot.
 host_facts_unraid_ssh_persist: /boot/config/ssh/root
 

@@ -14,3 +14,9 @@ ansible_python_interpreter: /usr/bin/python3
 # cleanup_enabled has no meaning for this host today - roles/services does not
 # currently target `ugreen`. Set for forward-compatibility if that changes.
 cleanup_enabled: false
+
+# UGOS puts Docker's data directory on the storage pool rather than the OS
+# disk. Confirmed via `docker info` 2026-08-07. grafana-alloy's cadvisor needs
+# this mounted at its real path (not under /hostfs) because the docker.sock
+# API it queries reports overlay paths rooted here.
+grafana_alloy_docker_root: /volume1/@docker
