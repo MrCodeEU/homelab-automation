@@ -322,13 +322,14 @@
     - grafana-alloy
 
 # ============================================================================
-# iperf3 (all Rocky hosts - network performance testing)
+# iperf3 (all Rocky hosts, plus ugreen - network performance testing)
 # ============================================================================
 - name: iperf3 Network Test Server
-  hosts: rocky
+  hosts: rocky,ugreen
   become: true
   gather_facts: false
   strategy: free
+  ignore_unreachable: true
   tags:
     - iperf3
     - monitoring

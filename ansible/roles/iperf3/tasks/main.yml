@@ -42,6 +42,10 @@
               max-size: "5m"
               max-file: "2"
 
+# ugreen (UGOS/Debian) has no firewalld - nothing else in this repo manages
+# its firewall either (backup-remote-target reuses the already-open port 22),
+# and it is Tailscale-only the same way the rocky hosts are, so skipping this
+# is consistent with the existing posture rather than a gap.
 - name: Open iperf3 port in firewall (Tailscale zone only)
   ansible.posix.firewalld:
     port: "5201/tcp"
@@ -49,6 +53,7 @@
     permanent: true
     immediate: true
     state: enabled
+  when: inventory_hostname not in groups['ugreen'] | default([])
 
 - name: Open iperf3 UDP port in firewall (Tailscale zone only)
   ansible.posix.firewalld:
@@ -57,6 +62,7 @@
     permanent: true
     immediate: true
     state: enabled
+  when: inventory_hostname not in groups['ugreen'] | default([])
 
 - name: Deploy iperf3 container
   community.docker.docker_compose_v2:
