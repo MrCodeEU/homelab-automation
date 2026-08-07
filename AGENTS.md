@@ -82,6 +82,14 @@ managed:
   rocky:     # Full Ansible control: mljr, nuc
   unraid:    # Partial: most NAS apps stay manual (Unraid UI), but catalog
              # entries marked `managed: true` are deployed by the Unraid play
+ugreen:      # Separate group, NOT part of managed. Real Debian NAS (UGOS),
+             # persistent root filesystem - but deliberately kept out of
+             # roles/base (no dnf, vendor A/B overlay root) and roles/services
+             # (Syncthing on it is still deployed manually pending a folder
+             # restructure). Gets only: host-facts-endpoint, grafana-alloy,
+             # iperf3, and backup-remote-target (SFTP chroot as a backup
+             # destination). Individual plays list `ugreen` explicitly rather
+             # than folding it into `managed` or `rocky`.
 proxy_only:  # Caddy-only routing targets
 ```
 
@@ -93,7 +101,7 @@ array start to restore compose projects, helper binaries and registry
 credentials after the tmpfs root is rebuilt. Do not "correct" the
 `managed: true` NAS entries back to false.
 
-`mljr` is the public ingress and critical infrastructure host. `nuc` is the stronger compute node and hosts heavier internal services such as Grafana and Netronome.
+`mljr` is the public ingress and critical infrastructure host. `nuc` is the stronger compute node and hosts heavier internal services such as Grafana and Netronome. `ugreen` is a second NAS, currently backup-target-only with light read-only monitoring - not a deployment target for general services.
 
 ### Key Files
 
@@ -134,15 +142,27 @@ The services role only deploys enabled, managed services that are not marked `sk
 The main playbook order is:
 
 1. Gather facts
-2. Base setup
-3. Standalone container reconciliation
-4. HetrixTools, backup, dashboard, mail, Authelia
-5. Generic Docker services
-6. CrowdSec firewall bouncer on `mljr`, when enabled
-7. Grafana Alloy, iperf3, Hawser agent
-8. Caddy reverse proxy
+2. Backup remote keypair (`nuc`) and target (`ugreen`, an SFTP chroot) - runs
+   early because both `backup` (rocky) and `unraid-backup` read
+   `hostvars['nuc']['backup_remote_privkey']`
+3. Syncthing NAS key (`nas`), read before the Ugreen Services play consumes it
+4. Base setup
+5. Standalone container reconciliation
+6. HetrixTools, backup, dashboard, mail, Authelia
+7. Health Report agent state (`nuc`), then Host Facts Endpoint
+   (`managed` + `ugreen` explicitly)
+8. Generic Docker services (rocky), then Unraid Services, then Ugreen Services
+9. CrowdSec firewall bouncer on `mljr`, when enabled
+10. Grafana Alloy (rocky + `ugreen`), iperf3 (rocky + `ugreen`), Hawser agent
+11. Caddy reverse proxy
 
-This order is intentional. The CrowdSec bouncer runs after the Dockerized CrowdSec service is deployed.
+This order is intentional. The CrowdSec bouncer runs after the Dockerized
+CrowdSec service is deployed. Plays that touch `ugreen` set
+`ignore_unreachable: true` and are never gated on `ugreen_enabled` if they are
+read-only (facts, Alloy, iperf3) - only the write-path roles
+(`backup-remote-target`, `services` on ugreen) respect that flag, so
+monitoring keeps working even while the write side is deliberately disabled
+during a recovery.
 
 ## Docker Cleanup
 
@@ -178,7 +198,23 @@ Two Alloy details that are easy to get wrong, both fixed in `roles/grafana-alloy
 
 `services/healthreport/` is a one-shot container on `nuc`, run by a systemd timer, that collects facts, assigns severity from `services/healthreport/rules.yml`, diffs against the previous run, and sends a report via ntfy and email. See its README for the design.
 
-Two invariants: severity is decided by the rules file **before** the LLM runs and the model may not change it; and a collector that fails becomes a finding in the report rather than a silent gap. Facts that are not reachable over the network (CrowdSec LAPI, nftables, Unraid array/SMART) come from `roles/host-facts-endpoint` — a read-only script behind an SSH key restricted with `command=`, not an open port.
+Two invariants: severity is decided by the rules file **before** the LLM runs and the model may not change it; and a collector that fails becomes a finding in the report rather than a silent gap. Facts that are not reachable over the network (CrowdSec LAPI, nftables, Unraid array/SMART) come from `roles/host-facts-endpoint` — a read-only script behind an SSH key restricted with `command=`, not an open port. The facts template (`homelab-facts.py.j2`) branches on OS family - Unraid, `ugreen`, and Rocky each get a different section set; `ugreen`'s adds mdraid/LVM/btrfs storage-health (it sits behind mdraid1 → LVM → btrfs, with a second mdraid1(NVMe) → LVM bcache tier) rather than the dnf/nftables sections that assume a Rocky host.
+
+## Backup
+
+Two separate mechanisms, not to be confused:
+
+- `roles/backup` (rocky) - the primary backup role, borg-based, restores on
+  fresh install.
+- `roles/unraid-backup` - deploys a systemd timer on the NAS that runs
+  `unraid_backup_paths` entries (`ansible/roles/unraid-backup/defaults/main.yml`)
+  through rclone. Each entry has a `tier`: `critical` goes to both pCloud and,
+  best-effort, `ugreen`; `important` goes to `ugreen` only.
+- `roles/backup-remote-key` (nuc) generates an SSH keypair; `roles/backup-remote-target`
+  (`ugreen`) provisions a chrooted SFTP user restricted to that key, gated on
+  `ugreen_enabled` since it is a write path. The Unraid backup script also
+  probes writability independently, so a disabled or unreachable ugreen
+  degrades gracefully rather than failing the whole run.
 
 ## Network Testing
 
@@ -241,3 +277,8 @@ When adding a secret-backed service, update `secrets.yml`, `vault.yml.example`, 
 | `glance` | Dashboard |
 | `mailcow` | Mail server |
 | `authelia` | SSO identity provider |
+| `ugreen` | Plays that explicitly include the ugreen host |
+| `healthreport` | Health report agent state and facts endpoint |
+| `hetrixtools` | External uptime monitoring agent |
+| `homepage-data-sync` | Syncs site-data.json for the homepage service |
+| `cleanup` | Standalone container reconciliation |

@@ -26,15 +26,16 @@ GitHub Actions / local Ansible
              |
         Tailscale VPN
              |
-   +---------+---------+
-   |                   |
- mljr                nuc
- VPS                 compute node
- Caddy ingress       Grafana, Netronome,
- CrowdSec            heavier services
+   +---------+---------+---------+---------+
+   |                   |         |         |
+ mljr                nuc       nas       ugreen
+ VPS                 compute   Unraid    Debian NAS (UGOS)
+ Caddy ingress       node      NAS       backup target,
+ CrowdSec            Grafana,  mostly    light read-only
+                      Netronome manual   monitoring only
 ```
 
-NAS/Unraid services are mostly managed manually and only proxied or monitored where explicitly configured.
+NAS/Unraid services are mostly managed manually and only proxied or monitored where explicitly configured. `ugreen` is not a general deployment target - it only receives host-facts-endpoint, Grafana Alloy, iperf3, and (when `ugreen_enabled`) the SFTP backup target.
 
 ## Features
 
@@ -70,7 +71,13 @@ homelab-automation/
 │       ├── services/
 │       ├── container-reconcile/
 │       ├── crowdsec-firewall-bouncer/
-│       ├── grafana-alloy/
+│       ├── grafana-alloy/                 # rocky + ugreen
+│       ├── host-facts-endpoint/           # managed + ugreen
+│       ├── healthreport/                  # nuc
+│       ├── backup/                        # rocky, borg-based
+│       ├── unraid-backup/                 # nas, rclone to pCloud/ugreen
+│       ├── backup-remote-key/             # nuc
+│       ├── backup-remote-target/          # ugreen, SFTP chroot
 │       └── ...
 ├── services/
 │   ├── crowdsec/
@@ -160,7 +167,7 @@ SigNoz has been replaced by a Grafana stack on `nuc`:
 - Loki for logs
 - Grafana Alloy agents on Rocky hosts
 
-Alloy collects host metrics, Docker metrics, Docker logs, Caddy logs, and CrowdSec metrics. NAS/Unraid monitoring is manual.
+Alloy collects host metrics, Docker metrics, Docker logs, Caddy logs, and CrowdSec metrics. NAS/Unraid monitoring is manual. `ugreen` also runs Alloy plus a read-only facts endpoint that reports mdraid/LVM/btrfs storage health, feeding into the health report alongside Unraid's own array/SMART checks.
 
 Grafana provisioning is stored in `services/grafana/`:
 
