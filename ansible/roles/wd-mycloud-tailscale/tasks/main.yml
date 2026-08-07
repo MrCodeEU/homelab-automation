@@ -20,6 +20,11 @@
 # runs after a backgrounded command, as done throughout this file.
 
 - name: Get latest stable Tailscale release info
+  # uri is not check-mode-safe by default, so without check_mode: false this
+  # gets skipped under --check and registers an empty placeholder instead of
+  # a real response - which is what actually broke the version comparison
+  # below (both .json and .content attribute access failed identically
+  # because there was no real dict there at all).
   ansible.builtin.uri:
     url: https://pkgs.tailscale.com/stable/?mode=json
     return_content: true
@@ -27,14 +32,17 @@
   delegate_to: localhost
   become: false
   run_once: true
+  check_mode: false
 
 - name: Determine latest version and arm tarball name
-  # Not relying on the uri module's automatic .json attribute - it did not
-  # resolve consistently against this ansible-core version's internal
-  # result representation. Parsing .content explicitly is unambiguous.
+  # Dot-attribute access on this registered var (.json, .content) both fail
+  # with "object of type 'dict' has no attribute ..." on this ansible-core
+  # version when combined with delegate_to+run_once - bracket/key access
+  # uses the dict protocol directly instead of attribute fallback and
+  # sidesteps whatever is going on there.
   ansible.builtin.set_fact:
-    wd_tailscale_latest_version: "{{ (wd_tailscale_latest.content | from_json).TarballsVersion }}"
-    wd_tailscale_latest_tarball: "{{ (wd_tailscale_latest.content | from_json).Tarballs.arm }}"
+    wd_tailscale_latest_version: "{{ (wd_tailscale_latest['content'] | from_json)['TarballsVersion'] }}"
+    wd_tailscale_latest_tarball: "{{ (wd_tailscale_latest['content'] | from_json)['Tarballs']['arm'] }}"
 
 - name: Check current tailscale version on the device
   ansible.builtin.command: "{{ wd_tailscale_base }}/current/tailscale version"
