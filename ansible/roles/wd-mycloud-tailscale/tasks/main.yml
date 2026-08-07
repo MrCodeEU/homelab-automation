@@ -29,9 +29,12 @@
   run_once: true
 
 - name: Determine latest version and arm tarball name
+  # Not relying on the uri module's automatic .json attribute - it did not
+  # resolve consistently against this ansible-core version's internal
+  # result representation. Parsing .content explicitly is unambiguous.
   ansible.builtin.set_fact:
-    wd_tailscale_latest_version: "{{ wd_tailscale_latest.json.TarballsVersion }}"
-    wd_tailscale_latest_tarball: "{{ wd_tailscale_latest.json.Tarballs.arm }}"
+    wd_tailscale_latest_version: "{{ (wd_tailscale_latest.content | from_json).TarballsVersion }}"
+    wd_tailscale_latest_tarball: "{{ (wd_tailscale_latest.content | from_json).Tarballs.arm }}"
 
 - name: Check current tailscale version on the device
   ansible.builtin.command: "{{ wd_tailscale_base }}/current/tailscale version"
