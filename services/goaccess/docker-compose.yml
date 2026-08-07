@@ -62,8 +62,12 @@ services:
       --real-time-html
       --ws-url=wss://logs.mljr.eu:443/ws
       --port=7890
+    # Port 7890 is WebSocket-only, not plain HTTP - it answers any plain GET
+    # (including wget --spider's HEAD-ish request) with 400 Bad Request, so
+    # an HTTP spider check fails unconditionally regardless of health. A bare
+    # TCP connect is the right check here.
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7890"]
+      test: ["CMD", "nc", "-z", "127.0.0.1", "7890"]
       interval: 30s
       timeout: 5s
       retries: 3
