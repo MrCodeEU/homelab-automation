@@ -46,7 +46,7 @@ def convertJSONtoGoAccess (JSONdata):
     proto = JSONdata['request']['proto']
 
     status = str( JSONdata['status'] )
-    size = str( JSONdata['size'] )
+    size = str( JSONdata.get('size', 0) )
     latency = str( JSONdata['duration'] )
 
     if "Referer" in JSONdata['request']['headers'].keys():
@@ -98,6 +98,15 @@ def main():
                 if (line != ""):
                     try:
                         JSONdata = json.loads(line)
+                        # Caddy writes multiple loggers into the same access.log
+                        # (http.log.error.*, http.acme_client, tls.cache.maintenance,
+                        # ...) alongside the real http.log.access.* entries. Those
+                        # have a completely different shape (no request/size/status)
+                        # and were never meant to reach goaccess - skip quietly
+                        # rather than treating a routine ACME renewal or error log
+                        # line as a malformed access record.
+                        if not JSONdata.get('logger', '').startswith('http.log.access'):
+                            continue
                         goAccessData = convertJSONtoGoAccess(JSONdata)
                         g.write(goAccessData+'\n')
                         totalLogCount += 1
