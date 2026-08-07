@@ -115,6 +115,36 @@
       loop: "{{ wd_tailscale_old_releases.files }}"
       when: item.path != wd_tailscale_base + '/releases/tailscale_' + wd_tailscale_latest_version + '_arm'
 
+  rescue:
+    # The old daemon gets killed before `current` is swapped, so any failure
+    # from that point on (extract, symlink, start, reconnect) can leave the
+    # device with no running tailscaled at all - which also means no Tailscale
+    # SSH, cutting off the very access this whole role runs over. Best-effort
+    # restart from whatever `current` currently points at (old or new,
+    # whichever the failure happened before/after) rather than leaving it
+    # dead until the 5-minute watchdog cron happens to catch it.
+    - name: Best-effort restart of whatever current points at
+      ansible.builtin.shell: |
+        nohup {{ wd_tailscale_base }}/current/tailscaled --statedir=/var/lib/tailscale >> {{ wd_tailscale_base }}/tailscaled.log 2>&1 &
+        disown
+      failed_when: false
+      changed_when: true
+
+    - name: Wait for the rescue daemon to come up
+      ansible.builtin.pause:
+        seconds: 4
+
+    - name: Best-effort reconnect
+      ansible.builtin.command: >
+        {{ wd_tailscale_base }}/current/tailscale up
+        --hostname={{ inventory_hostname }} --accept-dns=false --ssh
+      failed_when: false
+      changed_when: true
+
+    - name: Re-raise the original failure now that the daemon is back up
+      ansible.builtin.fail:
+        msg: "Tailscale update failed on {{ inventory_hostname }} - daemon restarted from current as a best-effort recovery, but the update itself did not complete. Check manually."
+
 - name: Report tailscale version
   ansible.builtin.command: "{{ wd_tailscale_base }}/current/tailscale version"
   register: wd_tailscale_final_version
