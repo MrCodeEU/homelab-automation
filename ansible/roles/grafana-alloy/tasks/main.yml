@@ -10,6 +10,21 @@
   ansible.builtin.package:
     name: python3-docker
     state: present
+  register: grafana_alloy_docker_sdk_pkg
+  failed_when: false
+
+# Mirrors roles/base's pip-fallback pattern for consistency. On ugreen apt has
+# python3-docker (the package task above succeeds for real there); on nuc
+# (Rocky 10) dnf does not, same as roles/base's own dnf attempt - and nuc has
+# no pip either, so this fallback cannot install anything there either. It
+# stays a no-op safety net rather than a real fix for nuc; Alloy has run there
+# all week regardless, so community.docker does not appear to need the SDK for
+# what this role does.
+- name: Ensure the Python docker SDK is present (pip fallback)
+  ansible.builtin.pip:
+    name: docker
+    state: present
+  when: grafana_alloy_docker_sdk_pkg is failed
 
 - name: Set Grafana telemetry endpoints
   ansible.builtin.set_fact:
