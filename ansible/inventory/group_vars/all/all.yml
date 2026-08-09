@@ -411,6 +411,17 @@ services:
     description: "Syncthing node on the on-prem backup NAS. No Caddy route - GUI reached over Tailscale."
     icon: "mdi:sync"
 
+  # Initial test of a lightweight Nextcloud/OwnCloud alternative, on ugreen
+  # rather than nas since it is currently just a backup target with light
+  # monitoring - safe place to try it before considering it for production.
+  - name: oxicloud
+    enabled: true
+    managed: true
+    port: 0
+    host: ugreen
+    description: "OxiCloud - lightweight Rust file storage, initial test"
+    icon: "mdi:cloud-outline"
+
   - name: nas
     enabled: true
     managed: false
@@ -439,6 +450,19 @@ services:
       }
       header Access-Control-Allow-Origin "*"
       header Access-Control-Allow-Headers "X-Api-Key, User-Agent, Content-Type, Authorization"
+
+  # Unraid-UI-managed container (image: ghcr.io/mrcodeeu/auto-media-sort),
+  # already built and published by its own GitHub repo. Caddy front door
+  # only for now - full Ansible ownership is a deliberate later step.
+  - name: auto-media-sort
+    enabled: true
+    managed: false
+    domain: "sort.mljr.eu"
+    port: 8186
+    host: nas
+    caddy_auth: "authelia"
+    description: "Auto Media Sort"
+    icon: "mdi:folder-move-outline"
 
   - name: nextcloud
     enabled: true
