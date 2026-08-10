@@ -69,8 +69,13 @@ fi
 {% endif %}
 if [ "$UGREEN_AVAILABLE" = "1" ]; then
     log "Backing up {{ pair.src }} -> ugreen:{{ inventory_hostname }}/{{ pair.name }}"
+    # transfers stays low (2) - ugreen/WD are weaker hardware, keep write
+    # pressure light. checkers only does metadata listing, not writes, so it
+    # can run higher without adding load to the destination; on deep,
+    # heavily-nested trees (e.g. date-organized photo folders) checkers=4
+    # made the listing pass itself the bottleneck, not the actual transfer.
     if rclone --config "$UGREEN_CONFIG" sync "{{ pair.src }}" "ugreen:{{ inventory_hostname }}/{{ pair.name }}" \
-        --transfers 2 --checkers 4 --log-file="$LOG_FILE" --log-level INFO; then
+        --transfers 2 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
         log "SUCCESS: {{ pair.src }} backed up to ugreen"
     else
 {% if tier == 'critical' %}
@@ -87,8 +92,9 @@ fi
 # up, not managed by this role). Best-effort like ugreen: never turns an
 # otherwise-successful pCloud backup into a reported failure.
 log "Backing up {{ pair.src }} -> {{ pair.wd_cloud_dest }}"
+# See the ugreen leg above for why checkers is higher than transfers here.
 if rclone sync "{{ pair.src }}" "{{ pair.wd_cloud_dest }}" \
-    --transfers 2 --checkers 4 --log-file="$LOG_FILE" --log-level INFO; then
+    --transfers 2 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: {{ pair.src }} backed up to wd-cloud"
 else
     log_warn "Failed to sync {{ pair.src }} to wd-cloud (push-only copy, not fatal)"
