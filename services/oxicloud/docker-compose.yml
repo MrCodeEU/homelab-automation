@@ -29,6 +29,11 @@ services:
     restart: unless-stopped
     environment:
       MIMALLOC_PURGE_DELAY: "0"
+      # Defaults to 127.0.0.1 (loopback-only inside the container), which the
+      # internal healthcheck can still reach via docker exec even though
+      # docker-proxy's external port publish cannot - confirmed live 2026-08-10,
+      # container reported "healthy" while the published port was unreachable.
+      OXICLOUD_SERVER_HOST: "0.0.0.0"
       # checkov:skip=CKV_SECRET_4: upstream default creds, accepted deliberately -
       # initial test only, no host-published Postgres port, reachable over
       # Tailscale only. Not a production deployment.
