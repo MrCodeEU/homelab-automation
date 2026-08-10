@@ -115,17 +115,6 @@ services:
     description: "Diabetes Management (Next-Gen)"
     icon: "mdi:moon-waning-crescent"
 
-  - name: nightscout
-    enabled: true
-    domain:
-      - "nightscout.mljr.eu"
-      - "ns.mljr.eu"
-    port: 1337
-    host: nuc
-    description: "CGM Monitor"
-    icon: "mdi:diabetes"
-    backup_critical: true  # Restore on fresh install
-
   - name: kuma
     enabled: true
     domain: "uptime.mljr.eu"

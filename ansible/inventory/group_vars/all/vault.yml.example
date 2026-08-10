@@ -22,13 +22,6 @@ vault_nocturne_postgres_app_password: ""  # openssl rand -hex 16
 vault_nocturne_postgres_migrator_password: ""  # openssl rand -hex 16
 vault_nocturne_postgres_web_password: ""  # openssl rand -hex 16
 
-# Nightscout / LibreLink
-vault_nightscout_api_secret: ""
-vault_nightscout_api_token: ""
-vault_nightscout_domain: ""
-vault_link_up_username: ""
-vault_link_up_password: ""
-
 # Caddy basicauth (legacy fallback)
 vault_caddy_auth_user: "admin"
 vault_caddy_auth_hash: ""   # bcrypt hash — generate: caddy hash-password
