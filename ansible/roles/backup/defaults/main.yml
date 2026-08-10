@@ -59,13 +59,6 @@ backup_service_configs:
       - "{{ mailcow_install_path | default('/opt/mailcow-dockerized') }}/data"
     backup_critical: true
 
-  nightscout:
-    backup_volumes:
-      - nightscout_mongo-data
-    backup_pre_hook: |
-      docker exec nightscout-mongo mongodump --out=/data/backup --gzip 2>/dev/null || true
-    backup_critical: true
-
   kuma:
     backup_volumes:
       - kuma_uptime-kuma-data

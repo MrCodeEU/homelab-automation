@@ -61,7 +61,7 @@ ansible-playbook playbooks/site.yml --check --diff
 ansible-playbook playbooks/site.yml -e is_staging_deployment=true
 
 # Deploy only changed services
-ansible-playbook playbooks/site.yml -e changed_services=nightscout,homepage
+ansible-playbook playbooks/site.yml -e changed_services=myservice,homepage
 
 # Force full service file sync and .env regeneration
 ansible-playbook playbooks/site.yml --tags services -e force_redeploy=true
@@ -125,9 +125,9 @@ Services are defined in `ansible/inventory/group_vars/all/all.yml`:
 
 ```yaml
 services:
-  - name: nightscout
+  - name: myservice
     enabled: true
-    domain: "nightscout.mljr.eu"  # string or list
+    domain: "myservice.mljr.eu"  # string or list
     port: 1337                    # use 0 for no web UI
     host: nuc                     # inventory hostname
     managed: true                 # false means Caddy proxy only
