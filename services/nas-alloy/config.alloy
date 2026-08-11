@@ -30,7 +30,16 @@ prometheus.exporter.unix "host" {
   // every scrape logged "stat failed on /dev/sdX" (~1.1M lines/day here,
   // more than every other container on the estate combined, back when the
   // btrfs pool was first created on 2026-08-04). Device nodes mounted below
-  // in docker-compose.yml; disable_collectors removed.
+  // in docker-compose.yml; disable_collectors removed. Confirmed live: zero
+  // btrfs errors after the fix.
+  //
+  // mdadm disabled - found live the same day, unrelated to the btrfs change.
+  // Unraid's array uses its own proprietary superblock format (references
+  // /boot/config/super.dat), not real Linux mdadm, so this collector fails
+  // "error parsing mdstatus" on every single scrape and will never succeed.
+  // Array health already comes from the SSH facts collector's unraid_array
+  // check, so nothing is lost.
+  disable_collectors = ["mdadm"]
 }
 
 prometheus.scrape "host" {
