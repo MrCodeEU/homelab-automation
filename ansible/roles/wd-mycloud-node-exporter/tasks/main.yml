@@ -42,12 +42,8 @@
   ansible.builtin.set_fact:
     wd_node_exporter_latest_tarball: "{{ wd_node_exporter_latest_asset['name'] }}"
     wd_node_exporter_latest_url: "{{ wd_node_exporter_latest_asset['browser_download_url'] }}"
-    # GitHub's releases API includes a digest per asset - used below to
-    # verify the download's integrity on-target even with validate_certs
-    # disabled there (see that task's comment for why). This closes the gap
-    # a disabled TLS check would otherwise leave open: a tampered download
-    # gets rejected by get_url's own checksum comparison regardless of
-    # whether the TLS handshake itself was verified.
+    # GitHub's releases API includes a digest per asset - verified below
+    # against the curl-downloaded tarball's own computed checksum.
     wd_node_exporter_latest_checksum: "{{ wd_node_exporter_latest_asset['digest'] }}"
 
 - name: Check current node_exporter version on the device
@@ -72,33 +68,42 @@
         mode: "0755"
 
     - name: Download the new release tarball to a scratch location
-      # Downloaded to /tmp rather than directly under wd_node_exporter_base
-      # (on the separate /mnt/HD/HD_a2 data partition) - confirmed live
-      # 2026-08-11 that get_url's atomic_move fails silently across that
-      # mount boundary on this device (busybox/Mitogen combination): the
-      # directory tasks above reported real success with a genuine before/
-      # after diff, yet get_url immediately after still claimed the
-      # destination didn't exist, and a live `ls` confirmed nothing was ever
-      # actually created there. unarchive extracts directly from here in the
-      # next task instead, sidestepping get_url's cross-filesystem move
-      # entirely rather than chasing the underlying cause further.
+      # curl, not ansible.builtin.get_url - confirmed live 2026-08-11 that
+      # WD's busybox environment fails TLS verification specifically through
+      # Python/Ansible's cert lookup path ("certificate verify failed:
+      # unable to get local issuer certificate"), while the system's own
+      # curl/openssl trust store verifies this exact same URL just fine.
+      # Using curl here means real certificate validation actually happens,
+      # rather than working around get_url's broken cert path by disabling
+      # validate_certs.
       #
-      # validate_certs disabled: WD's busybox environment has a stale CA
-      # cert store and fails TLS verification against GitHub's release CDN
-      # ("certificate verify failed: unable to get local issuer
-      # certificate"). Not a bare trust-the-network download though: the
-      # checksum below (from GitHub's release API, fetched by the earlier
-      # controller-side task WITH cert validation) still gets verified by
-      # get_url after download, so a tampered/corrupted file is rejected
-      # regardless of whether the TLS handshake was checked. Only
-      # confidentiality of the download is unverified here, not integrity.
-      # checkov:skip=CKV_ANSIBLE_1: mitigated by the checksum parameter below.
-      ansible.builtin.get_url:
-        url: "{{ wd_node_exporter_latest_url }}"
-        dest: "/tmp/{{ wd_node_exporter_latest_tarball }}"
-        mode: "0644"
-        validate_certs: false
-        checksum: "{{ wd_node_exporter_latest_checksum }}"
+      # Downloaded to /tmp rather than directly under wd_node_exporter_base
+      # (on the separate /mnt/HD/HD_a2 data partition) for an unrelated
+      # reason found in the same debugging session: get_url's atomic_move
+      # failed silently across that mount boundary on this device. curl
+      # writing directly to a path doesn't have that problem, but /tmp is
+      # kept anyway since unarchive in the next task already handles the
+      # cross-filesystem extraction fine either way.
+      ansible.builtin.command:
+        cmd: >-
+          curl -fsSL {{ wd_node_exporter_latest_url }}
+          -o /tmp/{{ wd_node_exporter_latest_tarball }}
+      changed_when: true
+
+    - name: Verify the download's checksum
+      # Ansible's stat module hashes the local file directly, no network/TLS
+      # involved, so this works regardless of the cert issue above - real
+      # integrity verification against the digest GitHub's API returned via
+      # the earlier controller-side (cert-validated) task.
+      ansible.builtin.stat:
+        path: "/tmp/{{ wd_node_exporter_latest_tarball }}"
+        checksum_algorithm: sha256
+      register: wd_node_exporter_downloaded_stat
+
+    - name: Fail if the checksum doesn't match
+      ansible.builtin.assert:
+        that: wd_node_exporter_downloaded_stat.stat.checksum == (wd_node_exporter_latest_checksum | regex_replace('^sha256:', ''))
+        fail_msg: "Downloaded node_exporter tarball checksum does not match GitHub's release digest - possible corruption or tampering, refusing to extract."
 
     - name: Extract the new release
       ansible.builtin.unarchive:
