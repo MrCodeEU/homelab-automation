@@ -24,15 +24,13 @@ prometheus.exporter.unix "host" {
 
   // No systemd collector here: Unraid is Slackware and does not run systemd.
 
-  // btrfs is disabled deliberately. The collector stats the block device
-  // directly, and Alloy runs in a container without those device nodes, so
-  // every scrape logs
-  //   Unable to get btrfs mountpoint IDs: stat failed on /dev/sde1
-  // That began the moment the btrfs pool was created on 2026-08-04 and produced
-  // ~1.1M lines a day - more than every other container on the estate combined.
-  // Capacity for those filesystems still comes from the `filesystem` collector,
-  // which reads /proc/mounts and works fine, so no metrics are lost.
-  disable_collectors = ["btrfs"]
+  // btrfs collector re-enabled 2026-08-11, matching the same change on the
+  // rocky/ugreen hosts (ansible/roles/grafana-alloy). It was never really a
+  // security trade-off - the container just had no /dev/sdX visibility, so
+  // every scrape logged "stat failed on /dev/sdX" (~1.1M lines/day here,
+  // more than every other container on the estate combined, back when the
+  // btrfs pool was first created on 2026-08-04). Device nodes mounted below
+  // in docker-compose.yml; disable_collectors removed.
 }
 
 prometheus.scrape "host" {
@@ -50,6 +48,20 @@ prometheus.scrape "docker" {
   targets    = prometheus.exporter.cadvisor.docker.targets
   forward_to = [prometheus.relabel.identity.receiver]
   job_name   = "docker"
+}
+
+// SMART data from services/smartctl-exporter-nas, scraped locally on
+// 127.0.0.1 - same pattern as ugreen/nuc. nas has the most disks in the
+// fleet, biggest single win for SMART coverage.
+prometheus.scrape "smart" {
+  targets = [
+    {
+      "__address__" = "127.0.0.1:9633",
+      "job"         = "smartctl",
+      "instance"    = "nas",
+    },
+  ]
+  forward_to = [prometheus.relabel.identity.receiver]
 }
 
 // prometheus.scrape attaches its own `instance` label from the scrape target,

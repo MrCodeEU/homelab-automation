@@ -438,6 +438,18 @@ services:
     description: "SMART metrics exporter (nuc disks) for Grafana/Alloy"
     icon: "mdi:harddisk"
 
+  # Most disks in the fleet - scraped by nas-alloy (services/nas-alloy/
+  # config.alloy), not the templated grafana-alloy role (Unraid has no
+  # python3-docker SDK, so nas uses a plain services-catalog compose
+  # project instead).
+  - name: smartctl-exporter-nas
+    enabled: true
+    managed: true
+    port: 0
+    host: nas
+    description: "SMART metrics exporter (nas disks) for Grafana/Alloy"
+    icon: "mdi:harddisk"
+
   - name: nas
     enabled: true
     managed: false
