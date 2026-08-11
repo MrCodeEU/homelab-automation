@@ -62,6 +62,15 @@
     network_mode: host
     pid_mode: host
     user: root
+    # Read-only access to the SCSI/SATA (major 8) and NVMe (major 259) block
+    # device classes - needed for the btrfs collector's ioctls now that
+    # /dev is bind-mounted above. A plain bind mount doesn't bypass Docker's
+    # device cgroup controller, this is the actual permission grant; kept
+    # read-only ("r" only, no "w"/"m") and scoped to two device classes
+    # rather than --privileged.
+    device_cgroup_rules:
+      - "b 8:* r"
+      - "b 259:* r"
     volumes:
       - /opt/grafana-alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /opt/grafana-alloy/data:/var/lib/alloy/data
@@ -71,6 +80,16 @@
       - /sys:/sys:ro
       - "{{ grafana_alloy_docker_root }}:{{ grafana_alloy_docker_root }}:ro"
       - /dev/disk:/dev/disk:ro
+      # Read-only device nodes for the btrfs collector's ioctls (BTRFS_IOC_FS_INFO
+      # etc.) - stat-ing the symlinks under /dev/disk alone isn't enough, the
+      # collector needs the actual block special files. device_cgroup_rules
+      # below grants the matching cgroup permission (bind-mounting alone
+      # doesn't bypass Docker's device cgroup controller).
+      - /dev:/dev:ro
+      # Read-only D-Bus socket for the systemd collector (ListUnits etc. only
+      # - see the "systemd collector" comment in config.alloy.j2 for why this
+      # doesn't meaningfully raise this container's existing trust level).
+      - /run/systemd/private:/run/systemd/private:ro
       - /var/log:/var/log:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # cadvisor asks containerd about image layers for every container it

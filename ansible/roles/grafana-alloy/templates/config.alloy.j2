@@ -3,31 +3,18 @@ prometheus.exporter.unix "host" {
   procfs_path = "/hostfs/proc"
   sysfs_path  = "/hostfs/sys"
 
-  // systemd is NOT enabled, despite node_systemd_unit_state looking like the
-  // natural source for failed units. Alloy runs in a container without
-  // /run/systemd/private, so the collector fails on every single scrape:
-  //   level=error msg="collector failed" name=systemd
-  //   err="couldn't get dbus connection: dial unix /run/systemd/private"
-  // That was ~60k error lines a day on mljr and ~54k on nuc, and it never
-  // produced a metric - so the PromQL in collectors/victoria.py that reads
-  // node_systemd_unit_state has never matched anything. Failed units are
-  // detected instead by the facts endpoint running `systemctl list-units
-  // --failed` over SSH (collectors/ssh_facts.py), which works and is what
-  // every systemd_failed finding to date has come from.
+  // systemd collector re-enabled 2026-08-11. It only does read-only D-Bus
+  // calls (ListUnits etc.) - the container already holds /var/run/docker.sock
+  // (arguably higher-privilege, can spin up privileged containers), so
+  // mounting /run/systemd/private too doesn't meaningfully raise the ceiling
+  // of what's already trusted. Socket mounted below in the role's task file.
+  // Previously disabled because it wasn't mounted at all and errored on every
+  // scrape (~60k/day on mljr, ~54k on nuc) without ever producing a metric.
   //
-  // Enabling it properly would mean mounting systemd's private socket into the
-  // container, which grants control over the host's init system - not a
-  // reasonable trade for a metric that is already covered.
-
-  // btrfs is disabled deliberately. The collector stats the block device
-  // directly, and Alloy runs in a container without the device nodes, so on a
-  // host with a btrfs filesystem every scrape logs
-  //   Unable to get btrfs mountpoint IDs: stat failed on /dev/sde1
-  // On nas that started the moment the new pool was created and produced
-  // ~1.1M log lines a day - more than every other container on the estate
-  // combined. Capacity for those filesystems already comes from the `filesystem`
-  // collector, which reads /proc/mounts and works fine, so nothing is lost.
-  disable_collectors = ["btrfs"]
+  // btrfs collector re-enabled 2026-08-11 too. It was never really a security
+  // trade-off - the container just had no /dev/sdX visibility, so every scrape
+  // logged "stat failed on /dev/sdX" (~1.1M lines/day on nas alone). Device
+  // nodes mounted below in the role's task file; disable_collectors removed.
 }
 
 prometheus.scrape "host" {
@@ -57,6 +44,49 @@ prometheus.scrape "security" {
     },
   ]
   forward_to = [prometheus.relabel.identity.receiver]
+}
+
+{% endif %}
+{% if inventory_hostname == 'ugreen' %}
+prometheus.scrape "smart" {
+  targets = [
+    {
+      "__address__" = "127.0.0.1:9633",
+      "job"         = "smartctl",
+      "instance"    = "{{ inventory_hostname }}",
+    },
+  ]
+  forward_to = [prometheus.relabel.identity.receiver]
+}
+
+{% endif %}
+{% if inventory_hostname == 'nuc' and secrets.homeassistant.token is defined and secrets.homeassistant.token %}
+// Home Assistant is its own host (proxy_only group, no Alloy of its own -
+// it's a HAOS appliance, not a Docker host), so this scrapes it remotely
+// over Tailscale instead of running an agent there. Reuses the same token
+// already set up for the healthreport HA collector (secrets.homeassistant.
+// token / vault_homeassistant_token) - HA long-lived tokens are full-account
+// scope, not endpoint-restricted, so no separate token was needed.
+prometheus.scrape "homeassistant" {
+  targets = [
+    {
+      "__address__" = "homeassistant.tail33930.ts.net",
+      "job"         = "homeassistant",
+      "instance"    = "homeassistant",
+      "host"        = "homeassistant",
+    },
+  ]
+  scheme          = "https"
+  metrics_path    = "/api/prometheus"
+  bearer_token    = "{{ secrets.homeassistant.token }}"
+  // Deliberately NOT routed through prometheus.relabel.identity below - that
+  // rule unconditionally overwrites instance/host with inventory_hostname
+  // (needed for mljr's contabo-hostname quirk), which would relabel every HA
+  // metric as coming from "nuc" instead of "homeassistant". Straight to
+  // remote_write instead - "instance"/"host" are already set on the target
+  // above, and remote_write's external_labels only fill in labels that are
+  // still absent, so they won't get overwritten back to "nuc".
+  forward_to      = [prometheus.remote_write.homelab.receiver]
 }
 
 {% endif %}
