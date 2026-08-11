@@ -42,6 +42,13 @@
   ansible.builtin.set_fact:
     wd_node_exporter_latest_tarball: "{{ wd_node_exporter_latest_asset['name'] }}"
     wd_node_exporter_latest_url: "{{ wd_node_exporter_latest_asset['browser_download_url'] }}"
+    # GitHub's releases API includes a digest per asset - used below to
+    # verify the download's integrity on-target even with validate_certs
+    # disabled there (see that task's comment for why). This closes the gap
+    # a disabled TLS check would otherwise leave open: a tampered download
+    # gets rejected by get_url's own checksum comparison regardless of
+    # whether the TLS handshake itself was verified.
+    wd_node_exporter_latest_checksum: "{{ wd_node_exporter_latest_asset['digest'] }}"
 
 - name: Check current node_exporter version on the device
   ansible.builtin.command: "{{ wd_node_exporter_base }}/current/node_exporter --version"
@@ -64,33 +71,28 @@
         state: directory
         mode: "0755"
 
-    - name: Download the new release tarball to the controller
-      # NOT delegated to the target: WD's busybox environment has a stale CA
+    - name: Download the new release tarball
+      # validate_certs disabled: WD's busybox environment has a stale CA
       # cert store and fails TLS verification against GitHub's release CDN
       # (confirmed live 2026-08-11 - "certificate verify failed: unable to
-      # get local issuer certificate"). Downloading here instead (the
-      # controller's cert store is current) and pushing the file over SSH
-      # in the next task avoids the problem entirely without weakening any
-      # certificate check.
+      # get local issuer certificate"). Tried downloading via delegate_to:
+      # localhost + copy instead (keeps cert validation intact, since the
+      # controller's store is current) but that hit a separate issue under
+      # this CI's Ansible/Mitogen setup - the controller-side temp file
+      # wasn't visible to the following copy task.
+      #
+      # This is NOT left as a bare trust-the-network download though: the
+      # checksum below (from GitHub's release API, fetched by the earlier
+      # controller-side task WITH cert validation) still gets verified by
+      # get_url itself after download, so a tampered/corrupted file is
+      # rejected regardless of whether the TLS handshake was checked. Only
+      # confidentiality of the download is unverified here, not integrity.
       ansible.builtin.get_url:
         url: "{{ wd_node_exporter_latest_url }}"
-        dest: "/tmp/{{ wd_node_exporter_latest_tarball }}"
-        mode: "0644"
-      delegate_to: localhost
-      become: false
-
-    - name: Push the tarball to wd-mycloud
-      ansible.builtin.copy:
-        src: "/tmp/{{ wd_node_exporter_latest_tarball }}"
         dest: "{{ wd_node_exporter_base }}/{{ wd_node_exporter_latest_tarball }}"
         mode: "0644"
-
-    - name: Remove the local copy of the tarball
-      ansible.builtin.file:
-        path: "/tmp/{{ wd_node_exporter_latest_tarball }}"
-        state: absent
-      delegate_to: localhost
-      become: false
+        validate_certs: false
+        checksum: "{{ wd_node_exporter_latest_checksum }}"
 
     - name: Extract the new release
       ansible.builtin.unarchive:
