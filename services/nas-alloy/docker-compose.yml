@@ -9,6 +9,13 @@ services:
     network_mode: host
     pid: host
     user: root
+    # Read-only access to the SCSI/SATA (major 8) and NVMe (major 259) block
+    # device classes - needed for the btrfs collector's ioctls now that /dev
+    # is bind-mounted below. Matches the equivalent change in
+    # ansible/roles/grafana-alloy/tasks/main.yml for the rocky/ugreen hosts.
+    device_cgroup_rules:
+      - "b 8:* r"
+      - "b 259:* r"
     command:
       - run
       - --server.http.listen-addr=127.0.0.1:12345
@@ -23,6 +30,7 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker:/var/lib/docker:ro
       - /dev/disk:/dev/disk:ro
+      - /dev:/dev:ro
       - /var/log:/var/log:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
