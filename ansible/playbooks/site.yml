@@ -352,6 +352,17 @@
   roles:
     - wd-mycloud-tailscale
 
+- name: WD MyCloud node_exporter Update
+  hosts: wd_mycloud
+  become: true
+  gather_facts: false
+  ignore_unreachable: true
+  tags:
+    - wd-mycloud
+    - node-exporter-update
+  roles:
+    - wd-mycloud-node-exporter
+
 # ============================================================================
 # iperf3 (all Rocky hosts, plus ugreen - network performance testing)
 # ============================================================================

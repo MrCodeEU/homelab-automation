@@ -1,0 +1,206 @@
+---
+# WD My Cloud EX2 Ultra: busybox userland, no systemd, no apt/opkg, no
+# os-release, and no 32-bit ARM build of Grafana Alloy exists at all (only
+# amd64/arm64/ppc64le/s390x releases are published) - confirmed live
+# 2026-08-11 by checking the GitHub releases API directly. node_exporter
+# does publish an official linux-armv7 build, is far lighter than Alloy
+# (confirmed live: ~16.5MB RSS vs Alloy's 50-100MB+), and is remote-scraped
+# from nuc's Alloy instance instead - same mechanism already used for
+# Home Assistant (see ansible/roles/grafana-alloy/templates/config.alloy.j2).
+#
+# Layout mirrors roles/wd-mycloud-tailscale exactly (stable across firmware
+# updates):
+#   {{ wd_node_exporter_base }}/releases/<ver>/  each version's binary
+#   {{ wd_node_exporter_base }}/current          symlink to the active release
+#   {{ wd_node_exporter_base }}/watchdog.sh      restarts it if not running
+#                                                 (cron, 5min)
+#
+# IMPORTANT: never chain `cd X && nohup Y & sleep N && ...` on one line -
+# see roles/wd-mycloud-tailscale/tasks/main.yml's note on this, same trap
+# applies here. Absolute paths for anything after a backgrounded command.
+
+- name: Get latest node_exporter release info
+  # Not check-mode-safe by default - see wd-mycloud-tailscale's identical
+  # comment on this same pattern.
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/prometheus/node_exporter/releases/latest
+    return_content: true
+  register: wd_node_exporter_latest
+  delegate_to: localhost
+  become: false
+  run_once: true
+  check_mode: false
+
+- name: Determine latest version and armv7 tarball URL
+  # Bracket/key access, not dot-attribute - see wd-mycloud-tailscale's
+  # identical comment, same ansible-core quirk applies here.
+  ansible.builtin.set_fact:
+    wd_node_exporter_latest_version: "{{ (wd_node_exporter_latest['content'] | from_json)['tag_name'] | regex_replace('^v', '') }}"
+    wd_node_exporter_latest_asset: "{{ (wd_node_exporter_latest['content'] | from_json)['assets'] | selectattr('name', 'match', '.*linux-armv7\\.tar\\.gz$') | first }}"
+
+- name: Set latest tarball facts
+  ansible.builtin.set_fact:
+    wd_node_exporter_latest_tarball: "{{ wd_node_exporter_latest_asset['name'] }}"
+    wd_node_exporter_latest_url: "{{ wd_node_exporter_latest_asset['browser_download_url'] }}"
+    # GitHub's releases API includes a digest per asset - verified below
+    # against the curl-downloaded tarball's own computed checksum.
+    wd_node_exporter_latest_checksum: "{{ wd_node_exporter_latest_asset['digest'] }}"
+
+- name: Check current node_exporter version on the device
+  ansible.builtin.command: "{{ wd_node_exporter_base }}/current/node_exporter --version"
+  register: wd_node_exporter_current
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Set current version fact
+  ansible.builtin.set_fact:
+    # --version prints to stderr as "node_exporter, version 1.12.1 (branch: ...)"
+    wd_node_exporter_current_version: "{{ (wd_node_exporter_current.stderr | regex_search('version ([0-9.]+)', '\\1') | first) if wd_node_exporter_current.rc == 0 else '' }}"
+
+- name: Update node_exporter on wd-mycloud
+  # not ansible_check_mode: confirmed live 2026-08-11 this whole block mixes
+  # module types with different check-mode behaviors - `file` simulates
+  # directory creation without really doing it, `command`/`shell` no-op
+  # entirely, but `unarchive` still tries to inspect real filesystem state
+  # and fails ("dest ... must be an existing dir") once earlier tasks in the
+  # same run left nothing behind under --check. This install/update flow
+  # doesn't meaningfully preview under dry-run anyway (versioned binary
+  # install + service restart), so skip the whole thing under check mode
+  # rather than chasing per-module inconsistencies further.
+  when: (wd_node_exporter_current_version != wd_node_exporter_latest_version) and not ansible_check_mode
+  block:
+    - name: Ensure releases directory exists
+      ansible.builtin.file:
+        path: "{{ wd_node_exporter_base }}/releases"
+        state: directory
+        mode: "0755"
+
+    - name: Download the new release tarball to a scratch location
+      # curl, not ansible.builtin.get_url - confirmed live 2026-08-11 that
+      # WD's busybox environment fails TLS verification specifically through
+      # Python/Ansible's cert lookup path ("certificate verify failed:
+      # unable to get local issuer certificate"), while the system's own
+      # curl/openssl trust store verifies this exact same URL just fine.
+      # Using curl here means real certificate validation actually happens,
+      # rather than working around get_url's broken cert path by disabling
+      # validate_certs.
+      #
+      # Downloaded to /tmp rather than directly under wd_node_exporter_base
+      # (on the separate /mnt/HD/HD_a2 data partition) for an unrelated
+      # reason found in the same debugging session: get_url's atomic_move
+      # failed silently across that mount boundary on this device. curl
+      # writing directly to a path doesn't have that problem, but /tmp is
+      # kept anyway since unarchive in the next task already handles the
+      # cross-filesystem extraction fine either way.
+      ansible.builtin.command:
+        cmd: >-
+          curl -fsSL {{ wd_node_exporter_latest_url }}
+          -o /tmp/{{ wd_node_exporter_latest_tarball }}
+      changed_when: true
+
+    - name: Verify the download's checksum
+      # Ansible's stat module hashes the local file directly, no network/TLS
+      # involved, so this works regardless of the cert issue above - real
+      # integrity verification against the digest GitHub's API returned via
+      # the earlier controller-side (cert-validated) task. No separate
+      # check-mode guard needed here - the whole block already skips under
+      # --check (see the block-level when: above).
+      ansible.builtin.stat:
+        path: "/tmp/{{ wd_node_exporter_latest_tarball }}"
+        checksum_algorithm: sha256
+      register: wd_node_exporter_downloaded_stat
+
+    - name: Fail if the checksum doesn't match
+      ansible.builtin.assert:
+        # Bracket/key access, not dot-attribute - same ansible-core quirk
+        # noted elsewhere in this file (registered-result dict access).
+        that: wd_node_exporter_downloaded_stat['stat']['checksum'] == (wd_node_exporter_latest_checksum | regex_replace('^sha256:', ''))
+        fail_msg: "Downloaded node_exporter tarball checksum does not match GitHub's release digest - possible corruption or tampering, refusing to extract."
+
+    - name: Extract the new release
+      ansible.builtin.unarchive:
+        src: "/tmp/{{ wd_node_exporter_latest_tarball }}"
+        dest: "{{ wd_node_exporter_base }}/releases"
+        remote_src: true
+        creates: "{{ wd_node_exporter_base }}/releases/node_exporter-{{ wd_node_exporter_latest_version }}.linux-armv7"
+
+    - name: Stop the running instance before swapping the binary out from under it
+      ansible.builtin.command: pkill -f "node_exporter --web.listen-address"
+      failed_when: false
+      changed_when: true
+
+    - name: Wait for the old instance to exit
+      ansible.builtin.pause:
+        seconds: 2
+
+    - name: Point current at the new release
+      ansible.builtin.file:
+        src: "releases/node_exporter-{{ wd_node_exporter_latest_version }}.linux-armv7"
+        dest: "{{ wd_node_exporter_base }}/current"
+        state: link
+        force: true
+
+    - name: Start the new instance
+      ansible.builtin.shell: |
+        nohup {{ wd_node_exporter_base }}/current/node_exporter --web.listen-address=100.100.10.5:{{ wd_node_exporter_port }} >> {{ wd_node_exporter_base }}/node_exporter.log 2>&1 &
+        disown
+      changed_when: true
+
+    - name: Remove the downloaded tarball
+      ansible.builtin.file:
+        path: "/tmp/{{ wd_node_exporter_latest_tarball }}"
+        state: absent
+
+    - name: Find old release directories
+      ansible.builtin.find:
+        paths: "{{ wd_node_exporter_base }}/releases"
+        file_type: directory
+      register: wd_node_exporter_old_releases
+
+    - name: Remove releases other than the current one (no rollback path needed for a single-node backup target)
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ wd_node_exporter_old_releases.files }}"
+      when: item.path != wd_node_exporter_base + '/releases/node_exporter-' + wd_node_exporter_latest_version + '.linux-armv7'
+
+  rescue:
+    # Same reasoning as wd-mycloud-tailscale's rescue block: the old
+    # instance is killed before `current` is swapped, so any failure from
+    # that point on could leave nothing running until the 5-minute watchdog
+    # cron happens to catch it. Best-effort restart from whatever `current`
+    # points at right now.
+    - name: Best-effort restart of whatever current points at
+      ansible.builtin.shell: |
+        nohup {{ wd_node_exporter_base }}/current/node_exporter --web.listen-address=100.100.10.5:{{ wd_node_exporter_port }} >> {{ wd_node_exporter_base }}/node_exporter.log 2>&1 &
+        disown
+      failed_when: false
+      changed_when: true
+
+    - name: Re-raise the original failure now that the instance is back up
+      ansible.builtin.fail:
+        msg: "node_exporter update failed on {{ inventory_hostname }} - instance restarted from current as a best-effort recovery, but the update itself did not complete. Check manually."
+
+- name: Report node_exporter version
+  ansible.builtin.command: "{{ wd_node_exporter_base }}/current/node_exporter --version"
+  register: wd_node_exporter_final_version
+  changed_when: false
+  check_mode: false
+  failed_when: false
+
+- name: Show wd-mycloud node_exporter version
+  ansible.builtin.debug:
+    msg: "wd-mycloud node_exporter: {{ wd_node_exporter_final_version.stderr_lines[0] | default('unknown - check mode or unreachable') }}"
+
+- name: Deploy the watchdog script (always, in case it drifts)
+  ansible.builtin.template:
+    src: watchdog.sh.j2
+    dest: "{{ wd_node_exporter_base }}/watchdog.sh"
+    mode: "0755"
+
+- name: Ensure the watchdog cron entry exists
+  ansible.builtin.cron:
+    name: "node_exporter watchdog"
+    minute: "*/5"
+    job: "{{ wd_node_exporter_base }}/watchdog.sh"
