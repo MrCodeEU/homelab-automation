@@ -77,16 +77,23 @@ prometheus.scrape "smart" {
 // already set up for the healthreport HA collector (secrets.homeassistant.
 // token / vault_homeassistant_token) - HA long-lived tokens are full-account
 // scope, not endpoint-restricted, so no separate token was needed.
+//
+// Plain HTTP direct to HA's own port 8123, NOT https/443 - confirmed live
+// 2026-08-11 that 443 gets "Connection refused" (nothing listens there on
+// the HA host itself; that port only exists via Caddy's public front door
+// at home.mljr.eu, which also sits behind Authelia - wrong path for a
+// bearer-token API scrape). 8123 matches the healthreport HA collector's
+// own known-working ha_url (services/healthreport/app/config.py).
 prometheus.scrape "homeassistant" {
   targets = [
     {
-      "__address__" = "homeassistant.tail33930.ts.net",
+      "__address__" = "100.100.10.200:8123",
       "job"         = "homeassistant",
       "instance"    = "homeassistant",
       "host"        = "homeassistant",
     },
   ]
-  scheme          = "https"
+  scheme          = "http"
   metrics_path    = "/api/prometheus"
   bearer_token    = "{{ secrets.homeassistant.token }}"
   // Deliberately NOT routed through prometheus.relabel.identity below - that
