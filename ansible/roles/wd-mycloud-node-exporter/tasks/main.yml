@@ -65,52 +65,44 @@
 - name: Update node_exporter on wd-mycloud
   when: wd_node_exporter_current_version != wd_node_exporter_latest_version
   block:
-    - name: Ensure base directory exists
-      # Explicit, separate task rather than relying on the releases task
-      # below to create it as a parent - confirmed live 2026-08-11 that on
-      # this device/connection combo (Mitogen strategy), a single file task
-      # targeting a nested path where neither level exists did not leave the
-      # parent directory behind, which then made get_url fail with
-      # "Destination ... does not exist" on the very next task.
-      ansible.builtin.file:
-        path: "{{ wd_node_exporter_base }}"
-        state: directory
-        mode: "0755"
-
     - name: Ensure releases directory exists
       ansible.builtin.file:
         path: "{{ wd_node_exporter_base }}/releases"
         state: directory
         mode: "0755"
 
-    - name: Download the new release tarball
+    - name: Download the new release tarball to a scratch location
+      # Downloaded to /tmp rather than directly under wd_node_exporter_base
+      # (on the separate /mnt/HD/HD_a2 data partition) - confirmed live
+      # 2026-08-11 that get_url's atomic_move fails silently across that
+      # mount boundary on this device (busybox/Mitogen combination): the
+      # directory tasks above reported real success with a genuine before/
+      # after diff, yet get_url immediately after still claimed the
+      # destination didn't exist, and a live `ls` confirmed nothing was ever
+      # actually created there. unarchive extracts directly from here in the
+      # next task instead, sidestepping get_url's cross-filesystem move
+      # entirely rather than chasing the underlying cause further.
+      #
       # validate_certs disabled: WD's busybox environment has a stale CA
       # cert store and fails TLS verification against GitHub's release CDN
-      # (confirmed live 2026-08-11 - "certificate verify failed: unable to
-      # get local issuer certificate"). Tried downloading via delegate_to:
-      # localhost + copy instead (keeps cert validation intact, since the
-      # controller's store is current) but that hit a separate issue under
-      # this CI's Ansible/Mitogen setup - the controller-side temp file
-      # wasn't visible to the following copy task.
-      #
-      # This is NOT left as a bare trust-the-network download though: the
+      # ("certificate verify failed: unable to get local issuer
+      # certificate"). Not a bare trust-the-network download though: the
       # checksum below (from GitHub's release API, fetched by the earlier
       # controller-side task WITH cert validation) still gets verified by
-      # get_url itself after download, so a tampered/corrupted file is
-      # rejected regardless of whether the TLS handshake was checked. Only
+      # get_url after download, so a tampered/corrupted file is rejected
+      # regardless of whether the TLS handshake was checked. Only
       # confidentiality of the download is unverified here, not integrity.
-      # checkov:skip=CKV_ANSIBLE_1: mitigated by the checksum parameter below,
-      # see the comment block above for the full reasoning.
+      # checkov:skip=CKV_ANSIBLE_1: mitigated by the checksum parameter below.
       ansible.builtin.get_url:
         url: "{{ wd_node_exporter_latest_url }}"
-        dest: "{{ wd_node_exporter_base }}/{{ wd_node_exporter_latest_tarball }}"
+        dest: "/tmp/{{ wd_node_exporter_latest_tarball }}"
         mode: "0644"
         validate_certs: false
         checksum: "{{ wd_node_exporter_latest_checksum }}"
 
     - name: Extract the new release
       ansible.builtin.unarchive:
-        src: "{{ wd_node_exporter_base }}/{{ wd_node_exporter_latest_tarball }}"
+        src: "/tmp/{{ wd_node_exporter_latest_tarball }}"
         dest: "{{ wd_node_exporter_base }}/releases"
         remote_src: true
         creates: "{{ wd_node_exporter_base }}/releases/node_exporter-{{ wd_node_exporter_latest_version }}.linux-armv7"
@@ -139,7 +131,7 @@
 
     - name: Remove the downloaded tarball
       ansible.builtin.file:
-        path: "{{ wd_node_exporter_base }}/{{ wd_node_exporter_latest_tarball }}"
+        path: "/tmp/{{ wd_node_exporter_latest_tarball }}"
         state: absent
 
     - name: Find old release directories
