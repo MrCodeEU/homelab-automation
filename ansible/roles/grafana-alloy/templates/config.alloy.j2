@@ -15,6 +15,16 @@ prometheus.exporter.unix "host" {
   // trade-off - the container just had no /dev/sdX visibility, so every scrape
   // logged "stat failed on /dev/sdX" (~1.1M lines/day on nas alone). Device
   // nodes mounted below in the role's task file; disable_collectors removed.
+  // btrfs is on by default once the device nodes are visible, so no
+  // enable_collectors entry was needed for it - confirmed live via
+  // node_btrfs_info after mounting /dev.
+  //
+  // systemd, unlike btrfs, is NOT part of Alloy's default collector set -
+  // it needs to be opted into explicitly. Confirmed live 2026-08-11: with
+  // only disable_collectors emptied (no enable_collectors), the socket mount
+  // was in place and healthy but node_systemd_unit_state never appeared in
+  // VictoriaMetrics at all - the collector was never actually running.
+  enable_collectors = ["systemd"]
 }
 
 prometheus.scrape "host" {

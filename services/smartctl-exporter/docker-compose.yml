@@ -10,6 +10,12 @@ services:
     # Alloy itself, so the blast radius stays limited to "can read SMART data",
     # not host-wide.
     privileged: true
+    # Image defaults to running as "nobody" - privileged grants capabilities/
+    # device cgroup access but does NOT bypass standard Unix file permissions
+    # on the device nodes themselves (/dev/sdX is root:disk 660), so without
+    # this the exporter gets "Permission denied" on every device despite
+    # privileged mode being on. Confirmed live 2026-08-11.
+    user: root
     # Host networking so Alloy (also host-mode on this box) can scrape it via
     # 127.0.0.1 without extra Docker network plumbing - matches the existing
     # syncthing-ugreen precedent for this host.
