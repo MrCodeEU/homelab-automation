@@ -60,6 +60,7 @@ total_count=$((total_count + 1))
 {% if tier == 'critical' %}
 log "Backing up {{ pair.src }} -> {{ pair.dest }} (pCloud)"
 if rclone sync "{{ pair.src }}" "{{ pair.dest }}" \
+    --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: {{ pair.src }} backed up to pCloud"
 else
@@ -74,7 +75,15 @@ if [ "$UGREEN_AVAILABLE" = "1" ]; then
     # can run higher without adding load to the destination; on deep,
     # heavily-nested trees (e.g. date-organized photo folders) checkers=4
     # made the listing pass itself the bottleneck, not the actual transfer.
+    #
+    # .stfolder markers are Syncthing-internal (one per nested folder root)
+    # and can go stale on the source side when folders get reconsolidated -
+    # some SMB targets (WD MyCloud) veto deleting anything matching that
+    # pattern even when it no longer exists, which turned into a permanent
+    # sync failure. They're not backup-worthy content either way, so keep
+    # rclone from trying to reconcile them at all.
     if rclone --config "$UGREEN_CONFIG" sync "{{ pair.src }}" "ugreen:{{ inventory_hostname }}/{{ pair.name }}" \
+        --exclude "**/.stfolder/**" \
         --transfers 2 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
         log "SUCCESS: {{ pair.src }} backed up to ugreen"
     else
@@ -92,8 +101,10 @@ fi
 # up, not managed by this role). Best-effort like ugreen: never turns an
 # otherwise-successful pCloud backup into a reported failure.
 log "Backing up {{ pair.src }} -> {{ pair.wd_cloud_dest }}"
-# See the ugreen leg above for why checkers is higher than transfers here.
+# See the ugreen leg above for why checkers is higher than transfers here,
+# and why .stfolder is excluded.
 if rclone sync "{{ pair.src }}" "{{ pair.wd_cloud_dest }}" \
+    --exclude "**/.stfolder/**" \
     --transfers 2 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: {{ pair.src }} backed up to wd-cloud"
 else
