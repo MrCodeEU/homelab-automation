@@ -110,6 +110,29 @@ prometheus.scrape "homeassistant" {
 }
 
 {% endif %}
+{% if inventory_hostname == 'nuc' %}
+// WD MyCloud has no Docker (busybox userland) and no 32-bit ARM build of
+// Alloy exists at all (confirmed live 2026-08-11 - only amd64/arm64/
+// ppc64le/s390x releases published), so it runs a bare node_exporter binary
+// instead (roles/wd-mycloud-node-exporter) and gets remote-scraped here,
+// same mechanism as the Home Assistant block above. node_exporter binds
+// directly to WD's own Tailscale IP (not 0.0.0.0), so this is the only
+// path that can reach it at all.
+prometheus.scrape "wd_mycloud" {
+  targets = [
+    {
+      "__address__" = "100.100.10.5:9100",
+      "job"         = "node",
+      "instance"    = "wd-mycloud",
+      "host"        = "wd-mycloud",
+    },
+  ]
+  // Same reasoning as the homeassistant block: deliberately not routed
+  // through prometheus.relabel.identity, straight to remote_write instead.
+  forward_to = [prometheus.remote_write.homelab.receiver]
+}
+
+{% endif %}
 // prometheus.scrape attaches its own `instance` label from the scrape target,
 // which wins over remote_write's external_labels. That made mljr report as
 // "vmi2945702.contaboserver.net" instead of its inventory name. Rewrite it

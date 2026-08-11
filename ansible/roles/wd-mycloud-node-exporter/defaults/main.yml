@@ -1,0 +1,5 @@
+---
+# Persistent partition on the WD My Cloud EX2 Ultra - same reasoning as
+# roles/wd-mycloud-tailscale (system partition is wiped on firmware updates).
+wd_node_exporter_base: /mnt/HD/HD_a2/node_exporter
+wd_node_exporter_port: 9100
