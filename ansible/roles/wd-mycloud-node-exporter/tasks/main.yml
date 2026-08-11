@@ -59,7 +59,16 @@
     wd_node_exporter_current_version: "{{ (wd_node_exporter_current.stderr | regex_search('version ([0-9.]+)', '\\1') | first) if wd_node_exporter_current.rc == 0 else '' }}"
 
 - name: Update node_exporter on wd-mycloud
-  when: wd_node_exporter_current_version != wd_node_exporter_latest_version
+  # not ansible_check_mode: confirmed live 2026-08-11 this whole block mixes
+  # module types with different check-mode behaviors - `file` simulates
+  # directory creation without really doing it, `command`/`shell` no-op
+  # entirely, but `unarchive` still tries to inspect real filesystem state
+  # and fails ("dest ... must be an existing dir") once earlier tasks in the
+  # same run left nothing behind under --check. This install/update flow
+  # doesn't meaningfully preview under dry-run anyway (versioned binary
+  # install + service restart), so skip the whole thing under check mode
+  # rather than chasing per-module inconsistencies further.
+  when: (wd_node_exporter_current_version != wd_node_exporter_latest_version) and not ansible_check_mode
   block:
     - name: Ensure releases directory exists
       ansible.builtin.file:
@@ -94,24 +103,13 @@
       # Ansible's stat module hashes the local file directly, no network/TLS
       # involved, so this works regardless of the cert issue above - real
       # integrity verification against the digest GitHub's API returned via
-      # the earlier controller-side (cert-validated) task.
-      #
-      # when: not ansible_check_mode - confirmed live 2026-08-11 this repo's
-      # CI runs PR deploys with --check (see .github/workflows/deploy.yml,
-      # "Pull requests always run in check mode"). The curl command task
-      # above correctly no-ops under --check (command isn't check-mode-aware
-      # by default, which is the right behavior - a dry run shouldn't
-      # actually download files and restart a live service). stat, being
-      # read-only, has no such automatic skip and kept running "for real"
-      # anyway - against whatever stale file happened to be left in /tmp
-      # from an earlier CI attempt's real network activity, not this run's
-      # (skipped) download. Skip in lockstep with the download instead of
-      # validating a leftover from a previous run.
+      # the earlier controller-side (cert-validated) task. No separate
+      # check-mode guard needed here - the whole block already skips under
+      # --check (see the block-level when: above).
       ansible.builtin.stat:
         path: "/tmp/{{ wd_node_exporter_latest_tarball }}"
         checksum_algorithm: sha256
       register: wd_node_exporter_downloaded_stat
-      when: not ansible_check_mode
 
     - name: Fail if the checksum doesn't match
       ansible.builtin.assert:
@@ -119,7 +117,6 @@
         # noted elsewhere in this file (registered-result dict access).
         that: wd_node_exporter_downloaded_stat['stat']['checksum'] == (wd_node_exporter_latest_checksum | regex_replace('^sha256:', ''))
         fail_msg: "Downloaded node_exporter tarball checksum does not match GitHub's release digest - possible corruption or tampering, refusing to extract."
-      when: not ansible_check_mode
 
     - name: Extract the new release
       ansible.builtin.unarchive:
