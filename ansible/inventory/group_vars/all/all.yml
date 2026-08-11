@@ -414,13 +414,28 @@ services:
   # SMART data source for the monitoring expansion - scraped by Alloy on the
   # same box (127.0.0.1:9633), not exposed to Caddy/Kuma. See
   # ansible/roles/grafana-alloy/templates/config.alloy.j2 for the scrape
-  # block that reads this.
+  # block that reads this. One catalog entry (and services/ directory) per
+  # host - same pattern as syncthing-ugreen, the services role maps
+  # catalog `name` straight to a services/<name>/ directory 1:1.
   - name: smartctl-exporter
     enabled: true
     managed: true
     port: 0
     host: ugreen
     description: "SMART metrics exporter (ugreen disks) for Grafana/Alloy"
+    icon: "mdi:harddisk"
+
+  # mljr deliberately excluded - it's a Contabo VPS with a single virtual
+  # disk (confirmed live: `smartctl --scan` isn't even installed, lsblk
+  # shows one virtio block device). Virtualized cloud storage has no real
+  # SMART data behind it from the guest's perspective - a privileged
+  # container there would just produce empty/error metrics for no benefit.
+  - name: smartctl-exporter-nuc
+    enabled: true
+    managed: true
+    port: 0
+    host: nuc
+    description: "SMART metrics exporter (nuc disks) for Grafana/Alloy"
     icon: "mdi:harddisk"
 
   - name: nas

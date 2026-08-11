@@ -57,7 +57,10 @@ prometheus.scrape "security" {
 }
 
 {% endif %}
-{% if inventory_hostname == 'ugreen' %}
+{% if inventory_hostname in ['ugreen', 'nuc'] %}
+// mljr (Contabo VPS, virtio-only block storage, no real SMART data behind
+// it) deliberately excluded - see group_vars/all/all.yml's smartctl-exporter
+// catalog entries for why.
 prometheus.scrape "smart" {
   targets = [
     {
