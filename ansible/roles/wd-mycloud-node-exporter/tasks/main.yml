@@ -118,8 +118,8 @@
         # Bracket/key access, not dot-attribute - same ansible-core quirk
         # noted elsewhere in this file (registered-result dict access).
         that: wd_node_exporter_downloaded_stat['stat']['checksum'] == (wd_node_exporter_latest_checksum | regex_replace('^sha256:', ''))
-      when: not ansible_check_mode
         fail_msg: "Downloaded node_exporter tarball checksum does not match GitHub's release digest - possible corruption or tampering, refusing to extract."
+      when: not ansible_check_mode
 
     - name: Extract the new release
       ansible.builtin.unarchive:
