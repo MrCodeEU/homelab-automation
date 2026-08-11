@@ -65,6 +65,18 @@
 - name: Update node_exporter on wd-mycloud
   when: wd_node_exporter_current_version != wd_node_exporter_latest_version
   block:
+    - name: Ensure base directory exists
+      # Explicit, separate task rather than relying on the releases task
+      # below to create it as a parent - confirmed live 2026-08-11 that on
+      # this device/connection combo (Mitogen strategy), a single file task
+      # targeting a nested path where neither level exists did not leave the
+      # parent directory behind, which then made get_url fail with
+      # "Destination ... does not exist" on the very next task.
+      ansible.builtin.file:
+        path: "{{ wd_node_exporter_base }}"
+        state: directory
+        mode: "0755"
+
     - name: Ensure releases directory exists
       ansible.builtin.file:
         path: "{{ wd_node_exporter_base }}/releases"
@@ -87,6 +99,8 @@
       # get_url itself after download, so a tampered/corrupted file is
       # rejected regardless of whether the TLS handshake was checked. Only
       # confidentiality of the download is unverified here, not integrity.
+      # checkov:skip=CKV_ANSIBLE_1: mitigated by the checksum parameter below,
+      # see the comment block above for the full reasoning.
       ansible.builtin.get_url:
         url: "{{ wd_node_exporter_latest_url }}"
         dest: "{{ wd_node_exporter_base }}/{{ wd_node_exporter_latest_tarball }}"
