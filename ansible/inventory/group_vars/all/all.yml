@@ -411,6 +411,18 @@ services:
     description: "OxiCloud - lightweight Rust file storage, initial test"
     icon: "mdi:cloud-outline"
 
+  # SMART data source for the monitoring expansion - scraped by Alloy on the
+  # same box (127.0.0.1:9633), not exposed to Caddy/Kuma. See
+  # ansible/roles/grafana-alloy/templates/config.alloy.j2 for the scrape
+  # block that reads this.
+  - name: smartctl-exporter
+    enabled: true
+    managed: true
+    port: 0
+    host: ugreen
+    description: "SMART metrics exporter (ugreen disks) for Grafana/Alloy"
+    icon: "mdi:harddisk"
+
   - name: nas
     enabled: true
     managed: false
