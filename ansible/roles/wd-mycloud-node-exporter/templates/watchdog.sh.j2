@@ -15,6 +15,17 @@ if ! pgrep -f "node_exporter --web.listen-address" >/dev/null 2>&1; then
         sleep 5
         i=$((i + 1))
     done
+    # Second wait, same reasoning: confirmed live 2026-08-12 that node_exporter
+    # binds directly to the Tailscale IP (not 0.0.0.0), and both this watchdog
+    # and tailscale's own watchdog fire in parallel from the same start.sh -
+    # node_exporter can and did lose that race, crashing with "bind: cannot
+    # assign requested address" because tailscaled hadn't brought the
+    # interface up with this IP yet.
+    i=0
+    while ! ip -4 addr show tailscale0 2>/dev/null | grep -q "100.100.10.5" && [ "$i" -lt 12 ]; do
+        sleep 5
+        i=$((i + 1))
+    done
     cd "$NE_DIR"
     nohup ./node_exporter --web.listen-address=100.100.10.5:{{ wd_node_exporter_port }} >> "$LOG" 2>&1 &
 fi
