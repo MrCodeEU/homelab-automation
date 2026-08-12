@@ -2,8 +2,16 @@
 TS_DIR={{ wd_tailscale_base }}/current
 LOG={{ wd_tailscale_base }}/tailscaled.log
 if ! pgrep -f "tailscaled --statedir" >/dev/null 2>&1; then
+    # Retry loop, not a single attempt - see the equivalent comment in
+    # wd-mycloud-node-exporter's watchdog.sh.j2 for why (mount race when
+    # this fires from the clamAV/start.sh boot hook).
+    i=0
+    while [ ! -x "$TS_DIR/tailscaled" ] && [ "$i" -lt 12 ]; do
+        sleep 5
+        i=$((i + 1))
+    done
     cd "$TS_DIR"
-    nohup ./tailscaled --statedir=/var/lib/tailscale >> "$LOG" 2>&1 &
+    nohup ./tailscaled --statedir={{ wd_tailscale_base }}/tailscale_lib >> "$LOG" 2>&1 &
     sleep 3
     ./tailscale up --hostname={{ inventory_hostname }} --accept-dns=false --ssh >> "$LOG" 2>&1
 fi

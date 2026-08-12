@@ -214,7 +214,24 @@
     mode: "0755"
 
 - name: Ensure the watchdog cron entry exists
+  # Handles crash recovery once cron itself exists again after a deploy, but
+  # NOT reboot survival on its own - confirmed live 2026-08-12 that WD
+  # regenerates /var/spool/cron/crontabs/root from vendor defaults on every
+  # real reboot, wiping this entry along with it. See the boot-hook task
+  # below for what actually survives a reboot.
   ansible.builtin.cron:
     name: "node_exporter watchdog"
     minute: "*/5"
     job: "{{ wd_node_exporter_base }}/watchdog.sh"
+
+- name: Ensure the clamAV boot hook restarts node_exporter
+  # Same reasoning as wd-mycloud-tailscale's identical task - see its
+  # comment for the full story. Both roles append their own marked block to
+  # the same clamAV start.sh file; blockinfile's markers keep them from
+  # colliding with each other or with clamAV's own content.
+  ansible.builtin.blockinfile:
+    path: /mnt/HD/HD_a2/Nas_Prog/clamAV/start.sh
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - wd-mycloud-node-exporter boot hook"
+    insertafter: EOF
+    block: |
+      sh {{ wd_node_exporter_base }}/watchdog.sh &
