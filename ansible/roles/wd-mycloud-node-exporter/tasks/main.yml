@@ -55,8 +55,14 @@
 
 - name: Set current version fact
   ansible.builtin.set_fact:
-    # --version prints to stderr as "node_exporter, version 1.12.1 (branch: ...)"
-    wd_node_exporter_current_version: "{{ (wd_node_exporter_current.stderr | regex_search('version ([0-9.]+)', '\\1') | first) if wd_node_exporter_current.rc == 0 else '' }}"
+    # --version prints "node_exporter, version 1.12.1 (branch: ...)" to
+    # STDOUT, not stderr - confirmed live 2026-08-12 once the binary
+    # actually ran successfully for the first time (this branch of the
+    # ternary was never exercised before that, since rc was always non-zero
+    # pre-install). default([])/default('') guard against regex_search
+    # returning no match at all (e.g. an unexpected future output format),
+    # which would otherwise crash `| first` on None the same way this did.
+    wd_node_exporter_current_version: "{{ (wd_node_exporter_current.stdout | regex_search('version ([0-9.]+)', '\\1') | default([]) | first | default('')) if wd_node_exporter_current.rc == 0 else '' }}"
 
 - name: Update node_exporter on wd-mycloud
   # not ansible_check_mode: confirmed live 2026-08-11 this whole block mixes
@@ -198,7 +204,8 @@
 
 - name: Show wd-mycloud node_exporter version
   ansible.builtin.debug:
-    msg: "wd-mycloud node_exporter: {{ wd_node_exporter_final_version.stderr_lines[0] | default('unknown - check mode or unreachable') }}"
+    # stdout, not stderr - see the "Set current version fact" task's comment.
+    msg: "wd-mycloud node_exporter: {{ wd_node_exporter_final_version.stdout_lines[0] | default('unknown - check mode or unreachable') }}"
 
 - name: Deploy the watchdog script (always, in case it drifts)
   ansible.builtin.template:
