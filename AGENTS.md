@@ -84,17 +84,25 @@ managed:
              # entries marked `managed: true` are deployed by the Unraid play
 ugreen:      # Separate group, NOT part of managed. Real Debian NAS (UGOS),
              # persistent root filesystem - but deliberately kept out of
-             # roles/base (no dnf, vendor A/B overlay root) and roles/services
-             # (Syncthing on it is still deployed manually pending a folder
-             # restructure). Gets only: host-facts-endpoint, grafana-alloy,
-             # iperf3, and backup-remote-target (SFTP chroot as a backup
-             # destination). Individual plays list `ugreen` explicitly rather
-             # than folding it into `managed` or `rocky`.
+             # roles/base (no dnf, vendor A/B overlay root). Some services
+             # DO deploy here via the plain services role (oxicloud,
+             # smartctl-exporter, syncthing-ugreen) since it has working
+             # Docker - "not roles/base" and "not a services target" are
+             # separate things, don't conflate them. Also gets
+             # host-facts-endpoint, grafana-alloy (systemd+btrfs+SMART
+             # collectors all enabled), iperf3, and backup-remote-target
+             # (SFTP chroot as a backup destination). Individual plays list
+             # `ugreen` explicitly rather than folding it into `managed` or
+             # `rocky`.
 wd_mycloud:  # WD My Cloud EX2 Ultra - backup-target-only. BusyBox userland,
-             # no systemd/apt/opkg/os-release, no package manager at all.
-             # Tailscale lives entirely on the persistent data partition
-             # (roles/wd-mycloud-tailscale) since the system partition is
-             # wiped on firmware updates. Not a services/base target.
+             # no systemd/apt/opkg/os-release, no package manager, no Docker,
+             # no 32-bit ARM Alloy build. Tailscale (roles/wd-mycloud-tailscale)
+             # and node_exporter (roles/wd-mycloud-node-exporter, remote-
+             # scraped from nuc's Alloy) both live entirely on the persistent
+             # data partition since the system partition is wiped on firmware
+             # updates - AND both need a clamAV/start.sh boot hook since even
+             # the persistent partition's crontab doesn't survive a reboot,
+             # see the Monitoring section below. Not a services/base target.
 proxy_only:  # Caddy-only routing targets
 ```
 
@@ -189,15 +197,21 @@ Do not reintroduce fail2ban without also defining its migration and cleanup beha
 
 ## Monitoring
 
-Grafana replaced SigNoz. The stack lives in `services/grafana/` and is deployed on `nuc`. Grafana Alloy runs on Rocky hosts and forwards host metrics, Docker metrics, Docker logs, Caddy logs, and CrowdSec metrics to the Grafana stack.
+Grafana replaced SigNoz. The stack lives in `services/grafana/` and is deployed on `nuc`. Grafana Alloy runs on `mljr`/`nuc` (rocky), `ugreen`, and `nas` (Unraid, via `services/nas-alloy/` since Unraid has no `python3-docker` SDK for the templated role's `docker_container` module) and forwards host metrics, Docker metrics, Docker logs, Caddy logs, and CrowdSec metrics to the Grafana stack. `wd_mycloud` cannot run Alloy at all - no 32-bit ARM build is published (only amd64/arm64/ppc64le/s390x) - so it runs a bare `node_exporter` binary instead (`roles/wd-mycloud-node-exporter`), remote-scraped from nuc's Alloy over Tailscale. Home Assistant is scraped the same remote way (its own `prometheus:` core integration, not an agent) since it's a `proxy_only` host, not a Docker target.
+
+Every Linux host's `prometheus.exporter.unix` runs the `systemd` and `btrfs` collectors (systemd is opt-in via `enable_collectors`, btrfs is on by default once `/dev` is bind-mounted into the container - see `config.alloy.j2`'s comments for the container-privilege reasoning). `mdadm` is explicitly disabled on nas - Unraid's array uses its own proprietary superblock format, not real Linux mdadm, so that collector can never succeed there. SMART data comes from a separate `smartctl-exporter` (or `smartctl-exporter-<host>`) service per host with real disks - `privileged: true` + `user: root`, scraped locally on `127.0.0.1:9633`. Not deployed to mljr (Contabo VPS, virtio-only block storage, no real SMART data behind it) or wd_mycloud (no Docker).
 
 The metrics store is VictoriaMetrics (replaced Prometheus): PromQL-compatible, retention 10y, accepts Prometheus `remote_write` natively at `/api/v1/write`. Host port 19090 maps to VM's 8428 so the Alloy remote-write URL in `roles/grafana-alloy/tasks/main.yml` stays unchanged. The Grafana datasource keeps name/uid `prometheus` (pointed at `http://victoriametrics:8428`) so dashboard JSON needs no changes. The mljr.eu homepage also queries this endpoint over Tailscale for its live homelab panel (`HOMELAB_PROM_URL` in `services/homepage/docker-compose.yml`). `services/grafana/prometheus/` is legacy config, kept only until first VM deploy is verified.
 
-Grafana datasources and dashboards are provisioned from the repo. Use stable datasource UIDs `prometheus` and `loki` in dashboard JSON. NAS telemetry is now deployed from `services/nas-alloy/` by the Unraid play (`services/grafana/nas-alloy.example.alloy` is superseded).
+Grafana datasources and dashboards are provisioned from the repo (`services/grafana/dashboards/*.json`, auto-discovered by folder). Use stable datasource UIDs `prometheus` and `loki` in dashboard JSON. Current dashboards: `homelab-overview` (host/Docker/network/logs + fleet-wide scrape-target up/down table), `homelab-security` (CrowdSec), `homelab-storage` (SMART/systemd/btrfs/all-mounts disk usage), `homelab-homeassistant` (every `hass_*` sensor family). `services/grafana/nas-alloy.example.alloy` is a stale leftover reference doc, not the real deployment - don't trust it, `services/nas-alloy/config.alloy` is the actual checked-in config.
 
 Two Alloy details that are easy to get wrong, both fixed in `roles/grafana-alloy/templates/config.alloy.j2`:
-- `prometheus.scrape` attaches its own `instance` label from the scrape target, which **wins over** `remote_write`'s `external_labels`. mljr therefore reported as `vmi2945702.contaboserver.net` until a `prometheus.relabel` component was added to force the inventory hostname.
+- `prometheus.scrape` attaches its own `instance` label from the scrape target, which **wins over** `remote_write`'s `external_labels`. mljr therefore reported as `vmi2945702.contaboserver.net` until a `prometheus.relabel` component was added to force the inventory hostname. Remote-scrape blocks (Home Assistant, wd_mycloud) deliberately do NOT route through this relabel - see their comments for why.
 - `loki.source.docker`'s static `labels` block **replaces** everything `discovery.docker` produced, so the container name was lost and Docker logs were unattributable. A `discovery.relabel` promotes `__meta_docker_container_name` to a `container` label first.
+
+### WD MyCloud reboot persistence
+
+WD has no persistent crontab (regenerated from vendor defaults on every real reboot, confirmed live) and no accessible init.d/systemd. The one thing confirmed to survive and re-run after a reboot is each installed app's own `start.sh` (WD's app-management layer invokes these itself at boot) - `roles/wd-mycloud-tailscale` and `roles/wd-mycloud-node-exporter` both append a `blockinfile`-managed block to `clamAV`'s `start.sh` (clamAV is installed but unused on this box) as the actual boot hook. The `*/5 * * * *` cron watchdog entries still exist and matter for crash recovery once cron itself exists again post-deploy, but they alone do NOT survive a reboot. Both watchdog scripts retry for up to a minute (binary existence, and for node_exporter, the Tailscale IP actually being assigned) since this hook fires very early in boot, before the persistent data partition and the Tailscale interface are necessarily ready.
 
 ## Health Report
 
@@ -288,4 +302,5 @@ When adding a secret-backed service, update `secrets.yml`, `vault.yml.example`, 
 | `homepage-data-sync` | Syncs site-data.json for the homepage service |
 | `cleanup` | Standalone container reconciliation |
 | `tailscale-update` | Tailscale version check/update on hosts with no other patch coverage (ugreen, wd_mycloud) |
+| `node-exporter-update` | node_exporter version check/update on wd_mycloud (no Alloy support there) |
 | `wd-mycloud` | Plays that explicitly include the WD My Cloud host |

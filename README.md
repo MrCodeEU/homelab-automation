@@ -35,7 +35,9 @@ GitHub Actions / local Ansible
                       Netronome manual   monitoring only
 ```
 
-NAS/Unraid services are mostly managed manually and only proxied or monitored where explicitly configured. `ugreen` is not a general deployment target - it only receives host-facts-endpoint, Grafana Alloy, iperf3, and (when `ugreen_enabled`) the SFTP backup target.
+NAS/Unraid services are mostly managed manually and only proxied or monitored where explicitly configured. `ugreen` is not a general deployment target for `roles/base`, but does run some Docker services (oxicloud, smartctl-exporter, syncthing-ugreen) plus host-facts-endpoint, Grafana Alloy, iperf3, and (when `ugreen_enabled`) the SFTP backup target.
+
+Two more hosts sit outside the diagram above: `wd_mycloud` (WD My Cloud EX2 Ultra - busybox, no Docker, backup-target-only; gets Tailscale and node_exporter as bare binaries with a boot-hook persistence mechanism, see AGENTS.md) and `homeassistant` (its own HAOS appliance, `proxy_only` - Caddy front door plus a remote Prometheus scrape only, no agent runs there).
 
 ## Features
 
@@ -45,7 +47,7 @@ NAS/Unraid services are mostly managed manually and only proxied or monitored wh
 - Staging deployments through `services/<name>/dev/docker-compose.yml`.
 - Cleanup of disabled or moved services to avoid stale containers and Caddy snippets.
 - Weekly Docker image/container pruning during scheduled deployments.
-- Grafana/Loki/VictoriaMetrics monitoring with Grafana Alloy agents.
+- Grafana/Loki/VictoriaMetrics monitoring with Grafana Alloy agents (mljr, nuc, ugreen, nas) plus bare node_exporter + remote scraping for hosts that can't run Alloy (wd_mycloud, Home Assistant). SMART, systemd, and btrfs collectors included where applicable.
 - CrowdSec security engine with nftables firewall enforcement on `mljr`.
 - Netronome network testing on `nuc`, exposed as `speedtest.mljr.eu`.
 - GitHub Actions deployment over Tailscale with secrets stored in Ansible Vault.
@@ -71,7 +73,9 @@ homelab-automation/
 │       ├── services/
 │       ├── container-reconcile/
 │       ├── crowdsec-firewall-bouncer/
-│       ├── grafana-alloy/                 # rocky + ugreen
+│       ├── grafana-alloy/                 # rocky + ugreen (nas: services/nas-alloy/ instead)
+│       ├── wd-mycloud-tailscale/          # wd_mycloud, bare binary + boot hook
+│       ├── wd-mycloud-node-exporter/      # wd_mycloud, bare binary + boot hook
 │       ├── host-facts-endpoint/           # managed + ugreen
 │       ├── healthreport/                  # nuc
 │       ├── backup/                        # rocky, borg-based
@@ -165,18 +169,17 @@ SigNoz has been replaced by a Grafana stack on `nuc`:
 - Grafana UI
 - VictoriaMetrics for metrics (PromQL-compatible, 10y retention; accepts Prometheus remote_write on host port 19090)
 - Loki for logs
-- Grafana Alloy agents on Rocky hosts
+- Grafana Alloy agents on Rocky hosts, `ugreen`, and `nas` (via `services/nas-alloy/`, not the templated role - see AGENTS.md)
 
-Alloy collects host metrics, Docker metrics, Docker logs, Caddy logs, and CrowdSec metrics. NAS/Unraid monitoring is manual. `ugreen` also runs Alloy plus a read-only facts endpoint that reports mdraid/LVM/btrfs storage health, feeding into the health report alongside Unraid's own array/SMART checks.
+Alloy collects host metrics (including systemd failed-unit state and btrfs pool health), Docker metrics, Docker logs, Caddy logs, and CrowdSec metrics. Hosts that can't run Alloy at all (`wd_mycloud` - no 32-bit ARM build exists; Home Assistant - not a Docker host) get bare `node_exporter`/native Prometheus endpoints remote-scraped from nuc's Alloy instead. SMART data comes from a separate `smartctl-exporter` service on every host with real disks (not mljr - VPS, no real SMART data; not wd_mycloud - no Docker).
 
 Grafana provisioning is stored in `services/grafana/`:
 
 - Datasources: `services/grafana/provisioning/datasources/datasources.yml`
 - Dashboard provider: `services/grafana/provisioning/dashboards/dashboards.yml`
-- Dashboards: `services/grafana/dashboards/*.json`
-- Manual NAS Alloy example: `services/grafana/nas-alloy.example.alloy`
+- Dashboards: `services/grafana/dashboards/*.json` (overview, security, storage, homeassistant)
 
-Once the NAS sends metrics/logs with `instance="nas"` and `host="nas"`, the provisioned dashboards include it automatically.
+Once a host sends metrics/logs with matching `instance`/`host` labels, the provisioned dashboards include it automatically via the `$host` template variable.
 
 ## Staging
 

@@ -1,5 +1,9 @@
-// Example manual Alloy configuration for Unraid/NAS.
-// Set host labels to "nas" so the provisioned dashboards include it.
+// STALE - superseded by services/nas-alloy/config.alloy, which is the real,
+// actually-deployed config (Ansible-managed via the plain services role -
+// Unraid has no python3-docker SDK for the templated grafana-alloy role's
+// docker_container module). This file predates that and is kept only as a
+// historical reference; do not copy from it, it does not reflect the
+// systemd/btrfs/SMART collectors or any other change made since.
 
 prometheus.exporter.unix "host" {
   rootfs_path = "/hostfs"
