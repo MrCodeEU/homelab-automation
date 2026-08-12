@@ -10,8 +10,16 @@ Provisioned datasources use stable UIDs:
 
 ## Current Dashboards
 
-- `homelab-overview.json`: Host, Docker, storage, network, and recent logs.
+- `homelab-overview.json`: Host, Docker, storage, network, recent logs, and
+  a fleet-wide scrape-target up/down table.
 - `homelab-security.json`: CrowdSec decisions, alerts, SSH/Caddy activity, and security logs.
+- `homelab-storage.json`: SMART health/temperature, systemd failed units,
+  btrfs pool usage/errors, and all-mounts disk usage across the fleet.
+- `homelab-homeassistant.json`: HA sensor data (temperature, humidity,
+  power, energy, illuminance, CO2/VOC, data rates), battery levels sorted
+  low-first, unavailable entities, and device trackers. Built for maximal
+  coverage of what's currently exported - expect to prune panels that turn
+  out to be noise once this has been lived with for a while.
 
 ## NAS / Unraid
 

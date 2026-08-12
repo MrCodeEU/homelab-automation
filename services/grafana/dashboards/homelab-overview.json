@@ -117,6 +117,18 @@
       "gridPos": {"h": 10, "w": 24, "x": 0, "y": 21},
       "options": {"showTime": true, "showLabels": true, "wrapLogMessage": false, "dedupStrategy": "none", "sortOrder": "Descending"},
       "targets": [{"refId": "A", "expr": "{host=~\"$host\", job=~\"system|auth|caddy|docker\"}"}]
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Fleet Status (scrape targets up/down)",
+      "description": "Every Alloy/exporter scrape target across the fleet - the first thing to check when something seems off. 0 = target unreachable.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 31},
+      "fieldConfig": {"defaults": {"custom": {"align": "auto", "cellOptions": {"type": "color-background"}}, "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}], "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}}, "overrides": []},
+      "options": {"showHeader": true, "sortBy": [{"displayName": "Value", "desc": false}]},
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true}, "renameByName": {"host": "Host", "job": "Job", "instance": "Instance", "Value": "Status"}}}],
+      "targets": [{"refId": "A", "expr": "up", "format": "table", "instant": true}]
     }
   ]
 }
