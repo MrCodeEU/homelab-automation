@@ -119,10 +119,13 @@
         fail_msg: "Downloaded node_exporter tarball checksum does not match GitHub's release digest - possible corruption or tampering, refusing to extract."
 
     - name: Extract the new release
-      ansible.builtin.unarchive:
-        src: "/tmp/{{ wd_node_exporter_latest_tarball }}"
-        dest: "{{ wd_node_exporter_base }}/releases"
-        remote_src: true
+      # Plain tar, not ansible.builtin.unarchive - confirmed live 2026-08-11
+      # that unarchive requires GNU tar and refuses to handle WD's BusyBox
+      # tar ("Command tar detected as tar type None. GNU tar required."),
+      # even though BusyBox tar's basic xzf extraction works fine (verified
+      # directly on-device before this fix).
+      ansible.builtin.command:
+        cmd: "tar xzf /tmp/{{ wd_node_exporter_latest_tarball }} -C {{ wd_node_exporter_base }}/releases"
         creates: "{{ wd_node_exporter_base }}/releases/node_exporter-{{ wd_node_exporter_latest_version }}.linux-armv7"
 
     - name: Stop the running instance before swapping the binary out from under it
