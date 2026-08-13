@@ -372,6 +372,11 @@
   gather_facts: false
   tags:
     - tutabridge
+  vars:
+    # "Tuta" Import Only account created via the mail-archiver web UI - not
+    # a secret, just a database row ID (Mail Accounts -> Create -> Provider:
+    # Import Only). Set to "" to disable the daily import chain.
+    tutabridge_mailarchiver_account_id: "3"
   roles:
     - tutabridge-cli
 
