@@ -7,9 +7,12 @@
 # survive across runs without re-prompting - this whole role exists to make
 # THAT reproducible, not to touch TutaBridge's Tuta-side auth itself.
 #
-# One step remains genuinely manual after this role runs: TutaBridge's own
-# first login (email + password + TOTP) needs a human at a real terminal.
-# See the role's final debug task for the exact commands.
+# TutaBridge's first login into Tuta (email + password) is automated below
+# via the expect module - only safe because this account has no TOTP set up
+# (a 30+ char random password is the only factor). If TOTP ever gets added,
+# this task will start failing at the password prompt and the login needs
+# to go manual again (ssh in, `export XDG_RUNTIME_DIR=/run/gnome-keyring`,
+# run the binary interactively).
 # ============================================================================
 
 - name: Install gnome-keyring (headless Secret Service backend)
@@ -97,19 +100,25 @@
     path: "{{ tutabridge_install_dir }}/.first-login-done"
   register: tutabridge_first_login_marker
 
-- name: TutaBridge first-login instructions (manual, one-time)
-  ansible.builtin.debug:
-    msg: |
-      TutaBridge is installed but has never logged into Tuta on this host.
-      The timer will not produce useful backups until this one-time,
-      interactive step is done (needs your live TOTP code - cannot be
-      scripted):
+- name: TutaBridge first login + initial full backup
+  ansible.builtin.expect:
+    command: "{{ tutabridge_binary }} backup {{ tutabridge_export_dir }}"
+    timeout: 3600
+    responses:
+      'Tuta email address:': "{{ secrets.tutabridge.tuta_email }}"
+      'Password for.*:': "{{ secrets.tutabridge.tuta_password }}"
+  environment:
+    XDG_RUNTIME_DIR: /run/gnome-keyring
+  no_log: true
+  async: 3600
+  poll: 30
+  when: not tutabridge_first_login_marker.stat.exists and not ansible_check_mode
 
-        ssh root@{{ inventory_hostname }}
-        export XDG_RUNTIME_DIR=/run/gnome-keyring
-        {{ tutabridge_binary }}
-        # enter Tuta email + password + TOTP, wait for "Bridge is running",
-        # then Ctrl-C. Confirm the "Failed to save session to keychain"
-        # warning is GONE - that's proof the session persisted.
-        touch {{ tutabridge_install_dir }}/.first-login-done
-  when: not tutabridge_first_login_marker.stat.exists
+- name: Mark TutaBridge first login complete
+  ansible.builtin.file:
+    path: "{{ tutabridge_install_dir }}/.first-login-done"
+    state: touch
+    mode: '0600'
+    owner: root
+    group: root
+  when: not tutabridge_first_login_marker.stat.exists and not ansible_check_mode

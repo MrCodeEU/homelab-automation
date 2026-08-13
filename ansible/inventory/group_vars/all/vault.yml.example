@@ -87,6 +87,11 @@ vault_mailarchiver_admin_password: ""  # openssl rand -hex 32
 # "login" collection at boot so TutaBridge's own Tuta session survives
 # across systemd timer runs. Not the Tuta account password itself.
 vault_tutabridge_keyring_password: ""  # openssl rand -hex 32
+# Real Tuta account credentials - used once by Ansible (via the expect
+# module) to drive TutaBridge's first login. Only safe to automate this way
+# because the account has no TOTP configured; see tutabridge-cli role notes.
+vault_tuta_email: ""
+vault_tuta_password: ""
 
 # Sudoku service API
 vault_sudoku_api_user: ""
