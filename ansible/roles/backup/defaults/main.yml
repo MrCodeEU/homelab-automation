@@ -109,6 +109,25 @@ backup_service_configs:
       rm -rf /opt/backups/forgejo-dumps
     backup_critical: true
 
+  # Archived mail from Gmail/Outlook/Tuta - the whole point of the service is
+  # to be the one durable copy, so this can't be the one thing left
+  # unreconstructible. DataProtection-Keys is what decrypts stored IMAP/OAuth
+  # credentials at rest - losing it without the DB dump alongside it means
+  # every account has to be re-added from scratch even if the mail itself
+  # survives.
+  mail-archiver:
+    backup_volumes:
+      - mail-archiver_mail-archiver-dp-keys
+    backup_pre_hook: |
+      mkdir -p /opt/backups/mail-archiver-dumps && \
+      docker exec mail-archiver-db sh -c 'pg_dump -U mailuser MailArchiver' \
+        > /opt/backups/mail-archiver-dumps/mail-archiver.sql
+    backup_paths:
+      - /opt/backups/mail-archiver-dumps
+    backup_post_hook: |
+      rm -rf /opt/backups/mail-archiver-dumps
+    backup_critical: true
+
   # Analytics history: years of it, and not reconstructible from anything else.
   umami:
     backup_volumes:
