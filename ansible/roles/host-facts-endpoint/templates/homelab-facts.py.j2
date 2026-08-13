@@ -15,6 +15,7 @@ Targets Python 3.9 (mljr and nas ship 3.9), so no match statements and no
 dict union operator.
 """
 
+import datetime
 import json
 import os
 import re
@@ -408,24 +409,56 @@ KERNEL_SERIOUS = re.compile(
     re.I,
 )
 
-# dmesg -T prefixes each line with a bracketed local timestamp.
-DMESG_STAMP = re.compile(r"^\[[^\]]+\]\s*")
+# dmesg -T prefixes each line with a bracketed local timestamp, e.g.
+# "[Sat Aug  8 14:40:17 2026] BTRFS error ...". Captured separately from the
+# generic strip below so the timestamp can also be parsed, not just removed.
+DMESG_STAMP = re.compile(r"^\[([^\]]+)\]\s*")
+# glibc's ctime-ish format from dmesg -T: "Sat Aug  8 14:40:17 2026"
+# (day-of-week is locale-dependent but ignored by strptime's %a in the C
+# locale this runs under; the day number can be single- or double-digit
+# with a padding space, %d handles both).
+DMESG_TIME_FMT = "%a %b %d %H:%M:%S %Y"
+KERNEL_ERROR_LOOKBACK_HOURS = 24
 
 
 def collect_kernel_errors():
-    """Error-level kernel messages, split into "serious" and "the rest".
+    """Error-level kernel messages from the last 24h, split into "serious"
+    and "the rest".
 
     Nothing in the estate reads dmesg today. Disk and filesystem failures
     announce themselves here long before a service notices, which is exactly
     the warning that was missed when ugreen's cache NVMe started failing.
+
+    24h window, not the whole ring buffer: confirmed live 2026-08-13 that an
+    unfiltered read re-reports the same stale entries as "critical" every
+    single day until the buffer wraps or the host reboots - a photorec USB
+    drive ejected days earlier kept showing up as a live BTRFS error long
+    after the device was physically gone. The buffer itself can span many
+    days on a host that stays up a while, so age has to be checked per line.
     """
     res = run(["dmesg", "--level=err,crit,alert,emerg", "-T"], timeout=30)
     if not res["ok"]:
         return {"available": False, "reason": res["stderr"][:200] or ("exit %d" % res["rc"])}
 
+    cutoff = datetime.datetime.now() - datetime.timedelta(hours=KERNEL_ERROR_LOOKBACK_HOURS)
     serious, signatures = [], {}
-    lines = [l for l in res["stdout"].splitlines() if l.strip()]
-    for line in lines:
+    all_lines = [l for l in res["stdout"].splitlines() if l.strip()]
+    recent_lines = []
+    for line in all_lines:
+        match = DMESG_STAMP.match(line)
+        if match:
+            try:
+                ts = datetime.datetime.strptime(match.group(1), DMESG_TIME_FMT)
+                if ts < cutoff:
+                    continue
+            except ValueError:
+                # Unparseable timestamp (unexpected locale/format) - keep the
+                # line rather than silently dropping a real error because of
+                # a formatting mismatch this code didn't anticipate.
+                pass
+        recent_lines.append(line)
+
+    for line in recent_lines:
         body = DMESG_STAMP.sub("", line).strip()
         if not body:
             continue
@@ -439,7 +472,8 @@ def collect_kernel_errors():
     ranked = sorted(signatures.items(), key=lambda kv: -kv[1])
     return {
         "available": True,
-        "error_lines": len(lines),
+        "error_lines": len(recent_lines),
+        "error_lines_total_buffer": len(all_lines),
         "serious_count": len(serious),
         "serious_sample": serious[:15],
         "signatures": [{"signature": s, "count": n} for s, n in ranked[:15]],
