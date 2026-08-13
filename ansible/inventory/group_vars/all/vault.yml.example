@@ -75,8 +75,13 @@ vault_crowdsec_web_ui_notification_secret: ""  # openssl rand -hex 32
 vault_netronome_admin_password: ""
 vault_netronome_session_secret: ""   # openssl rand -hex 32
 
-# Bichon (email archiver)
+# Bichon (email archiver, legacy - being replaced by mail-archiver)
 vault_bichon_encrypt_password: ""
+
+# Mail Archiver (s1t5/mail-archiver)
+vault_mailarchiver_db_password: ""     # openssl rand -hex 32
+vault_mailarchiver_admin_user: "admin"
+vault_mailarchiver_admin_password: ""  # openssl rand -hex 32
 
 # Sudoku service API
 vault_sudoku_api_user: ""
