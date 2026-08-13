@@ -110,13 +110,23 @@ def collect(config, rules):
                 if run.get("conclusion") in ("failure", "timed_out", "startup_failure")
             ]
             entry["failed_runs"] = len(failures)
-            # One observation per workflow, not per run: ten failures of the
-            # same workflow is one problem, not ten.
-            seen_workflows = {}
-            for run in failures:
+            # Alert on a workflow's CURRENT state (its latest run), not on
+            # "did it fail at any point in the lookback window" - a run that
+            # failed at 2am and passed cleanly at 3am is not a live problem,
+            # but the naive "any failure in range" check kept flagging it
+            # for the rest of the day regardless. Group all runs (not just
+            # failures) by (workflow, branch), sort each group by created_at
+            # descending, and only alert if the MOST RECENT run in that
+            # group failed.
+            latest_by_key = {}
+            for run in runs.get("workflow_runs", []):
                 key = (run.get("name") or "workflow", run.get("head_branch") or "?")
-                seen_workflows.setdefault(key, run)
-            for (workflow, branch), run in seen_workflows.items():
+                existing = latest_by_key.get(key)
+                if existing is None or (run.get("created_at") or "") > (existing.get("created_at") or ""):
+                    latest_by_key[key] = run
+            for (workflow, branch), run in latest_by_key.items():
+                if run.get("conclusion") not in ("failure", "timed_out", "startup_failure"):
+                    continue
                 on_default = branch == default_branch
                 kind = "workflow_failed_default_branch" if on_default else "workflow_failed"
                 obs.append(Observation(
@@ -125,7 +135,7 @@ def collect(config, rules):
                     subject=name,
                     kind=kind,
                     value=run.get("conclusion"),
-                    message="%s: workflow %s failed on %s" % (full, workflow, branch),
+                    message="%s: workflow %s currently failing on %s (latest run)" % (full, workflow, branch),
                     evidence={"url": run.get("html_url"), "branch": branch},
                 ))
 
