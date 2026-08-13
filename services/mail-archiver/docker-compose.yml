@@ -1,0 +1,51 @@
+services:
+  mail-archiver:
+    image: s1t5/mailarchiver:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-mail-archiver}-app
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:5000:5000"
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=MailArchiver;Username=mailuser;Password=${MAILARCHIVER_DB_PASSWORD}"
+      Authentication__Username: ${MAILARCHIVER_ADMIN_USER}
+      Authentication__Password: ${MAILARCHIVER_ADMIN_PASSWORD}
+      TimeZone__DisplayTimeZoneId: ${TZ:-Europe/Vienna}
+    volumes:
+      - mail-archiver-dp-keys:/app/DataProtection-Keys
+      - mail-archiver-logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mail-archiver-internal
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-mail-archiver}-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: MailArchiver
+      POSTGRES_USER: mailuser
+      POSTGRES_PASSWORD: ${MAILARCHIVER_DB_PASSWORD}
+    volumes:
+      - mail-archiver-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailuser -d MailArchiver"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - mail-archiver-internal
+
+networks:
+  mail-archiver-internal:
+    driver: bridge
+
+volumes:
+  mail-archiver-pgdata:
+    driver: local
+  mail-archiver-dp-keys:
+    driver: local
+  mail-archiver-logs:
+    driver: local

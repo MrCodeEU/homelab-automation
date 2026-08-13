@@ -178,10 +178,21 @@ services:
   # Email
   - name: bichon
     enabled: true
-    domain: "mail-archive.mljr.eu"
+    domain: "mail-archive-old.mljr.eu"
     port: 15630
     host: nuc
-    description: "Email Archiver"
+    description: "Email Archiver (legacy, being replaced by mail-archiver)"
+    icon: "mdi:email"
+
+  - name: mail-archiver
+    enabled: true
+    managed: true
+    domain: "mail-archive.mljr.eu"
+    port: 5000
+    host: nuc
+    caddy_auth: "authelia"
+    backup_critical: true
+    description: "Mail Archiver"
     icon: "mdi:email"
 
   - name: mailcow
