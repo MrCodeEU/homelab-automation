@@ -107,6 +107,18 @@ backup_service_configs:
       - /opt/backups/forgejo-dumps
     backup_post_hook: |
       rm -rf /opt/backups/forgejo-dumps
+    # Restoring backup_paths only puts the .sql file back on disk - it does
+    # NOT load it into Postgres. This only works if forgejo-db is already
+    # running (the normal case: restoring one service's data after loss,
+    # not a from-scratch install where Backup Setup runs before Docker
+    # Services brings the container up at all).
+    restore_post_hook: |
+      for i in $(seq 1 30); do
+        docker exec forgejo-db pg_isready > /dev/null 2>&1 && break
+        sleep 2
+      done
+      docker exec -i forgejo-db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+        < /opt/backups/forgejo-dumps/forgejo.sql
     backup_critical: true
 
   # Archived mail from Gmail/Outlook/Tuta - the whole point of the service is
@@ -126,6 +138,15 @@ backup_service_configs:
       - /opt/backups/mail-archiver-dumps
     backup_post_hook: |
       rm -rf /opt/backups/mail-archiver-dumps
+    # Same restore-ordering caveat as forgejo/umami/nocturne below - only
+    # works once mail-archiver-db is actually running.
+    restore_post_hook: |
+      for i in $(seq 1 30); do
+        docker exec mail-archiver-db pg_isready > /dev/null 2>&1 && break
+        sleep 2
+      done
+      docker exec -i mail-archiver-db psql -U mailuser MailArchiver \
+        < /opt/backups/mail-archiver-dumps/mail-archiver.sql
     backup_critical: true
 
   # Analytics history: years of it, and not reconstructible from anything else.
@@ -140,6 +161,13 @@ backup_service_configs:
       - /opt/backups/umami-dumps
     backup_post_hook: |
       rm -rf /opt/backups/umami-dumps
+    restore_post_hook: |
+      for i in $(seq 1 30); do
+        docker exec umami-db pg_isready > /dev/null 2>&1 && break
+        sleep 2
+      done
+      docker exec -i umami-db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+        < /opt/backups/umami-dumps/umami.sql
     backup_critical: false
 
   # Dashboards, datasources, and the observability history behind them.
@@ -178,6 +206,14 @@ backup_service_configs:
       - /opt/backups/nocturne-dumps
     backup_post_hook: |
       rm -rf /opt/backups/nocturne-dumps
+    restore_post_hook: |
+      for i in $(seq 1 30); do
+        docker exec nocturne-postgres pg_isready > /dev/null 2>&1 && break
+        sleep 2
+      done
+      docker exec -i nocturne-postgres sh -c \
+        'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+        < /opt/backups/nocturne-dumps/nocturne.sql
     backup_critical: false
 
   # Subscriber list.
