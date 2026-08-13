@@ -164,6 +164,15 @@
       ansible.builtin.systemd:
         name: gnome-keyring-daemon
         state: started
+  rescue:
+    - name: Fail loudly if the keyring reset itself failed
+      ansible.builtin.fail:
+        msg: >-
+          Detected a locked/mismatched TutaBridge keyring on
+          {{ inventory_hostname }} but failed to reset it - gnome-keyring-daemon
+          may now be stopped. Check manually: `systemctl status
+          gnome-keyring-daemon` and the keyring files under
+          /root/.local/share/keyrings/.
 
 - name: Enable tutabridge-backup timer
   ansible.builtin.systemd:
