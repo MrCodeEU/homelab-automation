@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily TutaBridge mail export
+
+[Timer]
+OnCalendar={{ tutabridge_backup_schedule }}
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

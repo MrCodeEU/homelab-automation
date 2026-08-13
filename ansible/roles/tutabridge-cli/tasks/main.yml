@@ -1,0 +1,124 @@
+---
+# TutaBridge CLI - headless mail export for Tuta (no IMAP/SMTP by design, so
+# this drives its own `backup` command instead of a live bridge).
+#
+# The persistent "login" Secret Service collection (created via
+# `gnome-keyring-daemon --login`) is what lets TutaBridge's own session
+# survive across runs without re-prompting - this whole role exists to make
+# THAT reproducible, not to touch TutaBridge's Tuta-side auth itself.
+#
+# TutaBridge's first login into Tuta (email + password) is automated below
+# via the expect module - only safe because this account has no TOTP set up
+# (a 30+ char random password is the only factor). If TOTP ever gets added,
+# this task will start failing at the password prompt and the login needs
+# to go manual again (ssh in, `export XDG_RUNTIME_DIR=/run/gnome-keyring`,
+# run the binary interactively).
+# ============================================================================
+
+- name: Install gnome-keyring (headless Secret Service backend)
+  ansible.builtin.dnf:
+    name:
+      - gnome-keyring
+      - libsecret
+    state: present
+
+- name: Ensure TutaBridge install directory exists
+  ansible.builtin.file:
+    path: "{{ tutabridge_install_dir }}"
+    state: directory
+    mode: '0700'
+    owner: root
+    group: root
+
+- name: Write headless-keyring unlock passphrase
+  ansible.builtin.copy:
+    dest: "{{ tutabridge_install_dir }}/keyring-pass"
+    content: "{{ secrets.tutabridge.keyring_password }}"
+    mode: '0600'
+    owner: root
+    group: root
+  no_log: true
+  notify: restart gnome-keyring-daemon
+
+- name: Download TutaBridge CLI binary
+  ansible.builtin.get_url:
+    url: "{{ tutabridge_binary_url }}"
+    dest: "{{ tutabridge_binary }}"
+    checksum: "{{ tutabridge_binary_checksum }}"
+    mode: '0755'
+    owner: root
+    group: root
+  when: not ansible_check_mode
+
+- name: Ensure TutaBridge export directory exists
+  ansible.builtin.file:
+    path: "{{ tutabridge_export_dir }}"
+    state: directory
+    mode: '0700'
+    owner: root
+    group: root
+
+- name: Deploy gnome-keyring-daemon systemd unit
+  ansible.builtin.template:
+    src: gnome-keyring-daemon.service.j2
+    dest: /etc/systemd/system/gnome-keyring-daemon.service
+    mode: '0644'
+  notify: restart gnome-keyring-daemon
+
+- name: Deploy tutabridge-backup systemd service
+  ansible.builtin.template:
+    src: tutabridge-backup.service.j2
+    dest: /etc/systemd/system/tutabridge-backup.service
+    mode: '0644'
+  notify: reload systemd
+
+- name: Deploy tutabridge-backup systemd timer
+  ansible.builtin.template:
+    src: tutabridge-backup.timer.j2
+    dest: /etc/systemd/system/tutabridge-backup.timer
+    mode: '0644'
+  notify: reload systemd
+
+- name: Enable and start gnome-keyring-daemon
+  ansible.builtin.systemd:
+    name: gnome-keyring-daemon
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Enable tutabridge-backup timer
+  ansible.builtin.systemd:
+    name: tutabridge-backup.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Check whether TutaBridge has ever completed a first login
+  ansible.builtin.stat:
+    path: "{{ tutabridge_install_dir }}/.first-login-done"
+  register: tutabridge_first_login_marker
+
+- name: TutaBridge first login + initial full backup
+  ansible.builtin.expect:
+    command: "{{ tutabridge_binary }} backup {{ tutabridge_export_dir }}"
+    timeout: 3600
+    responses:
+      'Tuta email address:': "{{ secrets.tutabridge.tuta_email }}"
+      'Password for.*:': "{{ secrets.tutabridge.tuta_password }}"
+  environment:
+    XDG_RUNTIME_DIR: /run/gnome-keyring
+  no_log: true
+  async: 3600
+  poll: 30
+  when: not tutabridge_first_login_marker.stat.exists and not ansible_check_mode
+
+- name: Mark TutaBridge first login complete
+  ansible.builtin.file:
+    path: "{{ tutabridge_install_dir }}/.first-login-done"
+    state: touch
+    mode: '0600'
+    owner: root
+    group: root
+  when: not tutabridge_first_login_marker.stat.exists and not ansible_check_mode

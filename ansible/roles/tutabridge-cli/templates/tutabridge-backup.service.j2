@@ -1,0 +1,10 @@
+[Unit]
+Description=TutaBridge - export Tuta mail to local .eml files
+Requires=gnome-keyring-daemon.service
+After=gnome-keyring-daemon.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=XDG_RUNTIME_DIR=/run/gnome-keyring
+ExecStart={{ tutabridge_binary }} backup {{ tutabridge_export_dir }}

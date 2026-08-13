@@ -364,6 +364,18 @@
     - wd-mycloud-node-exporter
 
 # ============================================================================
+# TutaBridge CLI (nuc only) - headless Tuta mail export feeding mail-archiver
+# ============================================================================
+- name: TutaBridge CLI
+  hosts: nuc
+  become: true
+  gather_facts: false
+  tags:
+    - tutabridge
+  roles:
+    - tutabridge-cli
+
+# ============================================================================
 # iperf3 (all Rocky hosts, plus ugreen - network performance testing)
 # ============================================================================
 - name: iperf3 Network Test Server

@@ -1,0 +1,14 @@
+[Unit]
+Description=GNOME Keyring daemon (headless - Secret Service backend for TutaBridge)
+After=network.target
+
+[Service]
+Type=simple
+RuntimeDirectory=gnome-keyring
+Environment=XDG_RUNTIME_DIR=/run/gnome-keyring
+ExecStart=/bin/sh -c '/usr/bin/gnome-keyring-daemon --foreground --login --components=secrets < {{ tutabridge_install_dir }}/keyring-pass'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

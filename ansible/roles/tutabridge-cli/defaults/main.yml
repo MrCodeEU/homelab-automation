@@ -1,0 +1,8 @@
+---
+tutabridge_version: "v0.1.0-rc.9"
+tutabridge_binary_url: "https://github.com/spartanz51/tutabridge/releases/download/{{ tutabridge_version }}/tutabridge-linux-x86_64"
+tutabridge_binary_checksum: "sha256:a98c7ed472fc19b4b7bd80ea7ab2abd5a47212409c786f943083622837f8947c"
+tutabridge_install_dir: /opt/tutabridge
+tutabridge_binary: "{{ tutabridge_install_dir }}/tutabridge-cli"
+tutabridge_export_dir: /data/tuta-export
+tutabridge_backup_schedule: "*-*-* 03:00:00"
