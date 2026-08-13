@@ -479,12 +479,16 @@ services:
       header Access-Control-Allow-Origin "*"
       header Access-Control-Allow-Headers "X-Api-Key, User-Agent, Content-Type, Authorization"
 
-  # Unraid-UI-managed container (image: ghcr.io/mrcodeeu/auto-media-sort),
-  # already built and published by its own GitHub repo. Caddy front door
-  # only for now - full Ansible ownership is a deliberate later step.
+  # Full Ansible ownership since 2026-08-13 (image: ghcr.io/mrcodeeu/
+  # auto-media-sort, built and published by its own GitHub repo - no build
+  # step here). Was Unraid-UI-managed with Caddy-front-door-only for a
+  # while; that old UI-created container needs manually removing once this
+  # one is confirmed live, see services/auto-media-sort/docker-compose.yml
+  # for the config-provenance notes (the app's real config is baked into
+  # the image, not read from env vars).
   - name: auto-media-sort
     enabled: true
-    managed: false
+    managed: true
     domain: "sort.mljr.eu"
     port: 8186
     host: nas
