@@ -107,6 +107,13 @@
     mode: '0644'
   notify: reload systemd
 
+# ExecStartPre kills any prior gnome-keyring-daemon instance before this
+# oneshot unit re-logs-in - on a redeploy that's often an already-running
+# instance from the last run, and the kill+relogin transition occasionally
+# races Ansible's own state check (seen live: systemd itself reported both
+# --login and --start exiting 0/SUCCESS a moment after Ansible reported
+# "Unable to start service"). Retrying absorbs that instead of chasing a
+# non-reproducible timing window.
 - name: Enable and start gnome-keyring-daemon
   ansible.builtin.systemd:
     name: gnome-keyring-daemon
@@ -114,6 +121,10 @@
     state: started
     daemon_reload: true
   when: not ansible_check_mode
+  register: tutabridge_keyring_daemon_start
+  retries: 3
+  delay: 3
+  until: tutabridge_keyring_daemon_start is success
 
 # Self-healing: if the on-disk login.keyring was ever created with a
 # different passphrase than the current one (e.g. an old manual test, or a
