@@ -1,0 +1,26 @@
+services:
+  auto-media-sort:
+    image: ghcr.io/mrcodeeu/auto-media-sort:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-auto-media-sort}
+    restart: unless-stopped
+    # Matches the Unraid-UI template's <ExtraParams>--user 99:100</ExtraParams>
+    # (nobody:users on Unraid) - the app's real config is baked into the image
+    # at build time (configs/config.prod.json in its own repo), not read from
+    # env vars despite what that repo's README documents. PUID/PGID/UMASK/
+    # HOST_* env vars on the previous Unraid-template container were unused
+    # boilerplate, not functional config - confirmed against the app's
+    # Dockerfile (a static Go binary, no s6/lsio-style entrypoint that would
+    # read them) before dropping them here.
+    user: "99:100"
+    ports:
+      - "8186:8186"
+    environment:
+      TZ: ${TZ:-Europe/Vienna}
+    volumes:
+      - /mnt/user/cloud/data:/mnt/user/cloud
+      - /mnt/user/Fotos:/mnt/user/Fotos
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
