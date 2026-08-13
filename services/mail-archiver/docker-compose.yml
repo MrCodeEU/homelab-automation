@@ -10,9 +10,14 @@ services:
       Authentication__Username: ${MAILARCHIVER_ADMIN_USER}
       Authentication__Password: ${MAILARCHIVER_ADMIN_PASSWORD}
       TimeZone__DisplayTimeZoneId: ${TZ:-Europe/Vienna}
+      LocalImport__AllowedPaths__0: /data/import
     volumes:
       - mail-archiver-dp-keys:/app/DataProtection-Keys
       - mail-archiver-logs:/app/logs
+      # Zipped snapshots of TutaBridge's .eml export (see
+      # ansible/roles/tutabridge-cli), read-only - mail-archiver's
+      # --import-eml only reads from here, never writes.
+      - /data/tuta-import:/data/import/tuta:ro
     depends_on:
       postgres:
         condition: service_healthy
