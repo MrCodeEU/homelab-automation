@@ -184,6 +184,17 @@ restore_service() {
             restore_path "$(basename "{{ path }}")" "{{ path }}" "$dry_run" || failed=1
 {% endfor %}
 {% endif %}
+{% if config.restore_post_hook is defined %}
+            if [ "$failed" -eq 0 ] && [ "$dry_run" != true ]; then
+                log "Running restore_post_hook for {{ service }}"
+                if ! ({{ config.restore_post_hook | indent(16) }}); then
+                    log_error "restore_post_hook failed for {{ service }} - data is on disk but may not be re-imported into a running service"
+                    failed=1
+                fi
+            elif [ "$dry_run" = true ]; then
+                log_info "DRY RUN - would run restore_post_hook for {{ service }}"
+            fi
+{% endif %}
             ;;
 {% endfor %}
         *)
