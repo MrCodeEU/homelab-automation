@@ -9,5 +9,6 @@ OnSuccess=tutabridge-import.service
 
 [Service]
 Type=oneshot
-Environment=XDG_RUNTIME_DIR=/run/gnome-keyring
+Environment=XDG_RUNTIME_DIR=/run/user/0
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus
 ExecStart={{ tutabridge_binary }} backup {{ tutabridge_export_dir }}

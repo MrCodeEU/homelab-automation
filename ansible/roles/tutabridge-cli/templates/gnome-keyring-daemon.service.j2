@@ -1,14 +1,31 @@
 [Unit]
 Description=GNOME Keyring daemon (headless - Secret Service backend for TutaBridge)
-After=network.target
+After=network.target user@0.service
+Requires=user@0.service
 
 [Service]
-Type=simple
-RuntimeDirectory=gnome-keyring
-Environment=XDG_RUNTIME_DIR=/run/gnome-keyring
-ExecStart=/bin/sh -c '/usr/bin/gnome-keyring-daemon --foreground --login --components=secrets < {{ tutabridge_install_dir }}/keyring-pass'
-Restart=on-failure
-RestartSec=5
+# gnome-keyring-daemon forks into the background on its own (neither --login
+# nor --start block), so this is Type=oneshot + RemainAfterExit rather than
+# Type=simple - a foreground wrapper here just exits immediately and looks
+# "failed" to systemd while the real daemon keeps running unsupervised.
+#
+# --login alone only unlocks the persistent collection and exits; it does
+# NOT register org.freedesktop.secrets on the bus - confirmed live (TutaBridge
+# kept failing with "Secret Service: no result found" / "unlock prompt was
+# dismissed" until --start --components=secrets ran too). Both calls need the
+# SAME real, persistent D-Bus session bus - XDG_RUNTIME_DIR alone isn't
+# enough, TutaBridge's client-side Secret Service lookup needs
+# DBUS_SESSION_BUS_ADDRESS set explicitly. That bus only exists at
+# /run/user/0 with `loginctl enable-linger root` applied (see role tasks) -
+# without lingering it's torn down between SSH sessions.
+Type=oneshot
+RemainAfterExit=yes
+Environment=XDG_RUNTIME_DIR=/run/user/0
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus
+ExecStartPre=-/usr/bin/pkill -f gnome-keyring-daemon
+ExecStartPre=/bin/sleep 1
+ExecStart=/bin/sh -c 'cat {{ tutabridge_install_dir }}/keyring-pass | gnome-keyring-daemon --login'
+ExecStart=/bin/sh -c 'cat {{ tutabridge_install_dir }}/keyring-pass | gnome-keyring-daemon --start --components=secrets'
 
 [Install]
 WantedBy=multi-user.target

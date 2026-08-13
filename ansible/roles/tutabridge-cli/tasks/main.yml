@@ -11,8 +11,9 @@
 # via the expect module - only safe because this account has no TOTP set up
 # (a 30+ char random password is the only factor). If TOTP ever gets added,
 # this task will start failing at the password prompt and the login needs
-# to go manual again (ssh in, `export XDG_RUNTIME_DIR=/run/gnome-keyring`,
-# run the binary interactively).
+# to go manual again (ssh in, `export XDG_RUNTIME_DIR=/run/user/0` and
+# `export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus`, run the
+# binary interactively).
 # ============================================================================
 
 - name: Install gnome-keyring (headless Secret Service backend)
@@ -21,6 +22,18 @@
       - gnome-keyring
       - libsecret
     state: present
+
+# Without lingering, /run/user/0 (and its D-Bus session bus) only exists
+# while an actual login session for root is active - e.g. an open SSH
+# connection - and gets torn down as soon as it ends. gnome-keyring-daemon
+# and TutaBridge both need that bus to persist independent of any session,
+# since they're driven by systemd/timers with nobody logged in. Confirmed
+# live: without this, org.freedesktop.secrets silently stops being
+# reachable between Ansible runs.
+- name: Enable lingering for root (persistent D-Bus session bus)
+  ansible.builtin.command:
+    cmd: loginctl enable-linger root
+    creates: /var/lib/systemd/linger/root
 
 - name: Ensure TutaBridge install directory exists
   ansible.builtin.file:
@@ -102,6 +115,56 @@
     daemon_reload: true
   when: not ansible_check_mode
 
+# Self-healing: if the on-disk login.keyring was ever created with a
+# different passphrase than the current one (e.g. an old manual test, or a
+# rotated Vault secret), gnome-keyring-daemon starts fine but the collection
+# silently stays locked forever - confirmed live, this is exactly the bug
+# that blocked the very first version of this role. Detect it and reset
+# rather than leaving a permanently-broken keyring in place.
+- name: Check whether the login keyring collection is unlocked
+  ansible.builtin.command:
+    cmd: >-
+      gdbus call --session
+      --dest org.freedesktop.secrets
+      --object-path /org/freedesktop/secrets/collection/login
+      --method org.freedesktop.DBus.Properties.Get
+      org.freedesktop.Secret.Collection Locked
+  environment:
+    XDG_RUNTIME_DIR: /run/user/0
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/0/bus
+  register: tutabridge_keyring_locked_check
+  changed_when: false
+  failed_when: false
+  when: not ansible_check_mode
+
+- name: Reset mismatched keyring and re-login TutaBridge if the collection is locked
+  when:
+    - not ansible_check_mode
+    - "'true' in tutabridge_keyring_locked_check.stdout | default('')"
+  block:
+    - name: Stop gnome-keyring-daemon before resetting
+      ansible.builtin.systemd:
+        name: gnome-keyring-daemon
+        state: stopped
+
+    - name: Remove mismatched keyring files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /root/.local/share/keyrings/login.keyring
+        - /root/.local/share/keyrings/user.keystore
+
+    - name: Force TutaBridge to log in again against the fresh keyring
+      ansible.builtin.file:
+        path: "{{ tutabridge_install_dir }}/.first-login-done"
+        state: absent
+
+    - name: Restart gnome-keyring-daemon against the fresh keyring
+      ansible.builtin.systemd:
+        name: gnome-keyring-daemon
+        state: started
+
 - name: Enable tutabridge-backup timer
   ansible.builtin.systemd:
     name: tutabridge-backup.timer
@@ -123,7 +186,8 @@
       'Tuta email address:': "{{ secrets.tutabridge.tuta_email }}"
       'Password for.*:': "{{ secrets.tutabridge.tuta_password }}"
   environment:
-    XDG_RUNTIME_DIR: /run/gnome-keyring
+    XDG_RUNTIME_DIR: /run/user/0
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/0/bus
   no_log: true
   async: 3600
   poll: 30
