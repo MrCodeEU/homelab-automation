@@ -83,6 +83,11 @@ vault_mailarchiver_db_password: ""     # openssl rand -hex 32
 vault_mailarchiver_admin_user: "admin"
 vault_mailarchiver_admin_password: ""  # openssl rand -hex 32
 
+# TutaBridge headless CLI (nuc) - unlocks the persistent gnome-keyring
+# "login" collection at boot so TutaBridge's own Tuta session survives
+# across systemd timer runs. Not the Tuta account password itself.
+vault_tutabridge_keyring_password: ""  # openssl rand -hex 32
+
 # Sudoku service API
 vault_sudoku_api_user: ""
 vault_sudoku_api_password: ""
