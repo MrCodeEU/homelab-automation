@@ -79,6 +79,21 @@
     mode: '0644'
   notify: reload systemd
 
+- name: Ensure mail-archiver import directory exists
+  ansible.builtin.file:
+    path: "{{ tutabridge_mailarchiver_import_dir }}"
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Deploy tutabridge-import systemd service
+  ansible.builtin.template:
+    src: tutabridge-import.service.j2
+    dest: /etc/systemd/system/tutabridge-import.service
+    mode: '0644'
+  notify: reload systemd
+
 - name: Enable and start gnome-keyring-daemon
   ansible.builtin.systemd:
     name: gnome-keyring-daemon
