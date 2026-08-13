@@ -3,6 +3,9 @@ Description=TutaBridge - export Tuta mail to local .eml files
 Requires=gnome-keyring-daemon.service
 After=gnome-keyring-daemon.service network-online.target
 Wants=network-online.target
+{% if tutabridge_mailarchiver_account_id %}
+OnSuccess=tutabridge-import.service
+{% endif %}
 
 [Service]
 Type=oneshot

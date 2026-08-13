@@ -6,3 +6,16 @@ tutabridge_install_dir: /opt/tutabridge
 tutabridge_binary: "{{ tutabridge_install_dir }}/tutabridge-cli"
 tutabridge_export_dir: /data/tuta-export
 tutabridge_backup_schedule: "*-*-* 03:00:00"
+
+# Feeds the export into mail-archiver's local-import CLI path after every
+# successful backup (mail-archiver dedupes on Message-ID, so re-importing
+# the whole growing export daily is a safe, cheap no-op for old messages -
+# see doc/CLI-Local-Import.md upstream).
+tutabridge_mailarchiver_import_dir: /data/tuta-import
+tutabridge_mailarchiver_import_zip: "{{ tutabridge_mailarchiver_import_dir }}/tuta-export.zip"
+mailarchiver_compose_dir: /opt/mail-archiver
+mailarchiver_container_name: mail-archiver-app
+# Numeric ID of the "Import Only" account created once via the mail-archiver
+# web UI (Mail Accounts -> Create -> Provider: Import Only). Leave unset
+# until that account exists - the import chain stays inactive until then.
+tutabridge_mailarchiver_account_id: ""

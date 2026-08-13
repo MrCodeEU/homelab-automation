@@ -1,0 +1,15 @@
+[Unit]
+Description=Zip TutaBridge export and import into mail-archiver
+After=tutabridge-backup.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c ' \
+  rm -f {{ tutabridge_mailarchiver_import_zip }} && \
+  cd {{ tutabridge_export_dir }} && \
+  zip -rq {{ tutabridge_mailarchiver_import_zip }} . && \
+  docker compose -f {{ mailarchiver_compose_dir }}/docker-compose.yml exec -T mail-archiver \
+    dotnet MailArchiver.dll --import-eml \
+    --file /data/import/tuta/{{ tutabridge_mailarchiver_import_zip | basename }} \
+    --account-id {{ tutabridge_mailarchiver_account_id }} \
+'
