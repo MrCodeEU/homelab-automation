@@ -144,18 +144,12 @@ def collect_docker():
 # Rocky
 # ---------------------------------------------------------------------------
 
-# Transient per-login scopes that fail routinely when a session is torn down.
-# On mljr these accounted for 14 of 15 "failed" units and carry no signal.
-SYSTEMD_NOISE = re.compile(r"^session-c?\d+\.scope$")
-
-
-def collect_systemd_failed():
-    res = run(["systemctl", "list-units", "--failed", "--output=json", "--no-pager"])
-    try:
-        units = json.loads(res["stdout"] or "[]")
-    except ValueError:
-        return []
-    return [u for u in units if not SYSTEMD_NOISE.match(u.get("unit", ""))]
+# collect_systemd_failed lived here until 2026-08-13, including a
+# SYSTEMD_NOISE filter for transient per-login session-scope units (14 of 15
+# "failed" units on mljr were this noise, not real). Removed once Alloy's
+# systemd collector made this SSH round-trip redundant - the same noise
+# filter now lives in healthreport/app/collectors/victoria.py, applied to
+# the PromQL query's results instead.
 
 
 def collect_nftables():
@@ -841,16 +835,19 @@ def main():
         sections["backup"] = section(collect_backup_log)
         sections["backup_targets"] = section(collect_backup_targets)
     elif OS_FAMILY == "ugreen":
-        # systemd_failed is genuinely portable (Debian, real systemd) and worth
-        # having. nftables/security_updates/crowdsec/backup are rocky-only
-        # concepts: security_updates shells out to dnf, which does not exist on
-        # Debian, and ugreen is a backup *target* here, not a source that runs
+        # nftables/security_updates/crowdsec/backup are rocky-only concepts:
+        # security_updates shells out to dnf, which does not exist on Debian,
+        # and ugreen is a backup *target* here, not a source that runs
         # backup.sh - collect_backup_log would just report "no log directory"
-        # for a path that was never going to exist.
-        sections["systemd_failed"] = section(collect_systemd_failed)
+        # for a path that was never going to exist. systemd_failed was
+        # collected here until 2026-08-13 - removed once Alloy's systemd
+        # collector (live fleet-wide since the 2026-08-11/12 monitoring
+        # expansion) made this SSH round-trip redundant; see
+        # healthreport/app/collectors/victoria.py.
         sections["ugreen_storage"] = section(collect_ugreen_storage)
     else:
-        sections["systemd_failed"] = section(collect_systemd_failed)
+        # systemd_failed was collected here too until 2026-08-13, removed for
+        # the same reason noted in the ugreen branch above.
         sections["nftables"] = section(collect_nftables)
         sections["security_updates"] = section(collect_security_updates)
         sections["crowdsec"] = section(collect_crowdsec)

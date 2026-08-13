@@ -5,8 +5,18 @@ nuc (and nas once services/nas-alloy is deployed), so nearly everything here
 is a PromQL query rather than a login to a box.
 """
 
+import re
+
 from ..model import CollectorResult, Observation, is_ephemeral
 from .base import collector, http_get
+
+# Session-scope units flap on every SSH/console login and carry no signal -
+# on mljr these accounted for 14 of 15 "failed" units reported by the old
+# SSH-based collector (see ssh_facts.py's history). PromQL has no built-in
+# way to exclude these inside the query itself, so this is applied to the
+# query results below instead, to avoid reintroducing noise the SSH path
+# had already filtered out.
+SYSTEMD_NOISE = re.compile(r"^session-c?\d+\.scope$")
 
 # Pseudo-filesystems that are always ~100% full or always empty, and say
 # nothing about the health of the machine.
@@ -162,21 +172,21 @@ def collect(config, rules):
         ))
 
     # --- failed systemd units ---------------------------------------------
-    # Deliberately dormant. This needs Alloy's systemd collector, which cannot
-    # work from a container without the host's systemd private socket, so it
-    # failed on every scrape and never produced a metric - this query has never
-    # matched anything. The collector was disabled on 2026-08-05 to stop ~60k
-    # error lines a day per host; see roles/grafana-alloy/templates.
-    #
-    # Failed units are covered by collectors/ssh_facts.py, which runs
-    # `systemctl list-units --failed` on the host and emits the same
-    # systemd_failed kind - every such finding to date came from there. Kept
-    # rather than deleted so that enabling the collector later needs no code
-    # change, and the ids match either way.
+    # Live since the 2026-08-11/12 monitoring expansion - Alloy's systemd
+    # collector is now enabled fleet-wide (docker.sock already granted a
+    # comparable privilege level, so mounting /run/systemd/private too was a
+    # reasonable trade - see roles/grafana-alloy/templates/config.alloy.j2).
+    # This was the sole source of systemd_failed until then via
+    # ssh_facts.py's `systemctl list-units --failed`; that SSH-based path was
+    # removed once this query was confirmed live (same kind, same ids, no
+    # LLM-facing change). Unraid/wd_mycloud never appear here - neither runs
+    # systemd - which is expected, not a gap.
     promql = 'node_systemd_unit_state{state="failed"} == 1'
     for metric, _value in query(config, promql):
         host = metric.get("instance", "unknown")
         unit = metric.get("name", "unknown")
+        if SYSTEMD_NOISE.match(unit):
+            continue
         obs.append(Observation(
             id="systemd_failed.%s.%s" % (host, unit),
             collector="host_metrics",
@@ -218,6 +228,119 @@ def collect(config, rules):
                 message="%s metrics are %.0f seconds old" % (host, age),
                 evidence=dict(promql=promql, **_grafana(config)),
             ))
+
+    # --- SMART health/temperature ------------------------------------------
+    # Sourced from smartctl-exporter (ugreen/nuc/nas only - not mljr, a
+    # Contabo VPS with virtio-only block storage and no real SMART data
+    # behind it; not wd_mycloud, which has no Docker and so no exporter can
+    # run there at all - its disk usage is still covered above via
+    # node_exporter's generic filesystem metrics, just not SMART specifics).
+    # Replaces the equivalent ssh_facts.py `smartctl`-over-SSH path for the
+    # three hosts this covers.
+    promql = "smartctl_device_smart_status"
+    for metric, value in query(config, promql):
+        host = metric.get("host", metric.get("instance", "unknown"))
+        device = metric.get("device", "unknown")
+        obs.append(Observation(
+            id="smart_health.%s.%s" % (host, device),
+            collector="host_metrics",
+            subject=host,
+            kind="smart_health",
+            value=bool(value),
+            message="%s %s SMART self-assessment %s" % (host, device, "passed" if value else "FAILED"),
+            evidence=dict(promql=promql, **_grafana(config)),
+        ))
+
+    promql = 'smartctl_device_temperature{temperature_type="current"}'
+    for metric, value in query(config, promql):
+        host = metric.get("host", metric.get("instance", "unknown"))
+        device = metric.get("device", "unknown")
+        obs.append(Observation(
+            id="disk_temperature.%s.%s" % (host, device),
+            collector="host_metrics",
+            subject=host,
+            kind="disk_temperature",
+            value=int(value),
+            unit="celsius",
+            message="%s %s at %d C" % (host, device, int(value)),
+            evidence=dict(promql=promql, **_grafana(config)),
+        ))
+
+    # --- btrfs pool errors ---------------------------------------------------
+    # Sourced from Alloy's btrfs collector (ugreen and nas). Net-new coverage
+    # for nas - the SSH-based equivalent in ssh_facts.py only ever checked
+    # ugreen (via a ugreen-specific facts section), so nas btrfs errors were
+    # never checked by anything before this.
+    promql = "node_btrfs_device_errors_total"
+    pool_errors = {}
+    for metric, value in query(config, promql):
+        if value <= 0:
+            continue
+        host = metric.get("host", metric.get("instance", "unknown"))
+        device = metric.get("device", "unknown")
+        error_type = metric.get("type", "unknown")
+        key = (host, device)
+        entry = pool_errors.setdefault(key, {})
+        entry[error_type] = entry.get(error_type, 0) + value
+    for (host, device), errors in pool_errors.items():
+        obs.append(Observation(
+            id="btrfs_pool_errors.%s.%s" % (host, device),
+            collector="host_metrics",
+            subject=host,
+            kind="btrfs_pool_errors",
+            value=sum(errors.values()),
+            unit="errors",
+            message="%s: btrfs device %s has errors: %s"
+                    % (host, device, ", ".join("%s=%d" % (k, v) for k, v in errors.items())),
+            evidence=dict(promql=promql, **_grafana(config)),
+        ))
+
+    # --- CrowdSec (mljr only) -----------------------------------------------
+    # Supplements, does not replace, ssh_facts.py's cscli-based bouncer
+    # health check (bouncer registration/liveness has no clean Prometheus
+    # metric equivalent). This is the live-decisions/alert-volume signal the
+    # existing homelab-security.json dashboard already visualizes - surfaced
+    # here too so the daily LLM narrative can reference it without an SSH
+    # round-trip.
+    #
+    # No severity rule in rules.yml for either new kind below (yet) -
+    # deliberately, not an oversight. cs_active_decisions includes CAPI's
+    # community-blocklist decisions, a fundamentally different scale from
+    # the existing SSH-based crowdsec_decisions (which fires warn at 500) -
+    # confirmed live 2026-08-13 this sums to ~24,000 under completely normal
+    # conditions. Inventing a crit/warn threshold without a few days of real
+    # baseline data first would just be a guess that either never fires or
+    # fires constantly. Both stay info-severity (still visible to the LLM
+    # and dashboards) until an actual baseline justifies real thresholds.
+    promql = "sum by(host) (cs_active_decisions)"
+    for metric, value in query(config, promql):
+        host = metric.get("host", metric.get("instance", "unknown"))
+        obs.append(Observation(
+            id="crowdsec_active_decisions.%s." % host,
+            collector="host_metrics",
+            subject=host,
+            kind="crowdsec_active_decisions",
+            value=int(value),
+            unit="decisions",
+            message="%s: %d active CrowdSec ban decision(s)" % (host, int(value)),
+            evidence=dict(promql=promql, **_grafana(config)),
+        ))
+
+    promql = "sum by(host) (increase(cs_alerts[24h]))"
+    for metric, value in query(config, promql):
+        if value <= 0:
+            continue
+        host = metric.get("host", metric.get("instance", "unknown"))
+        obs.append(Observation(
+            id="crowdsec_alerts_24h.%s." % host,
+            collector="host_metrics",
+            subject=host,
+            kind="crowdsec_alerts_24h",
+            value=int(value),
+            unit="alerts",
+            message="%s: %d CrowdSec alert(s) in the last 24h" % (host, int(value)),
+            evidence=dict(promql=promql, **_grafana(config)),
+        ))
 
     result.data = data
     return result

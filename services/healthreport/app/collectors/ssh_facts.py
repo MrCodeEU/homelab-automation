@@ -117,19 +117,15 @@ def _section(sections, name):
 
 
 def _rocky(obs, host, sections):
-    units = _section(sections, "systemd_failed")
-    if units:
-        for unit in units:
-            name = unit.get("unit", "unknown")
-            obs.append(Observation(
-                id="systemd_failed.%s.%s" % (host, name),
-                collector="ssh_facts",
-                subject=host,
-                kind="systemd_failed",
-                value=name,
-                message="%s: systemd unit %s is failed" % (host, name),
-                evidence={"description": unit.get("description")},
-            ))
+    # systemd_failed was here (SSH-based `systemctl list-units --failed`)
+    # until 2026-08-13, when it was removed in favor of collectors/
+    # victoria.py's `node_systemd_unit_state{state="failed"}` query - Alloy's
+    # systemd collector went live fleet-wide in the 2026-08-11/12 monitoring
+    # expansion, and running both would emit duplicate observations with the
+    # same id (main.py concatenates every collector's observations with no
+    # dedup). See ansible/roles/host-facts-endpoint/templates/
+    # homelab-facts.py.j2 - collect_systemd_failed's sections["systemd_failed"]
+    # calls were removed the same day, matching this removal.
 
     updates = _section(sections, "security_updates")
     if updates is not None:
@@ -365,8 +361,6 @@ def _rocky(obs, host, sections):
 
 
 def _ugreen(obs, host, sections):
-    # systemd_failed is handled by _rocky() above - it is a generic section
-    # name, not a rocky-only concept, and ugreen now populates it too.
     storage = _section(sections, "ugreen_storage")
     if not storage:
         return
@@ -384,22 +378,11 @@ def _ugreen(obs, host, sections):
                 evidence=array,
             ))
 
-    for pool in storage.get("btrfs_pools") or []:
-        if pool.get("has_errors"):
-            errors = pool.get("errors") or {}
-            nonzero = {k: v for k, v in errors.items() if v}
-            obs.append(Observation(
-                id="btrfs_pool_errors.%s.%s" % (host, pool.get("mount")),
-                collector="ssh_facts",
-                subject=host,
-                kind="btrfs_pool_errors",
-                value=sum(nonzero.values()),
-                unit="errors",
-                message="%s: btrfs pool %s has device errors: %s"
-                        % (host, pool.get("mount"),
-                           ", ".join("%s=%d" % (k, v) for k, v in nonzero.items())),
-                evidence=pool,
-            ))
+    # btrfs_pool_errors was here (from this same ugreen_storage section) until
+    # 2026-08-13, removed in favor of collectors/victoria.py's
+    # node_btrfs_device_errors_total query - same reasoning as systemd_failed
+    # above, and a real coverage increase since Alloy's btrfs collector also
+    # covers nas, which this ugreen-only code path never did.
 
     # LVM free space, mainly for the NVMe bcache tier: it is far smaller than
     # the HDD pool behind it and has no user-facing free-space warning the way
@@ -469,34 +452,22 @@ def _unraid(obs, host, sections):
     # "smart" is emitted by every host that has smartctl; "unraid_smart" is the
     # older Unraid-only key, kept as a fallback so a facts endpoint that has not
     # been redeployed yet still reports disks.
+    #
+    # smart_health/disk_temperature specifically were removed from here on
+    # 2026-08-13 in favor of collectors/victoria.py's
+    # smartctl_device_smart_status/smartctl_device_temperature queries -
+    # smartctl-exporter now covers exactly the hosts this SSH path ran on
+    # (ugreen/nuc/nas; mljr has no smartctl binary so this never ran there,
+    # wd_mycloud has no host-facts-endpoint at all). reallocated_sectors/
+    # pending_sectors stay SSH-based below - smartctl-exporter does expose
+    # raw SMART attributes but nothing in victoria.py reads them yet, so
+    # removing this here would be a real coverage loss, not a dedup.
     smart = _section(sections, "smart") or _section(sections, "unraid_smart")
     if smart:
         for device in smart.get("devices") or []:
             name = device.get("device", "unknown")
             if device.get("error"):
                 continue
-            obs.append(Observation(
-                id="smart_health.%s.%s" % (host, name),
-                collector="ssh_facts",
-                subject=host,
-                kind="smart_health",
-                value=bool(device.get("passed")),
-                message="%s %s SMART self-assessment %s"
-                        % (host, name, "passed" if device.get("passed") else "FAILED"),
-                evidence={"model": device.get("model")},
-            ))
-            temp = device.get("temperature_c")
-            if temp is not None:
-                obs.append(Observation(
-                    id="disk_temperature.%s.%s" % (host, name),
-                    collector="ssh_facts",
-                    subject=host,
-                    kind="disk_temperature",
-                    value=temp,
-                    unit="celsius",
-                    message="%s %s at %d C" % (host, name, temp),
-                    evidence={"model": device.get("model")},
-                ))
             # These two only matter as a trend, which the seen-state provides.
             for field, kind in (("reallocated_sectors", "reallocated_sectors"),
                                 ("pending_sectors", "pending_sectors")):

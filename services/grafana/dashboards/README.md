@@ -20,6 +20,9 @@ Provisioned datasources use stable UIDs:
   low-first, unavailable entities, and device trackers. Built for maximal
   coverage of what's currently exported - expect to prune panels that turn
   out to be noise once this has been lived with for a while.
+- `homelab-crowdsec.json`: active ban decisions (total and by origin - CAPI's
+  community blocklist vs. this box's own local detections, since those are
+  very different scales), alert/bucket-overflow rate, top ban reasons.
 
 ## NAS / Unraid
 
