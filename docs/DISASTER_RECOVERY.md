@@ -137,32 +137,46 @@ Also backed up (all `tier: critical`, pCloud + best-effort ugreen/WD
 depending on entry): `Fotos/Fotos`, `Fotos/Videos`, `Fotos/Wichtiges
 Scans Adressen`, `Fotos/Musik`, and the Nextcloud borg repository.
 
-**Real gap: 11 of 15 nas-hosted catalog services are `managed: false`**
+**11 of 15 nas-hosted catalog services are `managed: false`**
 (Unraid-UI-owned containers, Ansible only generates their Caddy proxy
 snippet): `nas` (management UI), `immich`, `nextcloud`, `dockhand`,
 `syncthing`, `filerun` (disabled), `test-ocis`, `stats` (disabled),
 `projects` (Vikunja), `pairdrop` (disabled), `dawarich`. **None of these
 have a recreation definition anywhere in this repo** - no XML templates,
 no `docker run` commands, no compose files checked in. If the flash
-drive backup itself is intact, Unraid's own Docker template store
-(saved alongside the container's own settings) should recreate most of
-these automatically on a flash restore - but this has never been
-verified end-to-end, and if the flash backup is ALSO gone, someone has
-to manually reconstruct 11 containers from memory.
+drive backup is intact, Unraid's own Docker template store (saved
+alongside the container's own settings) should recreate most of these
+automatically on a flash restore - but this has never been verified
+end-to-end, and if the flash backup is ALSO gone, someone has to
+manually reconstruct 11 containers from memory.
 
-**Data-loss gap**: of those 11, `immich` (photo library) and `projects`
-(Vikunja tasks/projects) have no explicit entry in `unraid_backup_paths`
-either - their data isn't covered by anything in this repo. Unraid's
-parity array protects against a single disk failure, not against
-accidental deletion, ransomware, or total array loss - it is not a
-backup. If the array itself is lost, Immich's library and Vikunja's
-database are gone with it, full stop, unless they happen to fall under
-a path that's separately covered (checked: they don't).
+**Corrected finding (first pass of this audit got this wrong - checked
+live instead of only reading `unraid_backup_paths`)**: these services
+are NOT actually uncovered. Unraid's own **AppData Backup plugin** runs
+weekly (Sundays 05:00, confirmed via `/boot/config/plugins/appdata.backup/config.json`
+and its cron entry) and covers `immich` (DB+config, thumbnails
+excluded as regenerable), `Vikunja`, the whole `dawarich` container
+group (app+Sidekiq+Postgres+Redis), `syncthing`'s own config, `dockhand`,
+`ollama`, `SFTPGo`, and others - writing to `/mnt/user/backup/appdata/`
+(~94GB as of this audit, 2 weekly snapshots kept locally by the plugin).
+Separately, Immich's actual **photo library is not even stored in
+appdata** - `docker inspect immich` confirms it mounts
+`/mnt/user/Fotos/Fotos` as an external library (`/libraries`), which is
+already in `unraid_backup_paths` at `tier: critical`. Immich's photos
+were never at risk; the appdata/DB (albums, faces, users) was the actual
+gap.
 
-**Also uncovered**: Syncthing's own content folders on nas (deliberately
-deferred pending the folder restructuring already tracked in the
-backlog - see the Syncthing memory notes), and Dawarich's location-
-history database.
+**The real, narrower gap, now fixed**: `/mnt/user/backup/appdata/` - the
+plugin's own output - lived only on the same array it protects against,
+so a total array/host loss (not just a corrupted container) would have
+taken the local backup down with it. Added it to `unraid_backup_paths`
+as `tier: critical` (mirrors whatever the plugin currently has on disk,
+no separate retention logic needed on this side).
+
+**Still genuinely uncovered**: Syncthing's own *content* folders on nas
+(not its config, which the plugin does cover - deliberately deferred
+pending the folder restructuring already tracked in the backlog, see
+the Syncthing memory notes).
 
 ## ugreen (UGreen NAS, UGOS)
 
@@ -239,21 +253,23 @@ impossible to regenerate identically, not just "annoying":
 
 ## What would be permanently lost today (the honest list)
 
-1. `immich`'s photo library and `projects` (Vikunja)'s task database, if
-   the Unraid array itself is lost (not covered by disk-failure parity,
-   not covered by any backup path).
-2. Recreation knowledge for the 11 `managed: false` nas services, if the
+1. Recreation knowledge for the 11 `managed: false` nas services, if the
    Unraid flash backup ever turns out to not actually restore Docker
-   templates cleanly (unverified).
-3. Syncthing's content folders on nas (deferred, tracked separately).
-4. Dawarich's location-history database.
-5. The Tailscale admin console configuration itself (ACLs, tags, the
+   templates cleanly (unverified) - their actual data (appdata + Immich's
+   photo library) is now offsite-covered either way, see below.
+2. Syncthing's content folders on nas (deferred, tracked separately).
+3. The Tailscale admin console configuration itself (ACLs, tags, the
    `tag:ci` OAuth client) - not exportable/backed-up by anything here.
-6. Authelia's 2FA/WebAuthn enrollments, if `vault_authelia_storage_encryption_key`
+4. Authelia's 2FA/WebAuthn enrollments, if `vault_authelia_storage_encryption_key`
    is ever lost without the DB (see credentials checklist above).
 
 Fixed during this audit: mail-archiver's backup coverage (was inert,
-now real - see the nuc section above).
+now real), the generic Postgres-restore gap, and - after re-checking
+live rather than trusting the first read of `unraid_backup_paths` alone
+- Immich/Vikunja/Dawarich/Syncthing-config's appdata now has an offsite
+copy too (the existing weekly AppData Backup plugin output was real and
+working, just local-only; see the nas section above for the full
+correction).
 
 ## Follow-up backlog items generated by this audit
 
@@ -261,9 +277,10 @@ now real - see the nuc section above).
   `restore_post_hook` for forgejo/mail-archiver/umami/nocturne). Still
   open: wire the fresh-install path into `hooks/post-deploy.sh` so a
   from-scratch rebuild doesn't need a manual second `restore.sh` pass.
-- Decide whether Immich/Vikunja/Dawarich need real backup coverage or
-  whether that's an accepted risk - explicit decision either way, not
-  left implicit.
+- FIXED: Immich/Vikunja/Dawarich/Syncthing-config's appdata backup is
+  now offsite (`/mnt/user/backup/appdata` added to `unraid_backup_paths`,
+  `tier: critical`) - the existing weekly local plugin backup already
+  covered them, it just wasn't leaving the array.
 - Verify Unraid's flash-drive restore actually recreates the 11
   `managed: false` Docker containers cleanly - or write down manual
   recreation steps for each if it doesn't.

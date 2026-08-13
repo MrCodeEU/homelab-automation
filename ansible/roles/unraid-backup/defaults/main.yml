@@ -77,6 +77,22 @@ unraid_backup_paths:
     name: nextcloud-borg
     tier: critical
 
+  # The existing weekly AppData Backup plugin output (Sundays 05:00, local-
+  # only, /mnt/user/backup/appdata/). Covers Immich's DB+config (its actual
+  # photo library is separately offsite via the Fotos/Fotos entry above,
+  # thumbnails excluded from the plugin backup as regenerable), Vikunja,
+  # Dawarich, Syncthing's own config, dockhand, ollama, SFTPGo, and others -
+  # real, working local backup, but it lives on the same array it protects
+  # against, so a total array/host loss (not just a corrupted container)
+  # would have taken it down too until this offsite copy existed. ~94GB as
+  # of 2026-08-13 (2 weekly snapshots kept locally by the plugin itself,
+  # this entry just mirrors whatever currently exists there - no separate
+  # retention logic needed here).
+  - src: "/mnt/user/backup/appdata"
+    dest: "pcloud:unraid-appdata-backup"
+    name: appdata-backup
+    tier: critical
+
   # The Unraid USB flash itself (config, network/share definitions, docker
   # templates, plugin config, and the license key file) - previously backed
   # up nowhere: no Connect/flash-backup plugin installed on this box, no
