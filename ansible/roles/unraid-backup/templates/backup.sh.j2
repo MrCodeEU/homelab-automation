@@ -57,6 +57,12 @@ BACKUP_DATE="$(date +%Y%m%d)"
 # all - no SSH support there, rclone/WebDAV only). Pruned at the end of this
 # script, not by rclone itself.
 #
+# Must be a SIBLING of the sync destination, never nested inside it - rclone
+# rejects "destination and parameter to --backup-dir mustn't overlap" as a
+# fatal error otherwise (confirmed live 2026-08-14: every single leg failed
+# instantly with exactly that message when this used <dest>/.deleted/<date>).
+# A top-level .deleted/<name>/<date> per remote avoids any overlap.
+#
 # destinations lists where each entry goes, explicitly - replaces the old
 # tier/wd_cloud model. pcloud in destinations -> ugreen failure there is
 # just a warning (pcloud is authoritative); pcloud NOT in destinations ->
@@ -67,7 +73,7 @@ total_count=$((total_count + 1))
 {% if has_pcloud %}
 log "Backing up {{ pair.src }} -> {{ pair.dest }} (pCloud)"
 if rclone sync "{{ pair.src }}" "{{ pair.dest }}" \
-    --backup-dir "{{ pair.dest }}/.deleted/${BACKUP_DATE}" \
+    --backup-dir "pcloud:.deleted/{{ pair.name }}/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: {{ pair.src }} backed up to pCloud"
@@ -92,7 +98,7 @@ if [ "$UGREEN_AVAILABLE" = "1" ]; then
     # sync failure. They're not backup-worthy content either way, so keep
     # rclone from trying to reconcile them at all.
     if rclone --config "$UGREEN_CONFIG" sync "{{ pair.src }}" "ugreen:{{ inventory_hostname }}/{{ pair.name }}" \
-        --backup-dir "ugreen:{{ inventory_hostname }}/{{ pair.name }}/.deleted/${BACKUP_DATE}" \
+        --backup-dir "ugreen:{{ inventory_hostname }}/.deleted/{{ pair.name }}/${BACKUP_DATE}" \
         --exclude "**/.stfolder/**" \
         --transfers 2 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
         log "SUCCESS: {{ pair.src }} backed up to ugreen"
@@ -115,7 +121,7 @@ log "Backing up {{ pair.src }} -> {{ pair.wd_cloud_dest }}"
 # See the ugreen leg above for why checkers is higher than transfers here,
 # and why .stfolder is excluded.
 if rclone sync "{{ pair.src }}" "{{ pair.wd_cloud_dest }}" \
-    --backup-dir "{{ pair.wd_cloud_dest }}/.deleted/${BACKUP_DATE}" \
+    --backup-dir "wd-cloud:.deleted/{{ pair.name }}/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --transfers 2 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: {{ pair.src }} backed up to wd-cloud"
@@ -134,13 +140,13 @@ fi
 log "Pruning .deleted/ folders older than {{ unraid_backup_deleted_retention_days }} days"
 {% for pair in unraid_backup_paths %}
 {% if 'pcloud' in pair.destinations %}
-rclone delete --min-age {{ unraid_backup_deleted_retention_days }}d "{{ pair.dest }}/.deleted" >/dev/null 2>&1 || true
+rclone delete --min-age {{ unraid_backup_deleted_retention_days }}d "pcloud:.deleted/{{ pair.name }}" >/dev/null 2>&1 || true
 {% endif %}
 {% if 'ugreen' in pair.destinations %}
-[ "$UGREEN_AVAILABLE" = "1" ] && rclone --config "$UGREEN_CONFIG" delete --min-age {{ unraid_backup_deleted_retention_days }}d "ugreen:{{ inventory_hostname }}/{{ pair.name }}/.deleted" >/dev/null 2>&1 || true
+[ "$UGREEN_AVAILABLE" = "1" ] && rclone --config "$UGREEN_CONFIG" delete --min-age {{ unraid_backup_deleted_retention_days }}d "ugreen:{{ inventory_hostname }}/.deleted/{{ pair.name }}" >/dev/null 2>&1 || true
 {% endif %}
 {% if 'wd_cloud' in pair.destinations %}
-rclone delete --min-age {{ unraid_backup_deleted_retention_days }}d "{{ pair.wd_cloud_dest }}/.deleted" >/dev/null 2>&1 || true
+rclone delete --min-age {{ unraid_backup_deleted_retention_days }}d "wd-cloud:.deleted/{{ pair.name }}" >/dev/null 2>&1 || true
 {% endif %}
 {% endfor %}
 
