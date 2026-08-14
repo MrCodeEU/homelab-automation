@@ -5,6 +5,17 @@
 # (/root/.config/rclone/rclone.conf, set up manually). This role does not
 # touch that config - it only replaces the manual User Scripts entry that
 # drives it with an Ansible-managed one, and extends coverage.
+#
+# unraid_backup_paths/unraid_backup_watch_dirs/unraid_backup_excluded live in
+# inventory/group_vars/unraid.yml, not here - confirmed live 2026-08-14 that
+# role-default-sourced variables do not reliably resolve via
+# hostvars['nas'][...] from a different host/role's play (env.j2 rendered
+# for nuc's healthreport service got empty values from here despite the
+# "Backup Setup" play running before "Docker Services" - this repo's
+# Mitogen strategy does not propagate role defaults across hosts the way
+# true inventory/group_vars do). group_vars is the proven-working tier -
+# HEALTHREPORT_SSH_HOSTS's hostvars['nas']['tailscale_ip'] lookups, which DO
+# work, source from hosts.yml, not a role default.
 # ============================================================================
 
 # Role-scoped in unraid-bootstrap's own defaults, so redefined here from the
@@ -28,183 +39,6 @@ unraid_backup_frequency: daily
 # indefinite (rclone sync's --backup-dir keeps them forever otherwise).
 # Matches the rocky backup role's backup_retention_days default.
 unraid_backup_deleted_retention_days: 30
-
-# Each entry syncs one local path to an explicit list of destinations -
-# `destinations: [pcloud, ugreen, wd_cloud]`, any subset. Replaces the old
-# tier/wd_cloud model (which conflated "does pCloud get this" with "how bad
-# is a ugreen failure" - a ugreen failure was only fatal for entries with no
-# pCloud leg, previously implicit via tier, now just "pcloud not in
-# destinations"). `name` is the ugreen-side directory name; required on
-# every entry regardless of destinations so the ugreen leg never has to
-# derive one from `dest`, which pcloud-less entries don't have.
-#
-# Policy behind the choices below (scoped 2026-08-14 alongside a full
-# capacity/coverage audit): ugreen gets everything that needs an on-prem leg
-# (6.2TB free, no capacity pressure) - `destinations` always includes ugreen
-# unless there's a specific reason not to. wd_cloud stays scoped to its
-# existing role: nas-originated data only. pCloud (3TB total, 2.01TB free as
-# of this audit) is the tightest/costliest tier, so it's allocated
-# deliberately per entry, not by default.
-#
-# The Fotos/Fotos -> pcloud:Fotos pairing is unchanged from the manual script
-# that has been running since before this repo touched Unraid - changing the
-# destination would force a full 588GB re-upload for no reason. The other
-# Fotos subfolders were never covered; new pcloud paths for them, matching the
-# existing pcloud:Fotos naming rather than inventing a new tree.
-unraid_backup_paths:
-  - src: /mnt/user/Fotos/Fotos
-    dest: "pcloud:Fotos"
-    name: fotos
-    destinations: [pcloud, ugreen, wd_cloud]
-    wd_cloud_dest: "wd-cloud:Fotos"
-  - src: "/mnt/user/Fotos/Videos"
-    dest: "pcloud:Fotos-Videos"
-    name: fotos-videos
-    destinations: [pcloud, ugreen, wd_cloud]
-    wd_cloud_dest: "wd-cloud:Videos"
-  - src: "/mnt/user/Fotos/Wichtiges Scans Adressen"
-    dest: "pcloud:Fotos-Wichtiges-Scans-Adressen"
-    name: fotos-wichtiges-scans-adressen
-    destinations: [pcloud, ugreen]
-  # Migrated off the old WD MyCloud (42.8GB) - see wd_cloud push-only note
-  # below; this entry both backs it up AND pushes it straight back to WD
-  # Cloud so the device still has a current copy after the migration.
-  #
-  # 2026-08-14: Fotos/Music (a separate, undeduplicated 36G folder) needs to
-  # be merged into this one BEFORE it's treated as complete - a real data
-  # task, not a config change, tracked separately. This entry (Musik) is
-  # unchanged/already-covered either way.
-  - src: "/mnt/user/Fotos/Musik"
-    dest: "pcloud:Musik"
-    name: musik
-    destinations: [pcloud, ugreen, wd_cloud]
-    wd_cloud_dest: "wd-cloud:Musik"
-  - src: "/mnt/user/Fotos/SB"
-    dest: "pcloud:Fotos-SB"
-    name: fotos-sb
-    destinations: [pcloud, ugreen]
-
-  # Nextcloud's borg repository. On pCloud rather than ugreen-only because of
-  # where it now lives: the repo moved to the fastpool on 2026-08-05 for
-  # speed, and the volumes it backs up - nextcloud_aio_database,
-  # nextcloud_aio_nextcloud, and the mastercontainer volume holding the borg
-  # passphrase - sit on that same pool. A single SSD failure would otherwise
-  # take the data and its only backup together, leaving the user files on the
-  # array orphaned without a database. This offsite copy is what makes that
-  # survivable.
-  #
-  # Deduplicated and compressed by borg already (~126GB for 502GB of archives),
-  # so it costs pCloud far less than the raw data would.
-  - src: "/mnt/user/borgbackup/borg"
-    dest: "pcloud:Nextcloud-Borg"
-    name: nextcloud-borg
-    destinations: [pcloud, ugreen]
-
-  # The Unraid USB flash itself (config, network/share definitions, docker
-  # templates, plugin config, and the license key file) - previously backed
-  # up nowhere: no Connect/flash-backup plugin installed on this box, no
-  # entry in this list either. Small (2.3GB) and irreplaceable in a different
-  # way than the data disks - losing it without a backup means rebuilding
-  # every setting by hand and potentially a support ticket to get the license
-  # key reissued, even though the array data itself survives untouched.
-  - src: /boot
-    dest: "pcloud:unraid-flash"
-    name: unraid-flash
-    destinations: [pcloud, ugreen]
-
-  # The existing weekly AppData Backup plugin output (Sundays 05:00, local-
-  # only, /mnt/user/backup/appdata/). Covers Immich's DB+config (its actual
-  # photo library is separately offsite via the Fotos/Fotos entry above,
-  # thumbnails excluded from the plugin backup as regenerable), Vikunja,
-  # Dawarich, Syncthing's own config, dockhand, ollama, SFTPGo, and others -
-  # real, working local backup, but it lives on the same array it protects
-  # against, so a total array/host loss (not just a corrupted container)
-  # would have taken it down too until this offsite copy existed. ~94GB as
-  # of 2026-08-13 (2 weekly snapshots kept locally by the plugin itself,
-  # this entry just mirrors whatever currently exists there - no separate
-  # retention logic needed here).
-  - src: "/mnt/user/backup/appdata"
-    dest: "pcloud:unraid-appdata-backup"
-    name: appdata-backup
-    destinations: [pcloud, ugreen]
-
-  # Personal-project backup previously found sitting uncovered during the
-  # 2026-08-14 capacity audit - no caveats, straightforward addition.
-  - src: "/mnt/user/backup/origami"
-    dest: "pcloud:origami"
-    name: origami
-    destinations: [pcloud, ugreen]
-
-  # `/mnt/user/backup/raid-backup` (467G) is DELIBERATELY not listed here.
-  # First-pass reading of it as "mostly irreplaceable" was wrong - verified
-  # by diffing actual file contents: its Mail/ subfolder (2 real .mbox
-  # exports) belongs in mail-archiver's local-import path, not generic
-  # backup; JKU/ is an entire old Syncthing data directory, fully redundant
-  # with what's live-synced today; WD_Cloud/ duplicates the already-covered
-  # Musik/Videos entries above; the rest is old/test/reproducible. The five
-  # genuinely unique items found (HTL, HackTheBox, MrCode USB Stick,
-  # Nintendo 2DS Backup, Cool Stuff) are being moved into Sync + added as
-  # Syncthing folders instead (nas<->ugreen duplication, deliberately not
-  # pCloud-offsite).
-  #
-  # Sync/WD_Cloud (254G) and Sync/7_2025WS + Sync/8_2025WS (confirmed stale
-  # leftovers from a Syncthing folder rename, not real data) are similarly
-  # excluded on purpose, not missing - safe to delete outright, not scheduled
-  # here.
-  #
-  # Rest of Sync/ (746G) stays deferred pending the existing folder-
-  # restructuring backlog item - unchanged from before this audit.
-  # "Games" stays out permanently. "Backups" and "Manuell" are
-  # automediasort container artifacts on this NAS, not source data - excluded
-  # permanently too, not just deferred.
-
-# Drift detection (healthreport): a new subfolder inside one of these
-# directories that isn't in unraid_backup_paths (by src) or the excluded
-# list below fires a backup_drift warning. Only direct children are
-# checked, not full recursion - this is exactly the class of gap that let
-# origami/Fotos/SB sit uncovered for weeks unnoticed (both are subfolders
-# of an already-partially-covered share, so a naive top-level-only check
-# would have missed them too).
-unraid_backup_watch_dirs:
-  - /mnt/user
-  - /mnt/user/Fotos
-  - /mnt/user/backup
-
-# Every entry here is a full path, not just a basename, since watch dirs can
-# nest (backup/appdata is a child of /mnt/user, appdata's OWN children are
-# not separately watched). Reason is required - this list is meant to be
-# read, not just satisfied.
-unraid_backup_excluded:
-  - path: /mnt/user/Fotos/Backup
-    reason: "mover's pre-consolidation staging area for Fotos/Fotos, not independent data"
-  - path: /mnt/user/Fotos/Music
-    reason: "pending merge into Fotos/Musik (already backed up) - remove this entry once merged"
-  - path: /mnt/user/Fotos/Manuell
-    reason: "empty as of 2026-08-14"
-  - path: /mnt/user/Sync
-    reason: "deferred pending the folder-restructuring backlog item - not missing, not yet scoped"
-  - path: /mnt/user/appdata
-    reason: "live docker appdata - covered indirectly via backup/appdata (the weekly AppData Backup plugin snapshot), not directly"
-  - path: /mnt/user/backup/borg
-    reason: "caught live by the drift check on first run (2026-08-14) - verified identical repository ID/key to unraid_backup_paths' nextcloud-borg entry, a stale leftover left behind when that repo moved to /mnt/user/borgbackup/borg (fastpool) on 2026-08-05. 118G reclaimable via a future manual cleanup, not urgent."
-  - path: /mnt/user/backup/raid-backup
-    reason: "verified 2026-08-14: real content routes to mail-archiver (Mail/) or Sync+Syncthing (5 unique folders), rest is redundant/reproducible - see unraid_backup_paths comment"
-  - path: /mnt/user/borgbackup
-    reason: "covered via unraid_backup_paths' nextcloud-borg entry (the repo inside it), not the share itself"
-  - path: /mnt/user/cloud
-    reason: "not yet assessed - flagged during drift-detection rollout, needs its own look"
-  - path: /mnt/user/docker
-    reason: "Docker's own internal storage, not user data"
-  - path: /mnt/user/domains
-    reason: "Unraid VM disk images - not currently in use, revisit if VMs are ever deployed"
-  - path: /mnt/user/isos
-    reason: "installer ISOs, re-downloadable"
-  - path: /mnt/user/opencloud
-    reason: "on-hold test deployment (see project memory), not source data yet"
-  - path: /mnt/user/photorec-recovery
-    reason: "empty - vestigial share from the 2026-07-31 recovery incident"
-  - path: /mnt/user/system
-    reason: "Unraid's own VM/docker.img system storage, not user data"
 
 # Retired: the manual "rclone backup" User Script this role replaces.
 unraid_backup_retired_scripts:
