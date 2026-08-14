@@ -12,7 +12,7 @@ from typing import Dict, List
 FILENAME = re.compile(r"^facts-(\d{4})(\d{2})(\d{2})\.json$")
 
 
-def trend(state_dir: str, days: int = 14) -> List[Dict]:
+def trend(state_dir: str, days: int = 10) -> List[Dict]:
     """Return [{date, crit, warn}] oldest-first for the last `days` files."""
     history_dir = os.path.join(state_dir, "history")
     try:

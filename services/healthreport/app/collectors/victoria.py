@@ -22,6 +22,14 @@ SYSTEMD_NOISE = re.compile(r"^session-c?\d+\.scope$")
 # nothing about the health of the machine.
 FS_EXCLUDE = 'fstype!~"tmpfs|overlay|squashfs|ramfs|devtmpfs|fuse.*|iso9660|autofs"'
 
+# Retired-but-kept mounts: not receiving new data, so predict_linear's 7-day
+# window keeps extrapolating a one-time historical drop (the last write to
+# it) as an ongoing trend forever. Real disk_usage still reports on these
+# fine - only the fill-projection is meaningless for a mount nothing writes
+# to anymore. /mnt/cache on nas is the old Intenso SSD, superseded by
+# fastpool as the real cache and kept around unused rather than retired.
+DISK_FILL_PROJECTION_EXCLUDE = {("nas", "/mnt/cache")}
+
 # Ephemeral container matching lives in ..model so the log collectors apply the
 # same rule; reporting these as "missing since yesterday" would be a daily false
 # positive here, and a permanent new seen-state entry there.
@@ -91,6 +99,8 @@ def collect(config, rules):
             continue
         host = metric.get("instance", "unknown")
         mount = metric.get("mountpoint", "?")
+        if (host, mount) in DISK_FILL_PROJECTION_EXCLUDE:
+            continue
         obs.append(Observation(
             id="disk_fill_projection.%s.%s" % (host, mount),
             collector="host_metrics",

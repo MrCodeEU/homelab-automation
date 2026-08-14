@@ -128,6 +128,20 @@ def collect(config, rules):
                 if run.get("conclusion") not in ("failure", "timed_out", "startup_failure"):
                     continue
                 on_default = branch == default_branch
+                if not on_default:
+                    # A feature branch's one-time failure (even one later
+                    # fixed via a rerun, or superseded by a follow-up PR)
+                    # stays "the latest run for that branch" forever once
+                    # the branch itself is deleted after merge - there is
+                    # never a newer run to supersede it. GitHub keeps the
+                    # run history for deleted branches indefinitely, so
+                    # this alerted permanently until caught manually.
+                    # Confirmed live: 2026-08-14, a merged-and-deleted
+                    # feat/tutabridge-account-id kept flagging warn forever.
+                    branch_info, _ = _get(
+                        session, "%s/repos/%s/branches/%s" % (API, full, branch))
+                    if branch_info is None:
+                        continue
                 kind = "workflow_failed_default_branch" if on_default else "workflow_failed"
                 obs.append(Observation(
                     id="%s.%s.%s" % (kind, name, workflow),
