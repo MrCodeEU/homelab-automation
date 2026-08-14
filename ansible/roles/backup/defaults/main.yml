@@ -34,6 +34,10 @@ backup_auto_detect_volumes: true
 #   - backup_pre_hook: command to run before backup (e.g., database dump)
 #   - backup_post_hook: command to run after backup
 #   - backup_critical: if true, backup failure is fatal
+#   - backup_wd_cloud: defaults to true (2026-08-14) - every service's total
+#     backup volume is negligible against WD Cloud's free space, so it gets
+#     the same "every existing backup, best-effort" treatment ugreen already
+#     had. Set to false on a service to opt out.
 backup_service_configs:
   authelia:
     backup_paths:
@@ -41,7 +45,6 @@ backup_service_configs:
     backup_volumes:
       - authelia_redis_data
     backup_critical: true
-    backup_wd_cloud: true
 
   mailcow:
     backup_volumes:
