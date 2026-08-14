@@ -15,8 +15,21 @@ mailcow_hostname: "mail.mljr.eu"
 mailcow_timezone: "Europe/Vienna"
 
 # Reverse proxy settings
-# HTTP port for Caddy to proxy to
-mailcow_http_port: 8081
+# NOT proxied by Caddy (that goes to mailcow_https_port/8443, the catalog
+# entry's https_backend) - this is only mailcow's own internal HTTP
+# listener, used here for the post-deploy health check. Must differ from
+# 8081: mailcow hardcodes 8081 internally for its own rspamd dynmaps/
+# settings-map nginx vhost (data/Dockerfiles/nginx/*.conf.j2), regardless
+# of HTTP_PORT - setting HTTP_PORT to the same value creates a real port
+# collision where nginx's main-site default_server wins, silently
+# redirecting rspamd's settings-map fetch to HTTPS instead of serving it,
+# which breaks the map and makes rspamd fall back to plain actions.conf
+# thresholds for the watchdog's synthetic test message. Confirmed live
+# 2026-08-14: mailcowdockerized-watchdog-mailcow-1 logged "Rspamd settings
+# check failed, score returned: 15" every few minutes, traced to exactly
+# this collision (nginx -T showed both the main site vhost AND the
+# internal dynmaps vhost listening on 8081).
+mailcow_http_port: 8092
 mailcow_http_bind: "127.0.0.1"
 # HTTPS port - must be set to unused port (not empty) to prevent conflict with Caddy on 443
 # This is required because docker-compose.yml uses ${HTTPS_PORT:-443} default
