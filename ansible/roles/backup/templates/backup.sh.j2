@@ -16,10 +16,10 @@ UGREEN_KEY="/opt/backup-remote/ssh/id_ed25519"
 # No "data/" prefix: the sftp session already lands directly in the backup
 # user's home, which IS the data directory (see roles/backup-remote-target).
 UGREEN_REMOTE="ugreen:{{ inventory_hostname }}"
-# Semi-offsite, push-only WD MyCloud - only ever called from backup_path(),
-# never backup_volume(). Only the services explicitly opted in via
-# backup_wd_cloud: true get this leg (see the per-service loop below) -
-# unlike ugreen, this is not "every existing backup" by default.
+# Semi-offsite, push-only WD MyCloud - every service gets this leg by
+# default (2026-08-14: total volume across every mljr/nuc service backup is
+# ~1GB, negligible against WD's free space), same as ugreen. Set
+# backup_wd_cloud: false on a service to opt out.
 WD_CLOUD_REMOTE="wd-cloud:"
 LOG_FILE="${LOCAL_PATH}/logs/backup-$(date +%Y%m%d).log"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -145,6 +145,7 @@ sync_to_wdcloud() {
 
 backup_volume() {
     local volume_name="$1"
+    local wd_cloud="${2:-true}"
 
     # Dynamically detect Docker volume path
     local volume_path=$(docker volume inspect --format '{{ '{{' }}.Mountpoint{{ '}}' }}' "$volume_name" 2>/dev/null)
@@ -180,6 +181,10 @@ backup_volume() {
 
     sync_to_ugreen "$snapshot_dir" "volumes/${volume_name}"
 
+    if [ "$wd_cloud" = "true" ]; then
+        sync_to_wdcloud "$snapshot_dir" "volumes/${volume_name}"
+    fi
+
     log_success "Volume $volume_name backed up successfully"
     return 0
 }
@@ -191,7 +196,7 @@ backup_path() {
     # service reports a failure every single night until someone gets round to
     # setting it up, which trains you to ignore backup warnings.
     local optional="${2:-false}"
-    local wd_cloud="${3:-false}"
+    local wd_cloud="${3:-true}"
     local backup_name=$(basename "$source_path")
 
     if [ ! -d "$source_path" ]; then
@@ -289,13 +294,13 @@ main() {
 
 {% if config.backup_volumes is defined %}
 {% for volume in config.backup_volumes %}
-    backup_volume "{{ volume }}" || service_failed=true
+    backup_volume "{{ volume }}" "{{ config.backup_wd_cloud | default(true) | string | lower }}" || service_failed=true
 {% endfor %}
 {% endif %}
 
 {% if config.backup_paths is defined %}
 {% for path in config.backup_paths %}
-    backup_path "{{ path }}" "{{ config.backup_optional | default(false) | string | lower }}" "{{ config.backup_wd_cloud | default(false) | string | lower }}" || service_failed=true
+    backup_path "{{ path }}" "{{ config.backup_optional | default(false) | string | lower }}" "{{ config.backup_wd_cloud | default(true) | string | lower }}" || service_failed=true
 {% endfor %}
 {% endif %}
 

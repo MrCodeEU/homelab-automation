@@ -33,6 +33,12 @@ host_facts_unraid_ssh_persist: /boot/config/ssh/root
 facts_backup_remotes:
   - pcloud
   - wd-cloud
+
+# Sourced from roles/unraid-backup's own defaults (that role's "Backup
+# Setup" play runs before this one, so its defaults are already live for
+# nas by the time this renders) - kept here rather than duplicated so the
+# watch-dir list only has one place to edit.
+facts_backup_watch_dirs: "{{ unraid_backup_watch_dirs | default([]) }}"
 facts_backup_paths:
   - /mnt/user/backup
   # The pool that now holds appdata, docker and system (moved off the failing

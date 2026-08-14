@@ -530,6 +530,26 @@ def collect_time_sync():
     return {"available": False, "reason": "no chronyc, ntpq or timedatectl"}
 
 
+def collect_watched_dirs():
+    """Direct children of each backup-coverage watch directory.
+
+    Read-only listing, no sizes - the healthreport side cross-references
+    this against unraid_backup_paths and the excluded allowlist to catch a
+    new subfolder sitting uncovered, which is exactly the class of gap that
+    let origami/Fotos/SB go unnoticed for weeks (see roles/unraid-backup's
+    unraid_backup_watch_dirs comment).
+    """
+    watched = {}
+    for base in [{% for d in (facts_backup_watch_dirs | default([])) %}"{{ d }}", {% endfor %}]:
+        try:
+            watched[base] = sorted(
+                e.name for e in os.scandir(base) if e.is_dir()
+            )
+        except OSError as exc:
+            watched[base] = {"error": str(exc)[:200]}
+    return watched
+
+
 def collect_backup_targets():
     """Capacity of the places backups actually land.
 
@@ -834,6 +854,7 @@ def main():
         sections["unraid_docker_image"] = section(collect_unraid_docker_image)
         sections["backup"] = section(collect_backup_log)
         sections["backup_targets"] = section(collect_backup_targets)
+        sections["watched_dirs"] = section(collect_watched_dirs)
     elif OS_FAMILY == "ugreen":
         # nftables/security_updates/crowdsec/backup are rocky-only concepts:
         # security_updates shells out to dnf, which does not exist on Debian,
