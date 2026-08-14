@@ -88,7 +88,7 @@ def collect(config, rules):
     for host, payload in payloads.items():
         sections = payload.get("sections", {})
         _rocky(obs, host, sections)
-        _unraid(obs, host, sections)
+        _unraid(obs, host, sections, config)
         _ugreen(obs, host, sections)
 
         for name, section in sections.items():
@@ -403,7 +403,7 @@ def _ugreen(obs, host, sections):
             ))
 
 
-def _unraid(obs, host, sections):
+def _unraid(obs, host, sections, config):
     array = _section(sections, "unraid_array")
     if array:
         obs.append(Observation(
@@ -528,3 +528,35 @@ def _unraid(obs, host, sections):
                     % (host, entry["subject"], entry["description"][:120], suffix),
             evidence={"event": event, "importance": importance, "unread": entry["count"]},
         ))
+
+    # Backup coverage drift: a subfolder inside a watched directory
+    # (roles/unraid-backup's unraid_backup_watch_dirs) that's neither a known
+    # backup source nor on the excluded allowlist. This is exactly the class
+    # of gap that let origami/Fotos/SB sit uncovered for weeks unnoticed -
+    # both were subfolders of an already-partially-covered share, which a
+    # naive top-level-only check would have missed too.
+    watched = _section(sections, "watched_dirs") or {}
+    known = set(config.backup_known_paths)
+    excluded = set(config.backup_excluded_paths)
+    watch_dirs = set(watched.keys())
+    for base, children in watched.items():
+        if isinstance(children, dict) and children.get("error"):
+            continue
+        for name in children or []:
+            child_path = "%s/%s" % (base, name)
+            if child_path in watch_dirs:
+                # Itself a watched directory - checked separately at its own
+                # level, not flagged here just for existing.
+                continue
+            if child_path in known or child_path in excluded:
+                continue
+            obs.append(Observation(
+                id="backup_drift.%s.%s" % (host, child_path),
+                collector="ssh_facts",
+                subject=host,
+                kind="backup_drift",
+                value=child_path,
+                message="%s: %s is not backed up and not on the excluded list"
+                        % (host, child_path),
+                evidence={"watch_dir": base},
+            ))

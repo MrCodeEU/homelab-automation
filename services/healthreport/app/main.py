@@ -110,11 +110,51 @@ def collector_health(results):
     return observations
 
 
+def wd_cloud_backup_target_usage(observations):
+    """Cross-collector correlation: give wd-cloud a real backup_target_usage.
+
+    ssh_facts.py's backup_target_usage loop skips wd-cloud outright -
+    `rclone about` has no quota API over SFTP, a real and permanent protocol
+    limitation. But the same disk is separately monitored via
+    wd-mycloud-node-exporter -> victoria.py's disk_usage query, collected in
+    the same report run. Synthesize the missing observation from that
+    instead of leaving the report silent on it. Runs after all collectors
+    finish (here in assemble(), not inside ssh_facts.py itself), since that's
+    the only point both collectors' results already coexist in one list.
+    """
+    disk_usage = next(
+        (obs for obs in observations
+         if obs.id == "disk_usage.wd-mycloud./mnt/HD/HD_a2"),
+        None,
+    )
+    if disk_usage is None:
+        return []
+    already_present = any(
+        obs.kind == "backup_target_usage" and obs.subject == "nas"
+        and (obs.evidence or {}).get("kind") == "wd_cloud"
+        for obs in observations
+    )
+    if already_present:
+        return []
+    return [Observation(
+        id="backup_target_usage.nas.wd-cloud",
+        collector="ssh_facts",
+        subject="nas",
+        kind="backup_target_usage",
+        value=disk_usage.value,
+        unit="percent",
+        message="backup target wd-cloud is %.1f%% full (derived from wd-mycloud's own "
+                "disk usage - rclone has no quota API over SFTP)" % disk_usage.value,
+        evidence={"kind": "wd_cloud", "source": disk_usage.id},
+    )]
+
+
 def assemble(config, rules, results, now):
     observations = []
     for result in results.values():
         observations.extend(result.observations)
     observations.extend(collector_health(results))
+    observations.extend(wd_cloud_backup_target_usage(observations))
 
     state_dir = config.state_dir
     previous = diff.load_previous(state_dir)

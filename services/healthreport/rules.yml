@@ -355,6 +355,13 @@ rules:
     warn: 85
     crit: 93
 
+  # A new subfolder in a watched nas directory that's neither backed up nor
+  # on the excluded allowlist - the exact class of gap that let origami/
+  # Fotos/SB sit uncovered for weeks unnoticed before 2026-08-14.
+  backup_drift:
+    type: present
+    level: warn
+
   # --- Home Assistant --------------------------------------------------------
   ha_safe_mode:
     type: present

@@ -114,6 +114,15 @@ class Config:
     # is the signal; one restart burst is not.
     caddy_5xx_hour_threshold: int = 100
 
+    # Drift detection for nas's backup coverage - basenames (not full paths)
+    # of things known to be covered (roles/unraid-backup's unraid_backup_paths
+    # `name` values) or deliberately excluded (unraid_backup_excluded). A
+    # subfolder appearing in a watched directory that's in neither list is
+    # exactly the class of gap that let origami/Fotos/SB sit uncovered for
+    # weeks unnoticed - see collectors/ssh_facts.py's backup_drift check.
+    backup_known_paths: List[str] = field(default_factory=list)
+    backup_excluded_paths: List[str] = field(default_factory=list)
+
     @classmethod
     def from_env(cls) -> "Config":
         return cls(
@@ -155,6 +164,8 @@ class Config:
                 os.environ.get("HEALTHREPORT_MAINTENANCE_WINDOWS"),
                 cls.__dataclass_fields__["maintenance_windows"].default_factory()),
             caddy_5xx_hour_threshold=_int("HEALTHREPORT_5XX_HOUR_THRESHOLD", 100),
+            backup_known_paths=_windows(os.environ.get("HEALTHREPORT_BACKUP_KNOWN_PATHS"), []),
+            backup_excluded_paths=_windows(os.environ.get("HEALTHREPORT_BACKUP_EXCLUDED_PATHS"), []),
         )
 
     def all_hosts(self) -> List[str]:
