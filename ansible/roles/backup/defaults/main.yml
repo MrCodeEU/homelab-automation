@@ -20,6 +20,26 @@ backup_retention_days: 30
 # TimeoutStartSec and take every service queued after it down too.
 backup_item_timeout: "40m"
 
+# pCloud leg concurrency (ugreen/wd-cloud legs are fixed at 2/4 - see
+# sync_to_ugreen/sync_to_wdcloud in backup.sh.j2). 8/16 is fine on hardware
+# with headroom to spare; on a small VPS sharing the same box as the
+# services being backed up it saturates CPU/network enough to push Kuma's
+# 48s health-check timeout on every container, causing real minutes-long
+# outages (mljr, 2026-08-14 - uptime.mljr.eu itself went unreachable during
+# its own nightly backup). Override lower per-host where that matters.
+backup_transfers: 8
+backup_checkers: 16
+
+# rclone --bwlimit for the pCloud leg (e.g. "10M"). Empty = unlimited. Same
+# 2026-08-14 incident - override per-host on constrained links.
+backup_bwlimit: ""
+
+# systemd CPUQuota= for homelab-backup.service (e.g. "40%"). Empty = no cap.
+# Nice=19/IOSchedulingClass=idle (below) only win when something else is
+# actively contending for the same resource at the same instant; a hard
+# quota guarantees headroom regardless of scheduling luck.
+backup_cpu_quota: ""
+
 # pCloud OAuth token (from environment)
 # To get token: run `rclone config` interactively, copy the token JSON
 backup_pcloud_token: "{{ secrets.backup.pcloud_token | default('') }}"
