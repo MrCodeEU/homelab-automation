@@ -16,6 +16,13 @@ StandardError=journal
 TimeoutStartSec=10800
 Nice=19
 IOSchedulingClass=idle
+{% if backup_cpu_quota %}
+# Nice/idle IO only win when something else is contending at that instant -
+# a hard cap guarantees headroom regardless of scheduling luck. Set per-host
+# where the box also runs the services being backed up (see
+# roles/backup/defaults/main.yml).
+CPUQuota={{ backup_cpu_quota }}
+{% endif %}
 
 [Install]
 WantedBy=multi-user.target

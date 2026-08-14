@@ -33,6 +33,15 @@ RETENTION_DAYS={{ backup_retention_days }}
 # mailcow's data path and never got to crowdsec/newsletter. Wrapping each call
 # means a timeout only fails that one item; everything else still runs.
 ITEM_TIMEOUT="{{ backup_item_timeout | default('20m') }}"
+# pCloud leg concurrency/bandwidth - see roles/backup/defaults/main.yml for
+# why this is host-overridable (mljr's own backup made itself unreachable).
+PCLOUD_TRANSFERS="{{ backup_transfers | default(8) }}"
+PCLOUD_CHECKERS="{{ backup_checkers | default(16) }}"
+{% if backup_bwlimit %}
+PCLOUD_BWLIMIT_ARGS=(--bwlimit "{{ backup_bwlimit }}")
+{% else %}
+PCLOUD_BWLIMIT_ARGS=()
+{% endif %}
 {% if secrets.ntfy is defined and secrets.ntfy.url is defined %}
 NTFY_URL="{{ secrets.ntfy.url | default('https://ntfy.mljr.eu') }}"
 NTFY_TOPIC="{{ secrets.ntfy.topic | default('backup') }}"
@@ -170,8 +179,9 @@ backup_volume() {
     # Sync to remote
     timeout "$ITEM_TIMEOUT" rclone sync "$snapshot_dir" "${REMOTE}/volumes/${volume_name}" \
         --progress \
-        --transfers 8 \
-        --checkers 16 \
+        --transfers "$PCLOUD_TRANSFERS" \
+        --checkers "$PCLOUD_CHECKERS" \
+        "${PCLOUD_BWLIMIT_ARGS[@]}" \
         --timeout 60s --contimeout 20s --low-level-retries 3 \
         --log-file="$LOG_FILE" \
         --log-level INFO || {
@@ -213,8 +223,9 @@ backup_path() {
     # Sync to remote
     timeout "$ITEM_TIMEOUT" rclone sync "$source_path" "${REMOTE}/paths/${backup_name}" \
         --progress \
-        --transfers 8 \
-        --checkers 16 \
+        --transfers "$PCLOUD_TRANSFERS" \
+        --checkers "$PCLOUD_CHECKERS" \
+        "${PCLOUD_BWLIMIT_ARGS[@]}" \
         --timeout 60s --contimeout 20s --low-level-retries 3 \
         --log-file="$LOG_FILE" \
         --log-level INFO || {
