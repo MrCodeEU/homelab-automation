@@ -542,8 +542,12 @@ def collect_watched_dirs():
     watched = {}
     for base in [{% for d in (facts_backup_watch_dirs | default([])) %}"{{ d }}", {% endfor %}]:
         try:
+            # Skip dotfiles - .Recycle.Bin is Unraid's own per-share artifact,
+            # present on every one of them, not something to list per watch
+            # dir in the excluded allowlist.
             watched[base] = sorted(
-                e.name for e in os.scandir(base) if e.is_dir()
+                e.name for e in os.scandir(base)
+                if e.is_dir() and not e.name.startswith(".")
             )
         except OSError as exc:
             watched[base] = {"error": str(exc)[:200]}
