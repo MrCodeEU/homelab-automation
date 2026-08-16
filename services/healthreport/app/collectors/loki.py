@@ -19,7 +19,13 @@ ERROR_PATTERN = "(?i)(error|fatal|panic|traceback|exception)"
 # contain `error=<nil>`, which made every served request look like an error and
 # inflated the daily count into the tens of thousands. Drop the "no error"
 # idioms before counting.
-NOT_ERROR_PATTERN = r'(error=<nil>|error=null|"error":null|"error":""|err=<nil>|error=\s*$)'
+#
+# mailcow's ofelia scheduler logs its own idiom - "failed: false, skipped:
+# false, error: none" - on every single successful cron job run (colon-space,
+# not the =<nil>/JSON-null shapes above), which alone produced 10k+ "error"
+# lines/24h out of routine housekeeping. (?i) since ofelia's "none" is
+# lowercase but other emitters may differ.
+NOT_ERROR_PATTERN = r'(?i)(error=<nil>|error=null|"error":null|"error":""|err=<nil>|error=\s*$|error:\s*none\b)'
 
 # Loki's querier echoes the query text into its own logs. Since these queries
 # contain the word "error", every run manufactures the errors the next run
