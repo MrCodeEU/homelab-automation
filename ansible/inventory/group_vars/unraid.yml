@@ -77,10 +77,10 @@ unraid_backup_paths:
   # below; this entry both backs it up AND pushes it straight back to WD
   # Cloud so the device still has a current copy after the migration.
   #
-  # 2026-08-14: Fotos/Music (a separate, undeduplicated 36G folder) needs to
-  # be merged into this one BEFORE it's treated as complete - a real data
-  # task, not a config change, tracked separately. This entry (Musik) is
-  # unchanged/already-covered either way.
+  # 2026-08-17: Fotos/Music (the separate, undeduplicated 36G folder) merged
+  # into Fotos/Musik/Music and deleted - byte-identical files skipped,
+  # same-name-different-content files kept alongside as `_1` (76 of them),
+  # 133 genuinely new files copied over. No data lost, nothing to do here.
   - src: "/mnt/user/Fotos/Musik"
     dest: "pcloud:Musik"
     name: musik
@@ -184,8 +184,6 @@ unraid_backup_watch_dirs:
 unraid_backup_excluded:
   - path: /mnt/user/Fotos/Backup
     reason: "mover's pre-consolidation staging area for Fotos/Fotos, not independent data"
-  - path: /mnt/user/Fotos/Music
-    reason: "pending merge into Fotos/Musik (already backed up) - remove this entry once merged"
   - path: /mnt/user/Fotos/Manuell
     reason: "empty as of 2026-08-14"
   - path: /mnt/user/Sync
