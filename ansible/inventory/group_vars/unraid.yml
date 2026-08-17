@@ -142,28 +142,36 @@ unraid_backup_paths:
     name: origami
     destinations: [pcloud, ugreen]
 
-  # `/mnt/user/backup/raid-backup` (467G) is DELIBERATELY not listed here.
-  # First-pass reading of it as "mostly irreplaceable" was wrong - verified
-  # by diffing actual file contents: its Mail/ subfolder (2 real .mbox
-  # exports) belongs in mail-archiver's local-import path, not generic
-  # backup; JKU/ is an entire old Syncthing data directory, fully redundant
-  # with what's live-synced today; WD_Cloud/ duplicates the already-covered
-  # Musik/Videos entries above; the rest is old/test/reproducible. The five
-  # genuinely unique items found (HTL, HackTheBox, MrCode USB Stick,
-  # Nintendo 2DS Backup, Cool Stuff) are being moved into Sync + added as
-  # Syncthing folders instead (nas<->ugreen duplication, deliberately not
-  # pCloud-offsite).
+  # `/mnt/user/backup/raid-backup` (467G): CLOSED 2026-08-17, folder no
+  # longer exists. First-pass reading of it as "mostly irreplaceable" was
+  # wrong - verified by diffing actual file contents: its Mail/ subfolder
+  # (2 real .mbox exports) went through mail-archiver's local-import path
+  # (27,986 emails archived), JKU/ was an entire old Syncthing data
+  # directory fully redundant with what's live-synced today, WD_Cloud/
+  # duplicated the already-covered Musik/Videos entries above, the rest was
+  # old/test/reproducible. The seven genuinely unique items found (HTL,
+  # HackTheBox, MrCode USB Stick, Nintendo 2DS Backup, Cool Stuff, plus
+  # NUC_Old and Pi4Old caught on a final pre-deletion sanity pass) moved
+  # into Sync + got added as Syncthing folders (nas<->ugreen). Folder
+  # deleted once everything real was accounted for.
   #
   # Sync/WD_Cloud (254G) and Sync/7_2025WS + Sync/8_2025WS (confirmed stale
-  # leftovers from a Syncthing folder rename, not real data) are similarly
-  # excluded on purpose, not missing - safe to delete outright, not scheduled
-  # here.
+  # leftovers from a Syncthing folder rename, not real data) were deleted
+  # the same day for the same reason.
   #
-  # Rest of Sync/ (746G) stays deferred pending the existing folder-
-  # restructuring backlog item - unchanged from before this audit.
-  # "Games" stays out permanently. "Backups" and "Manuell" are
-  # automediasort container artifacts on this NAS, not source data - excluded
-  # permanently too, not just deferred.
+  # 2026-08-17: Sync itself now gets a real offsite copy (see the `sync`
+  # entry below) - the whole-folder-deferred posture is closed. `appdata`
+  # (96G, old retired-container configs pre-dating this repo's management
+  # of nuc), `Mail` (2.5G, byte-identical to the raid-backup Mail/ already
+  # imported above), and `Backup` (6.9G, a duplicate-of-duplicates of other
+  # top-level Sync folders) were deleted as part of the same pass - none of
+  # the three were unique data. `Games` (13G) was previously excluded
+  # permanently by policy; the user reversed that 2026-08-17 - not worth
+  # special-casing 13G out of a single whole-folder src.
+  - src: /mnt/user/Sync
+    dest: "pcloud:Sync"
+    name: sync
+    destinations: [pcloud]
 
 # Drift detection (healthreport): a new subfolder inside one of these
 # directories that isn't in unraid_backup_paths (by src) or the excluded
@@ -186,14 +194,10 @@ unraid_backup_excluded:
     reason: "mover's pre-consolidation staging area for Fotos/Fotos, not independent data"
   - path: /mnt/user/Fotos/Manuell
     reason: "empty as of 2026-08-14"
-  - path: /mnt/user/Sync
-    reason: "deferred pending the folder-restructuring backlog item - not missing, not yet scoped"
   - path: /mnt/user/appdata
     reason: "live docker appdata - covered indirectly via backup/appdata (the weekly AppData Backup plugin snapshot), not directly"
   - path: /mnt/user/backup/borg
     reason: "caught live by the drift check on first run (2026-08-14) - verified identical repository ID/key to unraid_backup_paths' nextcloud-borg entry, a stale leftover left behind when that repo moved to /mnt/user/borgbackup/borg (fastpool) on 2026-08-05. 118G reclaimable via a future manual cleanup, not urgent."
-  - path: /mnt/user/backup/raid-backup
-    reason: "verified 2026-08-14: real content routes to mail-archiver (Mail/) or Sync+Syncthing (5 unique folders), rest is redundant/reproducible - see unraid_backup_paths comment"
   - path: /mnt/user/borgbackup
     reason: "covered via unraid_backup_paths' nextcloud-borg entry (the repo inside it), not the share itself"
   - path: /mnt/user/cloud
