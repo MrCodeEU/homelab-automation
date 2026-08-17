@@ -18,6 +18,12 @@ services:
       # ansible/roles/tutabridge-cli), read-only - mail-archiver's
       # --import-eml only reads from here, never writes.
       - /data/tuta-import:/data/import/tuta:ro
+      # One-time MBox import of the two legacy mail exports found in
+      # nas's raid-backup (2026-08-17) - not an ongoing sync like tuta,
+      # just needs to be reachable for the Local Import UI. Left in
+      # place afterward (harmless) rather than removed, matching the
+      # tuta mount's always-present pattern.
+      - /opt/mail-archiver-legacy-import:/data/import/legacy:ro
     depends_on:
       postgres:
         condition: service_healthy
