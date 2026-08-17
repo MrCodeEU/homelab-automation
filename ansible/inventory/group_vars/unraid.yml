@@ -168,10 +168,37 @@ unraid_backup_paths:
   # the three were unique data. `Games` (13G) was previously excluded
   # permanently by policy; the user reversed that 2026-08-17 - not worth
   # special-casing 13G out of a single whole-folder src.
+  # First real run (2026-08-17) caught it uploading thousands of reproducible
+  # build-artifact directories - Sync/Projects/WebDev/some JKU semesters have
+  # a Syncthing .stignore covering these, but .stignore only governs
+  # Syncthing itself (this rclone script never reads it) and never
+  # retroactively deletes what synced before the rule existed, so the
+  # physical folders were still there to back up. Same pattern list as the
+  # existing .stignore files; extra_excludes is a new mechanism (not just a
+  # Sync-specific hack) in case another entry ever needs it.
   - src: /mnt/user/Sync
     dest: "pcloud:Sync"
     name: sync
     destinations: [pcloud]
+    extra_excludes:
+      - node_modules
+      - target
+      - .embuild
+      - .venv
+      - venv
+      - __pycache__
+      - .next
+      - .svelte-kit
+      - dist
+      - build
+      - .cache
+      - tmp
+      - vendor
+      - .pio
+      - .dart_tool
+      - .gradle
+      - obj
+      - bin
 
 # Drift detection (healthreport): a new subfolder inside one of these
 # directories that isn't in unraid_backup_paths (by src) or the excluded
