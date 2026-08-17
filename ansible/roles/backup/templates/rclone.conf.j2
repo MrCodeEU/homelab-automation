@@ -37,10 +37,16 @@ sha1sum_command = none
 # backup_volume(), and nothing in this repo ever reads from this remote).
 # LAN-only device; reachable from mljr/nuc via an accepted Tailscale subnet
 # route - confirmed live, not assumed.
+#
+# .176 is the device's real, fixed LAN IP (confirmed by the user
+# 2026-08-17) - .32 (used until this point) belonged to nothing reachable,
+# silently failing every wd-cloud leg on every host since the destinations
+# redesign (2026-08-14) without ever being fatal, since it's push-only/
+# best-effort by design.
 {% if secrets.backup.wd_cloud_password | default('') | length > 0 %}
 [wd-cloud]
 type = smb
-host = 192.168.50.32
+host = 192.168.50.176
 user = {{ secrets.backup.wd_cloud_user | default('admin') }}
 pass = {{ secrets.backup.wd_cloud_password }}
 {% endif %}
