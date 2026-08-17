@@ -720,13 +720,16 @@ homelab_standalone_paths:
 # TODO: NEED TO TEST THE BACKUP STRATEGY!!
 post_deploy_hook_services:
   - crowdsec    # CrowdSec web UI machine registration
-  - forgejo     # Forgejo Actions runner offline registration
+  - forgejo     # Forgejo Actions runner offline registration; also finishes a fresh-install Postgres restore (see hooks/post-deploy.sh)
   - grafana     # Stable datasource UID convergence
   - speedtest   # Netronome admin password convergence
   - godrive-demo  # Install systemd daily-reset timer
   - ollama      # Pull the health report triage model
   - healthreport  # Build the image and install the systemd timer
   - syncthing-ugreen  # Join the existing Syncthing cluster, create archive folders
+  - mail-archiver  # Finish a fresh-install Postgres restore - roles/backup runs before services, so its own restore_post_hook can't reach the not-yet-running DB container
+  - umami       # Same fresh-install Postgres restore gap as mail-archiver
+  - nocturne    # Same fresh-install Postgres restore gap as mail-archiver
 
 critical_hook_services:
   - crowdsec
