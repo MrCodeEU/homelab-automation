@@ -75,6 +75,9 @@ log "Backing up {{ pair.src }} -> {{ pair.dest }} (pCloud)"
 if rclone sync "{{ pair.src }}" "{{ pair.dest }}" \
     --backup-dir "pcloud:.deleted/{{ pair.name }}/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
+{% for ex in pair.extra_excludes | default([]) %}
+    --exclude "**/{{ ex }}/**" \
+{% endfor %}
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: {{ pair.src }} backed up to pCloud"
 else
@@ -100,6 +103,9 @@ if [ "$UGREEN_AVAILABLE" = "1" ]; then
     if rclone --config "$UGREEN_CONFIG" sync "{{ pair.src }}" "ugreen:{{ inventory_hostname }}/{{ pair.name }}" \
         --backup-dir "ugreen:{{ inventory_hostname }}/.deleted/{{ pair.name }}/${BACKUP_DATE}" \
         --exclude "**/.stfolder/**" \
+{% for ex in pair.extra_excludes | default([]) %}
+    --exclude "**/{{ ex }}/**" \
+{% endfor %}
         --transfers 2 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
         log "SUCCESS: {{ pair.src }} backed up to ugreen"
     else
@@ -131,6 +137,9 @@ log "Backing up {{ pair.src }} -> {{ pair.wd_cloud_dest }}"
 if rclone sync "{{ pair.src }}" "{{ pair.wd_cloud_dest }}" \
     --backup-dir "wd-cloud:backup/.deleted/{{ pair.name }}/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
+{% for ex in pair.extra_excludes | default([]) %}
+    --exclude "**/{{ ex }}/**" \
+{% endfor %}
     --transfers 2 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: {{ pair.src }} backed up to wd-cloud"
 else
