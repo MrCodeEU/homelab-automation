@@ -120,8 +120,16 @@ fi
 log "Backing up {{ pair.src }} -> {{ pair.wd_cloud_dest }}"
 # See the ugreen leg above for why checkers is higher than transfers here,
 # and why .stfolder is excluded.
+#
+# --backup-dir must live inside an EXISTING SMB share (confirmed live
+# 2026-08-17: wd-cloud:.deleted failed with "Network Name Not Found" -
+# unlike pCloud/SFTP, SMB shares are fixed on the server, rclone can't
+# create a new one just by writing to it). "backup" is a real share this
+# device already has (same one roles/backup's sync_to_wdcloud writes real
+# content into) and isn't itself a sync destination for anything here, so
+# nesting .deleted under it can't overlap with pair.wd_cloud_dest.
 if rclone sync "{{ pair.src }}" "{{ pair.wd_cloud_dest }}" \
-    --backup-dir "wd-cloud:.deleted/{{ pair.name }}/${BACKUP_DATE}" \
+    --backup-dir "wd-cloud:backup/.deleted/{{ pair.name }}/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --transfers 2 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: {{ pair.src }} backed up to wd-cloud"
@@ -146,7 +154,7 @@ rclone delete --min-age {{ unraid_backup_deleted_retention_days }}d "pcloud:.del
 [ "$UGREEN_AVAILABLE" = "1" ] && rclone --config "$UGREEN_CONFIG" delete --min-age {{ unraid_backup_deleted_retention_days }}d "ugreen:{{ inventory_hostname }}/.deleted/{{ pair.name }}" >/dev/null 2>&1 || true
 {% endif %}
 {% if 'wd_cloud' in pair.destinations %}
-rclone delete --min-age {{ unraid_backup_deleted_retention_days }}d "wd-cloud:.deleted/{{ pair.name }}" >/dev/null 2>&1 || true
+rclone delete --min-age {{ unraid_backup_deleted_retention_days }}d "wd-cloud:backup/.deleted/{{ pair.name }}" >/dev/null 2>&1 || true
 {% endif %}
 {% endfor %}
 
