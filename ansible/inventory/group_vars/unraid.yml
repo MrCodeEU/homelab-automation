@@ -233,7 +233,14 @@ unraid_backup_paths:
       # 2026-08-18 mid-run, ~3 years old, killed and excluded rather than
       # let it ride further (unlike the earlier finds this run, caught it
       # early this time).
-      - 6_2024SS/BA/BA_Speaker_Diarization/data_vox
+      # NOTE: kept to 2 path segments deliberately, not the full
+      # 6_2024SS/BA/BA_Speaker_Diarization/data_vox path - rclone 1.74.0 has
+      # a confirmed bug where "**/" followed by exactly 4 literal path
+      # segments silently fails to match (reproduced with a generic a/b/c/d
+      # test case too, not content-specific; 1-3 segments work fine). Caught
+      # live: the 4-segment version rendered into the real backup script and
+      # data_vox kept transferring anyway despite being "excluded".
+      - BA_Speaker_Diarization/data_vox
 
 # Drift detection (healthreport): a new subfolder inside one of these
 # directories that isn't in unraid_backup_paths (by src) or the excluded
