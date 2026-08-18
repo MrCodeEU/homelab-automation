@@ -206,6 +206,15 @@ unraid_backup_paths:
       - goDrive/var/perf-data
       - goDrive/var/perf-appdata
       - bin
+      # Unity's own regenerable build/derived-data cache (shaders, imported
+      # assets, package caches) - Unity rebuilds it automatically when a
+      # project reopens if it's missing. Found live 2026-08-18: 60% of
+      # everything transferred by that point (11,616/19,381 files) was this
+      # one folder, across 13 separate Unity projects under Sync. Case-
+      # sensitive match (rclone excludes are case-sensitive by default) -
+      # confirmed the one lowercase "library" in the tree (Flutter/Backup)
+      # is unrelated and stays untouched.
+      - Library
 
 # Drift detection (healthreport): a new subfolder inside one of these
 # directories that isn't in unraid_backup_paths (by src) or the excluded
