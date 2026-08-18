@@ -198,6 +198,19 @@ unraid_backup_paths:
       - .dart_tool
       - .gradle
       - obj
+      # Syncthing's own internal version-history folders - contains old
+      # copies of everything it versions, including .git objects, doubling
+      # up content that's already excluded elsewhere. Found live 2026-08-18.
+      - .stversions
+      # Dead git clones left behind under old/broken timestamps (e.g.
+      # .git_broken_20260425_165318) - full duplicated object history of
+      # something already superseded by a live .git/. Found live 2026-08-18.
+      - .git_broken_*
+      # Pattern-based catch for venv-style Python trees that don't use the
+      # literal .venv/venv folder name (e.g. nlp_2/lib/python3.11/
+      # site-packages) - name-based excludes above miss these. Found live
+      # 2026-08-18 via a 3-year-old JKU assignment folder named nlp_2.
+      - lib/python*/site-packages
       # Path-specific, not a generic pattern name: goDrive's own synthetic
       # perf-test fixtures (thousands of tiny generated files) - already
       # called out by name in Projects/.stignore separately from the
@@ -215,6 +228,12 @@ unraid_backup_paths:
       # confirmed the one lowercase "library" in the tree (Flutter/Backup)
       # is unrelated and stays untouched.
       - Library
+      # BA thesis speaker-diarization training data (VoxCeleb-style corpus,
+      # publicly re-derivable, not original personal data), 39G. Found live
+      # 2026-08-18 mid-run, ~3 years old, killed and excluded rather than
+      # let it ride further (unlike the earlier finds this run, caught it
+      # early this time).
+      - 6_2024SS/BA/BA_Speaker_Diarization/data_vox
 
 # Drift detection (healthreport): a new subfolder inside one of these
 # directories that isn't in unraid_backup_paths (by src) or the excluded
