@@ -215,6 +215,12 @@ unraid_backup_paths:
       # confirmed the one lowercase "library" in the tree (Flutter/Backup)
       # is unrelated and stays untouched.
       - Library
+      # BA thesis speaker-diarization training data (VoxCeleb-style corpus,
+      # publicly re-derivable, not original personal data), 39G. Found live
+      # 2026-08-18 mid-run, ~3 years old, killed and excluded rather than
+      # let it ride further (unlike the earlier finds this run, caught it
+      # early this time).
+      - 6_2024SS/BA/BA_Speaker_Diarization/data_vox
 
 # Drift detection (healthreport): a new subfolder inside one of these
 # directories that isn't in unraid_backup_paths (by src) or the excluded
