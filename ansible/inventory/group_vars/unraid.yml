@@ -218,6 +218,11 @@ unraid_backup_paths:
       # grinding through this for a long stretch near the end of the run.
       - goDrive/var/perf-data
       - goDrive/var/perf-appdata
+      # Same bloat class as perf-appdata above, different subpath - Immich/
+      # OxiCloud-style regenerable image preview cache (4667 files, 1.3G).
+      # Found live 2026-08-18 while verifying 6b/6c (build-artifact cleanup)
+      # was already done on nas.
+      - goDrive/var/appdata/previews/thumbs
       - bin
       # Unity's own regenerable build/derived-data cache (shaders, imported
       # assets, package caches) - Unity rebuilds it automatically when a
