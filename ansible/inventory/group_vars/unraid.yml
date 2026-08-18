@@ -198,6 +198,13 @@ unraid_backup_paths:
       - .dart_tool
       - .gradle
       - obj
+      # Path-specific, not a generic pattern name: goDrive's own synthetic
+      # perf-test fixtures (thousands of tiny generated files) - already
+      # called out by name in Projects/.stignore separately from the
+      # pattern block above, for the same reason. Found live 2026-08-18
+      # grinding through this for a long stretch near the end of the run.
+      - goDrive/var/perf-data
+      - goDrive/var/perf-appdata
       - bin
 
 # Drift detection (healthreport): a new subfolder inside one of these
