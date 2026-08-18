@@ -134,16 +134,32 @@ log "Backing up {{ pair.src }} -> {{ pair.wd_cloud_dest }}"
 # device already has (same one roles/backup's sync_to_wdcloud writes real
 # content into) and isn't itself a sync destination for anything here, so
 # nesting .deleted under it can't overlap with pair.wd_cloud_dest.
-if rclone sync "{{ pair.src }}" "{{ pair.wd_cloud_dest }}" \
-    --backup-dir "wd-cloud:backup/.deleted/{{ pair.name }}/${BACKUP_DATE}" \
-    --exclude "**/.stfolder/**" \
+# 2026-08-18: intermittent "couldn't initialize SMB: {Network Name Not
+# Found}" on this exact --backup-dir path even though the "backup" share
+# genuinely exists and is reachable (confirmed live) - looks like a
+# transient session/reconnect hiccup on WD's own SMB daemon (known-flaky
+# ARM/busybox box), not a config bug. One retry after a short delay before
+# treating it as a real failure.
+wd_cloud_attempt=0
+wd_cloud_success=0
+while [ "$wd_cloud_attempt" -lt 2 ]; do
+    wd_cloud_attempt=$((wd_cloud_attempt + 1))
+    if rclone sync "{{ pair.src }}" "{{ pair.wd_cloud_dest }}" \
+        --backup-dir "wd-cloud:backup/.deleted/{{ pair.name }}/${BACKUP_DATE}" \
+        --exclude "**/.stfolder/**" \
 {% for ex in pair.extra_excludes | default([]) %}
-    --exclude "**/{{ ex }}/**" \
+        --exclude "**/{{ ex }}/**" \
 {% endfor %}
-    --transfers 2 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
+        --transfers 2 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
+        wd_cloud_success=1
+        break
+    fi
+    [ "$wd_cloud_attempt" -lt 2 ] && sleep 15
+done
+if [ "$wd_cloud_success" -eq 1 ]; then
     log "SUCCESS: {{ pair.src }} backed up to wd-cloud"
 else
-    log_warn "Failed to sync {{ pair.src }} to wd-cloud (push-only copy, not fatal)"
+    log_warn "Failed to sync {{ pair.src }} to wd-cloud after 2 attempts (push-only copy, not fatal)"
     # Not fatal to the run (pCloud/ugreen legs above are authoritative), but
     # still needs to be visible - previously this only hit the log file, so a
     # dead or unreachable WD Cloud device could fail silently forever.
