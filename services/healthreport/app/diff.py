@@ -51,16 +51,19 @@ def previous_ids(previous: Dict) -> set:
 
 
 def attach_previous_values(observations: List[Observation], seen: Dict) -> None:
-    """Give each observation its value from the last run.
+    """Give each observation its value and first-seen date from the last run.
 
-    Must run before severity classification, because a spike rule needs the
-    comparison to decide a severity - whereas compute() runs after, since it
-    diffs the severities that classification produced.
+    Must run before severity classification: a spike rule needs the value
+    comparison, and a min_age_days rule needs first_seen, to decide a
+    severity - whereas compute() runs after, since it diffs the severities
+    that classification produced (and is where first_seen/last_seen get
+    written back for the *next* run).
     """
     for obs in observations:
         record = seen.get(obs.id)
         if record is not None:
             obs.previous_value = record.get("last_value")
+            obs.first_seen = record.get("first_seen")
 
 
 def _remember_value(record: Dict, obs: Observation) -> None:

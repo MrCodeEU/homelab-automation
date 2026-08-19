@@ -5,13 +5,28 @@ model is handed already-classified data and is not permitted to change it -
 see llm.py, which strips severity-like keys from the response.
 """
 
-from typing import Dict, List
+import datetime
+from typing import Dict, List, Optional
 
 import yaml
 
 from .model import Observation
 
 FALSE_STRINGS = {"false", "0", "no", "none", "null", ""}
+
+
+def _age_days(first_seen: Optional[str], now: Optional[datetime.datetime]) -> Optional[float]:
+    if not first_seen or now is None:
+        return None
+    try:
+        seen_at = datetime.datetime.fromisoformat(first_seen)
+    except ValueError:
+        return None
+    if seen_at.tzinfo is None and now.tzinfo is not None:
+        seen_at = seen_at.replace(tzinfo=now.tzinfo)
+    elif seen_at.tzinfo is not None and now.tzinfo is None:
+        now = now.replace(tzinfo=seen_at.tzinfo)
+    return (now - seen_at).total_seconds() / 86400.0
 
 
 def load_rules(path: str) -> Dict:
@@ -38,7 +53,8 @@ def _truthy(value) -> bool:
     return str(value).strip().lower() not in FALSE_STRINGS
 
 
-def classify(observation: Observation, rule: Dict, is_new: bool = False) -> str:
+def classify(observation: Observation, rule: Dict, is_new: bool = False,
+             now: Optional[datetime.datetime] = None) -> str:
     """Return the severity for one observation. Unknown kinds stay info."""
     if not rule:
         return "info"
@@ -54,17 +70,27 @@ def classify(observation: Observation, rule: Dict, is_new: bool = False) -> str:
         if value is None:
             return "info"
         direction = rule.get("direction", "above")
+        min_age_days = rule.get("min_age_days")
         for level in ("crit", "warn"):
             limit = rule.get(level)
             if limit is None:
                 continue
             limit = float(limit)
-            if direction == "above" and value > limit:
-                observation.threshold = limit
-                return level
-            if direction == "below" and value < limit:
-                observation.threshold = limit
-                return level
+            breached = (direction == "above" and value > limit) or \
+                       (direction == "below" and value < limit)
+            if not breached:
+                continue
+            if min_age_days is not None:
+                # A day-one advisory list is normal; only escalate once it
+                # has genuinely sat unresolved (e.g. past the weekly
+                # auto-update workflow's own cadence). A brand new
+                # observation with no recorded first_seen yet reads as
+                # age 0, so it stays info on its first sighting too.
+                age = _age_days(observation.first_seen, now)
+                if age is None or age < float(min_age_days):
+                    return "info"
+            observation.threshold = limit
+            return level
         return "info"
 
     if rule_type == "threshold_or_spike":
@@ -137,12 +163,14 @@ def classify(observation: Observation, rule: Dict, is_new: bool = False) -> str:
     return "info"
 
 
-def apply(observations: List[Observation], rules: Dict, new_ids=frozenset()) -> List[Observation]:
+def apply(observations: List[Observation], rules: Dict, new_ids=frozenset(),
+          now: Optional[datetime.datetime] = None) -> List[Observation]:
     table = (rules or {}).get("rules", {})
     for observation in observations:
         observation.severity = classify(
             observation,
             table.get(observation.kind, {}),
             is_new=observation.id in new_ids,
+            now=now,
         )
     return observations
