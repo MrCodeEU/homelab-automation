@@ -92,6 +92,23 @@ def test_last_value_is_recorded_and_read_back():
     assert later.previous_value == 1200
 
 
+def test_first_seen_is_read_back_for_min_age_rules():
+    seen = {}
+    item = obs("a")
+    compute([item], {}, seen, NOW)
+    assert seen["a"]["first_seen"] == NOW
+
+    later = obs("a")
+    attach_previous_values([later], seen)
+    assert later.first_seen == NOW
+
+
+def test_first_seen_stays_unset_for_a_genuinely_new_observation():
+    later = obs("a")
+    attach_previous_values([later], {})
+    assert later.first_seen is None
+
+
 def test_last_value_ignores_non_numeric_and_bools():
     seen = {}
     text = obs("t")

@@ -161,6 +161,11 @@ rules:
     # that are installed-but-not-booted: reboot_required below is what names
     # that case, and this staying noisy is the reminder to act on it.
     warn: 1
+    # mljr/nuc's security updates are applied automatically by a weekly
+    # GitHub Actions workflow - a pending advisory on day 1-6 is just
+    # "waiting for its normal window", not a problem. Only escalate once it
+    # has genuinely outlived that cadence.
+    min_age_days: 7
 
   # Only emitted when a reboot is actually outstanding, so its presence is the
   # finding. mljr sat 15 weeks on a superseded kernel with every fix already on

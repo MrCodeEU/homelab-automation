@@ -173,7 +173,7 @@ def assemble(config, rules, results, now):
     # attached before classification. The full diff runs after, because it
     # diffs the severities classification produces.
     diff.attach_previous_values(observations, seen)
-    severity.apply(observations, rules, new_ids=candidate_new)
+    severity.apply(observations, rules, new_ids=candidate_new, now=now)
 
     now_iso = now.isoformat()
     diff_result = diff.compute(observations, previous, seen, now_iso)

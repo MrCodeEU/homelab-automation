@@ -2,6 +2,7 @@
 break, the LLM cannot save the report - it is explicitly forbidden from
 re-judging severity."""
 
+import datetime
 import os
 import sys
 
@@ -137,6 +138,34 @@ def test_apply_sets_severity_and_threshold():
     assert items[0].severity == "crit"
     assert items[0].threshold == 90
     assert items[1].severity == "info"
+
+
+def test_min_age_days_holds_a_fresh_breach_at_info():
+    # security_updates has min_age_days: 7 - mljr/nuc's weekly auto-update
+    # workflow means a pending advisory on day 1 is normal, not a finding.
+    now = datetime.datetime(2026, 8, 19, tzinfo=datetime.timezone.utc)
+    o = obs("security_updates", 3)
+    o.first_seen = now.isoformat()  # first sighting: age 0
+    assert classify(o, TABLE["security_updates"], now=now) == "info"
+
+    o = obs("security_updates", 3)
+    o.first_seen = (now - datetime.timedelta(days=6)).isoformat()
+    assert classify(o, TABLE["security_updates"], now=now) == "info"
+
+
+def test_min_age_days_escalates_once_the_window_passes():
+    now = datetime.datetime(2026, 8, 19, tzinfo=datetime.timezone.utc)
+    o = obs("security_updates", 3)
+    o.first_seen = (now - datetime.timedelta(days=7, minutes=1)).isoformat()
+    assert classify(o, TABLE["security_updates"], now=now) == "warn"
+
+
+def test_min_age_days_with_no_first_seen_stays_info():
+    # attach_previous_values leaves first_seen unset for a genuinely new
+    # observation (no seen-state record yet) - must not crash or escalate.
+    now = datetime.datetime(2026, 8, 19, tzinfo=datetime.timezone.utc)
+    o = obs("security_updates", 3)
+    assert classify(o, TABLE["security_updates"], now=now) == "info"
 
 
 if __name__ == "__main__":
