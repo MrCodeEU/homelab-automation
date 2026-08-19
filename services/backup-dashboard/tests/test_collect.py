@@ -52,13 +52,28 @@ def test_host_status_no_log_available():
 
 def test_target_usage_skips_unsupported_quota():
     payload = {"sections": {"backup_targets": {"data": {"targets": [
-        {"name": "pcloud", "quota_supported": True, "used_percent": 67.1, "free_bytes": 10 * 1024**3},
-        {"name": "wd-cloud", "quota_supported": False, "used_percent": None},
+        {"name": "pcloud", "kind": "remote", "quota_supported": True, "used_percent": 67.1, "free_bytes": 10 * 1024**3},
+        {"name": "wd-cloud", "kind": "remote", "quota_supported": False, "used_percent": None},
     ]}}}}
     usage = target_usage(payload, None)
     assert "pcloud" in usage
     assert usage["pcloud"]["used_percent"] == 67.1
     assert "wd-cloud" not in usage
+
+
+def test_target_usage_skips_local_paths():
+    # collect_backup_targets also reports kind == "local" staging paths
+    # (borg/appdata on nas) - real disk usage, but not a "destination" in
+    # the sense this page's summary row means. Found live: without this
+    # filter, /mnt/user/backup and /mnt/fastpool showed up as destination
+    # cards next to pcloud.
+    payload = {"sections": {"backup_targets": {"data": {"targets": [
+        {"name": "/mnt/user/backup", "kind": "local", "quota_supported": True, "used_percent": 28.9, "free_bytes": 1},
+        {"name": "pcloud", "kind": "remote", "quota_supported": True, "used_percent": 48.7, "free_bytes": 1},
+    ]}}}}
+    usage = target_usage(payload, None)
+    assert "/mnt/user/backup" not in usage
+    assert "pcloud" in usage
 
 
 def test_target_usage_empty_on_error():

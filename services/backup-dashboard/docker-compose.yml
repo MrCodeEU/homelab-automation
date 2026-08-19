@@ -35,7 +35,17 @@ services:
         max-file: "3"
 
   web:
-    image: nginx:1.27-alpine
+    # Built locally (trivial one-line Dockerfile.web), not a bare `image:`
+    # reference - the deploy pipeline skips its image-pull step entirely for
+    # any service with build_from_source: true (correct for collector, which
+    # really is locally built), so a bare nginx image reference here was
+    # never pulled and this container never got created on a real deploy.
+    # Building it, even trivially, puts it on the same --build path the
+    # pipeline does invoke for this service.
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    image: backup-dashboard-web:local
     container_name: backup-dashboard-web
     restart: unless-stopped
     # Port is hardcoded, not Jinja-templated: docker-compose.yml files in

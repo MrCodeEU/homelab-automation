@@ -54,12 +54,22 @@ def host_status(payload, error):
 
 
 def target_usage(payload, error):
-    """{target_name: {used_percent, free_gib}} for this host's facts payload."""
+    """{target_name: {used_percent, free_gib}} for this host's facts payload.
+
+    Only kind == "remote" (pcloud/ugreen/wd-cloud) - collect_backup_targets
+    also reports kind == "local" entries (borg/appdata staging paths on
+    nas), which are real disk usage but not "destinations" in the sense
+    this page's summary row means. Confirmed live: without this filter,
+    nas's local staging paths showed up as destination cards next to
+    pcloud, which reads as more remotes existing than actually do.
+    """
     if error:
         return {}
     targets = (payload or {}).get("sections", {}).get("backup_targets", {}).get("data") or {}
     out = {}
     for t in targets.get("targets") or []:
+        if t.get("kind") != "remote":
+            continue
         if not t.get("quota_supported") or t.get("used_percent") is None:
             continue
         out[t["name"]] = {
