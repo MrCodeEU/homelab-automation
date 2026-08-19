@@ -93,15 +93,6 @@ backup_service_configs:
       - ntfy_ntfy-cache
     backup_critical: false
 
-  # Was backup_paths: [/opt/bichon/data], which never existed - bichon writes
-  # to a named Docker volume, not a bind mount. Confirmed via
-  # `docker inspect bichon`: the volume is compose-project-prefixed
-  # (bichon-data -> bichon_bichon-data), same convention docker_compose_v2
-  # applies to every service here.
-  bichon:
-    backup_volumes:
-      - bichon_bichon-data
-    backup_critical: false
 
   # Added 2026-08-01. Before this, 6 of 34 deployed services had any backup at
   # all, and the ones below hold state that exists nowhere else. All container
