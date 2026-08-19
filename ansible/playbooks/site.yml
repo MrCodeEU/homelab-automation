@@ -198,6 +198,24 @@
     - healthreport
 
 # ============================================================================
+# Backup Dashboard - host-side state (nuc only)
+# ============================================================================
+# Must run before the Docker Services play, which mounts the catalog file
+# this role renders. Runs after Health Report Agent State (same host) so the
+# collector can rely on that role's SSH key already existing, though this
+# role does not read it directly - only the collector container mounts it.
+- name: Backup Dashboard State
+  hosts: nuc
+  become: true
+  gather_facts: false
+  tags:
+    - services
+    - backup-dashboard
+    - monitoring
+  roles:
+    - backup-dashboard
+
+# ============================================================================
 # Host Facts Endpoint (all managed hosts, plus ugreen explicitly)
 # ============================================================================
 # Read-only facts script plus a forced-command SSH key, so the agent on nuc can

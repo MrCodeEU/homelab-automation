@@ -1,0 +1,36 @@
+{#
+Rendered once per deploy from the same source-of-truth vars the backup
+systems themselves use - unraid_backup_paths (nas, file-path entries) and
+backup_service_configs (rocky hosts, docker-volume entries). The collector
+reads this file at each run rather than re-deriving the catalog itself, so
+catalog and dashboard changes land in the same deploy.
+
+Built as one Jinja list and emitted via to_nice_json rather than hand-rolled
+per-line JSON with manual comma logic - a trailing/missing comma from an
+empty catalog list is a real footgun with the manual approach and silently
+produces invalid JSON the collector then fails to parse.
+#}
+{% set nas_host = groups['unraid'][0] %}
+{% set entries = [] %}
+{% for pair in hostvars[nas_host]['unraid_backup_paths'] | default([]) %}
+{% set _ = entries.append({
+    "name": pair.name,
+    "type": "folder",
+    "host": nas_host,
+    "source": pair.src,
+    "dest": pair.dest,
+    "destinations": pair.destinations,
+}) %}
+{% endfor %}
+{% set service_names = backup_service_configs.keys() | list %}
+{% for svc in services | selectattr('host', 'in', groups['rocky']) | selectattr('name', 'in', service_names) %}
+{% set cfg = backup_service_configs[svc.name] %}
+{% set _ = entries.append({
+    "name": svc.name,
+    "type": "service",
+    "host": svc.host,
+    "source": (cfg.backup_volumes | default([])) + (cfg.backup_paths | default([])),
+    "destinations": ["pcloud", "ugreen"],
+}) %}
+{% endfor %}
+{{ {"generated_at": ansible_date_time.iso8601, "entries": entries} | to_nice_json }}

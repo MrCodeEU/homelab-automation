@@ -1,0 +1,62 @@
+services:
+  collector:
+    build: .
+    image: backup-dashboard-collector:local
+    container_name: backup-dashboard-collector
+    # One-shot, invoked by a systemd timer via `docker compose run --profile
+    # cron --rm collector`. Unlike services/healthreport (a single-service
+    # project, where a profile makes `docker compose up -d` fail outright
+    # with "no service selected"), this project has a second, unprofiled
+    # service (web) that `up -d` selects by default - so collector can use a
+    # real profile instead of healthreport's --noop-default-command
+    # workaround, and simply never starts at deploy time.
+    profiles: ["cron"]
+    restart: "no"
+    # Reaches VictoriaMetrics on nuc's own interface, plus the Tailscale
+    # addresses of nas/mljr/nuc over SSH, with no port plumbing.
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      # Deliberately not /opt/<service>: the services role rsyncs into that
+      # path with delete: true, which wipes anything it does not know about
+      # - same reasoning as roles/healthreport for /var/lib.
+      - /var/lib/backup-dashboard/state:/state
+      - /var/lib/backup-dashboard/backup_catalog.json:/catalog/backup_catalog.json:ro
+      # Reuses healthreport's own SSH key rather than minting a new one -
+      # already forced-command-restricted and authorized on every host via
+      # host-facts-endpoint.
+      - /var/lib/healthreport/ssh:/ssh:ro
+      - backup-dashboard-html:/output
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web:
+    image: nginx:1.27-alpine
+    container_name: backup-dashboard-web
+    restart: unless-stopped
+    # Port is hardcoded, not Jinja-templated: docker-compose.yml files in
+    # this repo are copied raw by the services role (rsync, no templating -
+    # only .env/env.j2 goes through Ansible), so it must match the
+    # `port: 8092` set on the "backup-dashboard" entry in
+    # ansible/inventory/group_vars/all/all.yml exactly.
+    ports:
+      - "127.0.0.1:8092:80"
+    volumes:
+      - backup-dashboard-html:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  backup-dashboard-html:
