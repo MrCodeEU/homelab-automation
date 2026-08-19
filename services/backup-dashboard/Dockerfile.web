@@ -1,0 +1,25 @@
+# Trivial pass-through build so this participates in the same
+# build_from_source: true / --build path as the collector image (see
+# docker-compose.yml's comment on the web service). The deploy pipeline's
+# image-pull step is skipped entirely for build_from_source services -
+# skipping it while still referencing a bare `image: nginx:...` here meant
+# nginx was never pulled and the web container never got created (confirmed
+# live: docker compose ps showed nothing at all for it after a real deploy).
+# A build step makes `docker compose build` resolve/pull the base image as
+# a normal build step instead, which the pipeline does invoke.
+#
+# nginxinc/nginx-unprivileged (not plain nginx:1.27-alpine): listens on
+# 8080 and already runs as a non-root "nginx" user out of the box - the
+# maintained way to satisfy Checkov's "container must not run as root"
+# check without hand-patching nginx.conf to relocate the pidfile/cache dirs
+# and drop privilege ourselves.
+FROM nginxinc/nginx-unprivileged:1.27-alpine
+
+# Explicit, even though the base image already runs as this user (confirmed
+# live: `docker exec ... id` -> uid=101(nginx)) - Checkov's static analysis
+# only sees instructions in this Dockerfile, not what a base image already
+# set internally, so it still flags a missing USER without this line.
+USER nginx
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1
