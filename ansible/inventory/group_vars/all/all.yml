@@ -561,7 +561,13 @@ services:
     icon: "mdi:cloud"
 
   - name: test-ocis
-    enabled: true
+    # Disabled 2026-08-19: OpenCloud/Nextcloud migration is on hold (no
+    # thumbnail pregen yet, see the opencloud-nextcloud-migration memory) and
+    # the test container isn't running - Caddy was still routing
+    # ocis.mljr.eu to a dead backend, drawing ~500 502s/day from bot/exploit
+    # scanners (surfaced as a daily caddy_5xx health report warning). Flip
+    # back to true when the migration work resumes and the container is up.
+    enabled: false
     managed: false
     domain: "ocis.mljr.eu"
     port: 9201
