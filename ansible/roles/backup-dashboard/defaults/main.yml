@@ -10,5 +10,8 @@ backup_dashboard_state_dir: "{{ backup_dashboard_root }}/state"
 
 # The container runs unprivileged as this uid (see services/backup-dashboard/
 # Dockerfile). The state directory must be owned by it, or the collector
-# cannot write the snapshot/rendered page.
-backup_dashboard_uid: 10002
+# cannot write the snapshot/rendered page. Matches healthreport_uid
+# deliberately, not a separate id - the collector reads healthreport's own
+# SSH key (0600, owned by that uid) read-only; a mismatched uid here cannot
+# open it (confirmed live).
+backup_dashboard_uid: 10001
