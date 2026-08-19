@@ -42,8 +42,6 @@ flowchart LR
   svc_authelia --> host_mljr
   svc_auto_media_sort["auto-media-sort<br/>proxy only<br/>sort.mljr.eu"]
   svc_auto_media_sort --> host_nas
-  svc_bichon["bichon<br/>managed<br/>mail-archive.mljr.eu"]
-  svc_bichon --> host_nuc
   svc_cglab["cglab<br/>managed<br/>cglab.mljr.eu"]
   svc_cglab --> host_nuc
   svc_cockpit["cockpit<br/>proxy only<br/>cockpit.mljr.eu"]
@@ -149,7 +147,6 @@ flowchart LR
 |---------|------|------|--------|
 | `authelia` | `mljr` | dedicated role | auth.mljr.eu |
 | `auto-media-sort` | `nas` | proxy only | sort.mljr.eu |
-| `bichon` | `nuc` | managed | mail-archive.mljr.eu |
 | `cglab` | `nuc` | managed | cglab.mljr.eu |
 | `cockpit` | `mljr` | proxy only | cockpit.mljr.eu |
 | `codec` | `mljr` | managed | codec.mljr.eu |

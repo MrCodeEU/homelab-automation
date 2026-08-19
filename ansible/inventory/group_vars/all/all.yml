@@ -192,13 +192,6 @@ services:
     icon: "mdi:home-assistant"
 
   # Email
-  - name: bichon
-    enabled: true
-    domain: "mail-archive-old.mljr.eu"
-    port: 15630
-    host: nuc
-    description: "Email Archiver (legacy, being replaced by mail-archiver)"
-    icon: "mdi:email"
 
   - name: mail-archiver
     enabled: true
