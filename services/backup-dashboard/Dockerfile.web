@@ -15,5 +15,11 @@
 # and drop privilege ourselves.
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 
+# Explicit, even though the base image already runs as this user (confirmed
+# live: `docker exec ... id` -> uid=101(nginx)) - Checkov's static analysis
+# only sees instructions in this Dockerfile, not what a base image already
+# set internally, so it still flags a missing USER without this line.
+USER nginx
+
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1
