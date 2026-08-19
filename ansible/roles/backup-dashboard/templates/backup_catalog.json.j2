@@ -22,9 +22,9 @@ produces invalid JSON the collector then fails to parse.
     "destinations": pair.destinations,
 }) %}
 {% endfor %}
-{% set service_names = backup_service_configs.keys() | list %}
+{% set service_names = rocky_backup_defaults.backup_service_configs.keys() | list %}
 {% for svc in services | selectattr('host', 'in', groups['rocky']) | selectattr('name', 'in', service_names) %}
-{% set cfg = backup_service_configs[svc.name] %}
+{% set cfg = rocky_backup_defaults.backup_service_configs[svc.name] %}
 {% set _ = entries.append({
     "name": svc.name,
     "type": "service",
