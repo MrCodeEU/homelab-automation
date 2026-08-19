@@ -135,6 +135,22 @@ services:
     description: "Daily homelab health report (collect, triage, ntfy + email)"
     icon: "mdi:clipboard-pulse"
 
+  # Visual dashboard of the whole backup system's state - catalog, per-host
+  # last-run status, destination capacity. Two containers: a one-shot
+  # collector (cron-profiled, systemd timer, same pattern as healthreport
+  # above) writes a static page, and this "web" nginx just serves it - see
+  # services/backup-dashboard/hooks/post-deploy.sh. Phase 1 (MVP).
+  - name: backup-dashboard
+    enabled: true
+    managed: true
+    domain: "backup.mljr.eu"
+    port: 8092
+    host: nuc
+    build_from_source: true  # No published image - built from services/backup-dashboard/Dockerfile
+    caddy_auth: "authelia"
+    description: "Backup system dashboard"
+    icon: "mdi:cloud-sync"
+
   - name: grafana
     enabled: true
     domain:
@@ -732,6 +748,7 @@ post_deploy_hook_services:
   - godrive-demo  # Install systemd daily-reset timer
   - ollama      # Pull the health report triage model
   - healthreport  # Build the image and install the systemd timer
+  - backup-dashboard  # Build the collector image, run an initial pass, install the systemd timer
   - syncthing-ugreen  # Join the existing Syncthing cluster, create archive folders
   - mail-archiver  # Finish a fresh-install Postgres restore - roles/backup runs before services, so its own restore_post_hook can't reach the not-yet-running DB container
   - umami       # Same fresh-install Postgres restore gap as mail-archiver
@@ -760,6 +777,16 @@ backup_auto_detect_volumes: true
 # services/healthreport/rules.yml; the LLM only writes prose and ranks issues.
 healthreport_schedule: "*-*-* 06:00:00"  # Daily at 6 AM (systemd calendar format)
 healthreport_lookback_hours: 24
+
+# ============================================================================
+# Backup Dashboard
+# ============================================================================
+# Runs on nuc, colocated with the health report agent for the same reason:
+# it already aggregates cross-host data the same way, no new cross-host
+# trust needed. Phase 1 (MVP) - see the plan this was built from for what's
+# deliberately deferred to a later pass.
+backup_dashboard_refresh_interval: "*:0/15"  # Every 15 minutes (systemd calendar format)
+
 # Ollama on the NAS. Enabled after rules.yml was tuned against two real runs
 # and the LLM path was verified end to end (llm=ok, no dropped ids, model
 # unloaded even when generation fails). The report stays fully useful without
