@@ -45,6 +45,14 @@ Tailscale sources before decisions are created:
 It also keeps the Nocturne Caddy access-log exception for `nc.mljr.eu` to avoid
 global bans from repeated app-auth failures.
 
+## Ban Duration
+
+`profiles.yaml` uses a progressive duration for both IP and range bans: 4h
+for a first offense, 8h for a second, 12h for a third, and so on
+(`duration_expr` scaling with `GetDecisionsCount`). This targets scanners
+that get banned, wait out a flat ban, and come back - each repeat offense
+now costs them more.
+
 ## Hub Maintenance
 
 The post-deploy hook runs on every deployment:

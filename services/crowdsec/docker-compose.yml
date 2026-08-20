@@ -15,6 +15,7 @@ services:
       - crowdsec-config:/etc/crowdsec
       - crowdsec-data:/var/lib/crowdsec/data
       - ./acquis.yaml:/etc/crowdsec/acquis.yaml:ro
+      - ./profiles.yaml:/etc/crowdsec/profiles.yaml:ro
       - ./parsers/s02-enrich/mljr-local-allowlist.yaml:/etc/crowdsec/parsers/s02-enrich/mljr-local-allowlist.yaml:ro
       - /var/log:/var/log:ro
 
