@@ -64,6 +64,24 @@
         state: directory
         mode: "0755"
 
+    - name: Ensure Python's default CA bundle path exists
+      # get_url below runs its Python module on wd-mycloud itself, using this
+      # box's own Python 3.9 and its default cert lookup (ssl.get_default_
+      # verify_paths().openssl_cafile == /etc/ssl/cert.pem). Only /etc/ssl/
+      # certs/ca-certificates.crt (the actual bundle) exists here - no
+      # /etc/ssl/cert.pem symlink to it, and capath lookups need individual
+      # hashed cert files, not one flat bundle, so that fallback doesn't work
+      # either. Confirmed live 2026-08-21: get_url fails with
+      # CERTIFICATE_VERIFY_FAILED until this symlink exists. /etc/ssl is on
+      # the system partition, which gets reset on firmware updates (see the
+      # role header), so this is deployed on every run rather than fixed
+      # once by hand.
+      ansible.builtin.file:
+        src: /etc/ssl/certs/ca-certificates.crt
+        dest: /etc/ssl/cert.pem
+        state: link
+        force: true
+
     - name: Download the new release tarball
       ansible.builtin.get_url:
         url: "https://pkgs.tailscale.com/stable/{{ wd_tailscale_latest_tarball }}"
