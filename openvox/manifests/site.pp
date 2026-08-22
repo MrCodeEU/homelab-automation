@@ -13,6 +13,7 @@ node 'nuc.tail33930.ts.net' {
   class { 'roles::iperf3':
     base_path => '/opt',
   }
+  include roles::wd_mycloud_proxy
 }
 
 node 'ugreen.tail33930.ts.net' {
