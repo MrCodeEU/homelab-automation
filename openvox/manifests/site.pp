@@ -18,6 +18,23 @@ node 'mljr.tail33930.ts.net' {
   include roles::authelia
   include roles::glance
   include roles::mailcow
+  class { 'roles::backup':
+    services   => ['authelia', 'mailcow', 'ntfy', 'goaccess', 'crowdsec', 'newsletter'],
+    # Must match ansible/inventory's inventory_hostname exactly, not this
+    # VPS's real OS hostname (vmi2945702) - see roles::backup's own
+    # $hostname param doc for why.
+    hostname   => 'mljr',
+    # This 4vCPU/7.5GB VPS also runs every service it backs up (unlike
+    # nas/nuc's on-prem headroom) - the default 8/16 pCloud concurrency
+    # saturated it enough that Kuma's 48s timeout tripped on nearly every
+    # container, including uptime.mljr.eu itself, for minutes during its
+    # own nightly backup (2026-08-14). Matches the real, already-live
+    # ansible/inventory/hosts.yml override for this host exactly.
+    transfers  => 2,
+    checkers   => 4,
+    bwlimit    => '8M',
+    cpu_quota  => '40%',
+  }
 }
 
 node 'nuc.tail33930.ts.net' {
@@ -30,6 +47,10 @@ node 'nuc.tail33930.ts.net' {
   include roles::wd_mycloud_proxy
   include roles::unraid_proxy
   include roles::unraid_backup_proxy
+  class { 'roles::backup':
+    services => ['kuma', 'forgejo', 'mail-archiver', 'umami', 'grafana', 'nocturne'],
+    hostname => 'nuc',
+  }
 }
 
 node 'ugreen.tail33930.ts.net' {
