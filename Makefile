@@ -49,7 +49,8 @@ E2E_ANSIBLE_OPTS   := -e ansible_strategy=linear
         docs-ansible-map view-ara up down clean help \
         _check-validate _check-templates _check-syntax _check-compose \
         _e2e-deploy _ssh-keys _wait-ssh \
-        deploy deploy-check deploy-diff deploy-caddy deploy-services deploy-mljr deploy-nuc deploy-svc
+        deploy deploy-check deploy-diff deploy-caddy deploy-services deploy-mljr deploy-nuc deploy-svc \
+        openvox-check openvox-deploy
 
 ################################################################################
 # DEFAULT: fast local tests (no Docker)
@@ -197,6 +198,24 @@ deploy-nuc:
 deploy-svc:
 	@test -n "$(SERVICE)" || (echo "Usage: make deploy-svc SERVICE=<name>"; exit 1)
 	@./scripts/deploy-local.sh --tags services,caddy --extra-vars "changed_services=$(SERVICE)"
+
+################################################################################
+# OpenVox (Puppet-family) migration - agent-managed hosts only for now.
+# nas/wd-mycloud have no agent at all and are driven by exec resources
+# declared on nuc's own node block instead (see openvox/manifests/).
+#
+# NOT the production deploy path yet - ansible/ + make deploy above still
+# owns the real fleet until the full migration/openvox port is done and
+# validated. Migration in progress on branch migration/openvox.
+################################################################################
+
+OPENVOX_HOSTS      := mljr.tail33930.ts.net nuc.tail33930.ts.net ugreen.tail33930.ts.net
+
+openvox-check:
+	@echo "$(OPENVOX_HOSTS)" | tr ' ' '\n' | xargs -P4 -I{} ./scripts/openvox-sync.sh {} noop
+
+openvox-deploy:
+	@echo "$(OPENVOX_HOSTS)" | tr ' ' '\n' | xargs -P4 -I{} ./scripts/openvox-sync.sh {} apply
 
 ################################################################################
 # Housekeeping
