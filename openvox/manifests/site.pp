@@ -16,6 +16,7 @@ node 'mljr.tail33930.ts.net' {
     base_path => '/opt',
   }
   include roles::authelia
+  include roles::glance
 }
 
 node 'nuc.tail33930.ts.net' {
