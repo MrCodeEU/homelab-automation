@@ -1,0 +1,571 @@
+# Non-secret common data, looked up via lookup('services_catalog') etc.
+# Ported 1:1 from ansible/inventory/group_vars/all/all.yml's `services:`
+# catalog (as of 2026-08-22) - the single source of truth every
+# catalog-driven role (roles::glance, and eventually roles::caddy and
+# roles::services) reads from, so the catalog only needs updating in one
+# place instead of once per role's own copy of it.
+---
+services_catalog:
+  - name: authelia
+    enabled: true
+    domain: "auth.mljr.eu"
+    port: 9091
+    host: mljr
+    description: "Authelia SSO"
+    icon: "mdi:shield-account"
+    skip_deploy: true
+    backup_critical: true
+
+  - name: glance
+    enabled: true
+    domain: "dash.mljr.eu"
+    port: 8080
+    host: mljr
+    description: "Main Dashboard"
+    icon: "mdi:view-dashboard"
+    skip_deploy: true
+
+  - name: nocturne
+    enabled: true
+    domain: "nc.mljr.eu"
+    port: 8093
+    host: nuc
+    description: "Diabetes Management (Next-Gen)"
+    icon: "mdi:moon-waning-crescent"
+
+  - name: kuma
+    enabled: true
+    domain: "uptime.mljr.eu"
+    port: 3001
+    host: nuc
+    description: "Uptime Monitoring"
+    icon: "mdi:heart-pulse"
+    backup_critical: true
+
+  - name: healthreport
+    enabled: true
+    port: 0
+    host: nuc
+    build_from_source: true
+    description: "Daily homelab health report (collect, triage, ntfy + email)"
+    icon: "mdi:clipboard-pulse"
+
+  - name: backup-dashboard
+    enabled: true
+    managed: true
+    domain: "backup.mljr.eu"
+    port: 8092
+    host: nuc
+    build_from_source: true
+    caddy_auth: "authelia"
+    description: "Backup system dashboard"
+    icon: "mdi:cloud-sync"
+
+  - name: grafana
+    enabled: true
+    domain:
+      - "monitor.mljr.eu"
+      - "grafana.mljr.eu"
+    port: 3000
+    host: nuc
+    description: "Metrics, Logs & Monitoring"
+    icon: "mdi:chart-areaspline"
+    caddy_auth: "authelia"
+
+  - name: ntfy
+    enabled: true
+    domain: "ntfy.mljr.eu"
+    port: 2586
+    host: mljr
+    description: "Push Notifications"
+    icon: "mdi:bell-ring"
+
+  - name: goaccess
+    enabled: true
+    domain: "logs.mljr.eu"
+    port: 7890
+    host: mljr
+    description: "Access Logs"
+    icon: "mdi:chart-bar"
+    caddy_auth: "authelia"
+
+  - name: homeassistant
+    enabled: true
+    managed: false
+    domain: "home.mljr.eu"
+    port: 8123
+    host: homeassistant
+    description: "Home Automation"
+    icon: "mdi:home-assistant"
+
+  - name: mail-archiver
+    enabled: true
+    managed: true
+    domain: "mail-archive.mljr.eu"
+    port: 5000
+    host: nuc
+    caddy_auth: "authelia"
+    backup_critical: true
+    description: "Mail Archiver"
+    icon: "mdi:email"
+
+  - name: mailcow
+    enabled: true
+    domain: "mail.mljr.eu"
+    port: 8443
+    host: mljr
+    description: "Mail Server"
+    icon: "mdi:email-server"
+    skip_deploy: true
+    backup_critical: true
+    https_backend: true
+
+  - name: crowdsec
+    enabled: true
+    domain:
+      - "crowdsec.mljr.eu"
+      - "security.mljr.eu"
+    port: 8089
+    host: mljr
+    description: "CrowdSec Security Intelligence"
+    icon: "mdi:shield-search"
+    caddy_auth: "authelia"
+
+  - name: cockpit
+    enabled: true
+    managed: false
+    domain: "cockpit.mljr.eu"
+    port: 9090
+    host: mljr
+    description: "Cockpit - system admin console (break-glass access)"
+    icon: "mdi:desktop-classic"
+    caddy_auth: "authelia"
+    https_backend: true
+
+  - name: diun
+    enabled: true
+    managed: true
+    port: 0
+    host: mljr
+    description: "Docker Image Update Notifier"
+    icon: "mdi:docker"
+
+  - name: hellpot
+    enabled: true
+    port: 8098
+    host: mljr
+    description: "HellPot - endless honeypot for robots.txt-ignoring bots"
+    icon: "mdi:fire"
+
+  - name: endlessh
+    enabled: true
+    port: 0
+    host: mljr
+    description: "Endlessh - SSH tarpit for scanners hitting the public port"
+    icon: "mdi:ssh"
+
+  - name: spidertrap
+    enabled: true
+    port: 8099
+    host: mljr
+    description: "Spidertrap - infinite link maze for robots.txt-ignoring crawlers"
+    icon: "mdi:spider-web"
+    build_from_source: true
+
+  - name: homepage
+    enabled: true
+    domain: "mljr.eu"
+    port: 8082
+    host: mljr
+    staging: true
+    # services/homepage/dev/docker-compose.yml exists - Caddy also stages a
+    # dev.<domain> vhost pointing at staging_host:<port+10000> for this
+    # service. Mirrors ansible/roles/caddy/templates/service_snippet.caddy.j2's
+    # `has_dev_folder` fileglob check (a live filesystem lookup at ansible
+    # render time) as static catalog data instead, since Puppet's compiler
+    # has no equivalent of Ansible's controller-side `lookup('fileglob', ...)`
+    # against a path outside anything it manages.
+    dev_deploy: true
+    description: "Personal Homepage (Go + Templ + HTMX)"
+    icon: "mdi:account-circle"
+    caddy_extra_config: |
+      handle_path /umami* {
+          reverse_proxy nuc.tail33930.ts.net:3606
+      }
+
+      # robots.txt disallows a handful of decoy paths that no real route on
+      # mljr.eu ever uses. Bots that respect it never touch them. Bots that
+      # don't get routed straight into HellPot instead of the real backend.
+      respond /robots.txt 200 {
+          body "User-agent: *
+      Disallow: /wp-admin/
+      Disallow: /wp-login.php
+      Disallow: /xmlrpc.php
+      Disallow: /.env
+      Disallow: /.git/
+      Disallow: /admin-panel/
+      Disallow: /archive-2019/
+      "
+      }
+
+      @hellbait path /wp-admin/* /wp-login.php /xmlrpc.php /.env /.git/* /admin-panel/*
+      handle @hellbait {
+          reverse_proxy localhost:8098
+      }
+
+      # Unlinked path, only exists in robots.txt's Disallow list above. Bots
+      # that ignore it fall into an infinite generated link maze.
+      handle_path /archive-2019/* {
+          reverse_proxy localhost:8099
+      }
+
+  - name: umami
+    enabled: true
+    domain: "umami.mljr.eu"
+    port: 3606
+    host: nuc
+    description: "Umami Analytics"
+    icon: "mdi:chart-bar"
+
+  - name: forgejo
+    enabled: true
+    domain:
+      - "git.mljr.eu"
+      - "forge.mljr.eu"
+      - "fogrejo.mljr.eu"
+    port: 3300
+    host: nuc
+    description: "Git Hosting"
+    icon: "mdi:git"
+    backup_critical: true
+
+  - name: ui-showcase
+    enabled: true
+    domain: "ui.mljr.eu"
+    port: 8083
+    host: mljr
+    staging: true
+    dev_deploy: true
+    description: "mljr-ui Component Showcase"
+    icon: "mdi:palette-swatch"
+
+  - name: regex
+    enabled: true
+    domain: "regex.mljr.eu"
+    port: 8084
+    host: mljr
+    description: "Regex Lab — live PCRE tester (Go + Datastar)"
+    icon: "mdi:regex"
+
+  - name: cron
+    enabled: true
+    domain: "cron.mljr.eu"
+    port: 8085
+    host: mljr
+    description: "Cron Explorer — cron expression parser & next-run previewer"
+    icon: "mdi:timer-outline"
+
+  - name: codec
+    enabled: true
+    domain: "codec.mljr.eu"
+    port: 8086
+    host: mljr
+    description: "Codec — hash (MD5/SHA) + Base64/URL/HTML encode-decode"
+    icon: "mdi:code-braces"
+
+  - name: newsletter
+    enabled: true
+    domain: "newsletter.mljr.eu"
+    port: 8087
+    host: mljr
+    description: "Newsletter — recurring friend-group newsletter (PocketBase + Go)"
+    icon: "mdi:email-newsletter"
+    backup_critical: true
+
+  - name: weather-cli
+    enabled: true
+    domain: "weather-cli.mljr.eu"
+    port: 8091
+    host: mljr
+    description: "Weather CLI - browser terminal weather dashboard"
+    icon: "mdi:weather-partly-cloudy"
+
+  - name: speedtest
+    enabled: true
+    domain: "speedtest.mljr.eu"
+    port: 8090
+    host: nuc
+    dev_deploy: true
+    description: "Netronome Network Monitor"
+    icon: "mdi:speedometer"
+
+  - name: nas-alloy
+    enabled: true
+    managed: true
+    port: 0
+    host: nas
+    description: "Grafana Alloy telemetry agent for the NAS"
+    icon: "mdi:chart-line"
+
+  - name: ollama
+    enabled: true
+    managed: true
+    port: 11434
+    host: nas
+    description: "Ollama LLM runtime (health report triage). Tailscale-only, no Caddy route."
+    icon: "mdi:robot"
+
+  - name: syncthing-ugreen
+    enabled: true
+    managed: true
+    port: 0
+    host: ugreen
+    description: "Syncthing node on the on-prem backup NAS. No Caddy route - GUI reached over Tailscale."
+    icon: "mdi:sync"
+
+  - name: oxicloud
+    enabled: true
+    managed: true
+    port: 0
+    host: ugreen
+    description: "OxiCloud - lightweight Rust file storage, initial test"
+    icon: "mdi:cloud-outline"
+
+  - name: smartctl-exporter
+    enabled: true
+    managed: true
+    port: 0
+    host: ugreen
+    description: "SMART metrics exporter (ugreen disks) for Grafana/Alloy"
+    icon: "mdi:harddisk"
+
+  - name: smartctl-exporter-nuc
+    enabled: true
+    managed: true
+    port: 0
+    host: nuc
+    description: "SMART metrics exporter (nuc disks) for Grafana/Alloy"
+    icon: "mdi:harddisk"
+
+  - name: smartctl-exporter-nas
+    enabled: true
+    managed: true
+    port: 0
+    host: nas
+    description: "SMART metrics exporter (nas disks) for Grafana/Alloy"
+    icon: "mdi:harddisk"
+
+  - name: nas
+    enabled: true
+    managed: false
+    domain: "nas.mljr.eu"
+    port: 80
+    host: nas
+    description: "NAS Management"
+    icon: "mdi:server"
+
+  - name: immich
+    enabled: true
+    managed: false
+    domain: "immich.mljr.eu"
+    port: 8080
+    host: nas
+    description: "Photo Management"
+    icon: "mdi:image-multiple"
+    caddy_extra_config: |
+      @options method OPTIONS
+      handle @options {
+          header Access-Control-Allow-Origin "*"
+          header Access-Control-Allow-Methods "GET, PUT, POST, DELETE, OPTIONS"
+          header Access-Control-Allow-Headers "X-Api-Key, User-Agent, Content-Type, Authorization"
+          header Access-Control-Max-Age "1728000"
+          respond 204
+      }
+      header Access-Control-Allow-Origin "*"
+      header Access-Control-Allow-Headers "X-Api-Key, User-Agent, Content-Type, Authorization"
+
+  - name: auto-media-sort
+    enabled: true
+    managed: true
+    domain: "sort.mljr.eu"
+    port: 8186
+    host: nas
+    caddy_auth: "authelia"
+    description: "Auto Media Sort"
+    icon: "mdi:folder-move-outline"
+
+  - name: nextcloud
+    enabled: true
+    managed: false
+    domain: "cloud.mljr.eu"
+    port: 11000
+    host: nas
+    description: "Cloud Storage"
+    icon: "mdi:cloud"
+    caddy_suppress_default_proxy: true
+    caddy_extra_config: |
+      reverse_proxy __TARGET_HOST__:__TARGET_PORT__ {
+          # Buffer upload bodies so slow mobile clients don't trickle into
+          # Apache's mod_reqtimeout (body=20,MinRate=500) -> 408 storms.
+          # Sized above the 10MB Nextcloud client chunk size.
+          request_buffers 16m
+          transport http {
+              versions 1.1
+          }
+      }
+
+  - name: dockhand
+    enabled: true
+    managed: false
+    domain: "dockhand.mljr.eu"
+    port: 3054
+    host: nas
+    description: "Docker Management"
+    icon: "mdi:docker"
+    caddy_auth: authelia
+
+  - name: syncthing
+    enabled: true
+    managed: false
+    domain: "sync.mljr.eu"
+    port: 8384
+    host: nas
+    description: "File Sync"
+    icon: "mdi:sync"
+    https_backend: true
+
+  - name: filerun
+    enabled: false
+    managed: false
+    domain: "files.mljr.eu"
+    port: 9200
+    host: nas
+    description: "Filerun server"
+    icon: "mdi:cloud"
+
+  - name: test-ocis
+    enabled: false
+    managed: false
+    domain: "ocis.mljr.eu"
+    port: 9201
+    host: nas
+    description: "test ocis against opencloud"
+    icon: "mdi:cloud"
+    https_backend: true
+
+  - name: stats
+    enabled: false
+    managed: false
+    domain: "stats.mljr.eu"
+    port: 3000
+    host: nas
+    description: "Statistics"
+    icon: "mdi:chart-line"
+
+  - name: projects
+    enabled: true
+    managed: false
+    domain: "projects.mljr.eu"
+    port: 6528
+    host: nas
+    description: "Vikunja Projects and TODOs"
+    icon: "mdi:clipboard-list"
+
+  - name: pairdrop
+    enabled: false
+    managed: false
+    domain: "share.mljr.eu"
+    port: 3054
+    host: nas
+    description: "File Sharing"
+    icon: "mdi:share-variant"
+
+  - name: dawarich
+    enabled: true
+    managed: false
+    domain: "dawarich.mljr.eu"
+    port: 3001
+    host: nas
+    description: "Location History & Travel Tracking"
+    icon: "mdi:map-marker-path"
+
+  - name: homeserver-ui
+    enabled: false
+    managed: false
+    domain: "nuc.mljr.eu"
+    port: 80
+    host: nuc
+    description: "Home Server (deprecated - use nuc-webui)"
+    icon: "mdi:server"
+
+  - name: nuc-webui
+    enabled: true
+    managed: false
+    domain: "nuc.mljr.eu"
+    port: 9090
+    host: nuc
+    description: "NUC WebUI provided by Rocky"
+    icon: "mdi:monitor-dashboard"
+    https_backend: true
+
+  - name: wordwiz
+    enabled: true
+    domain: "wordwiz.mljr.eu"
+    port: 3601
+    host: nuc
+    description: "Word Wizard App"
+    icon: "mdi:alphabetical-variant"
+
+  - name: sudoku
+    enabled: true
+    domain: "sudoku.mljr.eu"
+    port: 3602
+    host: nuc
+    description: "Sudoku Generator"
+    icon: "mdi:grid"
+
+  - name: gameoflife
+    enabled: true
+    domain: "gameoflife.mljr.eu"
+    port: 3603
+    host: nuc
+    description: "Game of Life (Kotlin/WASM)"
+    icon: "mdi:grain"
+
+  - name: cglab
+    enabled: true
+    domain: "cglab.mljr.eu"
+    port: 3604
+    host: nuc
+    description: "CG Lab WebGL Project"
+    icon: "mdi:cube-outline"
+
+  - name: godrive-demo
+    enabled: true
+    domain: "godrive.mljr.eu"
+    port: 3605
+    host: nuc
+    description: "GoDrive File Management Demo"
+    icon: "mdi:folder-network-outline"
+
+  - name: service-template
+    enabled: true
+    domain: "template.mljr.eu"
+    port: 8181
+    host: nuc
+    staging: true
+    dev_deploy: true
+    description: "Prod/Staging Template Service"
+    icon: "mdi:shape-outline"
+
+  - name: status
+    enabled: true
+    managed: false
+    domain: "status.mljr.eu"
+    port: 0
+    host: mljr
+    description: "Public Status Page"
+    icon: "mdi:list-status"
+    caddy_suppress_default_proxy: true
+    caddy_extra_config: |
+      redir https://hetrixtools.com/r/71c4b0a0c1f138d113d3557d81b472a4/ 302

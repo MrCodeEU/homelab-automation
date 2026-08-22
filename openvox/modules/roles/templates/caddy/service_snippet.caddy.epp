@@ -1,0 +1,135 @@
+<%- | Hash $service,
+      String $target_host,
+      String $log_path,
+      String $roll_size,
+      Integer $roll_keep,
+      String $roll_keep_for,
+      Boolean $roll_uncompressed,
+      Boolean $is_staging_deployment,
+      String $staging_domain_prefix,
+      String $staging_target,
+| -%>
+<%
+  $name = $service['name']
+  $domain = $service['domain']
+  $is_domain_string = $domain =~ String
+  $target_port = $service['port']
+  $auth_type = pick_default($service['caddy_auth'], '')
+  $has_dev_folder = pick_default($service['dev_deploy'], false)
+-%>
+<% if $is_domain_string { -%>
+<%= $domain %> {
+<% } else { -%>
+<%= $domain.join(', ') %> {
+<% } -%>
+    log {
+        output file <%= $log_path %>/caddy/<%= $name %>.log {
+            roll_size <%= $roll_size %>
+            roll_keep <%= $roll_keep %>
+            roll_keep_for <%= $roll_keep_for %>
+<% if $roll_uncompressed { -%>
+            roll_uncompressed
+<% } -%>
+        }
+    }
+    import security_headers
+<% if $name == 'goaccess' { -%>
+    # WebSocket requests go directly to GoAccess real-time server (no auth needed for WS)
+    @websocket {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    handle @websocket {
+        reverse_proxy <%= $target_host %>:<%= $target_port %>
+    }
+    # HTTP requests serve the static HTML report via nginx (port <%= $target_port + 1 %>)
+<% if $auth_type == 'basicauth' { -%>
+    handle {
+        import basicauth_block
+        reverse_proxy <%= $target_host %>:<%= $target_port + 1 %>
+    }
+<% } elsif $auth_type == 'authelia' { -%>
+    import authelia_auth
+    handle {
+        reverse_proxy <%= $target_host %>:<%= $target_port + 1 %>
+    }
+<% } else { -%>
+    handle {
+        reverse_proxy <%= $target_host %>:<%= $target_port + 1 %>
+    }
+<% } -%>
+<% } else { -%>
+<% if $auth_type == 'basicauth' { -%>
+    import basicauth_block
+<% } elsif $auth_type == 'authelia' { -%>
+    import authelia_auth
+<% } -%>
+<%
+  $extra_config_raw = pick_default($service['caddy_extra_config'], '')
+  $extra_config = $extra_config_raw ? {
+    ''       => '',
+    default  => regsubst(regsubst(chomp($extra_config_raw), '__TARGET_HOST__', $target_host, 'G'), '__TARGET_PORT__', String($target_port), 'G'),
+  }
+-%>
+<% if $extra_config != '' { -%>
+
+<% $extra_config.split("\n").each |$line| { -%>
+<% if $line == '' { -%>
+
+<% } else { -%>
+    <%= $line %>
+<% } -%>
+<% } -%>
+<% } -%>
+<% unless pick_default($service['caddy_suppress_default_proxy'], false) { -%>
+<% if $service['upstream'] { -%>
+    reverse_proxy <%= $service['upstream'] %>
+<% } elsif pick_default($service['https_backend'], false) { -%>
+    reverse_proxy https://<%= $target_host %>:<%= $target_port %> {
+        transport http {
+            tls_insecure_skip_verify
+        }
+        header_up Host {http.request.host}
+    }
+<% } else { -%>
+    reverse_proxy <%= $target_host %>:<%= $target_port %>
+<% } -%>
+<% } -%>
+<% } -%>
+}
+<% if $has_dev_folder and $is_staging_deployment {
+  $staging_port = $target_port + 10000
+  $staging_domains = $is_domain_string ? {
+    true    => [$domain],
+    default => $domain,
+  }
+  $rendered_staging_domains = $staging_domains.map |$d| {
+    $parts = split($d, '\.')
+    if $parts.length == 2 {
+      "${staging_domain_prefix}.${d}"
+    } else {
+      "${parts[0]}.${staging_domain_prefix}.${parts[1, -1].join('.')}"
+    }
+  }
+-%>
+
+<%= $rendered_staging_domains.join(', ') %> {
+    log {
+        output file <%= $log_path %>/caddy/<%= $name %>-staging.log {
+            roll_size <%= $roll_size %>
+            roll_keep <%= $roll_keep %>
+            roll_keep_for <%= $roll_keep_for %>
+<% if $roll_uncompressed { -%>
+            roll_uncompressed
+<% } -%>
+        }
+    }
+    import security_headers
+<% if $auth_type == 'basicauth' { -%>
+    import basicauth_block
+<% } elsif $auth_type == 'authelia' { -%>
+    import authelia_auth
+<% } -%>
+    reverse_proxy <%= $staging_target %>:<%= $staging_port %>
+}
+<% } -%>

@@ -1,0 +1,313 @@
+<%- | Hash $host_configs,
+      String $remote_name,
+      String $remote_path,
+      String $local_path,
+      String $hostname,
+      Integer $retention_days,
+      String $item_timeout,
+      Integer $transfers,
+      Integer $checkers,
+      String $bwlimit,
+| -%>
+#!/bin/bash
+# Homelab Backup Script
+# Managed by OpenVox - do not edit manually
+
+set -euo pipefail
+
+# Configuration
+REMOTE="<%= $remote_name %>:<%= $remote_path %>"
+LOCAL_PATH="<%= $local_path %>"
+UGREEN_KEY="/opt/backup-remote/ssh/id_ed25519"
+UGREEN_REMOTE="ugreen:<%= $hostname %>"
+WD_CLOUD_REMOTE="wd-cloud:"
+LOG_FILE="${LOCAL_PATH}/logs/backup-$(date +%Y%m%d).log"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+RETENTION_DAYS=<%= $retention_days %>
+ITEM_TIMEOUT="<%= $item_timeout %>"
+PCLOUD_TRANSFERS="<%= $transfers %>"
+PCLOUD_CHECKERS="<%= $checkers %>"
+<% if $bwlimit == '' { -%>
+PCLOUD_BWLIMIT_ARGS=()
+<% } else { -%>
+PCLOUD_BWLIMIT_ARGS=(--bwlimit "<%= $bwlimit %>")
+<% } -%>
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+error_handler() {
+    local line_number=$1
+    local error_code=$2
+    log_error "Script failed at line $line_number with exit code $error_code"
+    send_notification "Backup failed at line $line_number" "high"
+    exit "$error_code"
+}
+
+trap 'error_handler ${LINENO} $?' ERR
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+log_error() {
+    echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $1${NC}" | tee -a "$LOG_FILE"
+}
+
+log_success() {
+    echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] SUCCESS: $1${NC}" | tee -a "$LOG_FILE"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: $1${NC}" | tee -a "$LOG_FILE"
+}
+
+# secrets.ntfy is not configured in the vault today - Ansible's own
+# send_notification() falls back to this same log-only path on every
+# real host right now, so this matches current production behavior.
+send_notification() {
+    local message="$1"
+    log "Notification: $message"
+}
+
+UGREEN_AVAILABLE=0
+probe_ugreen() {
+    [ -f "$UGREEN_KEY" ] || return 0
+    if timeout 60s rclone mkdir "${UGREEN_REMOTE}-probe-$$" \
+            --sftp-key-file "$UGREEN_KEY" \
+            --timeout 20s --contimeout 20s --retries 1 >/dev/null 2>&1; then
+        timeout 60s rclone rmdir "${UGREEN_REMOTE}-probe-$$" \
+            --sftp-key-file "$UGREEN_KEY" >/dev/null 2>&1
+        UGREEN_AVAILABLE=1
+    else
+        log_warn "ugreen is not writable - skipping the on-prem leg for this run"
+    fi
+}
+
+sync_to_ugreen() {
+    local snapshot_dir="$1"
+    local remote_suffix="$2"
+
+    if [ "$UGREEN_AVAILABLE" != "1" ]; then
+        return 0
+    fi
+
+    timeout "$ITEM_TIMEOUT" rclone sync "$snapshot_dir" "${UGREEN_REMOTE}/${remote_suffix}" \
+        --sftp-key-file "$UGREEN_KEY" \
+        --transfers 2 --checkers 4 \
+        --timeout 60s --contimeout 20s --low-level-retries 3 \
+        --log-file="$LOG_FILE" --log-level INFO || {
+        log_warn "Failed to sync ${remote_suffix} to ugreen (on-prem copy only, not fatal)"
+        return 1
+    }
+    return 0
+}
+
+sync_to_wdcloud() {
+    local snapshot_dir="$1"
+    local remote_suffix="$2"
+
+    timeout "$ITEM_TIMEOUT" rclone sync "$snapshot_dir" "${WD_CLOUD_REMOTE}backup/${remote_suffix}" \
+        --transfers 2 --checkers 4 \
+        --timeout 60s --contimeout 20s --low-level-retries 3 \
+        --log-file="$LOG_FILE" --log-level INFO || {
+        log_warn "Failed to sync ${remote_suffix} to wd-cloud (push-only copy, not fatal)"
+        return 1
+    }
+    return 0
+}
+
+backup_volume() {
+    local volume_name="$1"
+    local wd_cloud="${2:-true}"
+
+    local volume_path
+    volume_path=$(docker volume inspect --format '{{.Mountpoint}}' "$volume_name" 2>/dev/null)
+
+    if [ -z "$volume_path" ] || [ ! -d "$volume_path" ]; then
+        log_warn "Volume $volume_name not found or invalid path: $volume_path"
+        return 1
+    fi
+
+    log "Backing up Docker volume: $volume_name"
+
+    local snapshot_dir="${LOCAL_PATH}/volumes/${volume_name}"
+    mkdir -p "$snapshot_dir"
+
+    timeout "$ITEM_TIMEOUT" rsync -a --delete --info=progress2 "$volume_path/" "$snapshot_dir/" 2>> "$LOG_FILE" || {
+        log_error "Failed to rsync volume $volume_name"
+        return 1
+    }
+
+    timeout "$ITEM_TIMEOUT" rclone sync "$snapshot_dir" "${REMOTE}/volumes/${volume_name}" \
+        --progress \
+        --transfers "$PCLOUD_TRANSFERS" \
+        --checkers "$PCLOUD_CHECKERS" \
+        "${PCLOUD_BWLIMIT_ARGS[@]}" \
+        --timeout 60s --contimeout 20s --low-level-retries 3 \
+        --log-file="$LOG_FILE" \
+        --log-level INFO || {
+        log_error "Failed to sync volume $volume_name to remote"
+        return 1
+    }
+
+    sync_to_ugreen "$snapshot_dir" "volumes/${volume_name}"
+
+    if [ "$wd_cloud" = "true" ]; then
+        sync_to_wdcloud "$snapshot_dir" "volumes/${volume_name}"
+    fi
+
+    log_success "Volume $volume_name backed up successfully"
+    return 0
+}
+
+backup_path() {
+    local source_path="$1"
+    local optional="${2:-false}"
+    local wd_cloud="${3:-true}"
+    local backup_name
+    backup_name=$(basename "$source_path")
+
+    if [ ! -d "$source_path" ]; then
+        if [ "$optional" = "true" ]; then
+            log "Skipping optional path $source_path (not configured yet)"
+            return 0
+        fi
+        log_warn "Path $source_path not found"
+        return 1
+    fi
+
+    log "Backing up path: $source_path"
+
+    timeout "$ITEM_TIMEOUT" rclone sync "$source_path" "${REMOTE}/paths/${backup_name}" \
+        --progress \
+        --transfers "$PCLOUD_TRANSFERS" \
+        --checkers "$PCLOUD_CHECKERS" \
+        "${PCLOUD_BWLIMIT_ARGS[@]}" \
+        --timeout 60s --contimeout 20s --low-level-retries 3 \
+        --log-file="$LOG_FILE" \
+        --log-level INFO || {
+        log_error "Failed to sync path $source_path to remote"
+        return 1
+    }
+
+    sync_to_ugreen "$source_path" "paths/${backup_name}"
+
+    if [ "$wd_cloud" = "true" ]; then
+        sync_to_wdcloud "$source_path" "${backup_name}"
+    fi
+
+    log_success "Path $source_path backed up successfully"
+    return 0
+}
+
+run_pre_hook() {
+    local service="$1"
+    local hook="$2"
+
+    if [ -n "$hook" ]; then
+        log "Running pre-backup hook for $service"
+        bash -c "$hook" 2>> "$LOG_FILE" || {
+            log_warn "Pre-backup hook for $service failed"
+            return 1
+        }
+    fi
+    return 0
+}
+
+run_post_hook() {
+    local service="$1"
+    local hook="$2"
+
+    if [ -n "$hook" ]; then
+        log "Running post-backup hook for $service"
+        bash -c "$hook" 2>> "$LOG_FILE" || {
+            log_warn "Post-backup hook for $service failed"
+            return 1
+        }
+    fi
+    return 0
+}
+
+cleanup_old_logs() {
+    log "Cleaning up logs older than $RETENTION_DAYS days"
+    find "${LOCAL_PATH}/logs" -name "backup-*.log" -mtime +${RETENTION_DAYS} -delete 2>/dev/null || true
+}
+
+main() {
+    log "=========================================="
+    log "Starting homelab backup - $TIMESTAMP"
+    log "=========================================="
+
+    local failed_critical=()
+    local failed_noncritical=()
+    local success_count=0
+    local total_count=0
+
+    probe_ugreen
+
+<% $host_configs.each |$name, $cfg| { -%>
+    # Backup <%= $name %>
+    log "Processing service: <%= $name %>"
+    total_count=$((total_count + 1))
+    service_failed=false
+
+<% $vols = $cfg['volumes'] ? { undef => [], default => $cfg['volumes'] }
+   $paths = $cfg['paths'] ? { undef => [], default => $cfg['paths'] }
+-%>
+<% if $cfg['pre_hook'] { -%>
+    run_pre_hook "<%= $name %>" '<%= $cfg['pre_hook'].regsubst("'", "'\\\\''", 'G') %>' || service_failed=true
+<% } -%>
+<% $vols.each |$v| { -%>
+    backup_volume "<%= $v %>" "true" || service_failed=true
+<% } -%>
+<% $paths.each |$p| { -%>
+    backup_path "<%= $p %>" "false" "true" || service_failed=true
+<% } -%>
+<% if $cfg['post_hook'] { -%>
+    run_post_hook "<%= $name %>" '<%= $cfg['post_hook'].regsubst("'", "'\\\\''", 'G') %>' || service_failed=true
+<% } -%>
+
+    if [ "$service_failed" = true ]; then
+<% if $cfg['critical'] { -%>
+        failed_critical+=("<%= $name %>")
+        log_error "Critical service <%= $name %> backup failed!"
+<% } else { -%>
+        failed_noncritical+=("<%= $name %>")
+        log_warn "Non-critical service <%= $name %> backup failed"
+<% } -%>
+    else
+        success_count=$((success_count + 1))
+        log_success "Service <%= $name %> backup completed"
+    fi
+
+<% } -%>
+    cleanup_old_logs
+
+    log "=========================================="
+    log "Backup Summary"
+    log "=========================================="
+    log "Total services: $total_count"
+    log "Successful: $success_count"
+    log "Critical failures: ${#failed_critical[@]}"
+    log "Non-critical failures: ${#failed_noncritical[@]}"
+
+    if [ ${#failed_critical[@]} -gt 0 ]; then
+        log_error "Critical backup failures: ${failed_critical[*]}"
+        send_notification "Critical backup failures: ${failed_critical[*]}" "high"
+        exit 1
+    fi
+
+    if [ ${#failed_noncritical[@]} -gt 0 ]; then
+        log_warn "Non-critical backup failures: ${failed_noncritical[*]}"
+        send_notification "Non-critical backup failures: ${failed_noncritical[*]}" "default"
+    fi
+
+    log_success "Critical backups completed successfully!"
+    send_notification "All backups completed successfully ($success_count/$total_count)" "default"
+    exit 0
+}
+
+main "$@"

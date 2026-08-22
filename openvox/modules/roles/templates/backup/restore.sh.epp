@@ -1,0 +1,311 @@
+<%- | Hash $host_configs,
+      String $remote_name,
+      String $remote_path,
+      String $local_path,
+| -%>
+#!/bin/bash
+# Homelab Restore Script
+# Managed by OpenVox - do not edit manually
+
+set -euo pipefail
+
+# Configuration
+REMOTE="<%= $remote_name %>:<%= $remote_path %>"
+LOCAL_PATH="<%= $local_path %>"
+
+LOG_FILE="${LOCAL_PATH}/logs/restore-$(date +%Y%m%d).log"
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+log_error() {
+    echo -e "${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $1${NC}" | tee -a "$LOG_FILE"
+}
+
+log_success() {
+    echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] SUCCESS: $1${NC}" | tee -a "$LOG_FILE"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: $1${NC}" | tee -a "$LOG_FILE"
+}
+
+log_info() {
+    echo -e "${CYAN}[$(date '+%Y-%m-%d %H:%M:%S')] INFO: $1${NC}" | tee -a "$LOG_FILE"
+}
+
+usage() {
+    cat << USAGEEOF
+Usage: $0 [OPTIONS] <service|volume|path>
+
+Restore data from pCloud backup.
+
+Options:
+    -l, --list              List available backups
+    -s, --service SERVICE   Restore all data for a service
+    -v, --volume VOLUME     Restore a specific Docker volume
+    -p, --path PATH         Restore a specific path
+    -d, --dry-run           Show what would be restored without doing it
+    -f, --force             Skip confirmation prompts
+    -h, --help              Show this help message
+
+Examples:
+    $0 --list                    # List all available backups
+    $0 --service mailcow         # Restore all mailcow data
+    $0 --volume kuma_uptime-kuma-data  # Restore specific volume
+    $0 --dry-run --service kuma  # Preview kuma restore
+
+Available services:
+<% $host_configs.keys.each |$n| { -%>
+    - <%= $n %>
+<% } -%>
+
+USAGEEOF
+    exit 0
+}
+
+list_backups() {
+    log_info "Listing available backups from $REMOTE"
+    echo ""
+    echo "=== Docker Volumes ==="
+    rclone lsd "${REMOTE}/volumes" 2>/dev/null || echo "No volume backups found"
+    echo ""
+    echo "=== Paths ==="
+    rclone lsd "${REMOTE}/paths" 2>/dev/null || echo "No path backups found"
+}
+
+restore_volume() {
+    local volume_name="$1"
+    local dry_run="${2:-false}"
+
+    log "Restoring Docker volume: $volume_name"
+
+    if ! rclone lsf "${REMOTE}/volumes/${volume_name}" --max-depth 1 > /dev/null 2>&1; then
+        log_error "No backup found for volume $volume_name"
+        return 1
+    fi
+
+    if ! docker volume inspect "$volume_name" > /dev/null 2>&1; then
+        log_info "Creating Docker volume: $volume_name"
+        docker volume create "$volume_name" > /dev/null
+    fi
+
+    local volume_path
+    volume_path=$(docker volume inspect --format '{{.Mountpoint}}' "$volume_name" 2>/dev/null)
+    if [ -z "$volume_path" ] || [ ! -d "$volume_path" ]; then
+        log_error "Volume $volume_name has no usable mountpoint: $volume_path"
+        return 1
+    fi
+
+    local rclone_opts="--progress --transfers 4 --checkers 8"
+    if [ "$dry_run" = true ]; then
+        rclone_opts="$rclone_opts --dry-run"
+        log_info "DRY RUN - No changes will be made"
+    fi
+
+    rclone sync "${REMOTE}/volumes/${volume_name}" "$volume_path" \
+        $rclone_opts \
+        --log-file="$LOG_FILE" \
+        --log-level INFO || {
+        log_error "Failed to restore volume $volume_name"
+        return 1
+    }
+
+    log_success "Volume $volume_name restored successfully"
+    return 0
+}
+
+restore_path() {
+    local path_name="$1"
+    local target_path="$2"
+    local dry_run="${3:-false}"
+
+    log "Restoring path: $path_name to $target_path"
+
+    if ! rclone lsf "${REMOTE}/paths/${path_name}" --max-depth 1 > /dev/null 2>&1; then
+        log_error "No backup found for path $path_name"
+        return 1
+    fi
+
+    if [ ! -d "$target_path" ]; then
+        log_info "Creating target directory: $target_path"
+        mkdir -p "$target_path"
+    fi
+
+    local rclone_opts="--progress --transfers 4 --checkers 8"
+    if [ "$dry_run" = true ]; then
+        rclone_opts="$rclone_opts --dry-run"
+        log_info "DRY RUN - No changes will be made"
+    fi
+
+    rclone sync "${REMOTE}/paths/${path_name}" "$target_path" \
+        $rclone_opts \
+        --log-file="$LOG_FILE" \
+        --log-level INFO || {
+        log_error "Failed to restore path $path_name"
+        return 1
+    }
+
+    log_success "Path $path_name restored successfully to $target_path"
+    return 0
+}
+
+restore_service() {
+    local service="$1"
+    local dry_run="${2:-false}"
+    local force="${3:-false}"
+
+    log "=========================================="
+    log "Restoring service: $service"
+    log "=========================================="
+
+    local failed=0
+
+    case "$service" in
+<% $host_configs.each |$name, $cfg| { -%>
+        <%= $name %>)
+<% $vols = $cfg['volumes'] ? { undef => [], default => $cfg['volumes'] }
+   $paths = $cfg['paths'] ? { undef => [], default => $cfg['paths'] }
+-%>
+<% $vols.each |$v| { -%>
+            log "Restoring volume: <%= $v %>"
+            restore_volume "<%= $v %>" "$dry_run" || failed=1
+<% } -%>
+<% $paths.each |$p| { $bn = $p.split('/')[-1] -%>
+            log "Restoring path: <%= $p %>"
+            restore_path "<%= $bn %>" "<%= $p %>" "$dry_run" || failed=1
+<% } -%>
+<% if $cfg['restore_post_hook'] { -%>
+            if [ "$failed" -eq 0 ] && [ "$dry_run" != true ]; then
+                log "Running restore_post_hook for <%= $name %>"
+                if ! (
+<%= $cfg['restore_post_hook'] %>
+                ); then
+                    log_error "restore_post_hook failed for <%= $name %> - data is on disk but may not be re-imported into a running service"
+                    failed=1
+                fi
+            elif [ "$dry_run" = true ]; then
+                log_info "DRY RUN - would run restore_post_hook for <%= $name %>"
+            fi
+<% } -%>
+            ;;
+<% } -%>
+        *)
+            log_error "Unknown service: $service"
+            return 1
+            ;;
+    esac
+
+    if [ "$failed" -ne 0 ]; then
+        log_error "Service $service restore completed with errors"
+        return 1
+    fi
+
+    log_success "Service $service restore completed"
+    return 0
+}
+
+DRY_RUN=false
+FORCE=false
+ACTION=""
+TARGET=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -l|--list)
+            ACTION="list"
+            shift
+            ;;
+        -s|--service)
+            ACTION="service"
+            TARGET="$2"
+            shift 2
+            ;;
+        -v|--volume)
+            ACTION="volume"
+            TARGET="$2"
+            shift 2
+            ;;
+        -p|--path)
+            ACTION="path"
+            TARGET="$2"
+            shift 2
+            ;;
+        -d|--dry-run)
+            DRY_RUN=true
+            shift
+            ;;
+        -f|--force)
+            FORCE=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        *)
+            if [ -z "$ACTION" ]; then
+                ACTION="service"
+                TARGET="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+case "$ACTION" in
+    list)
+        list_backups
+        ;;
+    service)
+        if [ -z "$TARGET" ]; then
+            log_error "No service specified"
+            usage
+        fi
+        if [ "$FORCE" != true ] && [ "$DRY_RUN" != true ]; then
+            read -p "Are you sure you want to restore service '$TARGET'? This may overwrite existing data. [y/N] " confirm
+            if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+                log "Restore cancelled"
+                exit 0
+            fi
+        fi
+        restore_service "$TARGET" "$DRY_RUN" "$FORCE"
+        ;;
+    volume)
+        if [ -z "$TARGET" ]; then
+            log_error "No volume specified"
+            usage
+        fi
+        if [ "$FORCE" != true ] && [ "$DRY_RUN" != true ]; then
+            read -p "Are you sure you want to restore volume '$TARGET'? This may overwrite existing data. [y/N] " confirm
+            if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+                log "Restore cancelled"
+                exit 0
+            fi
+        fi
+        restore_volume "$TARGET" "$DRY_RUN"
+        ;;
+    path)
+        if [ -z "$TARGET" ]; then
+            log_error "No path specified"
+            usage
+        fi
+        if [ "$FORCE" != true ] && [ "$DRY_RUN" != true ]; then
+            read -p "Are you sure you want to restore path '$TARGET'? This may overwrite existing data. [y/N] " confirm
+            if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+                log "Restore cancelled"
+                exit 0
+            fi
+        fi
+        restore_path "$(basename "$TARGET")" "$TARGET" "$DRY_RUN"
+        ;;
+    *)
+        usage
+        ;;
+esac
