@@ -7,7 +7,7 @@
 set -euo pipefail
 TARGET="root@wd-mycloud.tail33930.ts.net"
 
-ssh -o BatchMode=yes "$TARGET" bash -s <<'REMOTE'
+ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" bash -s <<'REMOTE'
 set -e
 HOOK=/mnt/HD/HD_a2/Nas_Prog/clamAV/start.sh
 TMP=/mnt/HD/HD_a2/tailscale/.start.sh.tmp

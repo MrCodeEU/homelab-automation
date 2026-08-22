@@ -14,6 +14,7 @@ node 'nuc.tail33930.ts.net' {
     base_path => '/opt',
   }
   include roles::wd_mycloud_proxy
+  include roles::unraid_proxy
 }
 
 node 'ugreen.tail33930.ts.net' {

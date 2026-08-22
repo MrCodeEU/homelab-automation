@@ -10,7 +10,7 @@ BASE="/mnt/HD/HD_a2/tailscale"
 LATEST_VERSION=$(curl -s "https://pkgs.tailscale.com/stable/?mode=json" \
   | python3 -c "import json,sys; print(json.load(sys.stdin)['TarballsVersion'])")
 
-CURRENT_VERSION=$(ssh -o BatchMode=yes "$TARGET" \
+CURRENT_VERSION=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" \
   "[ -x $BASE/current/tailscale ] && $BASE/current/tailscale version | head -1 || echo none")
 
 [ "$CURRENT_VERSION" = "$LATEST_VERSION" ]

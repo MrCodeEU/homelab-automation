@@ -27,7 +27,7 @@ LATEST_JSON=$(curl -s "https://pkgs.tailscale.com/stable/?mode=json")
 LATEST_VERSION=$(echo "$LATEST_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['TarballsVersion'])")
 LATEST_TARBALL=$(echo "$LATEST_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin)['Tarballs']['arm'])")
 
-ssh -o BatchMode=yes "$TARGET" bash -s -- "$LATEST_VERSION" "$LATEST_TARBALL" <<'REMOTE'
+ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" bash -s -- "$LATEST_VERSION" "$LATEST_TARBALL" <<'REMOTE'
 export LATEST_VERSION="$1"
 export LATEST_TARBALL="$2"
 export BASE=/mnt/HD/HD_a2/tailscale
@@ -70,7 +70,7 @@ REMOTE
 # device is back and confirmed on the target version.
 for i in $(seq 1 24); do
   sleep 5
-  CURRENT=$(ssh -o BatchMode=yes -o ConnectTimeout=5 "$TARGET" \
+  CURRENT=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "$TARGET" \
     "[ -x $BASE/current/tailscale ] && $BASE/current/tailscale version | head -1 || echo none" 2>/dev/null || echo unreachable)
   if [ "$CURRENT" = "$LATEST_VERSION" ]; then
     echo "tailscale updated to $LATEST_VERSION, device reachable"
