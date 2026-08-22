@@ -15,6 +15,7 @@ node 'nuc.tail33930.ts.net' {
   }
   include roles::wd_mycloud_proxy
   include roles::unraid_proxy
+  include roles::unraid_backup_proxy
 }
 
 node 'ugreen.tail33930.ts.net' {
