@@ -1,0 +1,20 @@
+services:
+  endlessh:
+    image: shizunge/endlessh-go:latest
+    container_name: endlessh
+    restart: unless-stopped
+    # Binds the public IP's port 22 specifically (not 0.0.0.0 - Linux won't
+    # let a wildcard bind coexist with sshd's specific ListenAddress binds on
+    # the same port). Real sshd is scoped off the public interface (see
+    # ansible/roles/base sshd ListenAddress task) so this is the only thing
+    # answering SSH there.
+    ports:
+      - "157.173.97.107:22:2222"
+    command: ["-logtostderr", "-v=1"]
+    mem_limit: 32m
+    cpus: 0.1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

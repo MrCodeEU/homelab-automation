@@ -1,0 +1,47 @@
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec:latest
+    container_name: crowdsec
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8088:8080"
+      - "127.0.0.1:6060:6060"
+    environment:
+      - TZ=${TZ}
+      - COLLECTIONS=crowdsecurity/linux crowdsecurity/sshd crowdsecurity/caddy crowdsecurity/http-cve crowdsecurity/base-http-scenarios crowdsecurity/whitelist-good-actors
+      - BOUNCER_KEY_firewall=${CROWDSEC_FIREWALL_BOUNCER_KEY}
+      - TRUSTED_IPS=127.0.0.1,::1,172.16.0.0/12
+    volumes:
+      - crowdsec-config:/etc/crowdsec
+      - crowdsec-data:/var/lib/crowdsec/data
+      - ./acquis.yaml:/etc/crowdsec/acquis.yaml:ro
+      - ./parsers/s02-enrich/mljr-local-allowlist.yaml:/etc/crowdsec/parsers/s02-enrich/mljr-local-allowlist.yaml:ro
+      - /var/log:/var/log:ro
+
+  crowdsec-web-ui:
+    image: ghcr.io/theduffman85/crowdsec-web-ui:latest
+    container_name: crowdsec-web-ui
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8089:3000"
+    environment:
+      - CROWDSEC_URL=http://crowdsec:8080
+      - CROWDSEC_USER=crowdsec-web-ui
+      - CROWDSEC_PASSWORD=${CROWDSEC_WEB_UI_PASSWORD}
+      - CROWDSEC_LOOKBACK_PERIOD=168h
+      - CONFIG_INSTANCE_METRICS_URL=http://crowdsec:6060/metrics
+      - CROWDSEC_REFRESH_INTERVAL=30s
+      - CROWDSEC_SIMULATIONS_ENABLED=false
+      - NOTIFICATION_SECRET_KEY=${CROWDSEC_WEB_UI_NOTIFICATION_SECRET}
+    volumes:
+      - crowdsec-web-ui-data:/app/data
+    depends_on:
+      - crowdsec
+
+volumes:
+  crowdsec-config:
+    name: crowdsec-config
+  crowdsec-data:
+    name: crowdsec-data
+  crowdsec-web-ui-data:
+    name: crowdsec-web-ui-data

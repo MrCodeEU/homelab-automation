@@ -1,0 +1,15 @@
+services:
+  ui-showcase:
+    image: ghcr.io/mrcodeeu/mljr-web/showcase:${IMAGE_TAG:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-ui-showcase}
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8083:8091"
+    environment:
+      - PORT=8091
+    networks:
+      - ui-showcase
+
+networks:
+  ui-showcase:
+    driver: bridge

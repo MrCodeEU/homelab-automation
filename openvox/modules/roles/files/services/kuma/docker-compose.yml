@@ -1,0 +1,21 @@
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:2
+    container_name: uptime-kuma
+    restart: unless-stopped
+    ports:
+      # BIND_ADDR resolves to the host's Tailscale IP on nuc, so Caddy on mljr
+      # still reaches it while the LAN/public interfaces do not.
+      - "${BIND_ADDR:-127.0.0.1}:3001:3001"
+      # Loopback as well: the services role's Kuma health check and monitor
+      # provisioning both talk to http://localhost:3001. Binding Tailscale-only
+      # silently skipped provisioning. Safe because kuma is pinned to host: nuc,
+      # where BIND_ADDR is never 127.0.0.1 (that would be a duplicate bind).
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - uptime-kuma-data:/app/data
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+
+volumes:
+  uptime-kuma-data:

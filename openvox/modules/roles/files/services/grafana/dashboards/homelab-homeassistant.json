@@ -1,0 +1,169 @@
+{
+  "uid": "homelab-homeassistant",
+  "title": "Home Assistant",
+  "tags": ["homelab", "homeassistant"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Unavailable Entities",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 5}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "auto"},
+      "targets": [{"refId": "A", "expr": "count(hass_entity_available == 0)"}]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total Entities Tracked",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "auto"},
+      "targets": [{"refId": "A", "expr": "count(hass_entity_info)"}]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Lowest Battery %",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "percent", "decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "orange", "value": 20}, {"color": "green", "value": 40}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["min"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "auto"},
+      "targets": [{"refId": "A", "expr": "min(hass_sensor_battery_percent)"}]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Devices Home",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "auto"},
+      "targets": [{"refId": "A", "expr": "count(hass_device_tracker_state == 1)"}]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Battery Levels (lowest first)",
+      "description": "The whole point of pulling this into Grafana instead of just HA's own UI - a sortable, at-a-glance low-battery list.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "fieldConfig": {"defaults": {"unit": "percent", "decimals": 0, "custom": {"align": "auto", "cellOptions": {"type": "color-background"}}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "orange", "value": 20}, {"color": "green", "value": 40}]}}, "overrides": []},
+      "options": {"showHeader": true, "sortBy": [{"displayName": "Value", "desc": false}]},
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "domain": true, "job": true, "instance": true, "host": true, "entity": true}, "renameByName": {"friendly_name": "Device", "Value": "Battery"}}}],
+      "targets": [{"refId": "A", "expr": "hass_sensor_battery_percent", "format": "table", "instant": true}]
+    },
+    {
+      "id": 6,
+      "type": "table",
+      "title": "Unavailable Entities Detail",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "fieldConfig": {"defaults": {"custom": {"align": "auto"}}, "overrides": []},
+      "options": {"showHeader": true},
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "job": true, "instance": true, "host": true, "Value": true}, "renameByName": {"entity": "Entity", "domain": "Domain"}}}],
+      "targets": [{"refId": "A", "expr": "hass_entity_available == 0", "format": "table", "instant": true}]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Temperature Sensors",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 13},
+      "fieldConfig": {"defaults": {"unit": "celsius", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 6, "showPoints": "never"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"refId": "A", "expr": "hass_sensor_temperature_celsius", "legendFormat": "{{friendly_name}}"}]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Humidity Sensors",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 13},
+      "fieldConfig": {"defaults": {"unit": "percent", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 6, "showPoints": "never"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "min", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"refId": "A", "expr": "hass_sensor_humidity_percent", "legendFormat": "{{friendly_name}}"}]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Power Draw",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 21},
+      "fieldConfig": {"defaults": {"unit": "watt", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 10, "showPoints": "never"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "mean", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"refId": "A", "expr": "hass_sensor_power_w", "legendFormat": "{{friendly_name}}"}]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Energy (cumulative kWh)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 21},
+      "fieldConfig": {"defaults": {"unit": "kwatth", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 6, "showPoints": "never"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"refId": "A", "expr": "hass_sensor_energy_kwh", "legendFormat": "{{friendly_name}}"}]
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Illuminance",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 29},
+      "fieldConfig": {"defaults": {"unit": "lux", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 6, "showPoints": "never"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"refId": "A", "expr": "hass_sensor_illuminance_lx", "legendFormat": "{{friendly_name}}"}]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "CO2",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 29},
+      "fieldConfig": {"defaults": {"unit": "ppm", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 6, "showPoints": "never"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1000}, {"color": "red", "value": 2000}]}}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"refId": "A", "expr": "hass_sensor_carbon_dioxide_ppm", "legendFormat": "{{friendly_name}}"}]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "VOC",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 29},
+      "fieldConfig": {"defaults": {"unit": "ppb", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 6, "showPoints": "never"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"refId": "A", "expr": "hass_sensor_volatile_organic_compounds_parts_ppb", "legendFormat": "{{friendly_name}}"}]
+    },
+    {
+      "id": 14,
+      "type": "table",
+      "title": "Device Trackers",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 36},
+      "fieldConfig": {"defaults": {"custom": {"align": "auto", "cellOptions": {"type": "color-background"}}, "mappings": [{"type": "value", "options": {"0": {"text": "away", "color": "orange"}, "1": {"text": "home", "color": "green"}}}]}, "overrides": []},
+      "options": {"showHeader": true},
+      "transformations": [{"id": "organize", "options": {"excludeByName": {"Time": true, "__name__": true, "job": true, "instance": true, "host": true, "domain": true, "entity": true}, "renameByName": {"friendly_name": "Device", "Value": "Status"}}}],
+      "targets": [{"refId": "A", "expr": "hass_device_tracker_state", "format": "table", "instant": true}]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Network Data Rates (Mbit/s)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 36},
+      "fieldConfig": {"defaults": {"unit": "Mbits", "custom": {"drawStyle": "line", "lineInterpolation": "smooth", "lineWidth": 2, "fillOpacity": 6, "showPoints": "never"}}, "overrides": []},
+      "options": {"legend": {"displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [{"refId": "A", "expr": "hass_sensor_data_rate_mbit_per_s", "legendFormat": "{{friendly_name}}"}]
+    }
+  ]
+}

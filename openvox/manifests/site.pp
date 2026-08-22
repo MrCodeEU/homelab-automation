@@ -36,6 +36,9 @@ node 'mljr.tail33930.ts.net' {
     bwlimit    => '8M',
     cpu_quota  => '40%',
   }
+  class { 'roles::services':
+    hostname => 'mljr',
+  }
 }
 
 node 'nuc.tail33930.ts.net' {
@@ -52,6 +55,10 @@ node 'nuc.tail33930.ts.net' {
   class { 'roles::backup':
     services => ['kuma', 'forgejo', 'mail-archiver', 'umami', 'grafana', 'nocturne'],
     hostname => 'nuc',
+  }
+  class { 'roles::services':
+    hostname     => 'nuc',
+    tailscale_ip => '100.100.10.1',
   }
 }
 

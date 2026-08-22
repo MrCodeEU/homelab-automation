@@ -1,0 +1,394 @@
+---
+# Severity rules for the homelab health report.
+#
+# Severity is decided HERE, deterministically, before the LLM is ever called.
+# The model groups and explains; it never decides whether something is a
+# problem. Thresholds are config so they can be tuned against real data
+# without touching code.
+#
+# Each entry maps an observation `kind` to a rule. Supported rule types:
+#
+#   threshold  - numeric. `crit`/`warn` are compared with `direction`
+#                (above|below). Missing level means that level never fires.
+#   equals     - `crit_values`/`warn_values` list; compares str(value).
+#   not_equals - inverse: any value NOT in `ok_values` escalates.
+#   truthy     - a truthy value escalates to `level`.
+#   falsy      - a falsy value escalates to `level`.
+#   present    - the observation existing at all escalates to `level`.
+#   new_only   - `present`, but only when the diff marks it new. Used for
+#                things that are normal in steady state and only interesting
+#                when they first appear.
+#
+# `subjects` optionally limits a rule to specific hosts.
+
+rules:
+  # --- capacity ------------------------------------------------------------
+  disk_usage:
+    type: threshold
+    direction: above
+    warn: 85
+    crit: 90
+
+  disk_fill_projection:
+    type: present
+    level: crit
+
+  memory_usage:
+    type: threshold
+    direction: above
+    warn: 90
+
+  load_per_core:
+    type: threshold
+    direction: above
+    warn: 2.0
+
+  cpu_steal:
+    type: threshold
+    direction: above
+    warn: 10
+
+  docker_image_usage:
+    type: threshold
+    direction: above
+    warn: 80
+    crit: 90
+
+  # --- availability --------------------------------------------------------
+  monitor_status:
+    type: equals
+    crit_values: ["down"]
+    # "pending" is Kuma mid-retry, not yet a confirmed outage.
+    warn_values: ["pending"]
+
+  cert_expiry:
+    type: threshold
+    direction: below
+    warn: 21
+    crit: 7
+
+  metrics_missing:
+    type: present
+    level: crit
+
+  metrics_stale:
+    type: threshold
+    direction: above
+    # Alloy scrapes every 15s; two hours of silence means the agent is gone.
+    warn: 900
+    crit: 7200
+
+  container_missing:
+    type: present
+    level: crit
+
+  container_new:
+    type: present
+    level: info
+
+  container_restarts:
+    type: threshold
+    direction: above
+    warn: 3
+    crit: 10
+
+  container_oom:
+    type: present
+    level: crit
+
+  recent_reboot:
+    type: threshold
+    direction: below
+    # Under an hour of uptime on a run means the host rebooted overnight.
+    warn: 3600
+
+  systemd_failed:
+    type: present
+    level: crit
+
+  # --- backups -------------------------------------------------------------
+  backup_age:
+    type: threshold
+    direction: above
+    warn: 30
+    crit: 36
+
+  backup_failures:
+    type: threshold
+    direction: above
+    crit: 0
+
+  backup_service_failed:
+    type: present
+    level: warn
+
+  backup_incomplete:
+    type: present
+    level: crit
+
+  backup_missing:
+    type: present
+    level: crit
+
+  # Kernel messages naming disk, filesystem or memory trouble. Not a general
+  # dmesg error count: the pattern list is specific (I/O errors, XFS/btrfs
+  # corruption, NVMe resets, OOM kills, MCE). ugreen's btrfs failed on
+  # 2026-07-31 and this is where the warning would have been, unread.
+  kernel_storage_errors:
+    type: threshold
+    direction: above
+    warn: 0
+    crit: 10
+
+  # Offset large enough to break TOTP windows and make log correlation lie.
+  time_offset:
+    type: threshold
+    direction: above
+    warn: 1.0
+    crit: 5.0
+
+  time_unsynchronised:
+    type: present
+    level: warn
+
+  # --- security ------------------------------------------------------------
+  security_updates:
+    type: threshold
+    direction: above
+    # Pending advisories are normal between patch windows; the diff surfaces
+    # growth, and the count only escalates when it gets genuinely stale.
+    # Deliberately not raised despite the count being inflated by advisories
+    # that are installed-but-not-booted: reboot_required below is what names
+    # that case, and this staying noisy is the reminder to act on it.
+    warn: 1
+    # mljr/nuc's security updates are applied automatically by a weekly
+    # GitHub Actions workflow - a pending advisory on day 1-6 is just
+    # "waiting for its normal window", not a problem. Only escalate once it
+    # has genuinely outlived that cadence.
+    min_age_days: 7
+
+  # Only emitted when a reboot is actually outstanding, so its presence is the
+  # finding. mljr sat 15 weeks on a superseded kernel with every fix already on
+  # disk, and nothing in the report said so - the advisory count looked like
+  # missing patches instead of a missing reboot.
+  reboot_required:
+    type: present
+    level: warn
+
+  crowdsec_absent:
+    type: present
+    level: crit
+    subjects: [mljr]
+
+  crowdsec_bouncer:
+    type: falsy
+    level: crit
+
+  crowdsec_decisions:
+    type: threshold
+    direction: above
+    # Informational: a spike is interesting, a baseline is not.
+    warn: 500
+
+  auth_failures:
+    type: threshold
+    direction: above
+    warn: 100
+
+  firewall_rules:
+    type: threshold
+    direction: below
+    # A collapsed ruleset means the bouncer stopped enforcing.
+    crit: 1
+
+  # --- storage health (Unraid) --------------------------------------------
+  array_state:
+    type: not_equals
+    ok_values: ["STARTED"]
+    level: crit
+
+  parity_sync_errors:
+    type: threshold
+    direction: above
+    crit: 0
+
+  parity_check_age:
+    type: threshold
+    direction: above
+    warn: 35
+
+  array_disk:
+    type: equals
+    crit_values: ["DISK_INVALID", "DISK_DSBL", "DISK_NP", "DISK_DSBL_NP"]
+
+  smart_health:
+    type: falsy
+    level: crit
+
+  disk_temperature:
+    type: threshold
+    direction: above
+    warn: 45
+    crit: 55
+
+  reallocated_sectors:
+    type: threshold
+    direction: above
+    warn: 0
+
+  pending_sectors:
+    type: threshold
+    direction: above
+    crit: 0
+
+  unraid_notification:
+    type: equals
+    crit_values: ["alert"]
+    warn_values: ["warning"]
+
+  # --- storage health (ugreen) ---------------------------------------------
+  # ugreen's data path is mdraid1 -> LVM -> btrfs, with a second mdraid1 (NVMe)
+  # -> LVM bcache tier in front. None of the generic collectors above see any
+  # of it. crit throughout: this is exactly the layer that failed silently on
+  # 2026-07-31, and by the time dmesg or the app layer noticed, the filesystem
+  # was already unmountable.
+  mdraid_degraded:
+    type: present
+    level: crit
+
+  btrfs_pool_errors:
+    type: present
+    level: crit
+
+  lvm_usage:
+    type: threshold
+    direction: above
+    warn: 85
+    crit: 95
+
+  # --- logs ----------------------------------------------------------------
+  log_signature:
+    # Steady-state error noise is not news. A signature never seen before is.
+    type: new_only
+    level: warn
+
+  log_error_rate:
+    type: threshold_or_spike
+    direction: above
+    # Deliberately left at 5000 rather than raised. Any threshold high enough
+    # to silence routine chatter (mailcow ofelia ~9k) also silences a genuinely
+    # broken service at moderate volume (bichon ~5.5k), so coverage is not
+    # traded away - the spike rule is added on top of it.
+    warn: 5000
+    # Daily volumes are stable, so a sudden multiple is the real signal: a
+    # container going 800 -> 5000 never crosses the line above, but is exactly
+    # the thing worth looking at.
+    spike_factor: 3.0
+    # Below this a jump is arithmetic noise, not a change in behaviour
+    # (2 -> 10 is a tripling and means nothing).
+    spike_floor: 500
+    spike_level: warn
+
+  # Total for the window, already excluding declared maintenance hours (see
+  # Config.maintenance_windows). Kept as a volume signal: a low-rate but
+  # constant trickle of 5xx never trips the bad-hours rule below.
+  caddy_5xx:
+    type: threshold
+    direction: above
+    warn: 500
+
+  # The shape signal, and the one that matters. Restarts and deploys produce a
+  # single ugly hour; something actually broken produces many. Six bad hours in
+  # a day is no longer an incident, it is a state.
+  caddy_5xx_hours:
+    type: threshold
+    direction: above
+    warn: 2
+    crit: 6
+
+  # --- pipeline ------------------------------------------------------------
+  facts_unreachable:
+    type: present
+    level: crit
+
+  facts_section_failed:
+    type: present
+    level: warn
+
+  collector_failed:
+    type: present
+    level: warn
+
+  image_updates:
+    type: threshold
+    direction: above
+    warn: 1000   # effectively informational
+
+  # --- GitHub --------------------------------------------------------------
+  workflow_failed:
+    type: present
+    level: warn
+
+  workflow_failed_default_branch:
+    type: present
+    level: crit
+
+  dependabot_alert:
+    type: equals
+    crit_values: ["critical"]
+    warn_values: ["high", "medium"]
+
+  code_scanning_alert:
+    type: equals
+    crit_values: ["critical"]
+    warn_values: ["high"]
+
+  github_token_expiry:
+    type: threshold
+    direction: below
+    warn: 14
+    crit: 3
+
+  # Backup destinations. A backup that succeeds into a full target stops being
+  # a backup, and nothing else here was watching the destination side.
+  # pCloud sits around 28% and the local backup share around 65%, so these
+  # thresholds leave real headroom while still giving warning before a run
+  # starts failing for space.
+  backup_target_usage:
+    type: threshold
+    direction: above
+    warn: 85
+    crit: 93
+
+  # A new subfolder in a watched nas directory that's neither backed up nor
+  # on the excluded allowlist - the exact class of gap that let origami/
+  # Fotos/SB sit uncovered for weeks unnoticed before 2026-08-14.
+  backup_drift:
+    type: present
+    level: warn
+
+  # --- Home Assistant --------------------------------------------------------
+  ha_safe_mode:
+    type: present
+    level: crit
+
+  # This counts *integrations or devices* with 5+ dead entities, not entities.
+  # It used to count entities, which forced the thresholds up to 700/750 and
+  # left the rule unable to detect anything: 704 of 1152 entities were
+  # unavailable, but that was 4 broken integrations repeated - a single expired
+  # Strava token alone produced 467, and 32 more were `button`/`notify`/`tts`
+  # entities whose resting state is "unknown" by design and which can never
+  # recover. Clusters smaller than 5 are excluded too: this estate has ~50 of
+  # them at any moment, one device_tracker plus one switch per phone, laptop or
+  # PC that happens to be switched off, so counting them tracked how many people
+  # were out of the house.
+  #
+  # Measured 2026-08-04: 17 significant clusters, dropping to 1 (a powered-off
+  # Prusa printer) once Strava/GitHub/desktop are removed and the FRITZ!Repeater
+  # config entry is re-pointed. warn: 2 therefore means "something broke that
+  # was not already broken".
+  ha_unavailable_entities:
+    type: threshold
+    direction: above
+    warn: 2
+    crit: 5

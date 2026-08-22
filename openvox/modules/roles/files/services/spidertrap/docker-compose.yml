@@ -1,0 +1,20 @@
+services:
+  spidertrap:
+    build: .
+    image: local/spidertrap:latest
+    container_name: spidertrap
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8099:8080"
+    command:
+      - "--min-links=8"
+      - "--max-links=20"
+      - "--min-length=4"
+      - "--max-length=24"
+    mem_limit: 64m
+    cpus: 0.25
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
