@@ -45,6 +45,7 @@ node 'nuc.tail33930.ts.net' {
     base_path => '/opt',
   }
   include roles::wd_mycloud_proxy
+  include roles::wd_mycloud_node_exporter_proxy
   include roles::unraid_proxy
   include roles::unraid_backup_proxy
   class { 'roles::backup':
