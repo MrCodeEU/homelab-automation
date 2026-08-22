@@ -1,0 +1,21 @@
+
+cockpit.mljr.eu {
+    log {
+        output file /var/log/caddy/cockpit.log {
+            roll_size 100mb
+            roll_keep 3
+            roll_keep_for 168h
+            roll_uncompressed
+        }
+    }
+    import security_headers
+    import authelia_auth
+
+    reverse_proxy https://localhost:9090 {
+        transport http {
+            tls_insecure_skip_verify
+        }
+        header_up Host {http.request.host}
+    }
+}
+

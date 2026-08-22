@@ -1,0 +1,15 @@
+
+git.mljr.eu, forge.mljr.eu, fogrejo.mljr.eu {
+    log {
+        output file /var/log/caddy/forgejo.log {
+            roll_size 100mb
+            roll_keep 3
+            roll_keep_for 168h
+            roll_uncompressed
+        }
+    }
+    import security_headers
+
+    reverse_proxy nuc.tail33930.ts.net:3300
+}
+

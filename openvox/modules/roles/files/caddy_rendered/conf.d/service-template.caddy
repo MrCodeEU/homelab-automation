@@ -1,0 +1,27 @@
+
+template.mljr.eu {
+    log {
+        output file /var/log/caddy/service-template.log {
+            roll_size 100mb
+            roll_keep 3
+            roll_keep_for 168h
+            roll_uncompressed
+        }
+    }
+    import security_headers
+
+    reverse_proxy nuc.tail33930.ts.net:8181
+}
+
+template.dev.mljr.eu {
+    log {
+        output file /var/log/caddy/service-template-staging.log {
+            roll_size 100mb
+            roll_keep 3
+            roll_keep_for 168h
+            roll_uncompressed
+        }
+    }
+    import security_headers
+    reverse_proxy nuc.tail33930.ts.net:18181
+}

@@ -1,0 +1,15 @@
+
+home.mljr.eu {
+    log {
+        output file /var/log/caddy/homeassistant.log {
+            roll_size 100mb
+            roll_keep 3
+            roll_keep_for 168h
+            roll_uncompressed
+        }
+    }
+    import security_headers
+
+    reverse_proxy homeassistant.tail33930.ts.net:8123
+}
+

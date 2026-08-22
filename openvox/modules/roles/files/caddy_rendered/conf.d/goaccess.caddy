@@ -1,0 +1,26 @@
+
+logs.mljr.eu {
+    log {
+        output file /var/log/caddy/goaccess.log {
+            roll_size 100mb
+            roll_keep 3
+            roll_keep_for 168h
+            roll_uncompressed
+        }
+    }
+    import security_headers
+    # WebSocket requests go directly to GoAccess real-time server (no auth needed for WS)
+    @websocket {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    handle @websocket {
+        reverse_proxy localhost:7890
+    }
+    # HTTP requests serve the static HTML report via nginx (port 7891)
+    import authelia_auth
+    handle {
+        reverse_proxy localhost:7891
+    }
+}
+

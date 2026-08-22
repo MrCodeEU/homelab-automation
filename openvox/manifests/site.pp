@@ -15,6 +15,7 @@ node 'mljr.tail33930.ts.net' {
   class { 'roles::iperf3':
     base_path => '/opt',
   }
+  include roles::caddy
   include roles::authelia
   include roles::glance
   include roles::mailcow
