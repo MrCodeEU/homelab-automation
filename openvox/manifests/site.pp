@@ -4,6 +4,14 @@
 # resources declared on nuc's own node block instead.
 
 node 'mljr.tail33930.ts.net' {
+  class { 'roles::base':
+    swap_enabled         => true,
+    public_ip            => '157.173.97.107',
+    ssh_breakglass_port  => 2299,
+    tailscale_ip         => '100.100.20.1',
+    cockpit_console_enabled => true,
+    domain               => 'mljr.eu',
+  }
   class { 'roles::iperf3':
     base_path => '/opt',
   }
@@ -11,6 +19,9 @@ node 'mljr.tail33930.ts.net' {
 }
 
 node 'nuc.tail33930.ts.net' {
+  class { 'roles::base':
+    tailscale_ip => '100.100.10.1',
+  }
   class { 'roles::iperf3':
     base_path => '/opt',
   }
