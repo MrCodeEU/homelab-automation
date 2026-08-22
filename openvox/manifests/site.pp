@@ -17,6 +17,7 @@ node 'mljr.tail33930.ts.net' {
   }
   include roles::authelia
   include roles::glance
+  include roles::mailcow
 }
 
 node 'nuc.tail33930.ts.net' {
