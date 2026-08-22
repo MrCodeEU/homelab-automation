@@ -7,6 +7,7 @@ node 'mljr.tail33930.ts.net' {
   class { 'roles::iperf3':
     base_path => '/opt',
   }
+  include roles::authelia
 }
 
 node 'nuc.tail33930.ts.net' {
