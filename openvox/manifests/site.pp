@@ -51,6 +51,9 @@ node 'mljr.tail33930.ts.net' {
     dest      => '/usr/local/bin/homelab-facts',
   }
   include roles::crowdsec_firewall_bouncer
+  class { 'roles::grafana_alloy':
+    hostname => 'mljr',
+  }
 }
 
 node 'nuc.tail33930.ts.net' {
@@ -85,6 +88,9 @@ node 'nuc.tail33930.ts.net' {
     dest      => '/usr/local/bin/homelab-facts',
   }
   include roles::unraid_host_facts_proxy
+  class { 'roles::grafana_alloy':
+    hostname => 'nuc',
+  }
 }
 
 node 'ugreen.tail33930.ts.net' {
@@ -101,5 +107,10 @@ node 'ugreen.tail33930.ts.net' {
     needs_symlink  => true,
     dest_dir       => '/volume1/homelab/bin',
     base_path      => '/volume1/homelab',
+  }
+  class { 'roles::grafana_alloy':
+    hostname          => 'ugreen',
+    docker_root       => '/volume1/@docker',
+    manage_docker_sdk => true,
   }
 }
