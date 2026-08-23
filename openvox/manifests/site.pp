@@ -44,6 +44,7 @@ node 'mljr.tail33930.ts.net' {
     tailscale_ip => '100.100.20.1',
   }
   include roles::hetrixtools_agent
+  include roles::homepage_data_sync
 }
 
 node 'nuc.tail33930.ts.net' {
