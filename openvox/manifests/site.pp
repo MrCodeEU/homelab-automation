@@ -3,6 +3,14 @@
 # wd-mycloud-proxy.pp pattern once ported) and are driven by exec
 # resources declared on nuc's own node block instead.
 
+# CI's own weekly-maintenance run sets FACTER_openvox_weekly_maintenance=true
+# before invoking `puppet apply` (see .github/workflows/deploy.yml) - the
+# masterless equivalent of Ansible's `docker_prune_enabled`/
+# `reboot_if_needed` extra-vars, which had no config file or CLI flag to
+# live in otherwise. Every other trigger leaves the fact unset, so both
+# stay off by default, matching roles::base's own Ansible-parity defaults.
+$weekly_maintenance = $facts['openvox_weekly_maintenance'] == 'true'
+
 node 'mljr.tail33930.ts.net' {
   class { 'roles::base':
     swap_enabled         => true,
@@ -11,6 +19,8 @@ node 'mljr.tail33930.ts.net' {
     tailscale_ip         => '100.100.20.1',
     cockpit_console_enabled => true,
     domain               => 'mljr.eu',
+    docker_prune_enabled => $weekly_maintenance,
+    reboot_if_needed     => $weekly_maintenance,
   }
   class { 'roles::iperf3':
     base_path => '/opt',
@@ -58,7 +68,9 @@ node 'mljr.tail33930.ts.net' {
 
 node 'nuc.tail33930.ts.net' {
   class { 'roles::base':
-    tailscale_ip => '100.100.10.1',
+    tailscale_ip         => '100.100.10.1',
+    docker_prune_enabled => $weekly_maintenance,
+    reboot_if_needed     => $weekly_maintenance,
   }
   class { 'roles::iperf3':
     base_path => '/opt',
