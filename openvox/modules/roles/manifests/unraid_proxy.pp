@@ -9,9 +9,9 @@
 # already-validated spot port (spot/playbooks/unraid-bootstrap.yml on
 # migration/spot) - same array-state precondition, same array-side
 # directory layout, same User Scripts bootstrap entry + schedule.json
-# merge (still done as a real python3 script run on nas itself - no jq
-# on this Slackware base, and reimplementing JSON merge/sort-keys logic
-# in shell would be worse than just running Python where it already is).
+# merge (a static Go binary - tools/cmd/schedule-merge-unraid - scp'd
+# over and run on nas itself; no jq on this Slackware base, and it was
+# a real python3 script here before the Python->Go migration).
 class roles::unraid_proxy (
   String $work_dir = '/usr/local/libexec/openvox-unraid',
 ) {
