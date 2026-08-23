@@ -2,34 +2,14 @@ name: Deploy Homelab
 
 on:
   # Manual trigger - can be run from ANY branch via GitHub UI
-  # Non-main branches automatically deploy to staging environment
+  # Non-main branches automatically run in check mode (noop).
   workflow_dispatch:
     inputs:
       limit:
-        description: 'Target hosts (all, mljr, rocky)'
+        description: 'Target hosts (all, mljr, nuc, ugreen)'
         required: false
         default: 'all'
         type: string
-      tags:
-        description: 'Ansible tags (all, base, caddy, services, backup, security)'
-        required: false
-        default: 'all'
-        type: string
-      staging:
-        description: 'Deploy staging environment (to nuc)'
-        required: false
-        default: true
-        type: boolean
-      cleanup:
-        description: 'Remove services no longer assigned to their host (use after host migrations)'
-        required: false
-        default: false
-        type: boolean
-      force_regen_caddy:
-        description: 'Force Caddy snippet regeneration even if services have not changed'
-        required: false
-        default: false
-        type: boolean
       docker_prune:
         description: 'Prune unused Docker images/containers during deployment'
         required: false
@@ -43,17 +23,17 @@ on:
 
   # Deliberately no `push` trigger on main: this repo pushes straight to main
   # often (branch protection is bypassable), and every push auto-deploying
-  # with LIMIT=all TAGS=all meant even a one-line doc fix ran a full deploy.
-  # Deploys are now always a conscious step: `gh workflow run deploy.yml -f
-  # tags=... -f limit=...` (or the GitHub UI), scoped to what actually
-  # changed. The weekly schedule below remains the untargeted safety net.
+  # with LIMIT=all meant even a one-line doc fix ran a full deploy. Deploys
+  # are now always a conscious step: `gh workflow run deploy.yml -f
+  # limit=...` (or the GitHub UI), scoped to what actually changed. The
+  # weekly schedule below remains the untargeted safety net.
 
-  # Check mode (dry run) on pull requests - use as required PR check
+  # Check mode (dry run / noop) on pull requests - use as required PR check
   pull_request:
     branches:
       - main
     paths:
-      - 'ansible/**'
+      - 'openvox/**'
       - 'services/**'
       - 'scripts/**'
       - '.github/workflows/deploy.yml'
@@ -102,8 +82,18 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: validate
+    env:
+      # Keep in sync with Makefile's OPENVOX_HOSTS.
+      MLJR_HOST: mljr.tail33930.ts.net
+      NUC_HOST: nuc.tail33930.ts.net
+      UGREEN_HOST: ugreen.tail33930.ts.net
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install Python deps
+        # Runs on its own runner, separate from the validate job - needs its
+        # own pyyaml for the services_catalog lookups below.
+        run: pip install --quiet pyyaml
 
       - name: Set environment
         id: env
@@ -111,45 +101,29 @@ jobs:
         # token with repo write can set these fields to arbitrary strings. They
         # are passed through the environment rather than interpolated into the
         # script, because `VAR="${{ ... }}"` lets a value like `"; curl x | sh; #`
-        # execute on a runner that carries the Ansible SSH key and the Vault
-        # password. They are also validated below before reaching $GITHUB_OUTPUT,
-        # so every later consumer of those outputs is safe by construction.
+        # execute on a runner that carries Tailscale SSH access to every host.
+        # They are also validated below before reaching $GITHUB_OUTPUT, so
+        # every later consumer of those outputs is safe by construction.
         env:
           RAW_DISPATCH_SERVICE: ${{ github.event.client_payload.service }}
-          RAW_DISPATCH_ENVIRONMENT: ${{ github.event.client_payload.environment }}
         run: |
-          IS_STAGING="false"
           CHECK_MODE="false"
           DISPATCH_SERVICE=""
-          DISPATCH_ENVIRONMENT=""
 
-          # Pull requests always run in check mode (dry run)
           if [ "${{ github.event_name }}" == "pull_request" ]; then
-            IS_STAGING="true"
             CHECK_MODE="true"
             echo "Pull request detected - running in CHECK MODE"
-          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            # Manual dispatch: use the staging input (default: true)
-            IS_STAGING="${{ inputs.staging }}"
-          elif [ "${{ github.event_name }}" == "schedule" ]; then
-            # Weekly scheduled deployment: deploy both production AND staging
-            IS_STAGING="true"
-            echo "Scheduled weekly deployment - deploying production + staging"
-          elif [ "${{ github.event_name }}" == "push" ] && [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            # Push to main: deploy both production AND staging
-            IS_STAGING="true"
-            echo "Push to main - deploying production + staging"
           elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
-            # External triggers: read service and environment from the payload,
-            # which is untrusted (see the env: block above). Reject anything
-            # that is not a plain identifier rather than trying to escape it -
-            # a service name has no legitimate reason to contain a quote, a
-            # semicolon or a newline, and a newline alone would let the payload
-            # forge extra $GITHUB_OUTPUT entries.
+            # External triggers: read service from the payload, which is
+            # untrusted (see the env: block above). Reject anything that is
+            # not a plain identifier rather than trying to escape it - a
+            # service name has no legitimate reason to contain a quote, a
+            # semicolon or a newline, and a newline alone would let the
+            # payload forge extra $GITHUB_OUTPUT entries.
             # Deliberately a shell glob and not `grep -qE`: grep matches per
             # line, so "godrive\nmalicious=1" would satisfy an anchored regex
-            # and still smuggle a second line into $GITHUB_OUTPUT. `case` tests
-            # the whole string, newlines included.
+            # and still smuggle a second line into $GITHUB_OUTPUT. `case`
+            # tests the whole string, newlines included.
             case "$RAW_DISPATCH_SERVICE" in
               "" | *[!A-Za-z0-9._-]* )
                 echo "::error::repository_dispatch rejected: 'service' must be 1-64 chars of [A-Za-z0-9._-]"
@@ -160,43 +134,70 @@ jobs:
               echo "::error::repository_dispatch rejected: 'service' is longer than 64 characters"
               exit 1
             fi
-            case "$RAW_DISPATCH_ENVIRONMENT" in
-              staging|production|"") ;;
-              *)
-                echo "::error::repository_dispatch rejected: 'environment' must be staging, production or empty"
-                exit 1
-                ;;
-            esac
-
             DISPATCH_SERVICE="$RAW_DISPATCH_SERVICE"
-            DISPATCH_ENVIRONMENT="$RAW_DISPATCH_ENVIRONMENT"
-
-            # Determine staging based on payload environment or default to both
-            if [ "$DISPATCH_ENVIRONMENT" == "staging" ]; then
-              IS_STAGING="true"
-              echo "Repository dispatch - deploying staging only for service: $DISPATCH_SERVICE"
-            elif [ "$DISPATCH_ENVIRONMENT" == "production" ]; then
-              IS_STAGING="false"
-              echo "Repository dispatch - deploying production only for service: $DISPATCH_SERVICE"
-            else
-              IS_STAGING="true"
-              echo "Repository dispatch - deploying production + staging for service: $DISPATCH_SERVICE"
-            fi
+            echo "Repository dispatch - deploying service: $DISPATCH_SERVICE"
           elif [ "${{ github.ref }}" != "refs/heads/main" ]; then
             # Non-main branches: check mode only
-            IS_STAGING="true"
             CHECK_MODE="true"
           fi
 
-          echo "is_staging=$IS_STAGING" >> $GITHUB_OUTPUT
           echo "check_mode=$CHECK_MODE" >> $GITHUB_OUTPUT
           echo "dispatch_service=$DISPATCH_SERVICE" >> $GITHUB_OUTPUT
-          echo "dispatch_environment=$DISPATCH_ENVIRONMENT" >> $GITHUB_OUTPUT
-          echo "Environment: $([ "$IS_STAGING" == "true" ] && echo 'production + staging' || echo 'production only')"
           echo "Check mode: $CHECK_MODE"
           if [ -n "$DISPATCH_SERVICE" ]; then
             echo "Target service: $DISPATCH_SERVICE"
           fi
+
+      - name: Resolve target hosts
+        id: hosts
+        run: |
+          LIMIT="all"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "" ]; then
+            LIMIT="${{ inputs.limit }}"
+          fi
+
+          DISPATCH_SERVICE="${{ steps.env.outputs.dispatch_service }}"
+          if [ -n "$DISPATCH_SERVICE" ]; then
+            # Puppet applies a whole host catalog idempotently, so there is no
+            # equivalent to Ansible's surgical single-service fast path
+            # (deploy-service.yml) - resolve the service's host from the
+            # catalog and apply that host's full catalog, plus mljr too (if
+            # different) so its Caddy snippet for the service stays current.
+            SERVICE_HOST=$(DISPATCH_SERVICE="$DISPATCH_SERVICE" python3 -c "import os, yaml; d = yaml.safe_load(open('openvox/data/common.yaml')); m = next((s for s in d['services_catalog'] if s['name'] == os.environ['DISPATCH_SERVICE']), None); print(m.get('host', 'nuc') if m else 'nuc', end='')")
+          fi
+
+          case "$LIMIT" in
+            all)
+              HOSTS="$MLJR_HOST $NUC_HOST $UGREEN_HOST"
+              ;;
+            mljr) HOSTS="$MLJR_HOST" ;;
+            nuc) HOSTS="$NUC_HOST" ;;
+            ugreen) HOSTS="$UGREEN_HOST" ;;
+            *)
+              echo "::error::Unknown limit '$LIMIT' (expected all, mljr, nuc or ugreen)"
+              exit 1
+              ;;
+          esac
+
+          if [ -n "$DISPATCH_SERVICE" ]; then
+            case "$SERVICE_HOST" in
+              mljr) HOSTS="$MLJR_HOST" ;;
+              nuc) HOSTS="$NUC_HOST $MLJR_HOST" ;;
+              ugreen) HOSTS="$UGREEN_HOST $MLJR_HOST" ;;
+              nas)
+                # nas has no Puppet agent - it is reached via proxy-exec from
+                # nuc's own catalog (roles::services_nas), so applying nuc
+                # covers it. Add mljr too for the Caddy snippet.
+                HOSTS="$NUC_HOST $MLJR_HOST"
+                ;;
+              *) HOSTS="$NUC_HOST $MLJR_HOST" ;;
+            esac
+            echo "Fast path: service=$DISPATCH_SERVICE resolved host=$SERVICE_HOST -> applying: $HOSTS"
+          fi
+
+          echo "hosts=$HOSTS" >> $GITHUB_OUTPUT
+          echo "limit=$LIMIT" >> $GITHUB_OUTPUT
+          echo "Target hosts: $HOSTS"
 
       - name: Setup Tailscale
         uses: tailscale/github-action@v3
@@ -207,7 +208,6 @@ jobs:
 
       - name: Notify deployment start
         run: |
-          # Skip start notification for check mode (PR dry runs)
           if [ "${{ steps.env.outputs.check_mode }}" == "true" ]; then
             echo "Check mode - skipping start notification"
             exit 0
@@ -227,116 +227,9 @@ jobs:
           curl -s --connect-timeout 5 --max-time 10 \
             -H "Title: $TITLE" \
             -H "Priority: low" \
-            -H "Tags: ansible,homelab,rocket" \
+            -H "Tags: openvox,homelab,rocket" \
             -d "$MSG" \
             https://ntfy.mljr.eu/deployment || echo "Start notification failed (non-critical)"
-
-      - name: Cache Ansible and Collections
-        id: ansible-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/bin
-            ~/.local/pipx
-            ~/.ansible/collections
-          key: ansible-${{ runner.os }}-${{ hashFiles('ansible/requirements.yml') }}-v6
-          restore-keys: |
-            ansible-${{ runner.os }}-
-
-      - name: Install Ansible with Mitogen
-        run: |
-          if ! command -v ansible-playbook &> /dev/null; then
-            echo "Installing Ansible..."
-            pipx install ansible-core
-            pipx inject ansible-core docker
-          else
-            echo "Ansible already installed (from cache)"
-          fi
-          
-          # Always ensure Mitogen is installed
-          echo "Ensuring Mitogen is available..."
-          if ! pipx runpip ansible-core list | grep -q mitogen; then
-            echo "Installing Mitogen..."
-            pipx inject ansible-core mitogen
-          fi
-
-          # ARA records Ansible runs to SQLite for post-run troubleshooting.
-          echo "Ensuring ARA is available..."
-          if ! pipx runpip ansible-core show ara >/dev/null 2>&1; then
-            echo "Installing ARA..."
-            pipx inject ansible-core "ara[server]"
-          fi
-
-          ANSIBLE_CORE_VENV="$(pipx environment --value PIPX_HOME)/venvs/ansible-core"
-          echo "ANSIBLE_CORE_VENV=${ANSIBLE_CORE_VENV}" >> $GITHUB_ENV
-
-          if [ -x "${ANSIBLE_CORE_VENV}/bin/python" ]; then
-            ARA_CALLBACK_PLUGINS="$("${ANSIBLE_CORE_VENV}/bin/python" -m ara.setup.callback_plugins)"
-            echo "ARA_CALLBACK_PLUGINS=${ARA_CALLBACK_PLUGINS}" >> $GITHUB_ENV
-            echo "✓ ARA callback plugins: ${ARA_CALLBACK_PLUGINS}"
-          else
-            echo "⚠ Warning: Could not locate ansible-core virtualenv for ARA"
-          fi
-          
-          # Find and export Mitogen strategy plugin path
-          MITOGEN_PATH=$(pipx runpip ansible-core show mitogen | grep "Location:" | cut -d' ' -f2)
-          if [ -n "$MITOGEN_PATH" ]; then
-            echo "MITOGEN_STRATEGY_PATH=${MITOGEN_PATH}/ansible_mitogen/plugins/strategy" >> $GITHUB_ENV
-            echo "✓ Mitogen successfully installed at: $MITOGEN_PATH"
-          else
-            echo "⚠ Warning: Could not determine Mitogen path"
-          fi
-
-      - name: Install collections
-        run: |
-          # Skip install when cache is valid — collections are already present
-          if [ "${{ steps.ansible-cache.outputs.cache-hit }}" == "true" ]; then
-            echo "Collections loaded from cache - skipping install"
-            exit 0
-          fi
-
-          echo "::group::Installing Ansible collections"
-          cd ansible
-
-          # Try installing from Ansible Galaxy first
-          echo "Attempting to install collections from Ansible Galaxy..."
-          if ansible-galaxy collection install -r requirements.yml 2>&1; then
-            echo "✓ Collections installed successfully from Ansible Galaxy"
-          else
-            echo "⚠ Ansible Galaxy failed, falling back to GitHub sources..."
-
-            # Create fallback requirements with GitHub sources
-            # Include all dependencies to avoid Galaxy resolution
-            # Using --no-deps to prevent any Galaxy calls
-            echo 'collections:' > requirements-fallback.yml
-            echo '  - name: https://github.com/ansible-collections/community.docker.git' >> requirements-fallback.yml
-            echo '    type: git' >> requirements-fallback.yml
-            echo '    version: main' >> requirements-fallback.yml
-            echo '  - name: https://github.com/ansible-collections/community.general.git' >> requirements-fallback.yml
-            echo '    type: git' >> requirements-fallback.yml
-            echo '    version: main' >> requirements-fallback.yml
-            echo '  - name: https://github.com/ansible-collections/ansible.posix.git' >> requirements-fallback.yml
-            echo '    type: git' >> requirements-fallback.yml
-            echo '    version: main' >> requirements-fallback.yml
-            echo '  - name: https://github.com/ansible-collections/community.library_inventory_filtering.git' >> requirements-fallback.yml
-            echo '    type: git' >> requirements-fallback.yml
-            echo '    version: stable-1' >> requirements-fallback.yml
-            # openssh_keypair, used by roles/healthreport. Without it the
-            # fallback path installs a set that cannot run site.yml.
-            echo '  - name: https://github.com/ansible-collections/community.crypto.git' >> requirements-fallback.yml
-            echo '    type: git' >> requirements-fallback.yml
-            echo '    version: main' >> requirements-fallback.yml
-
-            echo "Installing collections from GitHub (with --no-deps to skip Galaxy)..."
-            if ansible-galaxy collection install -r requirements-fallback.yml --no-deps --force 2>&1; then
-              echo "✓ Collections installed successfully from GitHub"
-            else
-              echo "::error::Failed to install collections from both Galaxy and GitHub"
-              exit 1
-            fi
-          fi
-
-          echo "::endgroup::"
 
       - name: Record deployment start
         id: deploy_start
@@ -344,171 +237,57 @@ jobs:
           echo "start_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
           echo "start_epoch=$(date +%s)" >> $GITHUB_OUTPUT
 
-      - name: Run Ansible
-        id: ansible
+      - name: Run OpenVox
+        id: openvox
         continue-on-error: true
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-          ANSIBLE_PIPELINING: "True"
-          ANSIBLE_SSH_PIPELINING: "True"
-          ANSIBLE_STRATEGY_PLUGINS: "${{ env.MITOGEN_STRATEGY_PATH }}"
-          ANSIBLE_CALLBACK_PLUGINS: "${{ env.ARA_CALLBACK_PLUGINS }}"
-          ARA_API_CLIENT: "offline"
-          ARA_BASE_DIR: "/tmp/ara"
-          ARA_DATABASE: "sqlite:////tmp/ara/ansible.sqlite"
-          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p /tmp/ara
-
-          # Write vault password to tmpfs temp file; trap ensures cleanup on exit
-          VAULT_PASS_FILE=$(mktemp)
-          chmod 600 "$VAULT_PASS_FILE"
-          echo "$ANSIBLE_VAULT_PASSWORD" > "$VAULT_PASS_FILE"
-          export ANSIBLE_VAULT_PASSWORD_FILE="$VAULT_PASS_FILE"
-          trap "rm -f '$VAULT_PASS_FILE'" EXIT
-
-          cd ansible
-
-          # Determine limit
-          LIMIT="all"
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "" ]; then
-            LIMIT="${{ inputs.limit }}"
-          fi
-
-          # Determine tags
-          TAGS="all"
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "" ]; then
-            TAGS="${{ inputs.tags }}"
-          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
-            TAGS="services,caddy"
-          fi
-
-          # Extra vars
-          EXTRA_VARS="is_staging_deployment=${{ steps.env.outputs.is_staging }}"
-
-          # If a specific service was requested via repository_dispatch, add it as changed_services
-          DISPATCH_SERVICE="${{ steps.env.outputs.dispatch_service }}"
-          if [ -n "$DISPATCH_SERVICE" ]; then
-            EXTRA_VARS="$EXTRA_VARS changed_services=$DISPATCH_SERVICE"
-            echo "Deploying specific service: $DISPATCH_SERVICE"
-          fi
-
-          # Enable cleanup when explicitly requested (use after host migrations)
-          if [ "${{ inputs.cleanup }}" == "true" ]; then
-            EXTRA_VARS="$EXTRA_VARS cleanup_enabled=true"
-            echo "Cleanup enabled: orphaned services will be removed"
-          fi
-
-          # Force Caddy snippet regeneration when explicitly requested
-          if [ "${{ inputs.force_regen_caddy }}" == "true" ]; then
-            EXTRA_VARS="$EXTRA_VARS force_regen_caddy=true"
-            echo "Force Caddy snippet regeneration enabled"
-          fi
-
-          # Weekly maintenance should reclaim unused Docker images/containers.
-          if [ "${{ github.event_name }}" == "schedule" ] || [ "${{ inputs.docker_prune }}" == "true" ]; then
-            EXTRA_VARS="$EXTRA_VARS docker_prune_enabled=true"
-            echo "Docker prune enabled: unused images/containers will be removed"
-          fi
-
-          # Weekly maintenance is also the only time a host may reboot. Packages
-          # are upgraded on every deploy, but nothing activated a new kernel, so
-          # mljr once accumulated 94 "pending" advisories that were really one
-          # missing reboot. roles/base gates this on `needs-restarting -r`, so a
-          # host with nothing to activate is not restarted just because the
-          # schedule fired, and each host must opt in via reboot_enabled.
-          # Deliberately never set on a push or dispatch deploy: those happen
-          # during the day and must stay non-disruptive.
-          if [ "${{ github.event_name }}" == "schedule" ] || [ "${{ inputs.reboot_if_needed }}" == "true" ]; then
-            EXTRA_VARS="$EXTRA_VARS reboot_if_needed=true"
-            echo "Gated reboot enabled: hosts with pending kernel updates will restart"
-          fi
-
-          # Check mode for non-main branches (dry run)
-          CHECK_FLAG=""
+          MODE="apply"
           if [ "${{ steps.env.outputs.check_mode }}" == "true" ]; then
-            CHECK_FLAG="--check --diff"
-            echo "Running in CHECK MODE (dry run) - no changes will be made"
+            MODE="noop"
+            echo "Running in CHECK MODE (noop) - no changes will be made"
           fi
 
-          # Fast path: single-service deploy via repository_dispatch
-          if [ -n "$DISPATCH_SERVICE" ]; then
-            # Look up the service host from all.yml (single-line to stay in YAML block scalar)
-            SERVICE_HOST=$(python3 -c "import yaml,sys;d=yaml.safe_load(open('inventory/group_vars/all/all.yml'));m=next((s for s in d['services'] if s['name']=='$DISPATCH_SERVICE'),None);print(m.get('host','nuc') if m else 'nuc',end='')")
-            echo "🚀 Fast deploy: service=$DISPATCH_SERVICE host=$SERVICE_HOST"
-            echo "⚡ Using deploy-service.yml (skips base/security/backup/mailcow/authelia)"
-            echo "::group::Ansible Deployment"
-
-            ansible-playbook playbooks/deploy-service.yml \
-              --forks 20 \
-              $CHECK_FLAG \
-              --extra-vars "$EXTRA_VARS target_service=$DISPATCH_SERVICE service_host=$SERVICE_HOST" \
-              2>&1 | tee /tmp/ansible-output.log
-          else
-            echo "🚀 Running: ansible-playbook site.yml --limit $LIMIT --tags $TAGS --forks 20 $CHECK_FLAG"
-            echo "⚡ Using Mitogen strategy for faster execution"
-            echo "::group::Ansible Deployment"
-
-            ansible-playbook playbooks/site.yml \
-              --limit "$LIMIT" \
-              --tags "$TAGS" \
-              --forks 20 \
-              $CHECK_FLAG \
-              --extra-vars "$EXTRA_VARS" \
-              2>&1 | tee /tmp/ansible-output.log
+          # Weekly maintenance (docker prune / gated reboot) - masterless
+          # equivalent of Ansible's docker_prune_enabled/reboot_if_needed
+          # extra-vars, see openvox-sync.sh and site.pp's $weekly_maintenance.
+          WEEKLY_MAINTENANCE="false"
+          if [ "${{ github.event_name }}" == "schedule" ] || \
+             [ "${{ inputs.docker_prune }}" == "true" ] || \
+             [ "${{ inputs.reboot_if_needed }}" == "true" ]; then
+            WEEKLY_MAINTENANCE="true"
+            echo "Weekly maintenance enabled: docker prune + gated reboot"
           fi
-          
-          ANSIBLE_EXIT_CODE=${PIPESTATUS[0]}
+          export OPENVOX_WEEKLY_MAINTENANCE="$WEEKLY_MAINTENANCE"
+
+          echo "🚀 Running: openvox-sync.sh on [${{ steps.hosts.outputs.hosts }}] mode=$MODE"
+          echo "::group::OpenVox Deployment"
+
+          EXIT_CODE=0
+          : > /tmp/openvox-output.log
+          for host in ${{ steps.hosts.outputs.hosts }}; do
+            echo "--- $host ---" | tee -a /tmp/openvox-output.log
+            if ! ./scripts/openvox-sync.sh "$host" "$MODE" 2>&1 | tee -a /tmp/openvox-output.log; then
+              EXIT_CODE=1
+            fi
+          done
+
           echo "::endgroup::"
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
 
-          # Output exit code for subsequent steps
-          echo "exit_code=$ANSIBLE_EXIT_CODE" >> $GITHUB_OUTPUT
-
-          # Parse and annotate errors/failures
-          if [ $ANSIBLE_EXIT_CODE -ne 0 ] || grep -q "FAILED - RETRYING\|fatal:\|failed:" /tmp/ansible-output.log; then
+          if [ "$EXIT_CODE" -ne 0 ] || grep -qE "^Error:" /tmp/openvox-output.log; then
             echo "::group::Deployment Errors"
-            # Extract and display failed tasks with context
-            grep -A 3 "TASK \[.*\]" /tmp/ansible-output.log | grep -B 1 -A 2 "fatal:\|failed:" || true
-            # Extract service deployment failures
-            grep -E "Failed: [1-9]|Error when processing image" /tmp/ansible-output.log | while read -r line; do
-              echo "::error::$line"
-            done || true
+            grep -E "^Error:" /tmp/openvox-output.log || true
             echo "::endgroup::"
           fi
 
-          exit $ANSIBLE_EXIT_CODE
+          exit $EXIT_CODE
 
-      - name: Export ARA report
-        if: always()
-        run: |
-          set +e
-          mkdir -p /tmp/ara-artifact
-
-          if [ -d /tmp/ara ]; then
-            cp -a /tmp/ara /tmp/ara-artifact/ara
-          fi
-
-          if [ -x "${ANSIBLE_CORE_VENV}/bin/ara" ]; then
-            "${ANSIBLE_CORE_VENV}/bin/ara" playbook list --format json > /tmp/ara-artifact/playbooks.json 2>/tmp/ara-artifact/ara-cli.stderr || true
-            "${ANSIBLE_CORE_VENV}/bin/ara" host list --format json > /tmp/ara-artifact/hosts.json 2>>/tmp/ara-artifact/ara-cli.stderr || true
-          fi
-
-          {
-            echo "# ARA Report"
-            echo ""
-            echo "- Run: ${{ github.run_id }}"
-            echo "- Workflow: ${{ github.workflow }}"
-            echo "- Commit: ${{ github.sha }}"
-            echo "- Database: ara/ansible.sqlite"
-          } > /tmp/ara-artifact/README.md
-
-      - name: Upload ARA report artifact
+      - name: Upload OpenVox apply log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ara-report-${{ github.run_id }}
-          path: /tmp/ara-artifact
+          name: openvox-log-${{ github.run_id }}
+          path: /tmp/openvox-output.log
           if-no-files-found: ignore
           retention-days: 30
 
@@ -517,11 +296,8 @@ jobs:
         env:
           START_TIME: ${{ steps.deploy_start.outputs.start_time }}
           START_EPOCH: ${{ steps.deploy_start.outputs.start_epoch }}
-          ANSIBLE_EXIT_CODE: ${{ steps.ansible.outputs.exit_code }}
-          IS_STAGING: ${{ steps.env.outputs.is_staging }}
+          OPENVOX_EXIT_CODE: ${{ steps.openvox.outputs.exit_code }}
           CHECK_MODE: ${{ steps.env.outputs.check_mode }}
-          ANSIBLE_HOST_KEY_CHECKING: "False"
-          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
         run: |
           set +e  # Don't exit on errors - status page update is non-critical
 
@@ -529,167 +305,123 @@ jobs:
           START_EPOCH_VAL="${START_EPOCH:-$END_EPOCH}"
           DURATION=$((END_EPOCH - START_EPOCH_VAL))
 
-          if [ "${ANSIBLE_EXIT_CODE:-1}" == "0" ]; then
+          if [ "${OPENVOX_EXIT_CODE:-1}" == "0" ]; then
             STATUS="success"
           else
             STATUS="failed"
           fi
 
-          LIMIT="all"
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "" ]; then
-            LIMIT="${{ inputs.limit }}"
-          fi
-
-          TAGS="all"
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "" ]; then
-            TAGS="${{ inputs.tags }}"
-          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
-            TAGS="services,caddy"
-          fi
-
           COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null | head -1 | cut -c1-100 || echo "No commit message")
           export COMMIT_MSG
           DISPATCH_SERVICE="${{ steps.env.outputs.dispatch_service }}"
-          DISPATCH_ENVIRONMENT="${{ steps.env.outputs.dispatch_environment }}"
 
-          cat > /tmp/deploy-status-vars.json <<STATUS_VARS
-          {
-            "deploy_status_log_file": "/tmp/ansible-output.log",
-            "deploy_status_start_time": "$START_TIME",
-            "deploy_status_duration_seconds": $DURATION,
-            "deploy_status_status": "$STATUS",
-            "deploy_status_trigger": "${{ github.event_name }}",
-            "deploy_status_branch": "${{ github.ref_name }}",
-            "deploy_status_commit_sha": "${{ github.sha }}",
-            "deploy_status_commit_message": $(python3 -c 'import json, os; print(json.dumps(os.environ["COMMIT_MSG"]))'),
-            "deploy_status_actor": "${{ github.actor }}",
-            "deploy_status_check_mode": $CHECK_MODE,
-            "deploy_status_is_staging": $IS_STAGING,
-            "deploy_status_limit": "$LIMIT",
-            "deploy_status_tags": "$TAGS",
-            "deploy_status_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-            "deploy_status_ara_artifact": "ara-report-${{ github.run_id }}",
-            "deploy_status_targeted_service": "$DISPATCH_SERVICE",
-            "deploy_status_target_environment": "$DISPATCH_ENVIRONMENT"
-          }
-          STATUS_VARS
+          WORKDIR=$(mktemp -d)
+          WORKDIR="$WORKDIR" python3 -c "import os, yaml, json; d = yaml.safe_load(open('openvox/data/common.yaml')); json.dump(d['services_catalog'], open(os.path.join(os.environ['WORKDIR'], 'services.json'), 'w'))"
+          scp -o StrictHostKeyChecking=accept-new \
+            "root@${MLJR_HOST}:/opt/caddy/site/data/deployments.json" \
+            "$WORKDIR/deployments.json" 2>/dev/null || \
+            echo '{"deployments":[],"services":[],"last_updated":""}' > "$WORKDIR/deployments.json"
 
-          VAULT_PASS_FILE=$(mktemp)
-          chmod 600 "$VAULT_PASS_FILE"
-          echo "$ANSIBLE_VAULT_PASSWORD" > "$VAULT_PASS_FILE"
-          export ANSIBLE_VAULT_PASSWORD_FILE="$VAULT_PASS_FILE"
-          trap "rm -f '$VAULT_PASS_FILE'" EXIT
+          python3 scripts/build_deploy_status.py \
+            --existing-json "$WORKDIR/deployments.json" \
+            --services-json "$WORKDIR/services.json" \
+            --ansible-log /tmp/openvox-output.log \
+            --output-json "$WORKDIR/deployments-out.json" \
+            --output-html "$WORKDIR/index.html" \
+            --start-time "$START_TIME" \
+            --duration-seconds "$DURATION" \
+            --status "$STATUS" \
+            --trigger "${{ github.event_name }}" \
+            --branch "${{ github.ref_name }}" \
+            --commit-sha "${{ github.sha }}" \
+            --commit-message "$COMMIT_MSG" \
+            --actor "${{ github.actor }}" \
+            --limit "${{ steps.hosts.outputs.limit }}" \
+            --tags "n/a" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --ara-artifact "openvox-log-${{ github.run_id }}" \
+            --targeted-service "$DISPATCH_SERVICE" \
+            $([ "$CHECK_MODE" == "true" ] && echo --check-mode) \
+            || echo "Deployment status build failed"
 
-          cd ansible
-          ansible-playbook playbooks/deploy-status.yml \
-            --forks 1 \
-            --extra-vars @/tmp/deploy-status-vars.json || echo "Deployment status page update failed"
+          ssh -o StrictHostKeyChecking=accept-new "root@${MLJR_HOST}" \
+            "mkdir -p /opt/caddy/site/data" || true
+          scp -o StrictHostKeyChecking=accept-new \
+            "$WORKDIR/deployments-out.json" \
+            "root@${MLJR_HOST}:/opt/caddy/site/data/deployments.json" || \
+            echo "Failed to upload deployment history"
+          scp -o StrictHostKeyChecking=accept-new \
+            "$WORKDIR/index.html" \
+            "root@${MLJR_HOST}:/opt/caddy/site/index.html" || \
+            echo "Failed to upload deployment status page"
+          ssh -o StrictHostKeyChecking=accept-new "root@${MLJR_HOST}" \
+            "chown -R caddy:caddy /opt/caddy/site" || true
 
+          rm -rf "$WORKDIR"
           echo "Deployment status page updated: https://deploy.mljr.eu"
 
       - name: Create deployment summary
         if: always()
         run: |
-          STATUS="${{ steps.ansible.outputs.exit_code == '0' && 'success' || 'failure' }}"
+          STATUS="${{ steps.openvox.outputs.exit_code == '0' && 'success' || 'failure' }}"
           echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Status:** $([[ "$STATUS" == "success" ]] && echo "✅ Success" || echo "❌ Failed")" >> $GITHUB_STEP_SUMMARY
-          echo "**Mode:** ${{ steps.env.outputs.check_mode == 'true' && '🧪 Dry Run (Check Mode)' || '🎯 Live Deployment' }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** ${{ steps.env.outputs.is_staging == 'true' && '🔵 Production + Staging' || '🟢 Production Only' }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode:** ${{ steps.env.outputs.check_mode == 'true' && '🧪 Dry Run (noop)' || '🎯 Live Deployment' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
-          LIMIT="all"
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "" ]; then
-            LIMIT="${{ inputs.limit }}"
-          fi
-          
-          TAGS="all"
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "" ]; then
-            TAGS="${{ inputs.tags }}"
-          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
-            TAGS="services,caddy"
-          fi
-          
+
           echo "### Configuration" >> $GITHUB_STEP_SUMMARY
-          echo "- **Target Hosts:** \`$LIMIT\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tags:** \`$TAGS\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target Hosts:** \`${{ steps.hosts.outputs.hosts }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
 
-          # Show targeted service for repository_dispatch
           if [ -n "${{ steps.env.outputs.dispatch_service }}" ]; then
             echo "- **Service:** \`${{ steps.env.outputs.dispatch_service }}\`" >> $GITHUB_STEP_SUMMARY
-            if [ -n "${{ steps.env.outputs.dispatch_environment }}" ]; then
-              echo "- **Target Environment:** \`${{ steps.env.outputs.dispatch_environment }}\`" >> $GITHUB_STEP_SUMMARY
-            fi
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Parse timing from profile_tasks callback if available
-          if [ -f /tmp/ansible-output.log ]; then
+
+          if [ -f /tmp/openvox-output.log ]; then
             echo "### 📊 Execution Details" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            tail -n 50 /tmp/ansible-output.log | head -n 30 >> $GITHUB_STEP_SUMMARY || echo "Output not available" >> $GITHUB_STEP_SUMMARY
+            tail -n 50 /tmp/openvox-output.log | head -n 30 >> $GITHUB_STEP_SUMMARY || echo "Output not available" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           if [ "$STATUS" != "success" ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### ⚠️ Failure Information" >> $GITHUB_STEP_SUMMARY
-            echo "Check the Ansible Deployment section above for detailed error messages." >> $GITHUB_STEP_SUMMARY
+            echo "Check the OpenVox Deployment section above for detailed error messages." >> $GITHUB_STEP_SUMMARY
             echo "::error::Deployment failed - check logs for details"
           fi
 
       - name: Notify
         if: always()
         run: |
-          STATUS="${{ steps.ansible.outputs.exit_code == '0' && 'success' || 'failure' }}"
+          STATUS="${{ steps.openvox.outputs.exit_code == '0' && 'success' || 'failure' }}"
           EMOJI=$([[ "$STATUS" == "success" ]] && echo "✅" || echo "❌")
           PRIORITY=$([[ "$STATUS" == "success" ]] && echo "default" || echo "high")
 
-          LIMIT="all"
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "" ]; then
-            LIMIT="${{ inputs.limit }}"
-          fi
-
-          TAGS="all"
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.tags }}" != "" ]; then
-            TAGS="${{ inputs.tags }}"
-          elif [ "${{ github.event_name }}" == "repository_dispatch" ]; then
-            TAGS="services,caddy"
-          fi
-
-          # Check mode indicator
           MODE=""
           if [ "${{ steps.env.outputs.check_mode }}" == "true" ]; then
             MODE=" [DRY RUN]"
           fi
 
-          # Staging indicator
-          STAGING_INFO=""
-          if [ "${{ steps.env.outputs.is_staging }}" == "true" ]; then
-            STAGING_INFO=" +staging"
-          fi
-
-          # Service indicator for repository_dispatch
           SERVICE_INFO=""
           DISPATCH_SERVICE="${{ steps.env.outputs.dispatch_service }}"
           if [ -n "$DISPATCH_SERVICE" ]; then
             SERVICE_INFO=" service: $DISPATCH_SERVICE"
           fi
 
-          # Check if ntfy is reachable first (3 second timeout)
           if curl -s --connect-timeout 3 --max-time 3 https://ntfy.mljr.eu/deployment -o /dev/null; then
             echo "Sending notification to ntfy..."
             if [ -n "$DISPATCH_SERVICE" ]; then
-              # Simplified notification for single service deployment
               curl -s \
                 --connect-timeout 5 \
                 --max-time 10 \
                 -H "Title: Deployment $STATUS$MODE - $DISPATCH_SERVICE" \
                 -H "Priority: $PRIORITY" \
-                -H "Tags: ansible,homelab" \
-                -d "$EMOJI Service $DISPATCH_SERVICE deployed$STAGING_INFO$MODE" \
+                -H "Tags: openvox,homelab" \
+                -d "$EMOJI Service $DISPATCH_SERVICE deployed$MODE" \
                 https://ntfy.mljr.eu/deployment || echo "Failed to send notification"
             else
               curl -s \
@@ -697,16 +429,16 @@ jobs:
                 --max-time 10 \
                 -H "Title: Deployment $STATUS$MODE" \
                 -H "Priority: $PRIORITY" \
-                -H "Tags: ansible,homelab" \
-                -d "$EMOJI Homelab deployed (limit: $LIMIT, tags: $TAGS$STAGING_INFO)$MODE" \
+                -H "Tags: openvox,homelab" \
+                -d "$EMOJI Homelab deployed (hosts: ${{ steps.hosts.outputs.hosts }})$MODE" \
                 https://ntfy.mljr.eu/deployment || echo "Failed to send notification"
             fi
           else
             echo "⚠️  Ntfy service is not reachable, skipping notification"
           fi
 
-      - name: Fail workflow when Ansible failed
-        if: steps.ansible.outputs.exit_code != '0'
+      - name: Fail workflow when OpenVox failed
+        if: steps.openvox.outputs.exit_code != '0'
         run: |
-          echo "::error::Ansible deployment failed with exit code ${{ steps.ansible.outputs.exit_code }}"
+          echo "::error::OpenVox deployment failed with exit code ${{ steps.openvox.outputs.exit_code }}"
           exit 1

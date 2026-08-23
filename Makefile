@@ -204,9 +204,11 @@ deploy-svc:
 # nas/wd-mycloud have no agent at all and are driven by exec resources
 # declared on nuc's own node block instead (see openvox/manifests/).
 #
-# NOT the production deploy path yet - ansible/ + make deploy above still
-# owns the real fleet until the full migration/openvox port is done and
-# validated. Migration in progress on branch migration/openvox.
+# NOW the real production deploy path: .github/workflows/deploy.yml calls
+# openvox-sync.sh directly (2026-08-23), all 26 ansible/roles ported.
+# ansible/ + make deploy above are kept as reference for a few weeks per
+# the user's standing instruction, not deleted yet and no longer wired
+# into CI.
 ################################################################################
 
 OPENVOX_HOSTS      := mljr.tail33930.ts.net nuc.tail33930.ts.net ugreen.tail33930.ts.net
