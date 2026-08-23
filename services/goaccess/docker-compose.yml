@@ -1,7 +1,7 @@
 services:
-  # Python converter that reads Caddy JSON logs and converts to GoAccess format
+  # Static Go binary that reads Caddy JSON logs and converts them to GoAccess format
   log-converter:
-    image: python:3.11-alpine
+    image: alpine:3.20
     container_name: goaccess-converter
     restart: unless-stopped
     env_file:
@@ -9,7 +9,7 @@ services:
     volumes:
       - /var/log/caddy:/logs:ro,z
       - goaccess-data:/goaccess:rw
-      - ./caddyLog.py:/app/caddyLog.py:ro
+      - ./caddylog:/app/caddylog:ro
     working_dir: /app
     # On startup: process all rotated access logs (oldest first) for full history,
     # then follow the current access.log for real-time updates.
@@ -17,10 +17,10 @@ services:
       sh -c "touch /goaccess/access.goaccess.log &&
              echo 'Processing historical rotated logs...' &&
              for f in $$(ls /logs/access-*.log 2>/dev/null | sort); do
-               python3 caddyLog.py -i \"$$f\" -t 0 -g /goaccess/access.goaccess.log || true;
+               ./caddylog -i \"$$f\" -t 0 -g /goaccess/access.goaccess.log || true;
              done &&
              echo 'Following current access.log for real-time updates...' &&
-             python3 caddyLog.py -i /logs/access.log -t 10 -g /goaccess/access.goaccess.log"
+             ./caddylog -i /logs/access.log -t 10 -g /goaccess/access.goaccess.log"
     healthcheck:
       test: ["CMD", "test", "-f", "/goaccess/access.goaccess.log"]
       interval: 10s

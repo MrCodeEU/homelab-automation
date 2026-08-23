@@ -27,6 +27,15 @@ define roles::services::service (
   Boolean $staging = false,
   Boolean $run_post_deploy_hook = false,
   Boolean $critical = false,
+  # Paths (relative to deploy_path) that need +x - e.g. a vendored static
+  # Go binary bind-mounted straight into a container (services/goaccess's
+  # caddylog). recurse=>remote below deliberately doesn't set
+  # source_permissions=>use (that applies to the *whole* vendored tree,
+  # and on this catalog's mixed ownership - see the file resource's own
+  # comment - it silently reset every service directory's owner/group
+  # from 1001:1000 to Puppet's own default on the first real apply).
+  # This forces the mode on just the listed file(s) instead.
+  Array[String] $executables = [],
 ) {
   # $title is only a unique resource identifier - for a service that's
   # both nuc-hosted in production AND dev_deploy (speedtest,
@@ -65,6 +74,14 @@ define roles::services::service (
     ensure  => directory,
     recurse => remote,
     source  => "puppet:///modules/roles/${source_subtree}",
+  }
+
+  $executables.each |$exe| {
+    file { "${deploy_path}/${exe}":
+      ensure  => file,
+      mode    => '0755',
+      require => File[$deploy_path],
+    }
   }
 
   file { "${deploy_path}/.env":
