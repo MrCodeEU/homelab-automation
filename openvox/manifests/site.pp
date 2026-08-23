@@ -43,6 +43,7 @@ node 'mljr.tail33930.ts.net' {
   class { 'roles::hawser_agent':
     tailscale_ip => '100.100.20.1',
   }
+  include roles::hetrixtools_agent
 }
 
 node 'nuc.tail33930.ts.net' {
