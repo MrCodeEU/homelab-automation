@@ -45,6 +45,11 @@ node 'mljr.tail33930.ts.net' {
   }
   include roles::hetrixtools_agent
   include roles::homepage_data_sync
+  class { 'roles::host_facts_endpoint':
+    os_family => 'rocky',
+    hostname  => 'mljr',
+    dest      => '/usr/local/bin/homelab-facts',
+  }
 }
 
 node 'nuc.tail33930.ts.net' {
@@ -73,6 +78,12 @@ node 'nuc.tail33930.ts.net' {
   }
   include roles::backup_dashboard
   include roles::healthreport
+  class { 'roles::host_facts_endpoint':
+    os_family => 'rocky',
+    hostname  => 'nuc',
+    dest      => '/usr/local/bin/homelab-facts',
+  }
+  include roles::unraid_host_facts_proxy
 }
 
 node 'ugreen.tail33930.ts.net' {
@@ -82,4 +93,12 @@ node 'ugreen.tail33930.ts.net' {
   }
   include roles::backup_remote_target
   include roles::ugreen_tailscale
+  class { 'roles::host_facts_endpoint':
+    os_family      => 'ugreen',
+    hostname       => 'ugreen',
+    dest           => '/volume1/homelab/bin/homelab-facts',
+    needs_symlink  => true,
+    dest_dir       => '/volume1/homelab/bin',
+    base_path      => '/volume1/homelab',
+  }
 }

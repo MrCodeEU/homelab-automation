@@ -15,6 +15,23 @@
 # nuc's already-generated /opt/backup-remote/ssh/id_ed25519.pub.
 backup_remote_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIALssUfIl9WG9DUjrTg2My+4NKtQS9VUJe5B61/Z6e+f homelab-backup-to-ugreen"
 
+# Public half of the healthreport keypair (roles::healthreport generates
+# it on nuc, regenerate: never; roles::host_facts_endpoint/
+# roles::unraid_host_facts_proxy authorize it on mljr/nuc/ugreen/nas for
+# nothing but the forced homelab-facts command). Not secret, same
+# reasoning as backup_remote_pubkey above. Real value, read directly off
+# nuc's already-generated /var/lib/healthreport/ssh/id_ed25519.pub.
+healthreport_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ05smfpoR5Rtfi9/deS+4/D9/OI/IMrScvQqX6mZge7 homelab-healthreport"
+
+# nas's top-level watch dirs for the facts endpoint's "recently changed"
+# check (ported 1:1 from ansible/inventory/group_vars/unraid.yml's
+# unraid_backup_watch_dirs). Not secret, same rationale as
+# unraid_backup_paths above.
+unraid_backup_watch_dirs:
+  - /mnt/user
+  - /mnt/user/Fotos
+  - /mnt/user/backup
+
 # nas's host-side folder backups. Ported 1:1 from
 # ansible/inventory/group_vars/unraid.yml's `unraid_backup_paths` (as of
 # 2026-08-23) - not secret (paths and pCloud remote names only), so
