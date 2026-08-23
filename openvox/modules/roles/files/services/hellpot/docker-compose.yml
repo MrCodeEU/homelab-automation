@@ -1,0 +1,24 @@
+services:
+  hellpot:
+    # Pinned by digest, not tag: HellPot's release tags use a "+build" suffix
+    # that isn't a valid Docker tag, and the upstream maintainer is no longer
+    # active, so :latest could go stale silently. Re-resolve the digest for
+    # ghcr.io/yunginnanet/hellpot:latest if HellPot needs an update.
+    image: ghcr.io/yunginnanet/hellpot@sha256:55753c445d3846cc7b0454fc2cbff4d9504772a3447e98544b5bf07b36b95c50
+    container_name: hellpot
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8098:8080"
+    volumes:
+      - ./config.toml:/config:ro
+      - hellpot-logs:/logs
+    environment:
+      - TZ=${TZ}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  hellpot-logs:

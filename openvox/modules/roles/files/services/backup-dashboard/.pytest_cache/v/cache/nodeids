@@ -1,0 +1,15 @@
+[
+  "tests/test_collect.py::test_entry_badge_falls_back_to_host_state",
+  "tests/test_collect.py::test_entry_badge_matches_bare_service_name",
+  "tests/test_collect.py::test_entry_badge_matches_pcloud_leg_dest_format",
+  "tests/test_collect.py::test_entry_badge_matches_ugreen_and_wd_cloud_leg_format",
+  "tests/test_collect.py::test_entry_badge_no_match_stays_at_host_state",
+  "tests/test_collect.py::test_entry_badge_unknown_for_missing_host",
+  "tests/test_collect.py::test_host_status_degraded_on_critical_failure",
+  "tests/test_collect.py::test_host_status_no_log_available",
+  "tests/test_collect.py::test_host_status_ok",
+  "tests/test_collect.py::test_host_status_unreachable",
+  "tests/test_collect.py::test_target_usage_empty_on_error",
+  "tests/test_collect.py::test_target_usage_skips_local_paths",
+  "tests/test_collect.py::test_target_usage_skips_unsupported_quota"
+]

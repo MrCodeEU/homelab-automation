@@ -1,0 +1,21 @@
+[deception]
+  server_name = "nginx"
+
+[http]
+  bind_addr = "0.0.0.0"
+  bind_port = "8080"
+  real_ip_header = 'X-Forwarded-For'
+  uagent_string_blacklist = ["Cloudflare-Traffic-Manager", "curl"]
+
+  [http.router]
+    # robots.txt for mljr.eu is served by Caddy itself (see homepage's
+    # caddy_extra_config), so HellPot must not generate its own.
+    makerobots = false
+    catchall = true
+
+[logger]
+  debug = false
+  trace = false
+  directory = "/logs/"
+  nocolor = true
+  use_date_filename = true

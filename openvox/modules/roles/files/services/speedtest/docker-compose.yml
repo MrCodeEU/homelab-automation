@@ -1,0 +1,37 @@
+services:
+  speedtest:
+    image: ghcr.io/autobrr/netronome:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-speedtest}
+    restart: unless-stopped
+    ports:
+      - "8090:7575"
+    environment:
+      TZ: ${TZ:-Europe/Vienna}
+      NETRONOME__HOST: 0.0.0.0
+      NETRONOME__PORT: 7575
+      NETRONOME__SESSION_SECRET: ${NETRONOME_SESSION_SECRET:-}
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    volumes:
+      - netronome-data:/data
+    networks:
+      - speedtest
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7575"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  speedtest:
+    driver: bridge
+
+volumes:
+  netronome-data:
+    name: netronome-data

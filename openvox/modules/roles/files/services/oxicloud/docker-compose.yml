@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:18.2-alpine3.23
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: oxicloud
+    # No host port publish - oxicloud reaches this over the internal Docker
+    # network. Publishing 5432 would put a default-credential Postgres
+    # instance on the LAN for no functional benefit.
+    networks:
+      - oxicloud
+    volumes:
+      - pg_data:/var/lib/postgresql/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  oxicloud:
+    image: diocrafts/oxicloud:latest
+    restart: unless-stopped
+    environment:
+      MIMALLOC_PURGE_DELAY: "0"
+      # Defaults to 127.0.0.1 (loopback-only inside the container), which the
+      # internal healthcheck can still reach via docker exec even though
+      # docker-proxy's external port publish cannot - confirmed live 2026-08-10,
+      # container reported "healthy" while the published port was unreachable.
+      OXICLOUD_SERVER_HOST: "0.0.0.0"
+      # checkov:skip=CKV_SECRET_4: upstream default creds, accepted deliberately -
+      # initial test only, no host-published Postgres port, reachable over
+      # Tailscale only. Not a production deployment.
+      OXICLOUD_DB_CONNECTION_STRING: "postgres://postgres:postgres@postgres:5432/oxicloud"
+      # No domain/Caddy route for this initial test - reached directly over
+      # Tailscale, so the base URL must point at the tailnet address.
+      # docker-compose.yml files in this repo are copied raw (not Jinja-
+      # templated - only .env/env.j2 is), so ugreen's tailscale_ip from
+      # ansible/inventory/hosts.yml is hardcoded here rather than templated.
+      OXICLOUD_BASE_URL: "http://100.100.10.4:8086"
+    ports:
+      - "8086:8086"
+    networks:
+      - oxicloud
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - storage_data:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8086/ready || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  oxicloud:
+    driver: bridge
+
+volumes:
+  pg_data:
+  storage_data:

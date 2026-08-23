@@ -1,0 +1,244 @@
+<%- | String $hostname,
+      String $prometheus_remote_write_url,
+      String $loki_push_url,
+      Optional[Sensitive[String]] $homeassistant_token = undef,
+| -%>
+prometheus.exporter.unix "host" {
+  rootfs_path = "/hostfs"
+  procfs_path = "/hostfs/proc"
+  sysfs_path  = "/hostfs/sys"
+
+  // systemd collector re-enabled 2026-08-11. It only does read-only D-Bus
+  // calls (ListUnits etc.) - the container already holds /var/run/docker.sock
+  // (arguably higher-privilege, can spin up privileged containers), so
+  // mounting /run/systemd/private too doesn't meaningfully raise the ceiling
+  // of what's already trusted. Socket mounted below in the role's task file.
+  // Previously disabled because it wasn't mounted at all and errored on every
+  // scrape (~60k/day on mljr, ~54k on nuc) without ever producing a metric.
+  //
+  // btrfs collector re-enabled 2026-08-11 too. It was never really a security
+  // trade-off - the container just had no /dev/sdX visibility, so every scrape
+  // logged "stat failed on /dev/sdX" (~1.1M lines/day on nas alone). Device
+  // nodes mounted below in the role's task file; disable_collectors removed.
+  // btrfs is on by default once the device nodes are visible, so no
+  // enable_collectors entry was needed for it - confirmed live via
+  // node_btrfs_info after mounting /dev.
+  //
+  // systemd, unlike btrfs, is NOT part of Alloy's default collector set -
+  // it needs to be opted into explicitly. Confirmed live 2026-08-11: with
+  // only disable_collectors emptied (no enable_collectors), the socket mount
+  // was in place and healthy but node_systemd_unit_state never appeared in
+  // VictoriaMetrics at all - the collector was never actually running.
+  enable_collectors = ["systemd"]
+}
+
+prometheus.scrape "host" {
+  targets    = prometheus.exporter.unix.host.targets
+  forward_to = [prometheus.relabel.identity.receiver]
+  job_name   = "node"
+}
+
+prometheus.exporter.cadvisor "docker" {
+  docker_host      = "unix:///var/run/docker.sock"
+  storage_duration = "5m"
+}
+
+prometheus.scrape "docker" {
+  targets    = prometheus.exporter.cadvisor.docker.targets
+  forward_to = [prometheus.relabel.identity.receiver]
+  job_name   = "docker"
+}
+
+<% if $hostname == 'mljr' { -%>
+prometheus.scrape "security" {
+  targets = [
+    {
+      "__address__" = "127.0.0.1:6060",
+      "job"         = "crowdsec",
+      "instance"    = "<%= $hostname %>",
+    },
+  ]
+  forward_to = [prometheus.relabel.identity.receiver]
+}
+
+<% } -%>
+<% if $hostname in ['ugreen', 'nuc'] { -%>
+// mljr (Contabo VPS, virtio-only block storage, no real SMART data behind
+// it) deliberately excluded - see group_vars/all/all.yml's smartctl-exporter
+// catalog entries for why.
+prometheus.scrape "smart" {
+  targets = [
+    {
+      "__address__" = "127.0.0.1:9633",
+      "job"         = "smartctl",
+      "instance"    = "<%= $hostname %>",
+    },
+  ]
+  forward_to = [prometheus.relabel.identity.receiver]
+}
+
+<% } -%>
+<% if $hostname == 'nuc' and $homeassistant_token =~ NotUndef { -%>
+// Home Assistant is its own host (proxy_only group, no Alloy of its own -
+// it's a HAOS appliance, not a Docker host), so this scrapes it remotely
+// over Tailscale instead of running an agent there. Reuses the same token
+// already set up for the healthreport HA collector (secrets.homeassistant.
+// token / vault_homeassistant_token) - HA long-lived tokens are full-account
+// scope, not endpoint-restricted, so no separate token was needed.
+//
+// Plain HTTP direct to HA's own port 8123, NOT https/443 - confirmed live
+// 2026-08-11 that 443 gets "Connection refused" (nothing listens there on
+// the HA host itself; that port only exists via Caddy's public front door
+// at home.mljr.eu, which also sits behind Authelia - wrong path for a
+// bearer-token API scrape). 8123 matches the healthreport HA collector's
+// own known-working ha_url (services/healthreport/app/config.py).
+prometheus.scrape "homeassistant" {
+  targets = [
+    {
+      "__address__" = "100.100.10.200:8123",
+      "job"         = "homeassistant",
+      "instance"    = "homeassistant",
+      "host"        = "homeassistant",
+    },
+  ]
+  scheme          = "http"
+  metrics_path    = "/api/prometheus"
+  bearer_token    = "<%= $homeassistant_token.unwrap %>"
+  // Deliberately NOT routed through prometheus.relabel.identity below - that
+  // rule unconditionally overwrites instance/host with inventory_hostname
+  // (needed for mljr's contabo-hostname quirk), which would relabel every HA
+  // metric as coming from "nuc" instead of "homeassistant". Straight to
+  // remote_write instead - "instance"/"host" are already set on the target
+  // above, and remote_write's external_labels only fill in labels that are
+  // still absent, so they won't get overwritten back to "nuc".
+  forward_to      = [prometheus.remote_write.homelab.receiver]
+}
+
+<% } -%>
+<% if $hostname == 'nuc' { -%>
+// WD MyCloud has no Docker (busybox userland) and no 32-bit ARM build of
+// Alloy exists at all (confirmed live 2026-08-11 - only amd64/arm64/
+// ppc64le/s390x releases published), so it runs a bare node_exporter binary
+// instead (roles/wd-mycloud-node-exporter) and gets remote-scraped here,
+// same mechanism as the Home Assistant block above. node_exporter binds
+// directly to WD's own Tailscale IP (not 0.0.0.0), so this is the only
+// path that can reach it at all.
+prometheus.scrape "wd_mycloud" {
+  targets = [
+    {
+      "__address__" = "100.100.10.5:9100",
+      "job"         = "node",
+      "instance"    = "wd-mycloud",
+      "host"        = "wd-mycloud",
+    },
+  ]
+  // Same reasoning as the homeassistant block: deliberately not routed
+  // through prometheus.relabel.identity, straight to remote_write instead.
+  forward_to = [prometheus.remote_write.homelab.receiver]
+}
+
+<% } -%>
+// prometheus.scrape attaches its own `instance` label from the scrape target,
+// which wins over remote_write's external_labels. That made mljr report as
+// "vmi2945702.contaboserver.net" instead of its inventory name. Rewrite it
+// here, before remote_write, so every series carries the inventory hostname.
+prometheus.relabel "identity" {
+  forward_to = [prometheus.remote_write.homelab.receiver]
+
+  rule {
+    target_label = "instance"
+    replacement  = "<%= $hostname %>"
+  }
+
+  rule {
+    target_label = "host"
+    replacement  = "<%= $hostname %>"
+  }
+}
+
+prometheus.remote_write "homelab" {
+  endpoint {
+    url = "<%= $prometheus_remote_write_url %>"
+  }
+
+  external_labels = {
+    instance = "<%= $hostname %>",
+    host     = "<%= $hostname %>",
+  }
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// Without this, the static `labels` block below replaces everything discovery
+// produced and the container name is lost - every Docker log line arrives
+// unattributable. Promote the name to a real `container` label first.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  labels     = {
+    job      = "docker",
+    instance = "<%= $hostname %>",
+    host     = "<%= $hostname %>",
+  }
+  forward_to = [loki.process.recent.receiver]
+}
+
+loki.process "recent" {
+  forward_to = [loki.write.homelab.receiver]
+
+  stage.drop {
+    older_than          = "168h"
+    drop_counter_reason = "too_old"
+  }
+}
+
+loki.source.file "system_logs" {
+  targets = [
+    {
+      "__path__" = "/var/log/messages",
+      "job"      = "system",
+      "instance" = "<%= $hostname %>",
+      "host"     = "<%= $hostname %>",
+    },
+    {
+      "__path__" = "/var/log/secure",
+      "job"      = "auth",
+      "instance" = "<%= $hostname %>",
+      "host"     = "<%= $hostname %>",
+    },
+<% if $hostname == 'mljr' { -%>
+    {
+      "__path__"         = "/var/log/caddy/*.log",
+      "__path_exclude__" = "/var/log/caddy/*.gz",
+      "job"              = "caddy",
+      "instance"         = "<%= $hostname %>",
+      "host"             = "<%= $hostname %>",
+    },
+<% } -%>
+  ]
+  forward_to = [loki.process.recent.receiver]
+  tail_from_end = true
+  on_positions_file_error = "restart_from_end"
+
+  file_match {
+    enabled = true
+  }
+}
+
+loki.write "homelab" {
+  endpoint {
+    url = "<%= $loki_push_url %>"
+  }
+}

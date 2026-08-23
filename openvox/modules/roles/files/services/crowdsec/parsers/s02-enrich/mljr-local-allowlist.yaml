@@ -1,0 +1,10 @@
+name: mljr/local-allowlist
+description: "Ignore trusted owner/Tailscale sources and known app-specific false positives"
+whitelist:
+  reason: "Owner IP, Tailscale network, and Nocturne auth false positives are trusted"
+  ip:
+    - "145.40.45.14"
+  cidr:
+    - "100.64.0.0/10"
+  expression:
+    - "evt.Meta.log_type == 'http_access-log' && evt.Meta.target_fqdn == 'nc.mljr.eu'"

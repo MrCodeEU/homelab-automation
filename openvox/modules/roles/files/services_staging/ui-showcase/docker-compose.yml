@@ -1,0 +1,15 @@
+services:
+  ui-showcase:
+    image: ghcr.io/mrcodeeu/mljr-web/showcase:${IMAGE_TAG:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-ui-showcase-staging}
+    restart: unless-stopped
+    ports:
+      - "18083:8091"  # Staging port (+10000 offset)
+    environment:
+      - PORT=8091
+    networks:
+      - ui-showcase
+
+networks:
+  ui-showcase:
+    driver: bridge

@@ -1,0 +1,29 @@
+services:
+  godrive-demo:
+    image: ghcr.io/mrcodeeu/godrive-demo:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-godrive-demo}
+    restart: unless-stopped
+    ports:
+      - "3605:8121"
+    environment:
+      GODRIVE_ADDR: "0.0.0.0:8121"
+      GODRIVE_COOKIE_SECURE: "true"
+      GODRIVE_HSTS: "true"
+      TZ: ${TZ:-Europe/Vienna}
+    read_only: true
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=1770,size=256m
+      - /data:uid=10001,gid=10001,mode=0750,size=128m
+      - /appdata:uid=10001,gid=10001,mode=0750,size=512m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    cpus: 1.0
+    pids_limit: 512
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

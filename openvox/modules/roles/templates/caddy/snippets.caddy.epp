@@ -1,0 +1,21 @@
+<%- | Sensitive[String] $auth_user,
+      Sensitive[String] $auth_hash,
+| -%>
+# Auto-generated shared Caddy snippets — do not edit manually
+
+(authelia_auth) {
+    forward_auth http://localhost:9091 {
+        uri /api/authz/forward-auth
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+    }
+}
+
+(basicauth_block) {
+    basicauth {
+        <%= $auth_user.unwrap %> <%= $auth_hash.unwrap %>
+    }
+}
+
+(security_headers) {
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+}

@@ -1,0 +1,77 @@
+// STALE - superseded by services/nas-alloy/config.alloy, which is the real,
+// actually-deployed config (Ansible-managed via the plain services role -
+// Unraid has no python3-docker SDK for the templated grafana-alloy role's
+// docker_container module). This file predates that and is kept only as a
+// historical reference; do not copy from it, it does not reflect the
+// systemd/btrfs/SMART collectors or any other change made since.
+
+prometheus.exporter.unix "host" {
+  rootfs_path = "/hostfs"
+  procfs_path = "/hostfs/proc"
+  sysfs_path  = "/hostfs/sys"
+}
+
+prometheus.scrape "host" {
+  targets    = prometheus.exporter.unix.host.targets
+  forward_to = [prometheus.remote_write.homelab.receiver]
+  job_name   = "node"
+}
+
+prometheus.exporter.cadvisor "docker" {
+  docker_host      = "unix:///var/run/docker.sock"
+  storage_duration = "5m"
+}
+
+prometheus.scrape "docker" {
+  targets    = prometheus.exporter.cadvisor.docker.targets
+  forward_to = [prometheus.remote_write.homelab.receiver]
+  job_name   = "docker"
+}
+
+prometheus.remote_write "homelab" {
+  endpoint {
+    url = "http://100.100.10.1:19090/api/v1/write"
+  }
+
+  external_labels = {
+    instance = "nas",
+    host     = "nas",
+  }
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+loki.source.docker "containers" {
+  host    = "unix:///var/run/docker.sock"
+  targets = discovery.docker.containers.targets
+  labels  = {
+    job      = "docker",
+    instance = "nas",
+    host     = "nas",
+  }
+  forward_to = [loki.write.homelab.receiver]
+}
+
+loki.source.file "system_logs" {
+  targets = [
+    {
+      "__path__" = "/var/log/syslog",
+      "job"      = "system",
+      "instance" = "nas",
+      "host"     = "nas",
+    },
+  ]
+  forward_to = [loki.write.homelab.receiver]
+
+  file_match {
+    enabled = true
+  }
+}
+
+loki.write "homelab" {
+  endpoint {
+    url = "http://100.100.10.1:3100/loki/api/v1/push"
+  }
+}

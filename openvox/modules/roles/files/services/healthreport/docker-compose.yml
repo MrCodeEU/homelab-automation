@@ -1,0 +1,30 @@
+services:
+  healthreport:
+    build: .
+    image: healthreport:local
+    container_name: healthreport
+    # One-shot, invoked by a systemd timer via `docker compose run`.
+    #
+    # No compose profile here on purpose: `docker compose up -d` on a project
+    # whose only service is profiled fails with "no service selected", which
+    # would break the services role's deploy step. Instead the default command
+    # is a no-op, so the role's `up -d` starts the container, it prints its
+    # configuration and exits 0, and no report is ever sent at deploy time.
+    command: ["--noop"]
+    restart: "no"
+    # Reaches VictoriaMetrics, Loki and Kuma on nuc's own interfaces, plus the
+    # Tailscale addresses of mljr and nas, with no port plumbing.
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      # Deliberately not /opt/healthreport: the services role rsyncs into that
+      # directory with delete: true, so state kept there is destroyed on every
+      # deploy. /var/lib is outside the deploy pipeline's reach.
+      - /var/lib/healthreport/state:/state
+      - /var/lib/healthreport/ssh:/ssh:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

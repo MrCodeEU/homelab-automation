@@ -49,7 +49,8 @@ E2E_ANSIBLE_OPTS   := -e ansible_strategy=linear
         docs-ansible-map view-ara up down clean help \
         _check-validate _check-templates _check-syntax _check-compose \
         _e2e-deploy _ssh-keys _wait-ssh \
-        deploy deploy-check deploy-diff deploy-caddy deploy-services deploy-mljr deploy-nuc deploy-svc
+        deploy deploy-check deploy-diff deploy-caddy deploy-services deploy-mljr deploy-nuc deploy-svc \
+        openvox-check openvox-deploy
 
 ################################################################################
 # DEFAULT: fast local tests (no Docker)
@@ -197,6 +198,70 @@ deploy-nuc:
 deploy-svc:
 	@test -n "$(SERVICE)" || (echo "Usage: make deploy-svc SERVICE=<name>"; exit 1)
 	@./scripts/deploy-local.sh --tags services,caddy --extra-vars "changed_services=$(SERVICE)"
+
+################################################################################
+# OpenVox (Puppet-family) migration - agent-managed hosts only for now.
+# nas/wd-mycloud have no agent at all and are driven by exec resources
+# declared on nuc's own node block instead (see openvox/manifests/).
+#
+# NOW the real production deploy path: .github/workflows/deploy.yml calls
+# openvox-sync.sh directly (2026-08-23), all 26 ansible/roles ported.
+# ansible/ + make deploy above are kept as reference for a few weeks per
+# the user's standing instruction, not deleted yet and no longer wired
+# into CI.
+################################################################################
+
+OPENVOX_HOSTS      := mljr.tail33930.ts.net nuc.tail33930.ts.net ugreen.tail33930.ts.net
+
+# Runs all 3 hosts in parallel (xargs -P4), then prints one pass/fail line
+# per host so a `make openvox-check`/`openvox-deploy` run has a scannable
+# fleet-wide result instead of just each host's own banner buried in the
+# (now per-line-prefixed, see openvox-sync.sh) combined output above it.
+# Exits non-zero if any host failed - fine to use in a script/CI context.
+define openvox_run
+	@results=$$(mktemp); \
+	echo "$(OPENVOX_HOSTS)" | tr ' ' '\n' | xargs -P4 -I{} sh -c \
+	  './scripts/openvox-sync.sh {} $(1); echo "{} $$?" >> '"$$results"; \
+	echo ""; \
+	echo "==> fleet summary ($(1)):"; \
+	fail=0; \
+	while read -r host code; do \
+	  label=$${host%%.*}; \
+	  if [ "$$code" = "0" ]; then \
+	    echo "    $$label: OK"; \
+	  else \
+	    echo "    $$label: FAILED (exit $$code)"; \
+	    fail=1; \
+	  fi; \
+	done < "$$results"; \
+	rm -f "$$results"; \
+	exit $$fail
+endef
+
+openvox-check:
+	$(call openvox_run,noop)
+
+openvox-deploy:
+	$(call openvox_run,apply)
+
+# Single-host convenience targets, e.g. `make openvox-check-mljr`.
+openvox-check-mljr:
+	@./scripts/openvox-sync.sh mljr.tail33930.ts.net noop
+
+openvox-check-nuc:
+	@./scripts/openvox-sync.sh nuc.tail33930.ts.net noop
+
+openvox-check-ugreen:
+	@./scripts/openvox-sync.sh ugreen.tail33930.ts.net noop
+
+openvox-deploy-mljr:
+	@./scripts/openvox-sync.sh mljr.tail33930.ts.net apply
+
+openvox-deploy-nuc:
+	@./scripts/openvox-sync.sh nuc.tail33930.ts.net apply
+
+openvox-deploy-ugreen:
+	@./scripts/openvox-sync.sh ugreen.tail33930.ts.net apply
 
 ################################################################################
 # Housekeeping

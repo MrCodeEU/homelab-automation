@@ -1,0 +1,163 @@
+// Grafana Alloy configuration for the Unraid NAS.
+// Deployed by ansible/roles/services via the unraid play in playbooks/site.yml.
+// Labels are fixed to "nas" so the provisioned dashboards pick it up.
+//
+// Kept as a static file rather than a template because the values never vary
+// per-host: there is exactly one Unraid box.
+
+// Alloy's own logs are not a monitoring signal, and at info level cadvisor
+// narrates every failed device stat. On 2026-08-05 that was 475,000 lines in a
+// day - more than every other container on this host combined - all of it
+//   level=info msg="Unable to get btrfs mountpoint IDs: stat failed on /dev/sde1"
+// because Docker's storage moved to a btrfs pool whose device node the
+// container cannot see. The lines are informational but contain the word
+// "error", so the health report counted every one of them.
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+prometheus.exporter.unix "host" {
+  rootfs_path = "/hostfs"
+  procfs_path = "/hostfs/proc"
+  sysfs_path  = "/hostfs/sys"
+
+  // No systemd collector here: Unraid is Slackware and does not run systemd.
+
+  // btrfs collector re-enabled 2026-08-11, matching the same change on the
+  // rocky/ugreen hosts (ansible/roles/grafana-alloy). It was never really a
+  // security trade-off - the container just had no /dev/sdX visibility, so
+  // every scrape logged "stat failed on /dev/sdX" (~1.1M lines/day here,
+  // more than every other container on the estate combined, back when the
+  // btrfs pool was first created on 2026-08-04). Device nodes mounted below
+  // in docker-compose.yml; disable_collectors removed. Confirmed live: zero
+  // btrfs errors after the fix.
+  //
+  // mdadm disabled - found live the same day, unrelated to the btrfs change.
+  // Unraid's array uses its own proprietary superblock format (references
+  // /boot/config/super.dat), not real Linux mdadm, so this collector fails
+  // "error parsing mdstatus" on every single scrape and will never succeed.
+  // Array health already comes from the SSH facts collector's unraid_array
+  // check, so nothing is lost.
+  disable_collectors = ["mdadm"]
+}
+
+prometheus.scrape "host" {
+  targets    = prometheus.exporter.unix.host.targets
+  forward_to = [prometheus.relabel.identity.receiver]
+  job_name   = "node"
+}
+
+prometheus.exporter.cadvisor "docker" {
+  docker_host      = "unix:///var/run/docker.sock"
+  storage_duration = "5m"
+}
+
+prometheus.scrape "docker" {
+  targets    = prometheus.exporter.cadvisor.docker.targets
+  forward_to = [prometheus.relabel.identity.receiver]
+  job_name   = "docker"
+}
+
+// SMART data from services/smartctl-exporter-nas, scraped locally on
+// 127.0.0.1 - same pattern as ugreen/nuc. nas has the most disks in the
+// fleet, biggest single win for SMART coverage.
+prometheus.scrape "smart" {
+  targets = [
+    {
+      "__address__" = "127.0.0.1:9633",
+      "job"         = "smartctl",
+      "instance"    = "nas",
+    },
+  ]
+  forward_to = [prometheus.relabel.identity.receiver]
+}
+
+// prometheus.scrape attaches its own `instance` label from the scrape target,
+// which wins over remote_write's external_labels. Rewrite it here so the NAS
+// reports as "nas" rather than its DNS name.
+prometheus.relabel "identity" {
+  forward_to = [prometheus.remote_write.homelab.receiver]
+
+  rule {
+    target_label = "instance"
+    replacement  = "nas"
+  }
+
+  rule {
+    target_label = "host"
+    replacement  = "nas"
+  }
+}
+
+prometheus.remote_write "homelab" {
+  endpoint {
+    url = "http://100.100.10.1:19090/api/v1/write"
+  }
+
+  external_labels = {
+    instance = "nas",
+    host     = "nas",
+  }
+}
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// The static `labels` block below replaces discovery's labels wholesale, so
+// promote the container name first or every log line arrives unattributable.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  labels     = {
+    job      = "docker",
+    instance = "nas",
+    host     = "nas",
+  }
+  forward_to = [loki.process.recent.receiver]
+}
+
+// Matches the rocky hosts: drop anything older than the Loki retention window
+// so a container replaying old logs cannot flood the ingester.
+loki.process "recent" {
+  forward_to = [loki.write.homelab.receiver]
+
+  stage.drop {
+    older_than          = "168h"
+    drop_counter_reason = "too_old"
+  }
+}
+
+loki.source.file "system_logs" {
+  targets = [
+    {
+      // Slackware/Unraid path. Rocky hosts use /var/log/messages.
+      "__path__" = "/var/log/syslog",
+      "job"      = "system",
+      "instance" = "nas",
+      "host"     = "nas",
+    },
+  ]
+  forward_to = [loki.process.recent.receiver]
+
+  file_match {
+    enabled = true
+  }
+}
+
+loki.write "homelab" {
+  endpoint {
+    url = "http://100.100.10.1:3100/loki/api/v1/push"
+  }
+}

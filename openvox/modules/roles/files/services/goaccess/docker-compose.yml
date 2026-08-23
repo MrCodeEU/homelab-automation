@@ -1,0 +1,84 @@
+services:
+  # Python converter that reads Caddy JSON logs and converts to GoAccess format
+  log-converter:
+    image: python:3.11-alpine
+    container_name: goaccess-converter
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - /var/log/caddy:/logs:ro,z
+      - goaccess-data:/goaccess:rw
+      - ./caddyLog.py:/app/caddyLog.py:ro
+    working_dir: /app
+    # On startup: process all rotated access logs (oldest first) for full history,
+    # then follow the current access.log for real-time updates.
+    command: >
+      sh -c "touch /goaccess/access.goaccess.log &&
+             echo 'Processing historical rotated logs...' &&
+             for f in $$(ls /logs/access-*.log 2>/dev/null | sort); do
+               python3 caddyLog.py -i \"$$f\" -t 0 -g /goaccess/access.goaccess.log || true;
+             done &&
+             echo 'Following current access.log for real-time updates...' &&
+             python3 caddyLog.py -i /logs/access.log -t 10 -g /goaccess/access.goaccess.log"
+    healthcheck:
+      test: ["CMD", "test", "-f", "/goaccess/access.goaccess.log"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Nginx serves the static GoAccess HTML report on port 7891
+  html-server:
+    image: nginx:alpine
+    container_name: goaccess-html
+    restart: unless-stopped
+    volumes:
+      - goaccess-report:/usr/share/nginx/html:ro
+    ports:
+      - "127.0.0.1:7891:80"
+
+  # GoAccess reads the converted log file and serves WebSocket for real-time updates
+  goaccess:
+    image: allinurl/goaccess:latest
+    container_name: goaccess
+    restart: unless-stopped
+    depends_on:
+      log-converter:
+        condition: service_healthy
+    env_file:
+      - .env
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:7890:7890"
+    volumes:
+      - goaccess-data:/goaccess:ro
+      - goaccess-report:/var/www/goaccess:rw
+    command: >
+      /goaccess/access.goaccess.log
+      --log-format="%d %t %v %h %m %U %H %s %b %T %R %u"
+      --date-format="%Y-%m-%d"
+      --time-format="%H:%M:%S"
+      -o /var/www/goaccess/index.html
+      --real-time-html
+      --ws-url=wss://logs.mljr.eu:443/ws
+      --port=7890
+    # Port 7890 is WebSocket-only, not plain HTTP - it answers any plain GET
+    # (including wget --spider's HEAD-ish request) with 400 Bad Request, so
+    # an HTTP spider check fails unconditionally regardless of health. A bare
+    # TCP connect is the right check here.
+    healthcheck:
+      test: ["CMD", "nc", "-z", "127.0.0.1", "7890"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  goaccess-data:
+    driver: local
+  goaccess-report:
+    driver: local

@@ -1,0 +1,31 @@
+services:
+  homepage:
+    image: ghcr.io/mrcodeeu/mljr-web/homepage:${IMAGE_TAG:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-homepage-staging}
+    restart: unless-stopped
+    ports:
+      - "18082:8082"  # Staging port (+10000 offset)
+    environment:
+      - PORT=8082
+      - GITHUB_TOKEN=${GH_TOKEN}
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
+      - STRAVA_REFRESH_TOKEN=${STRAVA_REFRESH_TOKEN}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+      - CONTACT_TO=${CONTACT_TO}
+    volumes:
+      - homepage-data:/data
+    networks:
+      - homepage
+
+networks:
+  homepage:
+    driver: bridge
+
+volumes:
+  homepage-data:
+    driver: local

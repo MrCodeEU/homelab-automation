@@ -1,0 +1,52 @@
+services:
+  homepage:
+    image: ghcr.io/mrcodeeu/mljr-web/homepage:${IMAGE_TAG:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-homepage}
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8082:8082"
+    environment:
+      - PORT=8082
+      - GITHUB_TOKEN=${GH_TOKEN}
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
+      - STRAVA_REFRESH_TOKEN=${STRAVA_REFRESH_TOKEN}
+      - UMAMI_SCRIPT_SRC=/umami/script.js
+      - UMAMI_WEBSITE_ID=${UMAMI_WEBSITE_ID}
+      - UMAMI_HOST_URL=/umami
+      - UMAMI_DOMAINS=mljr.eu,www.mljr.eu
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_FROM=${SMTP_FROM}
+      - CONTACT_TO=${CONTACT_TO}
+      # Live homelab panel sources (non-secret). PROM_URL goes over Tailscale;
+      # if MagicDNS doesn't resolve inside the container, use nuc's 100.x IP.
+      - HOMELAB_KUMA_URL=https://uptime.mljr.eu
+      - HOMELAB_PROM_URL=http://nuc.tail33930.ts.net:19090
+      # Tailscale mesh panel: API key is the only secret, rest is public data
+      # (devices filtered against the inventory below, services from all.yml).
+      - TAILSCALE_API_KEY=${TAILSCALE_API_KEY}
+      - TAILSCALE_TAILNET=tail33930.ts.net
+      - HOMELAB_INVENTORY_URL=https://raw.githubusercontent.com/MrCodeEU/homelab-automation/main/ansible/inventory/hosts.yml
+      - HOMELAB_SERVICES_URL=https://raw.githubusercontent.com/MrCodeEU/homelab-automation/main/ansible/inventory/group_vars/all/all.yml
+      - NTFY_URL=https://ntfy.mljr.eu
+      - NTFY_TOPIC=homepage
+      # Live project/GitHub/content data + assets (images, thesis PDFs)
+      # synced by homepage-data-sync.timer
+      - HOMEPAGE_DATA_FILE=/data/synced/mljr-data/generated/site-data.json
+      - HOMEPAGE_DATA_RELOAD_SECONDS=300
+    volumes:
+      - homepage-data:/data
+      - /opt/mljr-data:/data/synced/mljr-data:ro
+    networks:
+      - homepage
+
+networks:
+  homepage:
+    driver: bridge
+
+volumes:
+  homepage-data:
+    driver: local

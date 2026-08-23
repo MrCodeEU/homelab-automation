@@ -1,0 +1,27 @@
+services:
+  smartctl-exporter:
+    image: prometheuscommunity/smartctl-exporter:latest
+    container_name: smartctl-exporter
+    restart: unless-stopped
+    # smartctl needs raw SATA/NVMe/USB-bridge ioctls that vary enough by
+    # drive/controller type that scoping a narrower capability set isn't
+    # practical - this is the exporter project's own documented deployment
+    # shape. Isolated to this single-purpose container rather than granted to
+    # Alloy itself, so the blast radius stays limited to "can read SMART data",
+    # not host-wide.
+    privileged: true
+    # Image defaults to running as "nobody" - privileged grants capabilities/
+    # device cgroup access but does NOT bypass standard Unix file permissions
+    # on the device nodes themselves (/dev/sdX is root:disk 660), so without
+    # this the exporter gets "Permission denied" on every device despite
+    # privileged mode being on. Confirmed live 2026-08-11.
+    user: root
+    # Host networking so Alloy (also host-mode on this box) can scrape it via
+    # 127.0.0.1 without extra Docker network plumbing - matches the existing
+    # syncthing-ugreen precedent for this host.
+    network_mode: host
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
