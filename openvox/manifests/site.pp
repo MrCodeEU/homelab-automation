@@ -71,4 +71,5 @@ node 'ugreen.tail33930.ts.net' {
     manage_firewall  => false,
   }
   include roles::backup_remote_target
+  include roles::ugreen_tailscale
 }
