@@ -142,11 +142,11 @@ down:
 
 test-services:
 	@echo "==> Checking production service reachability"
-	python3 $(TESTS_DIR)/scripts/check_services.py $(SERVICE_ARGS)
+	cd tools && go run ./cmd/check-services $(SERVICE_ARGS)
 
 test-services-verbose:
 	@echo "==> Checking production service reachability (verbose)"
-	python3 $(TESTS_DIR)/scripts/check_services.py --verbose
+	cd tools && go run ./cmd/check-services --verbose
 
 # Health report unit tests. Pure logic (severity rules + run-over-run diff),
 # no network and no container needed.
