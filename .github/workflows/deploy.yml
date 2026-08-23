@@ -95,6 +95,18 @@ jobs:
         # own pyyaml for the services_catalog lookups below.
         run: pip install --quiet pyyaml
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: tools/go.mod
+
+      - name: Build deploy-status tool
+        # Built fresh each run rather than vendoring a binary - unlike the
+        # host-deployed tools/cmd/* binaries, this one only ever runs here,
+        # on the ephemeral runner itself.
+        run: |
+          cd tools
+          go build -o /tmp/build-deploy-status ./cmd/build-deploy-status
+
       - name: Set environment
         id: env
         # The repository_dispatch payload is untrusted input: anything holding a
@@ -325,7 +337,7 @@ jobs:
             "$WORKDIR/deployments.json" 2>/dev/null || \
             echo '{"deployments":[],"services":[],"last_updated":""}' > "$WORKDIR/deployments.json"
 
-          python3 scripts/build_deploy_status.py \
+          /tmp/build-deploy-status \
             --existing-json "$WORKDIR/deployments.json" \
             --services-json "$WORKDIR/services.json" \
             --ansible-log /tmp/openvox-output.log \
