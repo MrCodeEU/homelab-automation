@@ -76,10 +76,17 @@ define roles::services::service (
     source  => "puppet:///modules/roles/${source_subtree}",
   }
 
+  # A `file` resource here (ensure => file, mode => '0755', no
+  # content/source) would race the parent's own recurse copy for the same
+  # path: on a brand-new file it can "win" with no content declared,
+  # permanently pinning it at 0 bytes since nothing ever re-declares real
+  # content afterwards - caught live when provision-syncthing on ugreen
+  # deployed as an empty file on its very first run. An `exec` guarded by
+  # `unless test -x` only ever touches the mode bit, never content.
   $executables.each |$exe| {
-    file { "${deploy_path}/${exe}":
-      ensure  => file,
-      mode    => '0755',
+    exec { "${deploy_path}/${exe}-chmod":
+      command => "/bin/chmod 0755 '${deploy_path}/${exe}'",
+      unless  => "/usr/bin/test -x '${deploy_path}/${exe}'",
       require => File[$deploy_path],
     }
   }

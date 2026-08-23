@@ -22,4 +22,9 @@ wait_for() {
 wait_for "http://127.0.0.1:8384/rest/noauth/health" "local Syncthing"
 wait_for "${NAS_SYNCTHING_URL}/rest/noauth/health" "NAS Syncthing"
 
-python3 "${SCRIPT_DIR}/provision-syncthing.py"
+# GODEBUG= clears this host's system-wide GODEBUG=tlskyber=0 (set in
+# /etc/profile.d/go.sh, leftover from an old Go install) - Go 1.24+
+# removed that debug flag entirely, so any Go 1.24+ binary run with it
+# still set exits with a fatal "removed GODEBUG" panic before main()
+# even runs. Scoped to just this process, not touching the system file.
+GODEBUG= "${SCRIPT_DIR}/provision-syncthing"
