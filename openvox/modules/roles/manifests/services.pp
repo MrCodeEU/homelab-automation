@@ -221,6 +221,14 @@ class roles::services (
     },
   }
 
+  # Vendored files that need +x - e.g. a static Go binary bind-mounted
+  # straight into a container. See roles::services::service's own
+  # comment for why this is scoped per-file rather than
+  # source_permissions=>use on the whole deploy_path.
+  $service_executables = {
+    'goaccess' => ['caddylog'],
+  }
+
   $host_services.each |$svc| {
     roles::services::service { $svc['name']:
       service              => $svc,
@@ -233,6 +241,7 @@ class roles::services (
       secrets              => pick($all_secrets[$svc['name']], {}),
       run_post_deploy_hook => $svc['name'] in $post_deploy_hook_services,
       critical             => $svc['name'] in $critical_hook_services,
+      executables          => pick($service_executables[$svc['name']], []),
       require              => [Exec['services-dockerhub-login'], Exec['services-ghcr-login']],
     }
   }
