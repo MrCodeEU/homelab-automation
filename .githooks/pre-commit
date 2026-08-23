@@ -32,8 +32,7 @@ if git diff --cached --name-only | grep -qx "ansible/inventory/group_vars/all/va
 fi
 
 # Run service definition validation (ports, domains, uniqueness, etc.)
-echo -e "${YELLOW}Validating service configurations...${NC}"
-if ! python3 "$REPO_ROOT/.githooks/validate_services.py"; then
+if ! (cd "$REPO_ROOT/tools" && go run ./cmd/validate-services); then
     echo -e "${RED}✗ Service validation failed!${NC}"
     exit 1
 fi
