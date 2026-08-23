@@ -46,7 +46,7 @@ ANSIBLE_CFG        := ANSIBLE_CONFIG=$(CURDIR)/$(ANSIBLE_DIR)/ansible.cfg
 E2E_ANSIBLE_OPTS   := -e ansible_strategy=linear
 
 .PHONY: test test-quick test-e2e test-services test-services-verbose test-healthreport \
-        docs-ansible-map view-ara up down clean help \
+        view-ara up down clean help \
         _check-validate _check-templates _check-syntax _check-compose \
         _e2e-deploy _ssh-keys _wait-ssh \
         deploy deploy-check deploy-diff deploy-caddy deploy-services deploy-mljr deploy-nuc deploy-svc \
@@ -160,10 +160,6 @@ test-healthreport:
 	@cd services/healthreport && python3 tests/test_normalize.py
 	@echo "==> Health report: maintenance windows"
 	@cd services/healthreport && python3 tests/test_maintenance.py
-
-docs-ansible-map:
-	@echo "==> Generating Ansible inventory/service map"
-	python3 scripts/generate-ansible-visuals.py
 
 view-ara:
 	@RUN_ID="$(RUN_ID)" ARA_PORT="$(ARA_PORT)" ARA_DIR="$(ARA_DIR)" \
@@ -279,7 +275,6 @@ help:
 	@echo "  make test              — fast local tests (no Docker)"
 	@echo "  make test-e2e          — deploy to containers, verify Caddy snippets"
 	@echo "  make test-services     — ping production services (needs VPN)"
-	@echo "  make docs-ansible-map  — regenerate docs/ansible-map.md"
 	@echo "  make view-ara          — download latest ARA artifact and open the UI"
 	@echo ""
 	@echo "Local deployment (requires Tailscale + vault.yml):"
