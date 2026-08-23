@@ -50,6 +50,7 @@ node 'mljr.tail33930.ts.net' {
     hostname  => 'mljr',
     dest      => '/usr/local/bin/homelab-facts',
   }
+  include roles::crowdsec_firewall_bouncer
 }
 
 node 'nuc.tail33930.ts.net' {
