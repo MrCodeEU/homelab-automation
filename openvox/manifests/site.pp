@@ -72,6 +72,7 @@ node 'nuc.tail33930.ts.net' {
     tailscale_ip => '100.100.10.1',
   }
   include roles::backup_dashboard
+  include roles::healthreport
 }
 
 node 'ugreen.tail33930.ts.net' {
