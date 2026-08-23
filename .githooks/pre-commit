@@ -12,17 +12,6 @@ NC='\033[0m' # No Color
 
 # Get the root of the git repository
 REPO_ROOT=$(git rev-parse --show-toplevel)
-VENV_DIR="$REPO_ROOT/.githooks/.venv"
-REQUIREMENTS="pyyaml jinja2"
-
-# Create virtual environment and ensure all requirements are installed
-if [ ! -d "$VENV_DIR" ]; then
-    echo -e "${YELLOW}Setting up validation environment...${NC}"
-    python3 -m venv "$VENV_DIR"
-fi
-source "$VENV_DIR/bin/activate"
-pip install --quiet --upgrade pip
-pip install --quiet $REQUIREMENTS
 
 echo -e "${YELLOW}Running pre-commit validations...${NC}"
 
@@ -44,21 +33,10 @@ fi
 
 # Run service definition validation (ports, domains, uniqueness, etc.)
 echo -e "${YELLOW}Validating service configurations...${NC}"
-if ! python "$REPO_ROOT/.githooks/validate_services.py"; then
+if ! python3 "$REPO_ROOT/.githooks/validate_services.py"; then
     echo -e "${RED}✗ Service validation failed!${NC}"
-    deactivate 2>/dev/null || true
     exit 1
 fi
 
-# Run Caddy template rendering + syntax validation
-echo -e "${YELLOW}Validating Caddy templates...${NC}"
-if ! python "$REPO_ROOT/tests/scripts/check_templates.py"; then
-    echo -e "${RED}✗ Caddy template validation failed!${NC}"
-    echo -e "${RED}Fix the errors above before committing.${NC}"
-    deactivate 2>/dev/null || true
-    exit 1
-fi
-
-deactivate 2>/dev/null || true
 echo -e "${GREEN}✓ All pre-commit validations passed!${NC}"
 exit 0

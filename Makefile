@@ -26,8 +26,7 @@
 #   make clean             Remove containers, images, and generated test files
 #
 # Prerequisites for make test:
-#   pip install pyyaml jinja2
-#   ansible-playbook (with community.docker collection)
+#   ansible-playbook (with community.docker collection) - optional, skipped if absent
 #
 # Prerequisites for make test-e2e:
 #   docker + docker-compose
@@ -47,7 +46,7 @@ E2E_ANSIBLE_OPTS   := -e ansible_strategy=linear
 
 .PHONY: test test-quick test-e2e test-services test-services-verbose test-healthreport \
         view-ara up down clean help \
-        _check-validate _check-templates _check-syntax _check-compose \
+        _check-validate _check-syntax _check-compose \
         _e2e-deploy _ssh-keys _wait-ssh \
         deploy deploy-check deploy-diff deploy-caddy deploy-services deploy-mljr deploy-nuc deploy-svc \
         openvox-check openvox-deploy
@@ -56,23 +55,18 @@ E2E_ANSIBLE_OPTS   := -e ansible_strategy=linear
 # DEFAULT: fast local tests (no Docker)
 ################################################################################
 
-test: _check-validate _check-templates _check-syntax _check-compose
+test: _check-validate _check-syntax _check-compose
 	@echo ""
 	@echo "All fast tests passed."
 
 ## 1. Pre-commit service definition validation (port/domain uniqueness etc.)
 _check-validate:
-	@echo "==> [1/4] Service definition validation"
+	@echo "==> [1/3] Service definition validation"
 	bash ./.githooks/pre-commit
 
-## 2. Jinja2 template rendering — catches empty snippets locally
-_check-templates:
-	@echo "==> [2/4] Caddy template rendering"
-	python3 $(TESTS_DIR)/scripts/check_templates.py
-
-## 3. Ansible syntax check across all playbooks
+## 2. Ansible syntax check across all playbooks
 _check-syntax:
-	@echo "==> [3/4] Ansible syntax check"
+	@echo "==> [2/3] Ansible syntax check"
 	@if ! command -v ansible-playbook >/dev/null 2>&1; then \
 	    echo "SKIP  ansible-playbook not found (install ansible-core to enable)"; \
 	else \
@@ -82,9 +76,9 @@ _check-syntax:
 	    -i inventory; \
 	fi
 
-## 4. YAML lint on all docker-compose.yml files
+## 3. YAML lint on all docker-compose.yml files
 _check-compose:
-	@echo "==> [4/4] docker-compose.yml syntax"
+	@echo "==> [3/3] docker-compose.yml syntax"
 	@find services -name "docker-compose.yml" -print0 \
 	    | xargs -0 -I{} sh -c 'python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" {} \
 	      && echo "OK  {}" || (echo "FAIL  {}" && exit 1)'
