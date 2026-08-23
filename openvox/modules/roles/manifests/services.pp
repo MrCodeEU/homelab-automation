@@ -226,7 +226,8 @@ class roles::services (
   # comment for why this is scoped per-file rather than
   # source_permissions=>use on the whole deploy_path.
   $service_executables = {
-    'goaccess' => ['caddylog'],
+    'goaccess'          => ['caddylog'],
+    'syncthing-ugreen'  => ['hooks/provision-syncthing'],
   }
 
   $host_services.each |$svc| {
