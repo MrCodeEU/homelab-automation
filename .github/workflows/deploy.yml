@@ -241,6 +241,7 @@ jobs:
         id: openvox
         continue-on-error: true
         run: |
+          set -o pipefail
           MODE="apply"
           if [ "${{ steps.env.outputs.check_mode }}" == "true" ]; then
             MODE="noop"
