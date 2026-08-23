@@ -1,6 +1,15 @@
 # Homelab Automation
 
-Ansible automation for deploying and managing self-hosted services across the `mljr.eu` homelab over Tailscale.
+OpenVox (a Puppet fork) automation for deploying and managing self-hosted
+services across the `mljr.eu` homelab over Tailscale. Masterless: every host
+runs `puppet apply` against its own locally-synced copy of the manifests —
+there is no puppetserver/PuppetDB anywhere in this fleet.
+
+`ansible/` is the previous implementation of this exact same automation,
+fully superseded 2026-08-23 and kept only as a short-lived reference while
+the OpenVox port settles — it is no longer deployed by CI or documented
+below. See [Migrating from Ansible](#migrating-from-ansible) if you're
+looking for the old workflow.
 
 ## Quick Start
 
@@ -9,31 +18,40 @@ git clone https://github.com/MrCodeEU/homelab-automation.git
 cd homelab-automation
 git config core.hooksPath .githooks
 
-pip install ansible-core mitogen ansible-mitogen
-ansible-galaxy collection install -r ansible/requirements.yml
+# Puppet/eyaml decrypt keys are deployed to each host separately, once -
+# see scripts/install-openvox-eyaml.sh. Nothing to install locally: the
+# only local dependencies are ssh/rsync/scp, already on any dev machine.
 
-# Create encrypted secret store (see vault.yml.example for required variables)
-ansible-vault create ansible/inventory/group_vars/all/vault.yml
-
-# Dry run — verifies connectivity and vault decryption
-make deploy-check
+# Dry run — syncs manifests to every agent-managed host and runs
+# `puppet apply --noop`, no changes made
+make openvox-check
 ```
 
 ## Architecture
 
 ```
-GitHub Actions / local Ansible
+GitHub Actions / local openvox-sync.sh
              |
-        Tailscale VPN
+        Tailscale VPN (SSH, keyless via Tailscale ACLs)
              |
    +---------+---------+---------+---------+
    |                   |         |         |
  mljr                nuc       nas       ugreen
  VPS                 compute   Unraid    Debian NAS (UGOS)
  Caddy ingress       node      NAS       backup target,
- CrowdSec            Grafana,  mostly    light read-only
-                      Netronome manual   monitoring only
+ CrowdSec            Grafana,  proxy-    light read-only
+                      Netronome exec'd   monitoring only
+                                from nuc
 ```
+
+`mljr`, `nuc`, and `ugreen` run a real Puppet agent and are synced +
+applied directly (`scripts/openvox-sync.sh <host> [noop|apply]`). `nas`
+(Unraid, tmpfs root) and `wd_mycloud` (busybox, no package manager) have
+no agent at all — every mutating action against them is a proxy-exec
+declared on `nuc`'s own node block in `openvox/manifests/site.pp`
+(`roles::services_nas`, `roles::unraid_proxy`, `roles::wd_mycloud_proxy`,
+etc.), reached over SSH from nuc rather than by installing anything on
+the appliance itself.
 
 NAS/Unraid services are mostly managed manually and only proxied or monitored where explicitly configured. `ugreen` is not a general deployment target for `roles/base`, but does run some Docker services (oxicloud, smartctl-exporter, syncthing-ugreen) plus host-facts-endpoint, Grafana Alloy, iperf3, and (when `ugreen_enabled`) the SFTP backup target.
 
@@ -41,64 +59,63 @@ Two more hosts sit outside the diagram above: `wd_mycloud` (WD My Cloud EX2 Ultr
 
 ## Features
 
-- Idempotent Ansible deployments for Rocky Linux hosts.
-- Generic Docker Compose service deployment from `services/<name>/docker-compose.yml`.
+- Idempotent, masterless Puppet (OpenVox) deployments — `puppet apply` runs
+  locally on each target host, no central Puppet server anywhere.
+- Generic Docker Compose service deployment from `services/<name>/docker-compose.yml`,
+  data-driven from one `services_catalog` list (`openvox/data/common.yaml`)
+  via a single `roles::services::service` defined type — not ~30 hand-unrolled
+  resource blocks.
 - Automatic Caddy HTTPS and reverse proxy snippets.
-- Staging deployments through `services/<name>/dev/docker-compose.yml`.
+- Staging deployments through `services/<name>/dev/docker-compose.yml`
+  (catalog entries with `dev_deploy: true` deploy unconditionally to `nuc`,
+  no separate toggle needed).
 - Cleanup of disabled or moved services to avoid stale containers and Caddy snippets.
-- Weekly Docker image/container pruning during scheduled deployments.
+- Weekly Docker image/container pruning + gated reboot during the scheduled
+  CI run only (`FACTER_openvox_weekly_maintenance`, see `openvox/manifests/site.pp`).
 - Grafana/Loki/VictoriaMetrics monitoring with Grafana Alloy agents (mljr, nuc, ugreen, nas) plus bare node_exporter + remote scraping for hosts that can't run Alloy (wd_mycloud, Home Assistant). SMART, systemd, and btrfs collectors included where applicable.
 - CrowdSec security engine with nftables firewall enforcement on `mljr`.
 - Netronome network testing on `nuc`, exposed as `speedtest.mljr.eu`.
-- GitHub Actions deployment over Tailscale with secrets stored in Ansible Vault.
-- Local deployment via `make deploy-*` targets — no GitHub Actions required.
+- GitHub Actions deployment over Tailscale — secrets decrypt host-side via
+  hiera-eyaml at apply time, so CI itself needs no vault-password secret.
+- Local deployment via `make openvox-check`/`openvox-deploy` (and per-host
+  variants) — no GitHub Actions required.
 
 ## Directory Structure
 
 ```
 homelab-automation/
 ├── AGENTS.md                         # Agent/operator guidance
-├── ansible/
-│   ├── inventory/
-│   │   ├── hosts.yml
-│   │   └── group_vars/all/
-│   │       ├── all.yml               # Service catalog and global config
-│   │       ├── secrets.yml           # Maps vault_* vars to secrets.* namespace
-│   │       ├── vault.yml             # Ansible Vault encrypted secrets (git-tracked)
-│   │       └── vault.yml.example     # Template for creating vault.yml
-│   ├── playbooks/site.yml            # Main deployment playbook
-│   └── roles/
-│       ├── base/
-│       ├── caddy/
-│       ├── services/
-│       ├── container-reconcile/
-│       ├── crowdsec-firewall-bouncer/
-│       ├── grafana-alloy/                 # rocky + ugreen (nas: services/nas-alloy/ instead)
-│       ├── wd-mycloud-tailscale/          # wd_mycloud, bare binary + boot hook
-│       ├── wd-mycloud-node-exporter/      # wd_mycloud, bare binary + boot hook
-│       ├── host-facts-endpoint/           # managed + ugreen
-│       ├── healthreport/                  # nuc
-│       ├── backup/                        # rocky, borg-based
-│       ├── unraid-backup/                 # nas, rclone to pCloud/ugreen
-│       ├── backup-remote-key/             # nuc
-│       ├── backup-remote-target/          # ugreen, SFTP chroot
-│       └── ...
+├── openvox/
+│   ├── manifests/site.pp             # Entrypoint - one node block per agent-managed host
+│   ├── hiera.yaml                    # Hiera hierarchy (common.yaml -> common.eyaml)
+│   ├── data/
+│   │   ├── common.yaml               # Service catalog (services_catalog) + global config
+│   │   └── common.eyaml              # hiera-eyaml encrypted secrets (vault_* keys)
+│   ├── keys/                         # eyaml PKCS7 public key (private key lives host-side only)
+│   └── modules/roles/
+│       ├── manifests/                # One class per role: base, caddy, services,
+│       │                             # services_nas, backup, authelia, mailcow, glance,
+│       │                             # grafana_alloy, healthreport, crowdsec_firewall_bouncer,
+│       │                             # host_facts_endpoint, unraid_proxy, wd_mycloud_proxy, ...
+│       ├── templates/                # EPP templates (Puppet's native templating)
+│       └── files/                    # Vendored per-service content + check/apply script pairs
+├── ansible/                          # Superseded 2026-08-23, kept as reference only
+│   └── ...                           # (was the primary implementation until this date)
 ├── services/
 │   ├── crowdsec/
 │   ├── grafana/
 │   ├── speedtest/                    # Netronome
 │   └── ...
 └── .github/workflows/
-    ├── deploy.yml
     └── deploy.yml
 ```
 
 ## Service Configuration
 
-Services are defined in `ansible/inventory/group_vars/all/all.yml`:
+Services are defined under `services_catalog` in `openvox/data/common.yaml`:
 
 ```yaml
-services:
+services_catalog:
   - name: myservice
     enabled: true
     domain: "myservice.mljr.eu"
@@ -113,14 +130,22 @@ Important options:
 | Option | Description |
 |--------|-------------|
 | `enabled` | Whether the service should exist |
-| `managed` | If false, only Caddy proxy config is generated |
-| `skip_deploy` | Dedicated role owns deployment |
+| `managed` | If false, this entry is documentation only (health-report/backup-dashboard visibility for a container someone set up by hand, e.g. through the Unraid UI) — no class deploys it |
+| `skip_deploy` | A dedicated class owns deployment (e.g. `authelia`, `glance`, `mailcow`) — the entry still counts as "active on this host" for orphan-cleanup purposes, it's just not deployed by the generic `roles::services`/`roles::services_nas` loop |
 | `domain` | String or list of domains |
 | `port` | Backend port, or `0` for notification-only/no UI services |
-| `host` | Inventory host running the service |
+| `host` | Which host owns this service |
 | `caddy_auth` | `basicauth` or `authelia` |
+| `dev_deploy` | Also deploy a `<name>-staging` instance to `nuc`, unconditionally |
 
-Disabled services can remain in the catalog so cleanup roles can remove old deployments and stale proxy snippets safely.
+Disabled services can remain in the catalog so orphan-cleanup can remove old
+deployments and stale proxy snippets safely. **`managed:false` and
+`skip_deploy:true` are not the same exclusion** — any class that filters
+this catalog for a purpose other than "should I deploy this" (cleanup,
+healthcheck enumeration, backup targeting) needs to re-derive its own
+filter rather than reusing another class's deploy-scoped list; conflating
+the two caused a real incident (see `roles::services`' own header comment
+on `$host_active_names` in `openvox/modules/roles/manifests/services.pp`).
 
 ## Key Services
 
@@ -134,24 +159,42 @@ Disabled services can remain in the catalog so cleanup roles can remove old depl
 
 ## Secrets Management
 
-All secrets are stored in `ansible/inventory/group_vars/all/vault.yml`, encrypted with Ansible Vault. The file is committed to git — only the encrypted ciphertext is ever stored.
+Secrets are stored in `openvox/data/common.eyaml`, encrypted with
+[hiera-eyaml](https://github.com/voxpupuli/hiera-eyaml) (PKCS7). The file is
+committed to git — only the encrypted ciphertext is ever stored. Each
+`vault_*` key is looked up in a role's manifest via `lookup('vault_...')`,
+exactly like any other hiera value.
+
+There's no `eyaml` binary on a plain dev machine — it only exists inside
+Puppet's bundled Ruby (`/opt/puppetlabs/puppet/bin/eyaml`), installed by
+`scripts/install-openvox-eyaml.sh`. Edit/view secrets via a host that
+already has the gem + key pair installed (any agent-managed host works,
+the key pair is identical everywhere):
 
 ```bash
-# Create vault (first time)
-ansible-vault create ansible/inventory/group_vars/all/vault.yml
-
-# Edit secrets
-ansible-vault edit ansible/inventory/group_vars/all/vault.yml
-
-# View without editing
-ansible-vault view ansible/inventory/group_vars/all/vault.yml
+scp openvox/data/common.eyaml root@nuc.tail33930.ts.net:/tmp/common.eyaml
+ssh root@nuc.tail33930.ts.net "/opt/puppetlabs/puppet/bin/eyaml edit /tmp/common.eyaml \
+  --pkcs7-public-key=/etc/puppetlabs/puppet/eyaml/public_key.pkcs7.pem \
+  --pkcs7-private-key=/etc/puppetlabs/puppet/eyaml/private_key.pkcs7.pem"
+scp root@nuc.tail33930.ts.net:/tmp/common.eyaml openvox/data/common.eyaml
+ssh root@nuc.tail33930.ts.net "shred -u /tmp/common.eyaml"
 ```
 
-See `vault.yml.example` for the full list of required variables with generation hints.
+**Decryption happens host-side**, not on the controller/CI runner: every
+host that needs to resolve a `vault_*` value has its own copy of the PKCS7
+key pair under `/etc/puppetlabs/puppet/eyaml/`, deployed once via
+`scripts/install-openvox-eyaml.sh <host>` (separate from the general
+`openvox-sync.sh` environment sync, since not every host needs every
+secret). This is why **CI needs no vault-password secret at all** — unlike
+the old Ansible pipeline's `ANSIBLE_VAULT_PASSWORD`, there is nothing for
+GitHub Actions to hold. `openvox/keys/private_key.pkcs7.pem` is gitignored
+(see `.gitignore`); only the public key is ever committed.
 
-CI requires one GitHub secret: `ANSIBLE_VAULT_PASSWORD`. Tailscale OAuth secrets (`TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`) also stay as GitHub secrets since they are used by the Tailscale GitHub Action, not Ansible.
+Tailscale OAuth secrets (`TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`) still stay
+as GitHub secrets, since they're used by the Tailscale GitHub Action
+directly, unrelated to hiera-eyaml.
 
-The pre-commit hook rejects any commit where `vault.yml` is not encrypted.
+The pre-commit hook rejects any commit where `common.eyaml` is not encrypted.
 
 ## Security
 
@@ -159,8 +202,8 @@ CrowdSec replaced fail2ban as the active security stack.
 
 - Dockerized CrowdSec runs on `mljr`.
 - The web UI is exposed through Caddy and protected with Authelia.
-- `crowdsec-firewall-bouncer-nftables` is installed on `mljr` by Ansible for host-level enforcement.
-- Fail2ban is no longer managed by this playbook.
+- `crowdsec-firewall-bouncer-nftables` is installed on `mljr` by `roles::crowdsec_firewall_bouncer` for host-level enforcement.
+- Fail2ban is no longer managed by this repo.
 
 ## Monitoring
 
@@ -183,69 +226,67 @@ Once a host sends metrics/logs with matching `instance`/`host` labels, the provi
 
 ## Staging
 
-Create `services/<name>/dev/docker-compose.yml` to make a service staging-capable. Then run:
-
-```bash
-ansible-playbook playbooks/site.yml -e is_staging_deployment=true
-```
-
-Staging services deploy to `staging_host` (`nuc`) and are proxied as `<service>.dev.mljr.eu`.
+Set `dev_deploy: true` on a catalog entry in `openvox/data/common.yaml` and
+add `services/<name>/dev/docker-compose.yml` to make a service
+staging-capable. `roles::services` deploys it unconditionally on every
+apply to `nuc` (no separate flag/run needed — see `services.pp`'s own
+`$staging_services` block), proxied as `<service>.dev.mljr.eu`.
 
 ## Validation
 
 From the repository root:
 
 ```bash
-ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_HOME=/tmp/ansible-home make test
+make test
 ```
 
-This runs service validation, Caddy template rendering, Ansible syntax checks, and Docker Compose syntax checks.
-
-## Ansible Map
-
-Generate a static Markdown/Mermaid map of inventory groups, hosts, and service placement:
-
-```bash
-make docs-ansible-map
-```
-
-The output is written to `docs/ansible-map.md`.
-
-## ARA Reports
-
-Download the latest completed deployment ARA artifact and open the local ARA web UI:
-
-```bash
-make view-ara
-```
-
-Use `RUN_ID=<github run id>` to inspect a specific deployment.
+Runs service-catalog validation (`.githooks/pre-commit`) and Caddy
+template rendering — both engine-independent, since they validate
+`services/` and the shared `services_catalog` data, not Ansible or Puppet
+machinery. `_check-syntax`/`_check-compose` still check the legacy
+`ansible/` playbooks specifically; there's no `puppet parser validate`
+equivalent wired in yet since no `puppet`/`openvox` binary exists on a
+plain dev machine or CI runner today — a manifest syntax error is
+currently only ever caught live, on the first `openvox-sync.sh noop`
+against a real host.
 
 ## Common Commands
 
 ```bash
-# Dry run — verify vault decryption and connectivity before touching anything
-make deploy-check
+# Dry run — syncs manifests + runs `puppet apply --noop` on every
+# agent-managed host, no changes made
+make openvox-check
 
-# Full deploy
-make deploy
+# Full deploy (real apply)
+make openvox-deploy
 
-# Scoped deploys
-make deploy-caddy       # Caddy only (fast)
-make deploy-services    # Services only
-make deploy-mljr        # All roles, mljr only
-make deploy-nuc         # All roles, nuc only
+# Single host
+make openvox-check-mljr
+make openvox-deploy-nuc
+make openvox-check-ugreen
 
-# Pass extra args via the script directly
-./scripts/deploy-local.sh --tags services --extra-vars "changed_services=grafana"
-./scripts/deploy-local.sh --limit mljr --tags services --extra-vars "force_redeploy=true"
+# Or drive scripts/openvox-sync.sh directly for anything not covered above
+./scripts/openvox-sync.sh mljr.tail33930.ts.net noop
+./scripts/openvox-sync.sh nuc.tail33930.ts.net apply
 ```
+
+Both `make openvox-check`/`openvox-deploy` run all 3 hosts in parallel and
+print a final `==> fleet summary` line per host; every line of remote
+output is also prefixed with the host's short label (`[mljr]`, `[nuc]`,
+`[ugreen]`) so a multi-host run stays readable, and a full raw log is
+saved under `logs/openvox/<host>-<mode>-<timestamp>.log` for later
+inspection.
 
 ## GitHub Actions
 
-The main workflow deploys on pushes to main branches, pull requests in check mode, manual dispatch, and repository dispatch from external repos. Secrets are decrypted from `vault.yml` using the `ANSIBLE_VAULT_PASSWORD` GitHub secret.
+`.github/workflows/deploy.yml` deploys on the weekly schedule, pull
+requests in check mode (`openvox/**`/`services/**`/`scripts/**` paths),
+manual dispatch, and repository dispatch from external repos — calling
+`scripts/openvox-sync.sh` directly, no Ansible tooling involved. Needs no
+vault-password secret (see Secrets Management above); only
+`TS_OAUTH_CLIENT_ID`/`TS_OAUTH_SECRET` for Tailscale.
 
-External repos can trigger a specific service deployment with `repository_dispatch`:
+External repos can trigger a specific service deployment with `repository_dispatch`. The workflow resolves the service's host from `services_catalog` and applies that host's full catalog (+ `mljr` too, for the Caddy snippet) — Puppet's whole-catalog apply is idempotent enough that there's no surgical single-service fast path to target separately, unlike the old Ansible pipeline's `environment` field:
 
 ```yaml
 - name: Trigger deployment
@@ -258,7 +299,6 @@ External repos can trigger a specific service deployment with `repository_dispat
         "event_type": "service-update",
         "client_payload": {
           "service": "homepage",
-          "environment": "production",
           "commit_sha": "${{ github.sha }}"
         }
       }'
@@ -266,11 +306,30 @@ External repos can trigger a specific service deployment with `repository_dispat
 
 ## Adding a Service
 
-1. Add the service to `ansible/inventory/group_vars/all/all.yml`.
+1. Add the service to `services_catalog` in `openvox/data/common.yaml`.
 2. Create `services/<name>/docker-compose.yml`.
-3. If the service needs secrets: add `vault_*` variables to `vault.yml` (`ansible-vault edit`), then add mappings to `secrets.yml`.
-4. Add `services/<name>/dev/docker-compose.yml` if staging is needed.
-5. Run `make test`.
+3. If the service needs secrets: add `vault_*` keys to `openvox/data/common.eyaml`
+   (see Secrets Management above), then add a per-service block to
+   `roles::services`' own `$all_secrets` hash in
+   `openvox/modules/roles/manifests/services.pp` (or `services_nas.pp` for
+   a `nas`-hosted service) mapping them into the service's `.env`.
+4. Add `services/<name>/dev/docker-compose.yml` and set `dev_deploy: true`
+   in the catalog entry if staging is needed.
+5. Run `make test`, then `make openvox-check-<host>` before a real
+   `openvox-deploy-<host>`.
+
+## Migrating from Ansible
+
+`ansible/` was the primary implementation of this automation until
+2026-08-23, when it was fully superseded by the OpenVox port above (all 26
+roles ported 1:1, verified live against real production infrastructure
+role-by-role before the CI cutover). It's kept as a short-lived reference
+only — not deployed by CI, not documented as a supported path — while the
+OpenVox port settles. If you're looking for the old `ansible-playbook`/
+`ansible-vault`/`make deploy-*` workflow, the roles/playbooks/vault are
+still there, just no longer wired into anything; `git log` on any
+`ansible/roles/<name>/` directory is the most reliable way to see what a
+given role used to do before its Puppet port.
 
 ## License
 
