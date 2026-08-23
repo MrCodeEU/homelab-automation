@@ -91,6 +91,7 @@ node 'nuc.tail33930.ts.net' {
   class { 'roles::grafana_alloy':
     hostname => 'nuc',
   }
+  include roles::tutabridge_cli
 }
 
 node 'ugreen.tail33930.ts.net' {
