@@ -15,6 +15,86 @@
 # nuc's already-generated /opt/backup-remote/ssh/id_ed25519.pub.
 backup_remote_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIALssUfIl9WG9DUjrTg2My+4NKtQS9VUJe5B61/Z6e+f homelab-backup-to-ugreen"
 
+# nas's host-side folder backups. Ported 1:1 from
+# ansible/inventory/group_vars/unraid.yml's `unraid_backup_paths` (as of
+# 2026-08-23) - not secret (paths and pCloud remote names only), so
+# committed here as plain data, same "single source of truth" call as
+# services_catalog. wd_cloud_dest/extra_excludes are carried over
+# faithfully even though no OpenVox role reads them yet (unraid-backup,
+# wd-mycloud aren't ported) - cheap to keep, saves a second manual port
+# whenever those roles are.
+unraid_backup_paths:
+  - name: fotos
+    src: /mnt/user/Fotos/Fotos
+    dest: "pcloud:Fotos"
+    destinations: [pcloud, ugreen, wd_cloud]
+    wd_cloud_dest: "wd-cloud:Fotos"
+  - name: fotos-videos
+    src: "/mnt/user/Fotos/Videos"
+    dest: "pcloud:Fotos-Videos"
+    destinations: [pcloud, ugreen, wd_cloud]
+    wd_cloud_dest: "wd-cloud:Videos"
+  - name: fotos-wichtiges-scans-adressen
+    src: "/mnt/user/Fotos/Wichtiges Scans Adressen"
+    dest: "pcloud:Fotos-Wichtiges-Scans-Adressen"
+    destinations: [pcloud, ugreen]
+  - name: musik
+    src: "/mnt/user/Fotos/Musik"
+    dest: "pcloud:Musik"
+    destinations: [pcloud, ugreen, wd_cloud]
+    wd_cloud_dest: "wd-cloud:Musik"
+  - name: fotos-sb
+    src: "/mnt/user/Fotos/SB"
+    dest: "pcloud:Fotos-SB"
+    destinations: [pcloud, ugreen]
+  - name: nextcloud-borg
+    src: "/mnt/user/borgbackup/borg"
+    dest: "pcloud:Nextcloud-Borg"
+    destinations: [pcloud, ugreen]
+  - name: unraid-flash
+    src: /boot
+    dest: "pcloud:unraid-flash"
+    destinations: [pcloud, ugreen]
+  - name: appdata-backup
+    src: "/mnt/user/backup/appdata"
+    dest: "pcloud:unraid-appdata-backup"
+    destinations: [pcloud, ugreen]
+  - name: origami
+    src: "/mnt/user/backup/origami"
+    dest: "pcloud:origami"
+    destinations: [pcloud, ugreen]
+  - name: sync
+    src: "/mnt/user/Sync"
+    dest: "pcloud:Sync"
+    destinations: [pcloud]
+    extra_excludes:
+      - node_modules
+      - target
+      - .embuild
+      - .venv
+      - venv
+      - __pycache__
+      - .next
+      - .svelte-kit
+      - dist
+      - build
+      - .cache
+      - tmp
+      - vendor
+      - .pio
+      - .dart_tool
+      - .gradle
+      - obj
+      - .stversions
+      - .git_broken_*
+      - lib/python*/site-packages
+      - goDrive/var/perf-data
+      - goDrive/var/perf-appdata
+      - goDrive/var/appdata/previews/thumbs
+      - bin
+      - Library
+      - BA_Speaker_Diarization/data_vox
+
 services_catalog:
   - name: authelia
     enabled: true

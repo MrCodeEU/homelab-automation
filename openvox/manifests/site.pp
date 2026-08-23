@@ -71,6 +71,7 @@ node 'nuc.tail33930.ts.net' {
   class { 'roles::hawser_agent':
     tailscale_ip => '100.100.10.1',
   }
+  include roles::backup_dashboard
 }
 
 node 'ugreen.tail33930.ts.net' {
