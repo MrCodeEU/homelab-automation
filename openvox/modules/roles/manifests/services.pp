@@ -244,8 +244,23 @@ class roles::services (
   # one of this host's own services has been (re)deployed, so a
   # renamed/moved catalog entry never gets deleted mid-transition.
   if $cleanup_enabled {
+    # "Active" here must match Ansible's own cleanup_orphaned.yml filter
+    # exactly (host + enabled only) - NOT $host_service_names, which also
+    # excludes skip_deploy/managed:false catalog entries for the deploy
+    # loop above. skip_deploy services like authelia (deployed by their
+    # own dedicated class, e.g. roles::authelia, but still cataloged here
+    # under this same host for docs/backup/healthcheck purposes) and
+    # managed:false ones (hand-run containers, cataloged for visibility
+    # only) both have real directories this cleanup must never call
+    # orphaned just because they're absent from $host_service_names.
+    # Caught live: reusing $host_service_names here deleted /opt/authelia
+    # for real on the first production apply of this cleanup exec.
+    $host_active_names = $catalog.filter |$s| {
+      $s['host'] == $hostname and pick($s['enabled'], true)
+    }.map |$s| { $s['name'] }
+
     $all_names_csv  = join($catalog.map |$s| { $s['name'] }, ',')
-    $host_names_csv = join($host_service_names, ',')
+    $host_names_csv = join($host_active_names, ',')
 
     exec { 'services-cleanup-orphaned':
       command => "${work_dir}/cleanup-apply.sh ${base_path} ${all_names_csv} ${host_names_csv}",
