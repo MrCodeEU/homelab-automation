@@ -5,6 +5,16 @@
 # roles::services) reads from, so the catalog only needs updating in one
 # place instead of once per role's own copy of it.
 ---
+# Public half of the backup-to-ugreen keypair (roles::backup_remote_key
+# generates it on nuc, regenerate: never; roles::backup_remote_target
+# authorizes it on ugreen). Not secret - a public key - so it lives here
+# rather than common.eyaml, and is committed as plain data rather than
+# crossed at apply time, since this is a masterless setup with no
+# puppetserver/exported-resources mechanism to carry a value from one
+# host's catalog compilation to another's. Real value, read directly off
+# nuc's already-generated /opt/backup-remote/ssh/id_ed25519.pub.
+backup_remote_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIALssUfIl9WG9DUjrTg2My+4NKtQS9VUJe5B61/Z6e+f homelab-backup-to-ugreen"
+
 services_catalog:
   - name: authelia
     enabled: true

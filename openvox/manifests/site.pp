@@ -62,6 +62,7 @@ node 'nuc.tail33930.ts.net' {
     tailscale_ip => '100.100.10.1',
   }
   include roles::container_reconcile
+  include roles::backup_remote_key
 }
 
 node 'ugreen.tail33930.ts.net' {
@@ -69,4 +70,5 @@ node 'ugreen.tail33930.ts.net' {
     base_path        => '/volume1/homelab',
     manage_firewall  => false,
   }
+  include roles::backup_remote_target
 }
