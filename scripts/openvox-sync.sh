@@ -28,6 +28,12 @@ set -uo pipefail
 host="${1:?usage: openvox-sync.sh <ssh-target> [apply]}"
 mode="${2:-noop}"
 env_dir="/etc/puppetlabs/code/environments/production"
+
+# accept-new (not the no-op "no"): trusts a host's key on first contact and
+# persists it, but still refuses a key that later CHANGES. Needed because a
+# fresh CI runner has no known_hosts entries at all for this tailnet, unlike
+# a dev machine that's already SSH'd into these hosts before.
+ssh_opts=(-o StrictHostKeyChecking=accept-new)
 facter_prefix=""
 if [ "${OPENVOX_WEEKLY_MAINTENANCE:-false}" = "true" ]; then
   facter_prefix="FACTER_openvox_weekly_maintenance=true "
@@ -54,24 +60,24 @@ start_epoch=$(date +%s)
 echo "${c_bold}==> ${label}${c_reset} (${mode}) starting..." | prefix
 
 {
-  ssh "root@${host}" "mkdir -p ${env_dir}/manifests ${env_dir}/modules/roles ${env_dir}/data"
+  ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p ${env_dir}/manifests ${env_dir}/modules/roles ${env_dir}/data"
 
   if [ "${host}" = "ugreen.tail33930.ts.net" ]; then
-    scp -rq openvox/manifests/. "root@${host}:${env_dir}/manifests/"
-    scp -rq openvox/modules/roles/. "root@${host}:${env_dir}/modules/roles/"
-    scp -q openvox/hiera.yaml "root@${host}:${env_dir}/hiera.yaml"
-    scp -rq openvox/data/. "root@${host}:${env_dir}/data/"
+    scp -rq "${ssh_opts[@]}" openvox/manifests/. "root@${host}:${env_dir}/manifests/"
+    scp -rq "${ssh_opts[@]}" openvox/modules/roles/. "root@${host}:${env_dir}/modules/roles/"
+    scp -q "${ssh_opts[@]}" openvox/hiera.yaml "root@${host}:${env_dir}/hiera.yaml"
+    scp -rq "${ssh_opts[@]}" openvox/data/. "root@${host}:${env_dir}/data/"
   else
-    rsync -az openvox/manifests/ "root@${host}:${env_dir}/manifests/"
-    rsync -az --delete openvox/modules/roles/ "root@${host}:${env_dir}/modules/roles/"
-    rsync -az openvox/hiera.yaml "root@${host}:${env_dir}/hiera.yaml"
-    rsync -az openvox/data/ "root@${host}:${env_dir}/data/"
+    rsync -az -e "ssh ${ssh_opts[*]}" openvox/manifests/ "root@${host}:${env_dir}/manifests/"
+    rsync -az --delete -e "ssh ${ssh_opts[*]}" openvox/modules/roles/ "root@${host}:${env_dir}/modules/roles/"
+    rsync -az -e "ssh ${ssh_opts[*]}" openvox/hiera.yaml "root@${host}:${env_dir}/hiera.yaml"
+    rsync -az -e "ssh ${ssh_opts[*]}" openvox/data/ "root@${host}:${env_dir}/data/"
   fi
 
   if [ "${mode}" = "apply" ]; then
-    ssh "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply --color=false ${env_dir}/manifests/site.pp"
+    ssh "${ssh_opts[@]}" "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply --color=false ${env_dir}/manifests/site.pp"
   else
-    ssh "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply --color=false --noop ${env_dir}/manifests/site.pp"
+    ssh "${ssh_opts[@]}" "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply --color=false --noop ${env_dir}/manifests/site.pp"
   fi
 } 2>&1 | tee "$log_file" | prefix
 exit_code="${PIPESTATUS[0]}"
