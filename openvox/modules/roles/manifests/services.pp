@@ -1,9 +1,16 @@
-# Docker Compose service deployment - rocky hosts only (mljr, nuc),
-# ported from ansible/roles/services. ugreen/nas each get their own
-# separate role (services-ugreen, services-nas in the Ansible/spot
-# world) with different sync mechanics (UGOS blocks rsync --server;
-# nas is Unraid) - deliberately out of scope here, same phasing the
-# user confirmed for this port.
+# Docker Compose service deployment, ported from ansible/roles/services.
+# Ansible reused this exact role for mljr/nuc/ugreen alike (one "Ugreen
+# Services" play, gated on ugreen_enabled - see site.yml); the earlier
+# spot/Ansible-parity notes in this migration's own memory calling it
+# "rocky-only" described phase 1's actual scope, not a real architectural
+# split. Puppet's masterless `puppet apply` reads `puppet:///` sources
+# from the local, already-synced modulepath (not a live fileserver), so
+# the UGOS-blocks-rsync--server constraint that shaped
+# scripts/openvox-sync.sh's scp fallback never applies to this class
+# itself - no separate services_ugreen role was needed once phase 2 (this
+# revision) added ugreen. nas (Unraid) still has no real Puppet agent at
+# all (see roles::unraid_proxy's own proxy-exec pattern) and is out of
+# scope here for that reason, not a services-role reason.
 #
 # PHASE 1 - core deploy path: per-service directory sync from this
 # module's own files/services/<name>/ (vendored once from
@@ -44,19 +51,20 @@ class roles::services (
   # This host's own Tailscale IP, used as BIND_ADDR for every service
   # except mljr (loopback-only, since Caddy is co-located there).
   String $tailscale_ip = '',
-  # Ported 1:1 from ansible/inventory/group_vars/all/all.yml. Both lists
-  # only ever name rocky-hosted (mljr/nuc) catalog entries today -
-  # syncthing-ugreen and ollama are also registered there but belong to
-  # roles::services_ugreen/services_nas (not yet ported), so they're
-  # deliberately absent from these defaults.
+  # Ported 1:1 from ansible/inventory/group_vars/all/all.yml. `ollama` is
+  # nas-hosted and stays out of this default - nas has no real Puppet
+  # agent (proxy-exec only, not yet ported for services), so it's not
+  # reachable via this class at all yet.
   Array[String] $post_deploy_hook_services = [
     'crowdsec', 'forgejo', 'grafana', 'speedtest', 'godrive-demo',
     'healthreport', 'backup-dashboard', 'mail-archiver', 'umami', 'nocturne',
+    'syncthing-ugreen',
   ],
   Array[String] $critical_hook_services = ['crowdsec', 'forgejo', 'grafana', 'speedtest'],
-  # Matches Ansible's own `cleanup_enabled | default(true)` - only ugreen/
-  # unraid override this to false (see their own services_ugreen/
-  # services_nas roles, not yet ported).
+  # Matches Ansible's own `cleanup_enabled | default(true)` - ugreen's own
+  # class{} call in site.pp overrides this to false (matches
+  # group_vars/ugreen.yml), unraid/nas stays out of scope for the same
+  # no-agent reason noted above.
   Boolean $cleanup_enabled = true,
 ) {
   $work_dir = '/usr/local/libexec/openvox-services-common'
@@ -199,6 +207,10 @@ class roles::services (
       'smtp_password'          => lookup('vault_smtp_password', { 'default_value' => '' }),
       'smtp_from'              => 'notifications@mljr.eu',
       'email_to'               => lookup('vault_healthreport_email_to', { 'default_value' => '' }),
+    },
+    'syncthing-ugreen' => {
+      'nas_ip'                  => '100.100.10.2',
+      'nas_syncthing_api_key'   => lookup('vault_syncthing_nas_api_key', { 'default_value' => '' }),
     },
     'backup-dashboard' => {
       'nuc_ip'           => '100.100.10.1',

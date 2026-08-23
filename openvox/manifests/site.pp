@@ -101,6 +101,13 @@ node 'ugreen.tail33930.ts.net' {
   }
   include roles::backup_remote_target
   include roles::ugreen_tailscale
+  class { 'roles::services':
+    hostname        => 'ugreen',
+    base_path       => '/volume1/homelab',
+    tailscale_ip    => '100.100.10.4',
+    # Matches ansible/inventory/group_vars/ugreen.yml's cleanup_enabled: false.
+    cleanup_enabled => false,
+  }
   class { 'roles::host_facts_endpoint':
     os_family      => 'ugreen',
     hostname       => 'ugreen',
