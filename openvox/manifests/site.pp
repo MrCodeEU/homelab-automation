@@ -67,6 +67,7 @@ node 'nuc.tail33930.ts.net' {
   include roles::wd_mycloud_node_exporter_proxy
   include roles::unraid_proxy
   include roles::unraid_backup_proxy
+  include roles::services_nas
   class { 'roles::backup':
     services => ['kuma', 'forgejo', 'mail-archiver', 'umami', 'grafana', 'nocturne'],
     hostname => 'nuc',
