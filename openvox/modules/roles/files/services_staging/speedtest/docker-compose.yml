@@ -1,0 +1,25 @@
+services:
+  speedtest:
+    image: ghcr.io/autobrr/netronome:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-speedtest-staging}
+    restart: unless-stopped
+    ports:
+      - "18090:7575"
+    environment:
+      NETRONOME__HOST: 0.0.0.0
+      NETRONOME__PORT: 7575
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    volumes:
+      - netronome-staging-data:/data
+    networks:
+      - speedtest
+
+networks:
+  speedtest:
+    driver: bridge
+
+volumes:
+  netronome-staging-data:
+    name: netronome-staging-data

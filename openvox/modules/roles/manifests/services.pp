@@ -5,18 +5,26 @@
 # nas is Unraid) - deliberately out of scope here, same phasing the
 # user confirmed for this port.
 #
-# PHASE 1 (this commit) - core deploy path only: per-service directory
-# sync from this module's own files/services/<name>/ (vendored once
-# from services/<name>/, NOT read live from the repo the way Ansible's
+# PHASE 1 - core deploy path: per-service directory sync from this
+# module's own files/services/<name>/ (vendored once from
+# services/<name>/, NOT read live from the repo the way Ansible's
 # rsync-from-controller did - Puppet's compiler has no controller-side
 # filesystem to read from at apply time, same constraint that shaped
 # roles::caddy's dev_deploy catalog flag), EPP-rendered .env (ported
 # from ansible/roles/services/templates/env.j2), Docker Hub + GHCR
 # login, `docker compose up -d --remove-orphans`, non-blocking
-# healthcheck. Deliberately NOT yet ported (follow-up passes):
-# pre/post-deploy hooks, Kuma auto-provisioning, staging/dev deploys,
-# orphaned-service cleanup, sysctl requirements (no live catalog entry
-# needs one today).
+# healthcheck.
+#
+# PHASE 2 (this revision) - post-deploy hooks (post_deploy_hook_services/
+# critical_hook_services, ported 1:1 from group_vars/all/all.yml),
+# orphaned-service cleanup (cleanup-check.sh/cleanup-apply.sh, gated by
+# $cleanup_enabled), staging/dev deploys (the 4 dev_deploy: true catalog
+# entries, always deployed to nuc regardless of their own production
+# host - mirrors roles::caddy's own `is_staging_deployment = true`
+# default, which already assumes this continuously rather than as an
+# opt-in Ansible extra-var), and Kuma auto-provisioning (checksum-gated,
+# venv + provisioning script). Still NOT ported: sysctl requirements (no
+# live catalog entry needs one today).
 #
 # Catalog-driven throughout: filters lookup('services_catalog') (the
 # same data roles::caddy/roles::glance already read) to this host's
@@ -36,6 +44,20 @@ class roles::services (
   # This host's own Tailscale IP, used as BIND_ADDR for every service
   # except mljr (loopback-only, since Caddy is co-located there).
   String $tailscale_ip = '',
+  # Ported 1:1 from ansible/inventory/group_vars/all/all.yml. Both lists
+  # only ever name rocky-hosted (mljr/nuc) catalog entries today -
+  # syncthing-ugreen and ollama are also registered there but belong to
+  # roles::services_ugreen/services_nas (not yet ported), so they're
+  # deliberately absent from these defaults.
+  Array[String] $post_deploy_hook_services = [
+    'crowdsec', 'forgejo', 'grafana', 'speedtest', 'godrive-demo',
+    'healthreport', 'backup-dashboard', 'mail-archiver', 'umami', 'nocturne',
+  ],
+  Array[String] $critical_hook_services = ['crowdsec', 'forgejo', 'grafana', 'speedtest'],
+  # Matches Ansible's own `cleanup_enabled | default(true)` - only ugreen/
+  # unraid override this to false (see their own services_ugreen/
+  # services_nas roles, not yet ported).
+  Boolean $cleanup_enabled = true,
 ) {
   $work_dir = '/usr/local/libexec/openvox-services-common'
 
@@ -188,15 +210,120 @@ class roles::services (
 
   $host_services.each |$svc| {
     roles::services::service { $svc['name']:
-      service   => $svc,
-      base_path => $base_path,
-      domain    => $domain,
-      email     => $email,
-      timezone  => $timezone,
-      bind_addr => pick($svc['public_bind'], $bind_addr),
-      work_dir  => $work_dir,
-      secrets   => pick($all_secrets[$svc['name']], {}),
-      require   => [Exec['services-dockerhub-login'], Exec['services-ghcr-login']],
+      service              => $svc,
+      base_path            => $base_path,
+      domain               => $domain,
+      email                => $email,
+      timezone             => $timezone,
+      bind_addr            => pick($svc['public_bind'], $bind_addr),
+      work_dir             => $work_dir,
+      secrets              => pick($all_secrets[$svc['name']], {}),
+      run_post_deploy_hook => $svc['name'] in $post_deploy_hook_services,
+      critical             => $svc['name'] in $critical_hook_services,
+      require              => [Exec['services-dockerhub-login'], Exec['services-ghcr-login']],
+    }
+  }
+
+  $host_service_names = $host_services.map |$s| { $s['name'] }
+
+  # Orphaned-service cleanup - ported from
+  # ansible/roles/services/tasks/cleanup_orphaned.yml. Runs after every
+  # one of this host's own services has been (re)deployed, so a
+  # renamed/moved catalog entry never gets deleted mid-transition.
+  if $cleanup_enabled {
+    $all_names_csv  = join($catalog.map |$s| { $s['name'] }, ',')
+    $host_names_csv = join($host_service_names, ',')
+
+    exec { 'services-cleanup-orphaned':
+      command => "${work_dir}/cleanup-apply.sh ${base_path} ${all_names_csv} ${host_names_csv}",
+      unless  => "${work_dir}/cleanup-check.sh ${base_path} ${all_names_csv} ${host_names_csv}",
+      path    => ['/usr/bin', '/bin'],
+      timeout => 300,
+      require => Roles::Services::Service[$host_service_names],
+    }
+  }
+
+  # Staging/dev deploys - ansible/inventory/group_vars/all/all.yml's
+  # staging_host: "nuc" is a fixed value (no per-host override anywhere in
+  # the inventory), so this stays hardcoded rather than a class param.
+  # Selected from the WHOLE catalog (not $host_services) since a staging
+  # copy can target nuc even when the entry's own production host is
+  # mljr (e.g. homepage, ui-showcase).
+  if $hostname == 'nuc' {
+    $staging_services = $catalog.filter |$s| {
+      pick($s['dev_deploy'], false)
+        and pick($s['enabled'], true)
+        and pick($s['managed'], true)
+        and !pick($s['skip_deploy'], false)
+    }
+
+    $staging_services.each |$svc| {
+      roles::services::service { "${svc['name']}-staging":
+        service   => $svc,
+        base_path => $base_path,
+        domain    => $domain,
+        email     => $email,
+        timezone  => $timezone,
+        bind_addr => $tailscale_ip,
+        work_dir  => $work_dir,
+        secrets   => pick($all_secrets[$svc['name']], {}),
+        staging   => true,
+        require   => [Exec['services-dockerhub-login'], Exec['services-ghcr-login']],
+      }
+    }
+  }
+
+  # Kuma auto-provisioning - ported from
+  # ansible/roles/services/tasks/main.yml's Kuma Provisioning block. Only
+  # relevant on the host that actually runs kuma (nuc today).
+  if 'kuma' in $host_service_names {
+    $kuma_dir      = "${base_path}/kuma"
+    $kuma_username = pick($all_secrets['kuma']['username'], '')
+    $kuma_password = Sensitive(pick($all_secrets['kuma']['password'], ''))
+
+    # Static host list mirrors ansible/inventory/hosts.yml's groups['all']
+    # - Puppet's compiler has no live inventory to enumerate the way
+    # Ansible's `groups['all']` does, so this is a fixed list instead
+    # (same shape as the healthreport secrets block above, which already
+    # hardcodes every host's Tailscale IP for the same reason).
+    $kuma_hosts = [
+      { 'inventory_hostname' => 'mljr',          'ansible_host' => 'mljr.tail33930.ts.net' },
+      { 'inventory_hostname' => 'nuc',           'ansible_host' => 'nuc.tail33930.ts.net' },
+      { 'inventory_hostname' => 'nas',           'ansible_host' => 'nas.tail33930.ts.net' },
+      { 'inventory_hostname' => 'ugreen',        'ansible_host' => 'ugreen.tail33930.ts.net' },
+      { 'inventory_hostname' => 'wd-mycloud',    'ansible_host' => 'wd-mycloud.tail33930.ts.net' },
+      { 'inventory_hostname' => 'homeassistant', 'ansible_host' => 'homeassistant.tail33930.ts.net' },
+    ]
+
+    # Valid JSON is valid YAML, and provision-kuma.py only ever calls
+    # yaml.safe_load() on this file - pretty JSON (same
+    # stdlib::to_json_pretty() already proven live via
+    # roles::backup_dashboard's own catalog file) round-trips without
+    # needing a hand-written YAML template or a to_yaml function stdlib
+    # doesn't provide.
+    file { "${kuma_dir}/services.yml":
+      ensure  => file,
+      mode    => '0644',
+      content => stdlib::to_json_pretty({ 'services' => $catalog, 'hosts' => $kuma_hosts }),
+      require => Roles::Services::Service['kuma'],
+    }
+
+    # Puppet's own hash of the catalog, NOT a byte-exact replica of
+    # Ansible's `services | to_json | hash('sha256')` - the first apply
+    # after this port sees a checksum mismatch and does one harmless
+    # one-time re-provision (Kuma's API is upsert-based), then stays
+    # stable on Puppet's own consistent hash from then on.
+    $kuma_services_hash = sha256(stdlib::to_json($catalog))
+
+    if $kuma_username != '' and $kuma_password.unwrap != '' {
+      exec { 'services-kuma-provision':
+        command     => "${work_dir}/kuma-provision-apply.sh ${kuma_dir} ${kuma_services_hash}",
+        unless      => "${work_dir}/kuma-provision-check.sh ${kuma_dir} ${kuma_services_hash}",
+        environment => ["KUMA_USERNAME=${kuma_username}", "KUMA_PASSWORD=${kuma_password.unwrap}"],
+        path        => ['/usr/bin', '/bin'],
+        timeout     => 300,
+        require     => File["${kuma_dir}/services.yml"],
+      }
     }
   }
 }

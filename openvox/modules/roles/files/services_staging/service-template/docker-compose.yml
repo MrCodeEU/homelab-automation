@@ -1,0 +1,18 @@
+services:
+  template:
+    image: ghcr.io/mrcodeeu/service-template:dev
+    container_name: ${COMPOSE_PROJECT_NAME:-service-template-staging}
+    restart: unless-stopped
+    ports:
+      - "18181:18181"
+    environment:
+      PORT: ${PORT:-18181}
+      DISPLAY_MESSAGE: ${DISPLAY_MESSAGE:-Development staging service running}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      VERSION: ${VERSION:-1.0.0-dev}
+      TZ: ${TZ:-Europe/Vienna}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
