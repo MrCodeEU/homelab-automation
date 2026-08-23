@@ -53,8 +53,8 @@ class roles::services (
   String $tailscale_ip = '',
   # Ported 1:1 from ansible/inventory/group_vars/all/all.yml. `ollama` is
   # nas-hosted and stays out of this default - nas has no real Puppet
-  # agent (proxy-exec only, not yet ported for services), so it's not
-  # reachable via this class at all yet.
+  # agent, so it's reached via the separate roles::services_nas class
+  # instead (its own post_deploy_hook_services default covers ollama).
   Array[String] $post_deploy_hook_services = [
     'crowdsec', 'forgejo', 'grafana', 'speedtest', 'godrive-demo',
     'healthreport', 'backup-dashboard', 'mail-archiver', 'umami', 'nocturne',
@@ -63,8 +63,9 @@ class roles::services (
   Array[String] $critical_hook_services = ['crowdsec', 'forgejo', 'grafana', 'speedtest'],
   # Matches Ansible's own `cleanup_enabled | default(true)` - ugreen's own
   # class{} call in site.pp overrides this to false (matches
-  # group_vars/ugreen.yml), unraid/nas stays out of scope for the same
-  # no-agent reason noted above.
+  # group_vars/ugreen.yml). nas is out of scope for this class entirely
+  # (see roles::services_nas, which has no cleanup logic at all - nas's
+  # cleanup_enabled is permanently false in Ansible too).
   Boolean $cleanup_enabled = true,
 ) {
   $work_dir = '/usr/local/libexec/openvox-services-common'
