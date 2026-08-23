@@ -40,6 +40,9 @@ node 'mljr.tail33930.ts.net' {
     hostname => 'mljr',
   }
   include roles::container_reconcile
+  class { 'roles::hawser_agent':
+    tailscale_ip => '100.100.20.1',
+  }
 }
 
 node 'nuc.tail33930.ts.net' {
@@ -63,6 +66,9 @@ node 'nuc.tail33930.ts.net' {
   }
   include roles::container_reconcile
   include roles::backup_remote_key
+  class { 'roles::hawser_agent':
+    tailscale_ip => '100.100.10.1',
+  }
 }
 
 node 'ugreen.tail33930.ts.net' {
