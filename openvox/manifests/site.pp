@@ -39,6 +39,7 @@ node 'mljr.tail33930.ts.net' {
   class { 'roles::services':
     hostname => 'mljr',
   }
+  include roles::container_reconcile
 }
 
 node 'nuc.tail33930.ts.net' {
@@ -60,6 +61,7 @@ node 'nuc.tail33930.ts.net' {
     hostname     => 'nuc',
     tailscale_ip => '100.100.10.1',
   }
+  include roles::container_reconcile
 }
 
 node 'ugreen.tail33930.ts.net' {
