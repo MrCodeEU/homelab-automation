@@ -145,15 +145,10 @@ test-services-verbose:
 # Health report unit tests. Pure logic (severity rules + run-over-run diff),
 # no network and no container needed.
 test-healthreport:
-	@python3 -c "import yaml" 2>/dev/null || { echo "ERROR: pip install pyyaml"; exit 1; }
-	@echo "==> Health report: severity rules"
-	@cd services/healthreport && python3 tests/test_severity.py
-	@echo "==> Health report: diff engine"
-	@cd services/healthreport && python3 tests/test_diff.py
-	@echo "==> Health report: log signature normalization"
-	@cd services/healthreport && python3 tests/test_normalize.py
-	@echo "==> Health report: maintenance windows"
-	@cd services/healthreport && python3 tests/test_maintenance.py
+	@echo "==> Health report: severity rules, diff engine, LLM validation"
+	cd tools && go test ./internal/healthreport/...
+	@echo "==> Health report: log signature normalization, maintenance windows"
+	cd tools && go test ./internal/healthreport/collectors/...
 
 view-ara:
 	@RUN_ID="$(RUN_ID)" ARA_PORT="$(ARA_PORT)" ARA_DIR="$(ARA_DIR)" \
