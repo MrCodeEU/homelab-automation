@@ -195,6 +195,7 @@ class roles::services (
       'healthreport_llm_timeout' => '300',
       'backup_known_paths'     => lookup('unraid_backup_paths').map |$p| { $p['src'] }.join(','),
       'backup_excluded_paths'  => lookup('unraid_backup_excluded').map |$p| { $p['path'] }.join(','),
+      'ha_excluded_clusters'   => lookup('ha_excluded_clusters', { 'default_value' => [] }).join(','),
       'lookback_hours'         => '24',
       'maintenance_windows'    => 'daily 00:00-00:10,sun 04:55-08:00',
       '5xx_hour_threshold'     => '100',

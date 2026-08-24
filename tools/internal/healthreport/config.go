@@ -95,18 +95,18 @@ type Config struct {
 	KumaURL     string
 	KumaAPIKey  string
 
-	OllamaURL  string
+	OllamaURL   string
 	OllamaModel string
-	LLMEnabled bool
+	LLMEnabled  bool
 	// CPU inference on the NAS. 8B at ~10-18 tok/s needs headroom even with
 	// thinking disabled; 180s was not enough and every run degraded.
 	LLMTimeoutS int
 
 	// Hosts reachable through the forced-command SSH endpoint. The local
 	// host runs the script directly instead of dialling itself over SSH.
-	SSHHosts     map[string]string
-	SSHKeyPath   string
-	LocalHost    string
+	SSHHosts      map[string]string
+	SSHKeyPath    string
+	LocalHost     string
 	LocalFactsBin string
 
 	GithubToken string
@@ -126,7 +126,7 @@ type Config struct {
 	SMTPFrom     string
 	EmailTo      string
 
-	GrafanaURL     string
+	GrafanaURL    string
 	LookbackHours int
 
 	// Scheduled outages, in the container's local time. Traffic-derived
@@ -138,28 +138,35 @@ type Config struct {
 	// to be covered or deliberately excluded.
 	BackupKnownPaths    []string
 	BackupExcludedPaths []string
+
+	// Home Assistant cluster names (haCluster() output, e.g. "prusa_mk4")
+	// known to sit unavailable on purpose - device switched off, hobby
+	// integration nobody's watching - so they don't count toward
+	// ha_unavailable_entities and drown out clusters that are an actual
+	// broken integration.
+	HAExcludedClusters []string
 }
 
 func defaultConfig() Config {
 	return Config{
-		StateDir:      "/state",
-		RulesPath:     "/app/rules.yml",
-		VictoriaURL:   "http://127.0.0.1:19090",
-		LokiURL:       "http://127.0.0.1:3100",
-		KumaURL:       "http://127.0.0.1:3001",
-		OllamaURL:     "http://127.0.0.1:11434",
-		OllamaModel:   "qwen3:8b",
-		LLMTimeoutS:   300,
-		SSHHosts:      map[string]string{},
-		SSHKeyPath:    "/ssh/id_ed25519",
-		LocalFactsBin: "/usr/local/bin/homelab-facts",
-		HAURL:         "http://100.100.10.200:8123",
-		NtfyURL:       "https://ntfy.mljr.eu",
-		NtfyTopic:     "homelab-health",
-		SMTPPort:      587,
-		SMTPFrom:      "notifications@mljr.eu",
-		GrafanaURL:    "https://monitor.mljr.eu",
-		LookbackHours: 24,
+		StateDir:              "/state",
+		RulesPath:             "/app/rules.yml",
+		VictoriaURL:           "http://127.0.0.1:19090",
+		LokiURL:               "http://127.0.0.1:3100",
+		KumaURL:               "http://127.0.0.1:3001",
+		OllamaURL:             "http://127.0.0.1:11434",
+		OllamaModel:           "qwen3:8b",
+		LLMTimeoutS:           300,
+		SSHHosts:              map[string]string{},
+		SSHKeyPath:            "/ssh/id_ed25519",
+		LocalFactsBin:         "/usr/local/bin/homelab-facts",
+		HAURL:                 "http://100.100.10.200:8123",
+		NtfyURL:               "https://ntfy.mljr.eu",
+		NtfyTopic:             "homelab-health",
+		SMTPPort:              587,
+		SMTPFrom:              "notifications@mljr.eu",
+		GrafanaURL:            "https://monitor.mljr.eu",
+		LookbackHours:         24,
 		MaintenanceWindows:    defaultMaintenanceWindows,
 		Caddy5xxHourThreshold: 100,
 	}
@@ -206,6 +213,9 @@ func ConfigFromEnv() Config {
 	}
 	if raw, ok := os.LookupEnv("HEALTHREPORT_BACKUP_EXCLUDED_PATHS"); ok {
 		c.BackupExcludedPaths = parseWindows(&raw, nil)
+	}
+	if raw, ok := os.LookupEnv("HEALTHREPORT_HA_EXCLUDED_CLUSTERS"); ok {
+		c.HAExcludedClusters = parseWindows(&raw, nil)
 	}
 	return c
 }

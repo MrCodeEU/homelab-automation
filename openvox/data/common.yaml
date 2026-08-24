@@ -144,6 +144,18 @@ unraid_backup_excluded:
   - path: /mnt/user/system
     reason: "Unraid's own VM/docker.img system storage, not user data"
 
+# Home Assistant integration/device clusters (haCluster() output, e.g.
+# "prusa_mk4") known to sit unavailable on purpose - so
+# ha_unavailable_entities doesn't stay pinned at crit forever counting
+# devices nobody intends to bring back. Empty until triaged: as of
+# 2026-08-24 the live crit list (unchanged since 2026-08-02) was
+# desktop_v0mrcri(38), mrcodeeu_nightscout(13), prusa_mk4(11),
+# mrcodeeu_sudoku(10), dcp_j1050dw(9), ugreen_usb(9), fritz_repeater(8),
+# pc_192(8), mrcodeeu_wordwiz(5), mrcodeeu_webcambot(5) - fritz_repeater is
+# a known-stale config entry that needs re-pointing, not allowlisting; the
+# rest need a per-cluster call only the device owner can make.
+ha_excluded_clusters: []
+
 services_catalog:
   - name: authelia
     enabled: true
