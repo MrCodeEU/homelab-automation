@@ -47,11 +47,13 @@ global bans from repeated app-auth failures.
 
 ## Ban Duration
 
-`profiles.yaml` uses a progressive duration for both IP and range bans: 4h
-for a first offense, 8h for a second, 12h for a third, and so on
-(`duration_expr` scaling with `GetDecisionsCount`). This targets scanners
-that get banned, wait out a flat ban, and come back - each repeat offense
-now costs them more.
+`profiles.yaml` bans both IPs and ranges for a flat 4h. A progressive
+duration (`duration_expr` scaling with `GetDecisionsCount`, longer for
+repeat offenders) was tried but is rejected by the installed
+`crowdsecurity/crowdsec:latest` image (v1.7.8): "field duration_expr not
+found in type models.Decision" - crash-looped the container live on mljr.
+The expr is left commented out in `profiles.yaml` as a marker to revisit
+once the image supports it.
 
 ## Hub Maintenance
 

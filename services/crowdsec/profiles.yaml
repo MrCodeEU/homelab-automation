@@ -4,11 +4,14 @@ filters:
  - Alert.Remediation == true && Alert.GetScope() == "Ip"
 decisions:
  - type: ban
-   # Progressive ban duration: 4h for a first offense, 8h for a second,
-   # 12h for a third, etc. GetDecisionsCount counts this IP's prior
-   # decisions, so repeat scanners (e.g. rotating through a cloud ASN)
-   # get locked out longer each time instead of a flat 4h that resets.
-   duration_expr: Sprintf('%dh', (GetDecisionsCount(Alert.GetValue()) + 1) * 4)
+   # duration_expr is rejected by the installed crowdsecurity/crowdsec:latest
+   # (v1.7.8) - "field duration_expr not found in type models.Decision",
+   # confirmed live on mljr (crash-looped the container). This schema
+   # version only accepts a flat `duration`; left the expr commented out
+   # as a marker for revisiting progressive-duration once the image
+   # supports it, not as something currently in effect.
+   duration: 4h
+#duration_expr: Sprintf('%dh', (GetDecisionsCount(Alert.GetValue()) + 1) * 4)
 # notifications:
 #   - slack_default  # Set the webhook in /etc/crowdsec/notifications/slack.yaml before enabling this.
 #   - splunk_default # Set the splunk url and token in /etc/crowdsec/notifications/splunk.yaml before enabling this.
@@ -22,7 +25,8 @@ filters:
  - Alert.Remediation == true && Alert.GetScope() == "Range"
 decisions:
  - type: ban
-   duration_expr: Sprintf('%dh', (GetDecisionsCount(Alert.GetValue()) + 1) * 4)
+   duration: 4h
+#duration_expr: Sprintf('%dh', (GetDecisionsCount(Alert.GetValue()) + 1) * 4)
 # notifications:
 #   - slack_default  # Set the webhook in /etc/crowdsec/notifications/slack.yaml before enabling this.
 #   - splunk_default # Set the splunk url and token in /etc/crowdsec/notifications/splunk.yaml before enabling this.
