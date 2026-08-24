@@ -124,11 +124,21 @@ func collectHomeAssistant(cfg hr.Config, rules hr.RulesFile) *hr.CollectorResult
 	// One broken integration can produce hundreds of dead entities.
 	// Reporting entities makes that look like 467 problems; reporting
 	// clusters makes it one.
+	excluded := map[string]bool{}
+	for _, name := range cfg.HAExcludedClusters {
+		excluded[name] = true
+	}
+
 	clusters := map[string]int{}
 	var clusterOrder []string
+	excludedFaultEntities := 0
 	for _, s := range faults {
 		entityID, _ := s["entity_id"].(string)
 		c := haCluster(entityID)
+		if excluded[c] {
+			excludedFaultEntities++
+			continue
+		}
 		if _, ok := clusters[c]; !ok {
 			clusterOrder = append(clusterOrder, c)
 		}
@@ -169,10 +179,11 @@ func collectHomeAssistant(cfg hr.Config, rules hr.RulesFile) *hr.CollectorResult
 		Message: fmt.Sprintf("%d Home Assistant integration(s)/device(s) down with %d+ dead entities each: %s",
 			len(significant), haSignificantCluster, summary),
 		Evidence: map[string]any{
-			"clusters":                worstLabels,
-			"total_fault_entities":    len(faults),
-			"small_clusters":          len(clusters) - len(significant),
-			"excluded_normal_unknown": rawUnavailable - len(faults),
+			"clusters":                      worstLabels,
+			"total_fault_entities":          len(faults),
+			"small_clusters":                len(clusters) - len(significant),
+			"excluded_normal_unknown":       rawUnavailable - len(faults),
+			"excluded_allowlisted_entities": excludedFaultEntities,
 		},
 		Severity: "info",
 	})
