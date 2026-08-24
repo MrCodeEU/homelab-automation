@@ -1,0 +1,71 @@
+package notification
+
+import (
+	"fmt"
+)
+
+// SMTP represents a smtp notification.
+type SMTP struct {
+	Base
+	SMTPDetails
+}
+
+// SMTPDetails contains smtp-specific notification configuration.
+type SMTPDetails struct {
+	Host                 string `json:"smtpHost"`
+	Port                 int    `json:"smtpPort"`
+	Secure               bool   `json:"smtpSecure"`
+	IgnoreSTARTTLS       bool   `json:"smtpIgnoreSTARTTLS"`
+	IgnoreTLSError       bool   `json:"smtpIgnoreTLSError"`
+	DkimDomain           string `json:"smtpDkimDomain"`
+	DkimKeySelector      string `json:"smtpDkimKeySelector"`
+	DkimPrivateKey       string `json:"smtpDkimPrivateKey"`
+	DkimHashAlgo         string `json:"smtpDkimHashAlgo"`
+	DkimHeaderFieldNames string `json:"smtpDkimheaderFieldNames"`
+	DkimSkipFields       string `json:"smtpDkimskipFields"`
+	Username             string `json:"smtpUsername"`
+	Password             string `json:"smtpPassword"`
+	From                 string `json:"smtpFrom"`
+	CC                   string `json:"smtpCC"`
+	BCC                  string `json:"smtpBCC"`
+	To                   string `json:"smtpTo"`
+	CustomSubject        string `json:"customSubject"`
+	CustomBody           string `json:"customBody"`
+	HTMLBody             bool   `json:"htmlBody"`
+}
+
+// Type returns the notification type.
+func (s SMTP) Type() string {
+	return s.SMTPDetails.Type()
+}
+
+// Type returns the notification type.
+func (SMTPDetails) Type() string {
+	return "smtp"
+}
+
+// String returns a string representation of the notification.
+func (s SMTP) String() string {
+	return fmt.Sprintf("%s, %s", formatNotification(s.Base, false), formatNotification(s.SMTPDetails, true))
+}
+
+// UnmarshalJSON unmarshals a JSON byte slice into a notification.
+func (s *SMTP) UnmarshalJSON(data []byte) error {
+	detail := SMTPDetails{}
+	base, err := unmarshalTo(data, &detail)
+	if err != nil {
+		return err
+	}
+
+	*s = SMTP{
+		Base:        base,
+		SMTPDetails: detail,
+	}
+
+	return nil
+}
+
+// MarshalJSON marshals a notification into a JSON byte slice.
+func (s SMTP) MarshalJSON() ([]byte, error) {
+	return marshalJSON(s.Base, &s.SMTPDetails)
+}
