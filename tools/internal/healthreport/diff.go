@@ -143,6 +143,7 @@ func Compute(observations []*Observation, previous PreviousFacts, seen map[strin
 		record, hasRecord := seen[obsID]
 		previousEntry, hasPrevious := previousByID[obsID]
 		wasActionable := previousActionable[obsID]
+		isReopened := false
 
 		if wasActionable {
 			result.Persisting = append(result.Persisting, obsID)
@@ -160,12 +161,24 @@ func Compute(observations []*Observation, previous PreviousFacts, seen map[strin
 			// new: a flapping problem needs different attention than a
 			// fresh one.
 			result.Reopened = append(result.Reopened, obsID)
+			isReopened = true
 		} else {
 			result.New = append(result.New, obsID)
 		}
 
 		if hasRecord {
-			if record.FirstSeen != "" {
+			if isReopened {
+				// A stable-identity observation (e.g. security_updates,
+				// keyed per-host not per-advisory) that resolved and came
+				// back is a genuinely new occurrence, not a continuation.
+				// Carrying the old FirstSeen forward would make it look
+				// already-old, letting it skip straight past age-gated
+				// severity rules (min_age_days) that exist precisely to
+				// stop a fresh occurrence from alerting immediately.
+				obs.FirstSeen = nowISO
+				record.FirstSeen = nowISO
+				record.ResolvedAt = ""
+			} else if record.FirstSeen != "" {
 				obs.FirstSeen = record.FirstSeen
 			} else {
 				obs.FirstSeen = nowISO
