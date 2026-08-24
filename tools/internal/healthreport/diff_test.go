@@ -72,6 +72,28 @@ func TestReopenedIsNotNew(t *testing.T) {
 	}
 }
 
+func TestReopenedResetsFirstSeen(t *testing.T) {
+	// security_updates uses a stable per-host id, not per-advisory, so a
+	// resolve-then-reopen is a genuinely new occurrence of the problem. If
+	// FirstSeen carried over from the original occurrence, min_age_days
+	// gates would treat it as already old and let it alert on day one.
+	seen := map[string]*SeenRecord{
+		"a": {FirstSeen: "2026-07-01T06:00:00+02:00", LastSeen: testYesterday, Count: 3,
+			LastActionableRun: strPtr(testYesterday), Severity: "warn", ResolvedAt: testYesterday},
+	}
+	item := diffObs("a", "")
+	Compute([]*Observation{item}, PreviousFacts{}, seen, testNow)
+	if item.FirstSeen != testNow {
+		t.Fatalf("first_seen = %v, want reset to %v on reopen", item.FirstSeen, testNow)
+	}
+	if seen["a"].FirstSeen != testNow {
+		t.Fatalf("record first_seen = %v, want reset to %v on reopen", seen["a"].FirstSeen, testNow)
+	}
+	if seen["a"].ResolvedAt != "" {
+		t.Fatalf("resolved_at = %v, want cleared on reopen", seen["a"].ResolvedAt)
+	}
+}
+
 func TestWorsenedAndImproved(t *testing.T) {
 	seen := map[string]*SeenRecord{}
 	result := Compute([]*Observation{diffObs("a", "crit")}, prevFacts([2]string{"a", "warn"}), seen, testNow)
