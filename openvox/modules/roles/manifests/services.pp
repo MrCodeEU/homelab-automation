@@ -230,6 +230,8 @@ class roles::services (
   $service_executables = {
     'goaccess'          => ['caddylog'],
     'syncthing-ugreen'  => ['hooks/provision-syncthing'],
+    'healthreport'      => ['healthreport'],
+    'backup-dashboard'  => ['backup-dashboard-collect'],
   }
 
   $host_services.each |$svc| {
