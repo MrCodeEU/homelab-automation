@@ -13,6 +13,7 @@
 set -uo pipefail
 kuma_dir="$1"
 new_hash="$2"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ready=false
 for _ in $(seq 1 12); do
@@ -28,15 +29,9 @@ if [ "$ready" != "true" ]; then
   exit 0
 fi
 
-if [ ! -x "${kuma_dir}/venv/bin/python3" ]; then
-  python3 -m venv "${kuma_dir}/venv"
-fi
-
-"${kuma_dir}/venv/bin/python3" -m pip install --quiet uptime-kuma-api-v2 pyyaml
-
 export KUMA_URL="http://localhost:3001"
 
-if "${kuma_dir}/venv/bin/python3" "${kuma_dir}/hooks/provision-kuma.py" "${kuma_dir}/services.yml"; then
+if "${script_dir}/provision-kuma" "${kuma_dir}/services.yml"; then
   printf '%s' "$new_hash" > "${kuma_dir}/.services-checksum"
   echo "Kuma provisioning succeeded"
 else
