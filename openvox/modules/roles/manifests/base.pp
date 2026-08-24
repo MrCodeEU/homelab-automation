@@ -97,30 +97,25 @@ class roles::base (
 
   # ==========================================================================
   # Docker installation
+  #
+  # Repo, package, and service are all owned by puppetlabs-docker (already
+  # `puppet module install`-ed by scripts/install-openvox.sh, just never
+  # wired in until now) - its RedHat defaults already point at
+  # download.docker.com/linux/rhel, same repo the old hand-rolled
+  # yum-config-manager exec targeted. buildx/compose-plugin aren't part of
+  # the module's own dependent_packages list, so they stay a plain
+  # package{} requiring Class['docker'].
+  #
+  # python3-docker (previously installed here) is gone: it existed only so
+  # Ansible's community.docker modules had a Python client to shell out to.
+  # Ansible is retired, nothing in this repo imports it anymore.
   # ==========================================================================
 
-  exec { 'base-docker-repo':
-    command => "${work_dir}/docker-repo-apply.sh",
-    unless  => "${work_dir}/docker-repo-check.sh",
-  }
+  include docker
 
-  package { [
-    'docker-ce', 'docker-ce-cli', 'containerd.io',
-    'docker-buildx-plugin', 'docker-compose-plugin',
-  ]:
+  package { ['docker-buildx-plugin', 'docker-compose-plugin']:
     ensure  => installed,
-    require => Exec['base-docker-repo'],
-  }
-
-  service { 'docker':
-    ensure  => running,
-    enable  => true,
-    require => Package['docker-ce'],
-  }
-
-  exec { 'base-python3-docker':
-    command => "${work_dir}/python3-docker-apply.sh",
-    unless  => "${work_dir}/python3-docker-check.sh",
+    require => Class['docker'],
   }
 
   # ==========================================================================
@@ -130,11 +125,12 @@ class roles::base (
   $dockerhub_user = lookup('vault_dockerhub_username', { 'default_value' => '' })
   $dockerhub_pass = Sensitive(lookup('vault_dockerhub_token', { 'default_value' => '' }))
 
-  exec { 'base-dockerhub-login':
-    command     => "${work_dir}/dockerhub-login-apply.sh",
-    environment => ["DOCKERHUB_USER=${dockerhub_user}", "DOCKERHUB_PASS=${dockerhub_pass.unwrap}"],
-    logoutput   => false,
-    require     => Service['docker'],
+  if $dockerhub_user != '' and $dockerhub_pass.unwrap != '' {
+    docker::registry { 'https://index.docker.io/v1/':
+      username => $dockerhub_user,
+      password => $dockerhub_pass.unwrap,
+      require  => Service['docker'],
+    }
   }
 
   # ==========================================================================
