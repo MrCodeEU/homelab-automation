@@ -6,7 +6,7 @@ pushed to ntfy and emailed.
 
 The LLM writes prose and ranks the top three issues. **It never decides whether
 something is a problem** — severity comes from `rules.yml` before the model is
-called, and `app/llm.py` strips severity-like keys from the response and drops
+called, and `llm.go` strips severity-like keys from the response and drops
 any `observation_id` the run did not actually produce.
 
 ## Why the diff matters
@@ -19,13 +19,17 @@ problem keeps the same identity as its value moves, and `new` / `reopened` /
 
 ## Layout
 
+Source lives in `tools/internal/healthreport/` (compiled into the
+`healthreport` binary committed here, same pattern as every other Go-ported
+service — see `tools/cmd/healthreport/main.go`).
+
 | Path | Purpose |
 |---|---|
-| `app/collectors/` | one module per data source, each independently runnable |
-| `app/severity.py` | applies `rules.yml`; the only place severity is decided |
-| `app/diff.py` | run-over-run diff and the long-lived `seen/` state |
-| `app/llm.py` | Ollama load → generate → unload, with validation |
-| `app/render.py`, `app/deliver.py` | Markdown report, ntfy push, email |
+| `tools/internal/healthreport/collectors/` | one file per data source, each independently runnable |
+| `tools/internal/healthreport/severity.go` | applies `rules.yml`; the only place severity is decided |
+| `tools/internal/healthreport/diff.go` | run-over-run diff and the long-lived `seen/` state |
+| `tools/internal/healthreport/llm.go` | Ollama load → generate → unload, with validation |
+| `tools/internal/healthreport/render.go`, `render_html.go`, `deliver.go` | Markdown/HTML report, ntfy push, email |
 | `rules.yml` | thresholds — tune these, not the code |
 
 ## Data sources
@@ -94,15 +98,15 @@ docker compose run --rm healthreport \
 
 # model returns junk   -> llm_status=degraded_invalid
 docker compose run --rm healthreport \
-  --dry-run --llm-fixture tests/fixtures/bad-llm.json
+  --dry-run --llm-fixture /path/to/bad-llm.json
 ```
 
-Offline diff against fixtures, no network at all:
+Offline diff against two saved facts.json snapshots, no network at all:
 
 ```bash
 docker compose run --rm healthreport \
-  --diff-only --facts tests/fixtures/facts-day2.json \
-              --facts-previous tests/fixtures/facts-day1.json
+  --diff-only --facts /state/history/facts-YYYYMMDD.json \
+              --facts-previous /state/history/facts-YYYYMMDD.json
 ```
 
 Unit tests (no network, no container):
