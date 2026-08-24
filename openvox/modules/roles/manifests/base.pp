@@ -28,6 +28,10 @@ class roles::base (
   Boolean $docker_prune_enabled   = false,
   Boolean $reboot_if_needed       = false,
   Boolean $reboot_enabled         = true,
+  # nuc has a second, real LAN (192.168.50.0/24) that also needs to land
+  # in the trusted zone - not something a generic default can guess, so
+  # its node block in site.pp overrides this to include it explicitly.
+  Array[String] $trusted_zone_sources = ['100.64.0.0/10'],
 ) {
   $work_dir = '/usr/local/libexec/openvox-base'
 
@@ -142,9 +146,13 @@ class roles::base (
     enable => true,
   }
 
-  exec { 'base-firewalld-tailscale':
-    command => "${work_dir}/firewalld-tailscale-apply.sh",
-    unless  => "${work_dir}/firewalld-tailscale-check.sh",
+  # `sources` is an exact-set match (not additive) in puppet-firewalld,
+  # so every source this zone needs - Tailscale plus any host-specific
+  # extras like nuc's own LAN - has to be listed here via
+  # $trusted_zone_sources, not layered on with separate resources.
+  firewalld_zone { 'trusted':
+    ensure  => present,
+    sources => $trusted_zone_sources,
     require => Service['firewalld'],
   }
 

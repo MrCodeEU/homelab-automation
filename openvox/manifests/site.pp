@@ -71,6 +71,11 @@ node 'nuc.tail33930.ts.net' {
     tailscale_ip         => '100.100.10.1',
     docker_prune_enabled => $weekly_maintenance,
     reboot_if_needed     => $weekly_maintenance,
+    # nuc's own real LAN, not just Tailscale - previously a hand-rolled
+    # `firewall-cmd --add-source` that never touched this other source;
+    # now that the trusted zone is Puppet-managed, it has to be listed
+    # explicitly or firewalld_zone's exact-set sources would drop it.
+    trusted_zone_sources => ['100.64.0.0/10', '192.168.50.0/24'],
   }
   class { 'roles::iperf3':
     base_path => '/opt',
