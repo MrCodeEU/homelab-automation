@@ -112,6 +112,38 @@ unraid_backup_paths:
       - Library
       - BA_Speaker_Diarization/data_vox
 
+# nas paths deliberately not backed up, with reasons. Ported 1:1 from
+# ansible/inventory/group_vars/unraid.yml's `unraid_backup_excluded` (as of
+# 2026-08-24) - not secret, same rationale as unraid_backup_paths above.
+# Missing from the initial openvox port, which left
+# HEALTHREPORT_BACKUP_EXCLUDED_PATHS empty and made healthreport flag every
+# one of these as backup_drift.
+unraid_backup_excluded:
+  - path: /mnt/user/Fotos/Backup
+    reason: "mover's pre-consolidation staging area for Fotos/Fotos, not independent data"
+  - path: /mnt/user/Fotos/Manuell
+    reason: "empty as of 2026-08-14"
+  - path: /mnt/user/appdata
+    reason: "live docker appdata - covered indirectly via backup/appdata (the weekly AppData Backup plugin snapshot), not directly"
+  - path: /mnt/user/backup/borg
+    reason: "caught live by the drift check on first run (2026-08-14) - verified identical repository ID/key to unraid_backup_paths' nextcloud-borg entry, a stale leftover left behind when that repo moved to /mnt/user/borgbackup/borg (fastpool) on 2026-08-05. 118G reclaimable via a future manual cleanup, not urgent."
+  - path: /mnt/user/borgbackup
+    reason: "covered via unraid_backup_paths' nextcloud-borg entry (the repo inside it), not the share itself"
+  - path: /mnt/user/cloud
+    reason: "not yet assessed - flagged during drift-detection rollout, needs its own look"
+  - path: /mnt/user/docker
+    reason: "Docker's own internal storage, not user data"
+  - path: /mnt/user/domains
+    reason: "Unraid VM disk images - not currently in use, revisit if VMs are ever deployed"
+  - path: /mnt/user/isos
+    reason: "installer ISOs, re-downloadable"
+  - path: /mnt/user/opencloud
+    reason: "on-hold test deployment (see project memory), not source data yet"
+  - path: /mnt/user/photorec-recovery
+    reason: "empty - vestigial share from the 2026-07-31 recovery incident"
+  - path: /mnt/user/system
+    reason: "Unraid's own VM/docker.img system storage, not user data"
+
 services_catalog:
   - name: authelia
     enabled: true
