@@ -3,6 +3,12 @@ package backupdashboard
 import (
 	"fmt"
 	"time"
+
+	// The collector's Alpine base image has no system tzdata package, so
+	// time.LoadLocation would otherwise silently fail and fall back to UTC
+	// - confirmed live: next-run labels were off by exactly the CEST/UTC
+	// offset until this import embedded the IANA DB into the binary itself.
+	_ "time/tzdata"
 )
 
 // hostTZ is the timezone every backup host in this repo runs in
