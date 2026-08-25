@@ -72,10 +72,11 @@ func loadCatalog(path string) (*Catalog, error) {
 // (surfaced on the page, not hidden): this is the host's last backup run
 // as a whole, not per-entry. See EntryBadge.
 type HostStatus struct {
-	State          string   `json:"state"`
-	Reason         string   `json:"reason,omitempty"`
-	FailedServices []string `json:"failed_services"`
-	AgeSeconds     *float64 `json:"age_seconds"`
+	State          string               `json:"state"`
+	Reason         string               `json:"reason,omitempty"`
+	FailedServices []string             `json:"failed_services"`
+	AgeSeconds     *float64             `json:"age_seconds"`
+	Stats          map[string]EntryStat `json:"-"`
 }
 
 func hostStatus(payload *FactsPayload, fetchErrMsg string) HostStatus {
@@ -98,7 +99,7 @@ func hostStatus(payload *FactsPayload, fetchErrMsg string) HostStatus {
 	if failed == nil {
 		failed = []string{}
 	}
-	return HostStatus{State: state, FailedServices: failed, AgeSeconds: backup.AgeSeconds}
+	return HostStatus{State: state, FailedServices: failed, AgeSeconds: backup.AgeSeconds, Stats: backup.Stats}
 }
 
 // DestUsage is one remote destination's capacity, as shown in the
@@ -162,10 +163,24 @@ func EntryBadge(entry CatalogEntry, statuses map[string]HostStatus) string {
 	return "unknown"
 }
 
+// EntryStatFor looks up an entry's backed-up size, keyed the same way as
+// EntryBadge's own name matching: the catalog entry's Name matches the key
+// backup.sh.epp/backup-content.sh use in their BACKUP_STATS log lines
+// exactly (rocky's service name, nas's path name) - no substring matching
+// needed here since these are exact identifiers, not free-text failure
+// strings.
+func EntryStatFor(entry CatalogEntry, statuses map[string]HostStatus) (EntryStat, bool) {
+	stat, ok := statuses[entry.Host].Stats[entry.Name]
+	return stat, ok
+}
+
 // EntryWithBadge pairs a catalog entry with its computed state, ready to render.
 type EntryWithBadge struct {
 	CatalogEntry
-	Badge string `json:"badge"`
+	Badge     string `json:"badge"`
+	SizeBytes int64  `json:"size_bytes,omitempty"`
+	FileCount int64  `json:"file_count,omitempty"`
+	HasStats  bool   `json:"has_stats,omitempty"`
 }
 
 type Snapshot struct {
@@ -214,9 +229,13 @@ func BuildSnapshot(ctx context.Context, cfg Config) (*Snapshot, error) {
 
 	entries := make([]EntryWithBadge, 0, len(catalog.Entries))
 	for _, entry := range catalog.Entries {
+		stat, hasStats := EntryStatFor(entry, statuses)
 		entries = append(entries, EntryWithBadge{
 			CatalogEntry: entry,
 			Badge:        EntryBadge(entry, statuses),
+			SizeBytes:    stat.Bytes,
+			FileCount:    stat.Files,
+			HasStats:     hasStats,
 		})
 	}
 

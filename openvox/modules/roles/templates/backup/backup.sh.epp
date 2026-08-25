@@ -119,6 +119,22 @@ sync_to_wdcloud() {
     return 0
 }
 
+# record_stats: adds one local directory's size/file count to the current
+# service's running total (service_bytes/service_files, reset per service by
+# main()'s loop below). Queries the LOCAL snapshot/source path, not the
+# remote - rclone sync makes the remote an exact mirror of it, so this is
+# equivalent to querying the destination without the extra network round
+# trip (and without the excludes-drift risk of the two ever disagreeing).
+record_stats() {
+    local path="$1"
+    local stats_json b c
+    stats_json=$(rclone size --json "$path" 2>/dev/null) || stats_json='{}'
+    b=$(printf '%s' "$stats_json" | sed -n 's/.*"bytes":\([0-9]*\).*/\1/p')
+    c=$(printf '%s' "$stats_json" | sed -n 's/.*"count":\([0-9]*\).*/\1/p')
+    service_bytes=$((service_bytes + ${b:-0}))
+    service_files=$((service_files + ${c:-0}))
+}
+
 backup_volume() {
     local volume_name="$1"
     local wd_cloud="${2:-true}"
@@ -152,6 +168,7 @@ backup_volume() {
         log_error "Failed to sync volume $volume_name to remote"
         return 1
     }
+    record_stats "$snapshot_dir"
 
     sync_to_ugreen "$snapshot_dir" "volumes/${volume_name}"
 
@@ -192,6 +209,7 @@ backup_path() {
         log_error "Failed to sync path $source_path to remote"
         return 1
     }
+    record_stats "$source_path"
 
     sync_to_ugreen "$source_path" "paths/${backup_name}"
 
@@ -253,6 +271,8 @@ main() {
     log "Processing service: <%= $name %>"
     total_count=$((total_count + 1))
     service_failed=false
+    service_bytes=0
+    service_files=0
 
 <% $vols = $cfg['volumes'] ? { undef => [], default => $cfg['volumes'] }
    $paths = $cfg['paths'] ? { undef => [], default => $cfg['paths'] }
@@ -269,6 +289,7 @@ main() {
 <% if $cfg['post_hook'] { -%>
     run_post_hook "<%= $name %>" '<%= $cfg['post_hook'].regsubst("'", "'\\\\''", 'G') %>' || service_failed=true
 <% } -%>
+    log "BACKUP_STATS: <%= $name %> bytes=${service_bytes} files=${service_files}"
 
     if [ "$service_failed" = true ]; then
 <% if $cfg['critical'] { -%>

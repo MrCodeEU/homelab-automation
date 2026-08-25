@@ -157,6 +157,37 @@ func TestEntryBadgeUnknownForMissingHost(t *testing.T) {
 	}
 }
 
+func TestEntryStatForMatchByExactName(t *testing.T) {
+	entry := CatalogEntry{Name: "fotos", Host: "nas"}
+	statuses := map[string]HostStatus{
+		"nas": {State: "ok", Stats: map[string]EntryStat{"fotos": {Bytes: 1024, Files: 7}}},
+	}
+	stat, ok := EntryStatFor(entry, statuses)
+	if !ok {
+		t.Fatal("expected a stat match")
+	}
+	if stat.Bytes != 1024 || stat.Files != 7 {
+		t.Errorf("got %+v, want bytes=1024 files=7", stat)
+	}
+}
+
+func TestEntryStatForNoMatch(t *testing.T) {
+	entry := CatalogEntry{Name: "musik", Host: "nas"}
+	statuses := map[string]HostStatus{
+		"nas": {State: "ok", Stats: map[string]EntryStat{"fotos": {Bytes: 1024, Files: 7}}},
+	}
+	if _, ok := EntryStatFor(entry, statuses); ok {
+		t.Error("expected no stat match for an entry with no BACKUP_STATS line")
+	}
+}
+
+func TestEntryStatForMissingHost(t *testing.T) {
+	entry := CatalogEntry{Name: "fotos", Host: "ghost-host"}
+	if _, ok := EntryStatFor(entry, map[string]HostStatus{}); ok {
+		t.Error("expected no stat match for a missing host")
+	}
+}
+
 func TestParseHostsPreservesOrder(t *testing.T) {
 	got := parseHosts(" mljr=100.100.20.1, nuc=100.100.20.2 ,nas=100.100.10.2")
 	want := []Host{

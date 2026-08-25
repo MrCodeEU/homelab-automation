@@ -37,6 +37,23 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"; }
 log_error() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $1" | tee -a "$LOG_FILE"; }
 log_warn() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: $1" | tee -a "$LOG_FILE"; }
 
+# record_stats: logs one path's local size/file count as a BACKUP_STATS
+# line, parsed by homelab-facts.py.epp's collect_backup_log() and shown on
+# the backup dashboard. Queries the LOCAL source path (with the same
+# --exclude filters as its sync), not the pCloud destination - rclone sync
+# makes pCloud an exact mirror of it, so this is equivalent without the
+# extra remote API call (see this script's own ugreen-probe comment above
+# for why an extra unnecessary remote call here is worth avoiding).
+record_stats() {
+    local name="$1" path="$2"
+    shift 2
+    local stats_json b c
+    stats_json=$(rclone size --json "$path" "$@" 2>/dev/null) || stats_json='{}'
+    b=$(printf '%s' "$stats_json" | sed -n 's/.*"bytes":\([0-9]*\).*/\1/p')
+    c=$(printf '%s' "$stats_json" | sed -n 's/.*"count":\([0-9]*\).*/\1/p')
+    log "BACKUP_STATS: ${name} bytes=${b:-0} files=${c:-0}"
+}
+
 send_notification() {
     curl -s -X POST "https://ntfy.mljr.eu/backup" \
         -H "Title: NAS Backup" -H "Priority: ${2:-default}" -H "Tags: backup,homelab,nas" \
@@ -54,6 +71,7 @@ if rclone sync "/mnt/user/Fotos/Fotos" "pcloud:Fotos" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: /mnt/user/Fotos/Fotos backed up to pCloud"
+    record_stats "fotos" "/mnt/user/Fotos/Fotos" --exclude "**/.stfolder/**"
 else
     log_error "Failed to sync /mnt/user/Fotos/Fotos to pCloud"
     failed_paths+=("pcloud:Fotos")
@@ -97,6 +115,7 @@ if rclone sync "/mnt/user/Fotos/Videos" "pcloud:Fotos-Videos" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: /mnt/user/Fotos/Videos backed up to pCloud"
+    record_stats "fotos-videos" "/mnt/user/Fotos/Videos" --exclude "**/.stfolder/**"
 else
     log_error "Failed to sync /mnt/user/Fotos/Videos to pCloud"
     failed_paths+=("pcloud:Fotos-Videos")
@@ -140,6 +159,7 @@ if rclone sync "/mnt/user/Fotos/Wichtiges Scans Adressen" "pcloud:Fotos-Wichtige
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: /mnt/user/Fotos/Wichtiges Scans Adressen backed up to pCloud"
+    record_stats "fotos-wichtiges-scans-adressen" "/mnt/user/Fotos/Wichtiges Scans Adressen" --exclude "**/.stfolder/**"
 else
     log_error "Failed to sync /mnt/user/Fotos/Wichtiges Scans Adressen to pCloud"
     failed_paths+=("pcloud:Fotos-Wichtiges-Scans-Adressen")
@@ -163,6 +183,7 @@ if rclone sync "/mnt/user/Fotos/Musik" "pcloud:Musik" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: /mnt/user/Fotos/Musik backed up to pCloud"
+    record_stats "musik" "/mnt/user/Fotos/Musik" --exclude "**/.stfolder/**"
 else
     log_error "Failed to sync /mnt/user/Fotos/Musik to pCloud"
     failed_paths+=("pcloud:Musik")
@@ -206,6 +227,7 @@ if rclone sync "/mnt/user/Fotos/SB" "pcloud:Fotos-SB" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: /mnt/user/Fotos/SB backed up to pCloud"
+    record_stats "fotos-sb" "/mnt/user/Fotos/SB" --exclude "**/.stfolder/**"
 else
     log_error "Failed to sync /mnt/user/Fotos/SB to pCloud"
     failed_paths+=("pcloud:Fotos-SB")
@@ -229,6 +251,7 @@ if rclone sync "/mnt/user/borgbackup/borg" "pcloud:Nextcloud-Borg" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: /mnt/user/borgbackup/borg backed up to pCloud"
+    record_stats "nextcloud-borg" "/mnt/user/borgbackup/borg" --exclude "**/.stfolder/**"
 else
     log_error "Failed to sync /mnt/user/borgbackup/borg to pCloud"
     failed_paths+=("pcloud:Nextcloud-Borg")
@@ -252,6 +275,7 @@ if rclone sync "/boot" "pcloud:unraid-flash" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: /boot backed up to pCloud"
+    record_stats "unraid-flash" "/boot" --exclude "**/.stfolder/**"
 else
     log_error "Failed to sync /boot to pCloud"
     failed_paths+=("pcloud:unraid-flash")
@@ -275,6 +299,7 @@ if rclone sync "/mnt/user/backup/appdata" "pcloud:unraid-appdata-backup" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: /mnt/user/backup/appdata backed up to pCloud"
+    record_stats "appdata-backup" "/mnt/user/backup/appdata" --exclude "**/.stfolder/**"
 else
     log_error "Failed to sync /mnt/user/backup/appdata to pCloud"
     failed_paths+=("pcloud:unraid-appdata-backup")
@@ -298,6 +323,7 @@ if rclone sync "/mnt/user/backup/origami" "pcloud:origami" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: /mnt/user/backup/origami backed up to pCloud"
+    record_stats "origami" "/mnt/user/backup/origami" --exclude "**/.stfolder/**"
 else
     log_error "Failed to sync /mnt/user/backup/origami to pCloud"
     failed_paths+=("pcloud:origami")
@@ -347,6 +373,34 @@ if rclone sync "/mnt/user/Sync" "pcloud:Sync" \
     --exclude "**/BA_Speaker_Diarization/data_vox/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
     log "SUCCESS: /mnt/user/Sync backed up to pCloud"
+    record_stats "sync" "/mnt/user/Sync" \
+        --exclude "**/.stfolder/**" \
+        --exclude "**/node_modules/**" \
+        --exclude "**/target/**" \
+        --exclude "**/.embuild/**" \
+        --exclude "**/.venv/**" \
+        --exclude "**/venv/**" \
+        --exclude "**/__pycache__/**" \
+        --exclude "**/.next/**" \
+        --exclude "**/.svelte-kit/**" \
+        --exclude "**/dist/**" \
+        --exclude "**/build/**" \
+        --exclude "**/.cache/**" \
+        --exclude "**/tmp/**" \
+        --exclude "**/vendor/**" \
+        --exclude "**/.pio/**" \
+        --exclude "**/.dart_tool/**" \
+        --exclude "**/.gradle/**" \
+        --exclude "**/obj/**" \
+        --exclude "**/.stversions/**" \
+        --exclude "**/.git_broken_*/**" \
+        --exclude "**/lib/python*/site-packages/**" \
+        --exclude "**/goDrive/var/perf-data/**" \
+        --exclude "**/goDrive/var/perf-appdata/**" \
+        --exclude "**/goDrive/var/appdata/previews/thumbs/**" \
+        --exclude "**/bin/**" \
+        --exclude "**/Library/**" \
+        --exclude "**/BA_Speaker_Diarization/data_vox/**"
 else
     log_error "Failed to sync /mnt/user/Sync to pCloud"
     failed_paths+=("pcloud:Sync")

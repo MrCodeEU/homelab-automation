@@ -659,6 +659,16 @@ def collect_backup_log():
         if m:
             failed_services = [s.strip() for s in m.group(1).split(",") if s.strip()]
 
+    # BACKUP_STATS lines are emitted by backup.sh.epp/backup-content.sh after
+    # a successful primary (pCloud) sync leg - local-path rclone size, not a
+    # second remote query, see those scripts' own comments for why. Keyed by
+    # the same name used in roles::backup_dashboard's catalog entries.
+    stats = {}
+    for line in clean:
+        m = re.search(r"BACKUP_STATS:\s*(\S+)\s+bytes=(\d+)\s+files=(\d+)", line)
+        if m:
+            stats[m.group(1)] = {"bytes": int(m.group(2)), "files": int(m.group(3))}
+
     critical = summary.get("critical_failures")
     noncritical = summary.get("non_critical_failures")
     return {
@@ -671,6 +681,7 @@ def collect_backup_log():
         "non_critical_failures": noncritical,
         # Only true when the run actually reported a complete summary.
         "completed": critical is not None,
+        "stats": stats,
         "tail": clean[-40:],
     }
 

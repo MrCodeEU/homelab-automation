@@ -119,6 +119,52 @@ func TestRenderFlowGraphJSONShape(t *testing.T) {
 	}
 }
 
+func TestFormatBytes(t *testing.T) {
+	cases := []struct {
+		in   int64
+		want string
+	}{
+		{0, "0 B"},
+		{512, "512 B"},
+		{1024, "1.0 KiB"},
+		{1536, "1.5 KiB"},
+		{1024 * 1024, "1.0 MiB"},
+		{1024 * 1024 * 1024, "1.0 GiB"},
+		{5 * 1024 * 1024 * 1024, "5.0 GiB"},
+		{1024 * 1024 * 1024 * 1024, "1.0 TiB"},
+	}
+	for _, c := range cases {
+		if got := formatBytes(c.in); got != c.want {
+			t.Errorf("formatBytes(%d) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestRenderEntryStatsInTable(t *testing.T) {
+	snap := &Snapshot{
+		Hosts:        map[string]HostStatus{},
+		Destinations: map[string]DestUsage{},
+		Errors:       map[string]string{},
+		Entries: []EntryWithBadge{
+			{CatalogEntry: CatalogEntry{Name: "fotos", Type: "folder", Host: "nas", Source: "/mnt/user/Fotos", Destinations: []string{"pcloud"}}, Badge: "ok", HasStats: true, SizeBytes: 2147483648, FileCount: 4200},
+			{CatalogEntry: CatalogEntry{Name: "musik", Type: "folder", Host: "nas", Source: "/mnt/user/Musik", Destinations: []string{"pcloud"}}, Badge: "ok"},
+		},
+	}
+	html, err := Render(snap)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if !strings.Contains(html, "2.0 GiB") {
+		t.Error("expected formatted size for the entry with stats")
+	}
+	if !strings.Contains(html, "4200") {
+		t.Error("expected file count for the entry with stats")
+	}
+	if !strings.Contains(html, "&ndash;") {
+		t.Error("expected a placeholder dash for the entry without stats")
+	}
+}
+
 func TestRenderFlowDiagramOmittedWhenNoEntries(t *testing.T) {
 	snap := &Snapshot{Hosts: map[string]HostStatus{}, Destinations: map[string]DestUsage{}, Errors: map[string]string{}}
 	html, err := Render(snap)
