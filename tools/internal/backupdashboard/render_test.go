@@ -22,8 +22,8 @@ func TestRenderProducesWellFormedPage(t *testing.T) {
 			"ugreen": {UsedPercent: 93.5, FreeGiB: 12.1},
 		},
 		Entries: []EntryWithBadge{
-			{CatalogEntry: CatalogEntry{Name: "fotos", Type: "folder", Host: "nas", Source: "/mnt/user/Fotos", Destinations: []string{"pcloud", "ugreen"}}, Badge: "ok"},
-			{CatalogEntry: CatalogEntry{Name: "forgejo", Type: "service", Host: "nuc", Source: []any{"forgejo-data", "forgejo-db-data"}, Destinations: []string{"pcloud"}}, Badge: "failed"},
+			{CatalogEntry: CatalogEntry{Name: "fotos", Type: "folder", Host: "nas", Source: "/mnt/user/Fotos", Destinations: []string{"pcloud", "ugreen"}, Schedule: "04:40:00"}, Badge: "ok"},
+			{CatalogEntry: CatalogEntry{Name: "forgejo", Type: "service", Host: "nuc", Source: []any{"forgejo-data", "forgejo-db-data"}, Destinations: []string{"pcloud"}, Schedule: "03:00:00"}, Badge: "failed"},
 		},
 		Errors: map[string]string{"nas": "ssh timed out"},
 	}
@@ -42,6 +42,7 @@ func TestRenderProducesWellFormedPage(t *testing.T) {
 		"pill-ok", "pill-degraded", "pill-unknown", "pill-failed",
 		"fill-crit", // ugreen at 93.5% must hit the critical gauge class
 		"Backup flow", "flow-group", "flow-row", "flow-arrow",
+		"flow-next-run", "Next run:",
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered HTML missing %q", want)
@@ -54,6 +55,24 @@ func TestRenderProducesWellFormedPage(t *testing.T) {
 
 	if strings.Count(html, `class="flow-host`) != 2 {
 		t.Errorf("expected 2 flow-group hosts (nas, nuc), got %d", strings.Count(html, `class="flow-host`))
+	}
+}
+
+func TestRenderFlowGroupOmitsNextRunWithoutSchedule(t *testing.T) {
+	snap := &Snapshot{
+		Hosts:        map[string]HostStatus{},
+		Destinations: map[string]DestUsage{},
+		Errors:       map[string]string{},
+		Entries: []EntryWithBadge{
+			{CatalogEntry: CatalogEntry{Name: "fotos", Type: "folder", Host: "nas", Source: "/mnt/user/Fotos", Destinations: []string{"pcloud"}}, Badge: "ok"},
+		},
+	}
+	html, err := Render(snap)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if strings.Contains(html, "Next run:") {
+		t.Error("next-run label should be omitted for an entry with no schedule")
 	}
 }
 

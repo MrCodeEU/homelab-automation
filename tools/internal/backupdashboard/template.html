@@ -140,6 +140,7 @@
   .flow-group { margin-bottom: 1rem; }
   .flow-group:last-child { margin-bottom: 0; }
   .flow-host { font-weight: 650; font-size: 0.82rem; margin-bottom: 0.4rem; }
+  .flow-next-run { font-weight: 400; font-size: 0.78rem; color: var(--text-dim); font-family: -apple-system, sans-serif; }
   .flow-row {
     display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -218,7 +219,7 @@
     <div class="section-title">Backup flow</div>
     {{ range .FlowGroups }}
     <div class="flow-group">
-      <div class="flow-host mono">{{ .Host }}</div>
+      <div class="flow-host mono">{{ .Host }}{{ if .HasNextRun }} <span class="flow-next-run">Next run: {{ .NextRunLabel }}</span>{{ end }}</div>
       {{ range .Entries }}
       <div class="flow-row">
         <span class="entry-name">{{ .Name }}</span>
