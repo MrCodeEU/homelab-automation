@@ -10,11 +10,17 @@ services:
       NETRONOME__HOST: 0.0.0.0
       NETRONOME__PORT: 7575
       NETRONOME__SESSION_SECRET: ${NETRONOME_SESSION_SECRET:-}
+      NETRONOME__TAILSCALE_ENABLED: "true"
+      NETRONOME__TAILSCALE_METHOD: host
+      NETRONOME__TAILSCALE_AUTO_DISCOVER: "true"
+      NETRONOME__TAILSCALE_DISCOVERY_INTERVAL: 5m
+      NETRONOME__TAILSCALE_DISCOVERY_PORT: 8200
     cap_add:
       - NET_RAW
       - NET_ADMIN
     volumes:
       - netronome-data:/data
+      - /var/run/tailscale:/var/run/tailscale:ro
     networks:
       - speedtest
     healthcheck:
