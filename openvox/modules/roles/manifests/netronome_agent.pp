@@ -3,10 +3,14 @@
 # agents report host metrics, iperf3 handles mesh bandwidth tests; both
 # run alongside each other on the same hosts.
 #
-# Tailscale integration mirrors roles::backup_dashboard's speedtest piece:
-# method=host bind-mounts the HOST's own already-authenticated system
-# tailscaled socket rather than minting a separate tsnet identity, so no
-# per-host auth key is needed.
+# Tailscale integration mirrors the speedtest server's own piece: method
+# host bind-mounts the HOST's own already-authenticated system tailscaled
+# socket rather than minting a separate tsnet identity, so no per-host
+# auth key is needed. Confirmed live: unlike the server, the `agent`
+# subcommand does NOT read NETRONOME__TAILSCALE_ENABLED/_METHOD - it only
+# picks up Tailscale via its own --tailscale/--tailscale-method CLI flags
+# (verified by /netronome/info reporting using_tailscale:false with only
+# the env vars set).
 class roles::netronome_agent (
   String  $base_path       = '/opt',
   Boolean $manage_firewall = true,
@@ -25,13 +29,11 @@ class roles::netronome_agent (
         container_name: netronome-agent
         restart: unless-stopped
         network_mode: host
-        command: ["agent"]
+        command: ["agent", "--tailscale", "--tailscale-method", "host"]
         environment:
           NETRONOME__AGENT_HOST: 0.0.0.0
           NETRONOME__AGENT_PORT: 8200
           NETRONOME__AGENT_API_KEY: ${api_key.unwrap}
-          NETRONOME__TAILSCALE_ENABLED: "true"
-          NETRONOME__TAILSCALE_METHOD: host
         volumes:
           - /var/run/tailscale:/var/run/tailscale:ro
         logging:
