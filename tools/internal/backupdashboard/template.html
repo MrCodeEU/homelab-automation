@@ -137,19 +137,32 @@
   .tag { display: inline-block; font-size: 0.74rem; padding: 0.1rem 0.45rem; border-radius: 5px; background: var(--surface-2); color: var(--text-dim); margin: 0.1rem 0.25rem 0.1rem 0; border: 1px solid var(--border); }
   .empty-state { padding: 2rem; text-align: center; color: var(--text-dim); font-size: 0.88rem; }
 
-  .flow-group { margin-bottom: 1rem; }
-  .flow-group:last-child { margin-bottom: 0; }
-  .flow-host { font-weight: 650; font-size: 0.82rem; margin-bottom: 0.4rem; }
-  .flow-next-run { font-weight: 400; font-size: 0.78rem; color: var(--text-dim); font-family: -apple-system, sans-serif; }
-  .flow-row {
-    display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  .flow-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.9rem; font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.6rem; }
+  .flow-legend-item { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .flow-legend-hint { margin-left: auto; font-style: italic; opacity: 0.8; }
+  .flow-dot { width: 0.65rem; height: 0.65rem; border-radius: 50%; display: inline-block; flex: none; }
+  .flow-dot-host { background: var(--accent); }
+  .flow-dot-dest { background: var(--text-dim); }
+
+  .flow-graph-wrap {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 0.55rem 0.85rem; margin-bottom: 0.4rem; box-shadow: var(--shadow);
+    box-shadow: var(--shadow); overflow: hidden;
   }
-  .flow-row:last-child { margin-bottom: 0; }
-  .flow-source { font-size: 0.82rem; color: var(--text-dim); font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
-  .flow-arrow { color: var(--text-dim); flex: none; }
-  .flow-dests { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .flow-graph { width: 100%; height: 480px; display: block; cursor: grab; touch-action: none; }
+  .flow-graph.grabbing { cursor: grabbing; }
+
+  .flow-link { stroke: var(--border); stroke-width: 1.4; }
+  .flow-node circle { stroke: var(--surface); stroke-width: 2px; cursor: grab; }
+  .flow-node:active circle { cursor: grabbing; }
+  .flow-node.kind-host circle { fill: var(--accent); }
+  .flow-node.kind-dest circle { fill: var(--text-dim); }
+  .flow-node.state-ok circle { fill: var(--ok); }
+  .flow-node.state-degraded circle { fill: var(--warn); }
+  .flow-node.state-failed circle { fill: var(--fail); }
+  .flow-node.state-unknown circle { fill: var(--unknown); }
+  .flow-label { font-size: 10.5px; fill: var(--text); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; pointer-events: none; user-select: none; }
+  .flow-label.flow-label-host { font-size: 12px; font-weight: 650; }
+  .flow-sub-label { font-size: 9px; fill: var(--text-dim); paint-order: stroke; stroke: var(--surface); stroke-width: 3px; pointer-events: none; user-select: none; }
 
   .errors { border: 1px solid var(--fail); border-radius: var(--radius); background: var(--fail-bg); padding: 0.9rem 1.1rem; }
   .errors .section-title { color: var(--fail); margin-bottom: 0.5rem; }
@@ -214,23 +227,21 @@
   </section>
   {{ end }}
 
-  {{ if .FlowGroups }}
+  {{ if .HasFlowGraph }}
   <section>
     <div class="section-title">Backup flow</div>
-    {{ range .FlowGroups }}
-    <div class="flow-group">
-      <div class="flow-host mono">{{ .Host }}{{ if .HasNextRun }} <span class="flow-next-run">Next run: {{ .NextRunLabel }}</span>{{ end }}</div>
-      {{ range .Entries }}
-      <div class="flow-row">
-        <span class="entry-name">{{ .Name }}</span>
-        <span class="flow-source" title="{{ .Source }}">{{ .Source }}</span>
-        <span class="flow-arrow">&rarr;</span>
-        <span class="flow-dests">{{ range .Destinations }}<span class="tag">{{ . }}</span>{{ end }}</span>
-        <span class="pill pill-{{ .State }}">{{ .State }}</span>
-      </div>
-      {{ end }}
+    <div class="flow-legend">
+      <span class="flow-legend-item"><span class="flow-dot flow-dot-host"></span>Host</span>
+      <span class="flow-legend-item"><span class="flow-dot" style="background: var(--ok);"></span>Entry (ok)</span>
+      <span class="flow-legend-item"><span class="flow-dot" style="background: var(--warn);"></span>Entry (degraded)</span>
+      <span class="flow-legend-item"><span class="flow-dot" style="background: var(--fail);"></span>Entry (failed)</span>
+      <span class="flow-legend-item"><span class="flow-dot flow-dot-dest"></span>Destination</span>
+      <span class="flow-legend-hint">drag nodes &middot; scroll to zoom</span>
     </div>
-    {{ end }}
+    <div class="flow-graph-wrap">
+      <svg id="flow-graph" class="flow-graph" viewBox="0 0 900 480" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <script type="application/json" id="flow-graph-data">{{ .FlowGraphJSON }}</script>
   </section>
   {{ end }}
 
@@ -327,5 +338,206 @@
       apply();
     })();
   </script>
+
+  {{ if .HasFlowGraph }}
+  <script>
+    (function () {
+      var dataEl = document.getElementById('flow-graph-data');
+      var svg = document.getElementById('flow-graph');
+      if (!dataEl || !svg) return;
+
+      var graph;
+      try { graph = JSON.parse(dataEl.textContent); } catch (e) { return; }
+      if (!graph.nodes || !graph.nodes.length) return;
+
+      var W = 900, H = 480;
+      var byId = {};
+      graph.nodes.forEach(function (n) {
+        n.x = W / 2 + (Math.random() - 0.5) * W * 0.6;
+        n.y = H / 2 + (Math.random() - 0.5) * H * 0.6;
+        n.vx = 0; n.vy = 0;
+        byId[n.id] = n;
+      });
+      var links = graph.links.filter(function (l) { return byId[l.source] && byId[l.target]; });
+
+      // Force-directed layout (Fruchterman-Reingold): repulsion between every
+      // node pair, attraction along links, cooled linearly to zero over a
+      // fixed number of iterations. Computed once on load, not animated
+      // continuously - cheap enough for this dashboard's node counts (a few
+      // dozen) and keeps the page from burning CPU in a background tab.
+      var area = W * H;
+      var k = Math.sqrt(area / graph.nodes.length) * 0.9;
+      var iterations = 350;
+      var temp = W / 12;
+
+      function simulate() {
+        for (var iter = 0; iter < iterations; iter++) {
+          for (var i = 0; i < graph.nodes.length; i++) {
+            var a = graph.nodes[i];
+            a.fx = 0; a.fy = 0;
+            for (var j = 0; j < graph.nodes.length; j++) {
+              if (i === j) continue;
+              var b = graph.nodes[j];
+              var dx = a.x - b.x, dy = a.y - b.y;
+              var dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+              var rep = (k * k) / dist;
+              a.fx += (dx / dist) * rep;
+              a.fy += (dy / dist) * rep;
+            }
+          }
+          links.forEach(function (l) {
+            var s = byId[l.source], t = byId[l.target];
+            var dx = s.x - t.x, dy = s.y - t.y;
+            var dist = Math.sqrt(dx * dx + dy * dy) || 0.01;
+            var att = (dist * dist) / k;
+            var fx = (dx / dist) * att, fy = (dy / dist) * att;
+            s.fx -= fx; s.fy -= fy;
+            t.fx += fx; t.fy += fy;
+          });
+          var t2 = temp * (1 - iter / iterations);
+          graph.nodes.forEach(function (n) {
+            var fdist = Math.sqrt(n.fx * n.fx + n.fy * n.fy) || 0.01;
+            var capped = Math.min(fdist, t2);
+            n.x += (n.fx / fdist) * capped;
+            n.y += (n.fy / fdist) * capped;
+            n.x = Math.max(30, Math.min(W - 30, n.x));
+            n.y = Math.max(30, Math.min(H - 30, n.y));
+          });
+        }
+      }
+      simulate();
+
+      var svgns = 'http://www.w3.org/2000/svg';
+      function el(tag, attrs) {
+        var e = document.createElementNS(svgns, tag);
+        for (var k2 in attrs) e.setAttribute(k2, attrs[k2]);
+        return e;
+      }
+
+      var zoomG = el('g', { id: 'flow-zoom' });
+      svg.appendChild(zoomG);
+      var linkG = el('g', {});
+      var nodeG = el('g', {});
+      zoomG.appendChild(linkG);
+      zoomG.appendChild(nodeG);
+
+      var linkEls = links.map(function (l) {
+        var line = el('line', { class: 'flow-link' });
+        linkG.appendChild(line);
+        return { line: line, l: l };
+      });
+
+      function radiusFor(n) {
+        return n.kind === 'host' ? 14 : n.kind === 'dest' ? 10 : 8;
+      }
+
+      var nodeEls = graph.nodes.map(function (n) {
+        var cls = 'flow-node kind-' + n.kind + (n.state ? ' state-' + n.state : '');
+        var g = el('g', { class: cls });
+        var circle = el('circle', { r: radiusFor(n) });
+        g.appendChild(circle);
+        var label = el('text', {
+          class: n.kind === 'host' ? 'flow-label flow-label-host' : 'flow-label',
+          dy: '0.32em',
+        });
+        label.textContent = n.label;
+        g.appendChild(label);
+        var sub = null;
+        if (n.sub) {
+          sub = el('text', { class: 'flow-sub-label', dy: '1.5em' });
+          sub.textContent = n.sub;
+          g.appendChild(sub);
+        }
+        nodeG.appendChild(g);
+        return { n: n, g: g, circle: circle, label: label, sub: sub };
+      });
+
+      function place() {
+        nodeEls.forEach(function (ne) {
+          var r = radiusFor(ne.n);
+          ne.circle.setAttribute('cx', ne.n.x);
+          ne.circle.setAttribute('cy', ne.n.y);
+          var side = ne.n.x > W / 2 ? -1 : 1;
+          var anchor = side === 1 ? 'start' : 'end';
+          var lx = ne.n.x + side * (r + 5);
+          ne.label.setAttribute('x', lx);
+          ne.label.setAttribute('y', ne.n.y);
+          ne.label.setAttribute('text-anchor', anchor);
+          if (ne.sub) {
+            ne.sub.setAttribute('x', lx);
+            ne.sub.setAttribute('y', ne.n.y);
+            ne.sub.setAttribute('text-anchor', anchor);
+          }
+        });
+        linkEls.forEach(function (le) {
+          var s = byId[le.l.source], t = byId[le.l.target];
+          le.line.setAttribute('x1', s.x);
+          le.line.setAttribute('y1', s.y);
+          le.line.setAttribute('x2', t.x);
+          le.line.setAttribute('y2', t.y);
+        });
+      }
+      place();
+
+      // Dragging: reposition one node and its incident links only - no
+      // re-simulation on drag, keeps interaction instant even with the
+      // O(n^2) layout above.
+      var dragging = null;
+      var pan = { x: 0, y: 0, scale: 1 };
+
+      function applyTransform() {
+        zoomG.setAttribute('transform', 'translate(' + pan.x + ',' + pan.y + ') scale(' + pan.scale + ')');
+      }
+
+      function svgPoint(evt) {
+        var rect = svg.getBoundingClientRect();
+        var vx = ((evt.clientX - rect.left) / rect.width) * W;
+        var vy = ((evt.clientY - rect.top) / rect.height) * H;
+        return { x: (vx - pan.x) / pan.scale, y: (vy - pan.y) / pan.scale };
+      }
+
+      nodeEls.forEach(function (ne) {
+        ne.g.addEventListener('pointerdown', function (evt) {
+          dragging = ne;
+          svg.classList.add('grabbing');
+          evt.stopPropagation();
+        });
+      });
+
+      svg.addEventListener('pointermove', function (evt) {
+        if (!dragging) return;
+        var p = svgPoint(evt);
+        dragging.n.x = Math.max(10, Math.min(W - 10, p.x));
+        dragging.n.y = Math.max(10, Math.min(H - 10, p.y));
+        place();
+      });
+      window.addEventListener('pointerup', function () {
+        dragging = null;
+        svg.classList.remove('grabbing');
+      });
+
+      // Pan (drag empty background) + zoom (wheel).
+      var panning = null;
+      svg.addEventListener('pointerdown', function (evt) {
+        if (dragging) return;
+        panning = { x: evt.clientX, y: evt.clientY, panX: pan.x, panY: pan.y };
+      });
+      svg.addEventListener('pointermove', function (evt) {
+        if (!panning) return;
+        pan.x = panning.panX + (evt.clientX - panning.x);
+        pan.y = panning.panY + (evt.clientY - panning.y);
+        applyTransform();
+      });
+      window.addEventListener('pointerup', function () { panning = null; });
+
+      svg.addEventListener('wheel', function (evt) {
+        evt.preventDefault();
+        var factor = evt.deltaY < 0 ? 1.1 : 0.9;
+        pan.scale = Math.max(0.4, Math.min(3, pan.scale * factor));
+        applyTransform();
+      }, { passive: false });
+    })();
+  </script>
+  {{ end }}
 </body>
 </html>

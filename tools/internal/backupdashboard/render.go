@@ -2,6 +2,7 @@ package backupdashboard
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"sort"
@@ -45,13 +46,65 @@ type errorRow struct {
 	Reason string
 }
 
-// flowGroup is one host's entries, for the flow-diagram section - grouping
-// happens here since html/template has no native group-by.
-type flowGroup struct {
-	Host         string
-	NextRunLabel string
-	HasNextRun   bool
-	Entries      []entryRow
+// graphNode is one node in the flow-diagram's node-link graph - hosts,
+// catalog entries, and destinations all become nodes, rendered client-side
+// with a force layout (see the inline script in template.html). Positions
+// are computed in the browser, not here: a server-computed static layout
+// would need to be recomputed on window resize anyway, and the simulation
+// itself is cheap for the graph sizes this dashboard ever has (a few dozen
+// nodes).
+type graphNode struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Kind  string `json:"kind"`            // "host" | "entry" | "dest"
+	State string `json:"state,omitempty"` // entry nodes only: ok/degraded/failed/unknown
+	Sub   string `json:"sub,omitempty"`   // host nodes only: next-run label
+}
+
+type graphLink struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+}
+
+type flowGraph struct {
+	Nodes []graphNode `json:"nodes"`
+	Links []graphLink `json:"links"`
+}
+
+// buildFlowGraph turns the catalog into a host -> entry -> destination
+// graph. Host and destination nodes are deduplicated (many entries share a
+// host or a destination); entry nodes are one per catalog entry.
+func buildFlowGraph(snap *Snapshot) flowGraph {
+	var g flowGraph
+	seenHost := map[string]bool{}
+	seenDest := map[string]bool{}
+
+	for _, entry := range snap.Entries {
+		hostID := "host:" + entry.Host
+		if !seenHost[entry.Host] {
+			seenHost[entry.Host] = true
+			sub := ""
+			if label, ok := NextRun(entry.Schedule, time.Now()); ok {
+				sub = "Next run: " + label
+			}
+			g.Nodes = append(g.Nodes, graphNode{ID: hostID, Label: entry.Host, Kind: "host", Sub: sub})
+		}
+
+		entryID := "entry:" + entry.Host + ":" + entry.Name
+		g.Nodes = append(g.Nodes, graphNode{ID: entryID, Label: entry.Name, Kind: "entry", State: entry.Badge})
+		g.Links = append(g.Links, graphLink{Source: hostID, Target: entryID})
+
+		for _, dest := range entry.Destinations {
+			destID := "dest:" + dest
+			if !seenDest[dest] {
+				seenDest[dest] = true
+				g.Nodes = append(g.Nodes, graphNode{ID: destID, Label: dest, Kind: "dest"})
+			}
+			g.Links = append(g.Links, graphLink{Source: entryID, Target: destID})
+		}
+	}
+
+	return g
 }
 
 type pageData struct {
@@ -60,7 +113,8 @@ type pageData struct {
 	Hosts              []hostCard
 	Destinations       []destCard
 	Entries            []entryRow
-	FlowGroups         []flowGroup
+	HasFlowGraph       bool
+	FlowGraphJSON      template.JS
 	Errors             []errorRow
 	SummaryOK          int
 	SummaryDegraded    int
@@ -150,7 +204,6 @@ func buildPageData(snap *Snapshot) pageData {
 		})
 	}
 
-	groupIndex := map[string]int{}
 	for _, entry := range snap.Entries {
 		row := entryRow{
 			Name:         entry.Name,
@@ -162,15 +215,12 @@ func buildPageData(snap *Snapshot) pageData {
 			State:        entry.Badge,
 		}
 		pd.Entries = append(pd.Entries, row)
+	}
 
-		idx, ok := groupIndex[entry.Host]
-		if !ok {
-			idx = len(pd.FlowGroups)
-			groupIndex[entry.Host] = idx
-			label, hasNextRun := NextRun(entry.Schedule, time.Now())
-			pd.FlowGroups = append(pd.FlowGroups, flowGroup{Host: entry.Host, NextRunLabel: label, HasNextRun: hasNextRun})
-		}
-		pd.FlowGroups[idx].Entries = append(pd.FlowGroups[idx].Entries, row)
+	graph := buildFlowGraph(snap)
+	pd.HasFlowGraph = len(graph.Nodes) > 0
+	if graphJSON, err := json.Marshal(graph); err == nil {
+		pd.FlowGraphJSON = template.JS(graphJSON)
 	}
 
 	var errHosts []string
