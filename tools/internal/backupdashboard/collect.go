@@ -24,6 +24,12 @@ type CatalogEntry struct {
 	Source       any      `json:"source"` // string or []string
 	Dest         string   `json:"dest,omitempty"`
 	Destinations []string `json:"destinations"`
+	// Schedule is a plain HH:MM:SS time-of-day, sourced from
+	// roles::backup_dashboard's $host_schedules - not a full systemd
+	// OnCalendar parser, since every real schedule in this repo today is a
+	// simple fixed daily time. A future non-daily schedule would silently
+	// render something wrong here.
+	Schedule string `json:"schedule,omitempty"`
 }
 
 // SourceDisplay renders Source (string or []string in the JSON) as the

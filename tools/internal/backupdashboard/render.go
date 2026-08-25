@@ -48,8 +48,10 @@ type errorRow struct {
 // flowGroup is one host's entries, for the flow-diagram section - grouping
 // happens here since html/template has no native group-by.
 type flowGroup struct {
-	Host    string
-	Entries []entryRow
+	Host         string
+	NextRunLabel string
+	HasNextRun   bool
+	Entries      []entryRow
 }
 
 type pageData struct {
@@ -165,7 +167,8 @@ func buildPageData(snap *Snapshot) pageData {
 		if !ok {
 			idx = len(pd.FlowGroups)
 			groupIndex[entry.Host] = idx
-			pd.FlowGroups = append(pd.FlowGroups, flowGroup{Host: entry.Host})
+			label, hasNextRun := NextRun(entry.Schedule, time.Now())
+			pd.FlowGroups = append(pd.FlowGroups, flowGroup{Host: entry.Host, NextRunLabel: label, HasNextRun: hasNextRun})
 		}
 		pd.FlowGroups[idx].Entries = append(pd.FlowGroups[idx].Entries, row)
 	}

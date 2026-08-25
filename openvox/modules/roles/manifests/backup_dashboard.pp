@@ -20,6 +20,22 @@ class roles::backup_dashboard (
   # collector reads healthreport's SSH key (0600, owned by that uid)
   # read-only, and a mismatched uid here cannot open it.
   Integer $uid  = 10001,
+  # Daily HH:MM:SS time-of-day per host, for the dashboard's "next run"
+  # display - deliberately duplicated from the real schedule sources rather
+  # than looked up, same "hardcode a small derived dataset, document the
+  # maintenance shift" call already made for $catalog_services below.
+  # mljr/nuc: roles::backup's $backup_schedule default ('*-*-* 03:00:00',
+  # unoverridden in either host's site.pp node block). nas: NOT derived from
+  # any Puppet value - Unraid's User Scripts plugin has no per-script time,
+  # only a "daily" frequency, and every daily-frequency script actually runs
+  # via one system-wide `run-parts /etc/cron.daily` slot. Confirmed live on
+  # nas: `40 4 * * * /usr/bin/run-parts /etc/cron.daily` in nas's own root
+  # crontab (2026-08-19).
+  Hash[String, String] $host_schedules = {
+    'mljr' => '03:00:00',
+    'nuc'  => '03:00:00',
+    'nas'  => '04:40:00',
+  },
 ) {
   $state_dir = "${root}/state"
 
@@ -80,6 +96,7 @@ class roles::backup_dashboard (
       'source'       => $p['src'],
       'dest'         => $p['dest'],
       'destinations' => $p['destinations'],
+      'schedule'     => $host_schedules['nas'],
     }
   }
 
@@ -90,6 +107,7 @@ class roles::backup_dashboard (
       'host'         => $s['host'],
       'source'       => $s['source'],
       'destinations' => ['pcloud', 'ugreen'],
+      'schedule'     => $host_schedules[$s['host']],
     }
   }
 
