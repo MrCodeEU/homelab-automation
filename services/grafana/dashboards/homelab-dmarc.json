@@ -1,7 +1,11 @@
 {
   "uid": "homelab-dmarc",
   "title": "DMARC Reports",
-  "tags": ["homelab", "dmarc", "security"],
+  "tags": [
+    "homelab",
+    "dmarc",
+    "security"
+  ],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
@@ -16,8 +20,16 @@
       "type": "stat",
       "title": "DMARC Pass Rate (30d)",
       "description": "Share of message volume where DMARC actually passed (aligned SPF or DKIM), not just where the disposition was 'none'.",
-      "datasource": { "type": "postgres", "uid": "dmarc-postgres" },
-      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "datasource": {
+        "type": "postgres",
+        "uid": "dmarc-postgres"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "percentunit",
@@ -25,16 +37,31 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 0.9 },
-              { "color": "green", "value": 0.98 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.9
+              },
+              {
+                "color": "green",
+                "value": 0.98
+              }
             ]
           }
         },
         "overrides": []
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "orientation": "auto",
         "textMode": "auto",
         "colorMode": "background",
@@ -45,7 +72,11 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  COALESCE(SUM(message_count) FILTER (WHERE dmarc_passed), 0)::float\n    / NULLIF(SUM(message_count), 0) AS pass_rate\nFROM dmarc_aggregate_record r\nJOIN dmarc_aggregate_report rep ON rep.id = r.report_id\nWHERE $__timeFilter(r.interval_begin)"
+          "rawSql": "SELECT\n  COALESCE(SUM(message_count) FILTER (WHERE dmarc_passed), 0)::float\n    / NULLIF(SUM(message_count), 0) AS pass_rate\nFROM dmarc_aggregate_record r\nJOIN dmarc_aggregate_report rep ON rep.id = r.report_id\nWHERE $__timeFilter(r.interval_begin)",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dmarc-postgres"
+          }
         }
       ]
     },
@@ -53,14 +84,31 @@
       "id": 2,
       "type": "stat",
       "title": "Total Messages Reported (30d)",
-      "datasource": { "type": "postgres", "uid": "dmarc-postgres" },
-      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "datasource": {
+        "type": "postgres",
+        "uid": "dmarc-postgres"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
       "fieldConfig": {
-        "defaults": { "unit": "short", "decimals": 0 },
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
         "overrides": []
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "orientation": "auto",
         "textMode": "auto",
         "colorMode": "value",
@@ -71,7 +119,11 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(message_count), 0) AS total\nFROM dmarc_aggregate_record r\nWHERE $__timeFilter(r.interval_begin)"
+          "rawSql": "SELECT COALESCE(SUM(message_count), 0) AS total\nFROM dmarc_aggregate_record r\nWHERE $__timeFilter(r.interval_begin)",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dmarc-postgres"
+          }
         }
       ]
     },
@@ -79,14 +131,31 @@
       "id": 3,
       "type": "stat",
       "title": "Distinct Sending Sources (30d)",
-      "datasource": { "type": "postgres", "uid": "dmarc-postgres" },
-      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "datasource": {
+        "type": "postgres",
+        "uid": "dmarc-postgres"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
       "fieldConfig": {
-        "defaults": { "unit": "short", "decimals": 0 },
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        },
         "overrides": []
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "orientation": "auto",
         "textMode": "auto",
         "colorMode": "value",
@@ -97,7 +166,11 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COUNT(DISTINCT source_ip_address) AS sources\nFROM dmarc_aggregate_record r\nWHERE $__timeFilter(r.interval_begin)"
+          "rawSql": "SELECT COUNT(DISTINCT source_ip_address) AS sources\nFROM dmarc_aggregate_record r\nWHERE $__timeFilter(r.interval_begin)",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dmarc-postgres"
+          }
         }
       ]
     },
@@ -105,8 +178,16 @@
       "id": 4,
       "type": "stat",
       "title": "Messages Rejected/Quarantined (30d)",
-      "datasource": { "type": "postgres", "uid": "dmarc-postgres" },
-      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "datasource": {
+        "type": "postgres",
+        "uid": "dmarc-postgres"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
       "fieldConfig": {
         "defaults": {
           "unit": "short",
@@ -114,16 +195,31 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 1 },
-              { "color": "red", "value": 50 }
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
             ]
           }
         },
         "overrides": []
       },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
         "orientation": "auto",
         "textMode": "auto",
         "colorMode": "background",
@@ -134,7 +230,11 @@
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT COALESCE(SUM(message_count), 0) AS rejected\nFROM dmarc_aggregate_record r\nWHERE $__timeFilter(r.interval_begin)\n  AND disposition IN ('reject', 'quarantine')"
+          "rawSql": "SELECT COALESCE(SUM(message_count), 0) AS rejected\nFROM dmarc_aggregate_record r\nWHERE $__timeFilter(r.interval_begin)\n  AND disposition IN ('reject', 'quarantine')",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dmarc-postgres"
+          }
         }
       ]
     },
@@ -143,17 +243,37 @@
       "type": "timeseries",
       "title": "Message Volume by Disposition",
       "description": "Daily message count reported by receivers, split by what they did with it (none/quarantine/reject).",
-      "datasource": { "type": "postgres", "uid": "dmarc-postgres" },
-      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 5 },
+      "datasource": {
+        "type": "postgres",
+        "uid": "dmarc-postgres"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 5
+      },
       "fieldConfig": {
-        "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "stacking": { "mode": "normal" } } },
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "drawStyle": "bars",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        },
         "overrides": []
       },
       "targets": [
         {
           "refId": "A",
           "format": "time_series",
-          "rawSql": "SELECT\n  date_trunc('day', r.interval_begin) AS time,\n  COALESCE(r.disposition, 'none') AS metric,\n  SUM(r.message_count) AS value\nFROM dmarc_aggregate_record r\nWHERE $__timeFilter(r.interval_begin)\nGROUP BY 1, 2\nORDER BY 1"
+          "rawSql": "SELECT\n  date_trunc('day', r.interval_begin) AS time,\n  COALESCE(r.disposition, 'none') AS metric,\n  SUM(r.message_count) AS value\nFROM dmarc_aggregate_record r\nWHERE $__timeFilter(r.interval_begin)\nGROUP BY 1, 2\nORDER BY 1",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dmarc-postgres"
+          }
         }
       ]
     },
@@ -162,14 +282,29 @@
       "type": "table",
       "title": "Top Sending Sources",
       "description": "Every source sending mail as mljr.eu, most volume first. reverse_dns/base_domain identifies who they actually are - a source with no rDNS or an unexpected domain is worth investigating.",
-      "datasource": { "type": "postgres", "uid": "dmarc-postgres" },
-      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 14 },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "datasource": {
+        "type": "postgres",
+        "uid": "dmarc-postgres"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  r.source_ip_address AS ip,\n  r.source_reverse_dns AS rdns,\n  r.source_base_domain AS base_domain,\n  SUM(r.message_count) AS messages,\n  ROUND(100.0 * SUM(r.message_count) FILTER (WHERE r.dmarc_passed) / NULLIF(SUM(r.message_count), 0), 1) AS pass_pct\nFROM dmarc_aggregate_record r\nWHERE $__timeFilter(r.interval_begin)\nGROUP BY 1, 2, 3\nORDER BY messages DESC\nLIMIT 25"
+          "rawSql": "SELECT\n  r.source_ip_address AS ip,\n  r.source_reverse_dns AS rdns,\n  r.source_base_domain AS base_domain,\n  SUM(r.message_count) AS messages,\n  ROUND(100.0 * SUM(r.message_count) FILTER (WHERE r.dmarc_passed) / NULLIF(SUM(r.message_count), 0), 1) AS pass_pct\nFROM dmarc_aggregate_record r\nWHERE $__timeFilter(r.interval_begin)\nGROUP BY 1, 2, 3\nORDER BY messages DESC\nLIMIT 25",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dmarc-postgres"
+          }
         }
       ]
     },
@@ -178,14 +313,29 @@
       "type": "table",
       "title": "Top Failing Sources",
       "description": "Sources where DMARC did not pass - either fix their SPF/DKIM alignment, or this is spoofed mail CrowdSec/mailcow should already be catching elsewhere.",
-      "datasource": { "type": "postgres", "uid": "dmarc-postgres" },
-      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 14 },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "datasource": {
+        "type": "postgres",
+        "uid": "dmarc-postgres"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",
           "format": "table",
-          "rawSql": "SELECT\n  r.source_ip_address AS ip,\n  r.source_reverse_dns AS rdns,\n  r.header_from,\n  r.disposition,\n  SUM(r.message_count) AS messages\nFROM dmarc_aggregate_record r\nWHERE $__timeFilter(r.interval_begin)\n  AND r.dmarc_passed = false\nGROUP BY 1, 2, 3, 4\nORDER BY messages DESC\nLIMIT 25"
+          "rawSql": "SELECT\n  r.source_ip_address AS ip,\n  r.source_reverse_dns AS rdns,\n  r.header_from,\n  r.disposition,\n  SUM(r.message_count) AS messages\nFROM dmarc_aggregate_record r\nWHERE $__timeFilter(r.interval_begin)\n  AND r.dmarc_passed = false\nGROUP BY 1, 2, 3, 4\nORDER BY messages DESC\nLIMIT 25",
+          "datasource": {
+            "type": "postgres",
+            "uid": "dmarc-postgres"
+          }
         }
       ]
     }
