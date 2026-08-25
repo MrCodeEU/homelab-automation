@@ -41,6 +41,7 @@ func TestRenderProducesWellFormedPage(t *testing.T) {
 		"ssh timed out",
 		"pill-ok", "pill-degraded", "pill-unknown", "pill-failed",
 		"fill-crit", // ugreen at 93.5% must hit the critical gauge class
+		"Backup flow", "flow-group", "flow-row", "flow-arrow",
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered HTML missing %q", want)
@@ -49,6 +50,21 @@ func TestRenderProducesWellFormedPage(t *testing.T) {
 
 	if strings.Count(html, "<html") != 1 || !strings.Contains(html, "</html>") {
 		t.Error("rendered HTML doesn't look well-formed")
+	}
+
+	if strings.Count(html, `class="flow-host`) != 2 {
+		t.Errorf("expected 2 flow-group hosts (nas, nuc), got %d", strings.Count(html, `class="flow-host`))
+	}
+}
+
+func TestRenderFlowDiagramOmittedWhenNoEntries(t *testing.T) {
+	snap := &Snapshot{Hosts: map[string]HostStatus{}, Destinations: map[string]DestUsage{}, Errors: map[string]string{}}
+	html, err := Render(snap)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if strings.Contains(html, "Backup flow") {
+		t.Error("flow diagram section should be omitted when there are no entries")
 	}
 }
 
