@@ -25,6 +25,9 @@ node 'mljr.tail33930.ts.net' {
   class { 'roles::iperf3':
     base_path => '/opt',
   }
+  class { 'roles::netronome_agent':
+    base_path => '/opt',
+  }
   include roles::caddy
   include roles::authelia
   include roles::glance
@@ -80,6 +83,9 @@ node 'nuc.tail33930.ts.net' {
   class { 'roles::iperf3':
     base_path => '/opt',
   }
+  class { 'roles::netronome_agent':
+    base_path => '/opt',
+  }
   include roles::wd_mycloud_proxy
   include roles::wd_mycloud_node_exporter_proxy
   include roles::unraid_proxy
@@ -116,6 +122,10 @@ node 'ugreen.tail33930.ts.net' {
   class { 'roles::iperf3':
     base_path        => '/volume1/homelab',
     manage_firewall  => false,
+  }
+  class { 'roles::netronome_agent':
+    base_path       => '/volume1/homelab',
+    manage_firewall => false,
   }
   include roles::backup_remote_target
   include roles::ugreen_tailscale
