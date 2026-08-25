@@ -1,0 +1,12 @@
+services:
+  iperf3:
+    image: networkstatic/iperf3:latest
+    container_name: iperf3
+    restart: unless-stopped
+    network_mode: host
+    command: ["-s"]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
