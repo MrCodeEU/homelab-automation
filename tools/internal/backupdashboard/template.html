@@ -264,6 +264,8 @@
             <th>Host</th>
             <th>Source</th>
             <th>Destinations</th>
+            <th>Size</th>
+            <th>Files</th>
             <th>State</th>
           </tr>
         </thead>
@@ -281,6 +283,8 @@
             <td class="mono">{{ .Host }}</td>
             <td class="source-cell mono" title="{{ .Source }}">{{ .Source }}</td>
             <td>{{ range .Destinations }}<span class="tag">{{ . }}</span>{{ end }}</td>
+            <td class="mono">{{ if .HasStats }}{{ .SizeLabel }}{{ else }}&ndash;{{ end }}</td>
+            <td class="mono">{{ if .HasStats }}{{ .FileCount }}{{ else }}&ndash;{{ end }}</td>
             <td><span class="pill pill-{{ .State }}">{{ .State }}</span></td>
           </tr>
           {{ end }}

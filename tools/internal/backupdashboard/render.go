@@ -39,6 +39,27 @@ type entryRow struct {
 	Source       string
 	Destinations []string
 	State        string
+	HasStats     bool
+	SizeLabel    string
+	FileCount    int64
+}
+
+// formatBytes renders a byte count as a human-readable size, matching the
+// GiB/MiB scale the rest of the dashboard already uses for destination
+// capacity (destCard.FreeLabel).
+func formatBytes(n int64) string {
+	const unit = 1024.0
+	f := float64(n)
+	if f < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	units := []string{"KiB", "MiB", "GiB", "TiB", "PiB"}
+	div, exp := unit, 0
+	for f/div >= unit && exp < len(units)-1 {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %s", f/div, units[exp])
 }
 
 type errorRow struct {
@@ -58,7 +79,7 @@ type graphNode struct {
 	Label string `json:"label"`
 	Kind  string `json:"kind"`            // "host" | "entry" | "dest"
 	State string `json:"state,omitempty"` // entry nodes only: ok/degraded/failed/unknown
-	Sub   string `json:"sub,omitempty"`   // host nodes only: next-run label
+	Sub   string `json:"sub,omitempty"`   // host nodes: next-run label; entry nodes: size/file count
 }
 
 type graphLink struct {
@@ -90,8 +111,12 @@ func buildFlowGraph(snap *Snapshot) flowGraph {
 			g.Nodes = append(g.Nodes, graphNode{ID: hostID, Label: entry.Host, Kind: "host", Sub: sub})
 		}
 
+		entrySub := ""
+		if entry.HasStats {
+			entrySub = fmt.Sprintf("%s, %d files", formatBytes(entry.SizeBytes), entry.FileCount)
+		}
 		entryID := "entry:" + entry.Host + ":" + entry.Name
-		g.Nodes = append(g.Nodes, graphNode{ID: entryID, Label: entry.Name, Kind: "entry", State: entry.Badge})
+		g.Nodes = append(g.Nodes, graphNode{ID: entryID, Label: entry.Name, Kind: "entry", State: entry.Badge, Sub: entrySub})
 		g.Links = append(g.Links, graphLink{Source: hostID, Target: entryID})
 
 		for _, dest := range entry.Destinations {
@@ -213,6 +238,11 @@ func buildPageData(snap *Snapshot) pageData {
 			Source:       entry.SourceDisplay(),
 			Destinations: entry.Destinations,
 			State:        entry.Badge,
+			HasStats:     entry.HasStats,
+			FileCount:    entry.FileCount,
+		}
+		if entry.HasStats {
+			row.SizeLabel = formatBytes(entry.SizeBytes)
 		}
 		pd.Entries = append(pd.Entries, row)
 	}

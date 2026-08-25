@@ -24,12 +24,13 @@ type FactsPayload struct {
 	Sections struct {
 		Backup struct {
 			Data struct {
-				Available        bool     `json:"available"`
-				Reason           string   `json:"reason"`
-				Completed        bool     `json:"completed"`
-				CriticalFailures int      `json:"critical_failures"`
-				FailedServices   []string `json:"failed_services"`
-				AgeSeconds       *float64 `json:"age_seconds"`
+				Available        bool                 `json:"available"`
+				Reason           string               `json:"reason"`
+				Completed        bool                 `json:"completed"`
+				CriticalFailures int                  `json:"critical_failures"`
+				FailedServices   []string             `json:"failed_services"`
+				AgeSeconds       *float64             `json:"age_seconds"`
+				Stats            map[string]EntryStat `json:"stats"`
 			} `json:"data"`
 		} `json:"backup"`
 		BackupTargets struct {
@@ -38,6 +39,13 @@ type FactsPayload struct {
 			} `json:"data"`
 		} `json:"backup_targets"`
 	} `json:"sections"`
+}
+
+// EntryStat is one entry's backed-up size, from BACKUP_STATS log lines -
+// see collect_backup_log() in homelab-facts.py.epp for the format.
+type EntryStat struct {
+	Bytes int64 `json:"bytes"`
+	Files int64 `json:"files"`
 }
 
 type BackupTarget struct {
