@@ -11,12 +11,18 @@
 # picks up Tailscale via its own --tailscale/--tailscale-method CLI flags
 # (verified by /netronome/info reporting using_tailscale:false with only
 # the env vars set).
+#
+# No NETRONOME__AGENT_API_KEY here on purpose: auto-discovered Tailscale
+# agents get created with a blank key by Netronome's own discovery code,
+# and the "Edit Monitoring Settings" dialog for a Tailscale-connected
+# agent has no field to set one at all ("Connection details are managed
+# by Tailscale. Only monitoring can be toggled." - confirmed live).
+# Tailnet membership is the trust boundary in this mode; setting a key
+# here just makes every discovered agent 401 forever.
 class roles::netronome_agent (
   String  $base_path       = '/opt',
   Boolean $manage_firewall = true,
 ) {
-  $api_key = Sensitive(lookup('vault_netronome_agent_api_key'))
-
   file { "${base_path}/netronome-agent":
     ensure => directory,
     mode   => '0755',
@@ -33,7 +39,8 @@ class roles::netronome_agent (
         environment:
           NETRONOME__AGENT_HOST: 0.0.0.0
           NETRONOME__AGENT_PORT: 8200
-          NETRONOME__AGENT_API_KEY: ${api_key.unwrap}
+        dns:
+          - 100.100.100.100
         volumes:
           - /var/run/tailscale:/var/run/tailscale:ro
         logging:
@@ -46,7 +53,7 @@ class roles::netronome_agent (
   file { "${base_path}/netronome-agent/docker-compose.yml":
     ensure  => file,
     mode    => '0644',
-    content => Sensitive($compose_content),
+    content => $compose_content,
     require => File["${base_path}/netronome-agent"],
   }
 
