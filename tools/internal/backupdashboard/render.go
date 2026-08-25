@@ -45,12 +45,20 @@ type errorRow struct {
 	Reason string
 }
 
+// flowGroup is one host's entries, for the flow-diagram section - grouping
+// happens here since html/template has no native group-by.
+type flowGroup struct {
+	Host    string
+	Entries []entryRow
+}
+
 type pageData struct {
 	GeneratedAt        string
 	CatalogGeneratedAt string
 	Hosts              []hostCard
 	Destinations       []destCard
 	Entries            []entryRow
+	FlowGroups         []flowGroup
 	Errors             []errorRow
 	SummaryOK          int
 	SummaryDegraded    int
@@ -140,8 +148,9 @@ func buildPageData(snap *Snapshot) pageData {
 		})
 	}
 
+	groupIndex := map[string]int{}
 	for _, entry := range snap.Entries {
-		pd.Entries = append(pd.Entries, entryRow{
+		row := entryRow{
 			Name:         entry.Name,
 			TypeLabel:    titleCase(entry.Type),
 			IsFolder:     entry.Type == "folder",
@@ -149,7 +158,16 @@ func buildPageData(snap *Snapshot) pageData {
 			Source:       entry.SourceDisplay(),
 			Destinations: entry.Destinations,
 			State:        entry.Badge,
-		})
+		}
+		pd.Entries = append(pd.Entries, row)
+
+		idx, ok := groupIndex[entry.Host]
+		if !ok {
+			idx = len(pd.FlowGroups)
+			groupIndex[entry.Host] = idx
+			pd.FlowGroups = append(pd.FlowGroups, flowGroup{Host: entry.Host})
+		}
+		pd.FlowGroups[idx].Entries = append(pd.FlowGroups[idx].Entries, row)
 	}
 
 	var errHosts []string

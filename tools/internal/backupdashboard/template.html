@@ -137,6 +137,19 @@
   .tag { display: inline-block; font-size: 0.74rem; padding: 0.1rem 0.45rem; border-radius: 5px; background: var(--surface-2); color: var(--text-dim); margin: 0.1rem 0.25rem 0.1rem 0; border: 1px solid var(--border); }
   .empty-state { padding: 2rem; text-align: center; color: var(--text-dim); font-size: 0.88rem; }
 
+  .flow-group { margin-bottom: 1rem; }
+  .flow-group:last-child { margin-bottom: 0; }
+  .flow-host { font-weight: 650; font-size: 0.82rem; margin-bottom: 0.4rem; }
+  .flow-row {
+    display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 0.55rem 0.85rem; margin-bottom: 0.4rem; box-shadow: var(--shadow);
+  }
+  .flow-row:last-child { margin-bottom: 0; }
+  .flow-source { font-size: 0.82rem; color: var(--text-dim); font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+  .flow-arrow { color: var(--text-dim); flex: none; }
+  .flow-dests { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+
   .errors { border: 1px solid var(--fail); border-radius: var(--radius); background: var(--fail-bg); padding: 0.9rem 1.1rem; }
   .errors .section-title { color: var(--fail); margin-bottom: 0.5rem; }
   .errors ul { margin: 0; padding-left: 1.1rem; font-size: 0.85rem; }
@@ -197,6 +210,26 @@
       </div>
       {{ end }}
     </div>
+  </section>
+  {{ end }}
+
+  {{ if .FlowGroups }}
+  <section>
+    <div class="section-title">Backup flow</div>
+    {{ range .FlowGroups }}
+    <div class="flow-group">
+      <div class="flow-host mono">{{ .Host }}</div>
+      {{ range .Entries }}
+      <div class="flow-row">
+        <span class="entry-name">{{ .Name }}</span>
+        <span class="flow-source" title="{{ .Source }}">{{ .Source }}</span>
+        <span class="flow-arrow">&rarr;</span>
+        <span class="flow-dests">{{ range .Destinations }}<span class="tag">{{ . }}</span>{{ end }}</span>
+        <span class="pill pill-{{ .State }}">{{ .State }}</span>
+      </div>
+      {{ end }}
+    </div>
+    {{ end }}
   </section>
   {{ end }}
 
