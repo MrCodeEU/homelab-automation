@@ -1,6 +1,7 @@
 package backupdashboard
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -41,8 +42,8 @@ func TestRenderProducesWellFormedPage(t *testing.T) {
 		"ssh timed out",
 		"pill-ok", "pill-degraded", "pill-unknown", "pill-failed",
 		"fill-crit", // ugreen at 93.5% must hit the critical gauge class
-		"Backup flow", "flow-group", "flow-row", "flow-arrow",
-		"flow-next-run", "Next run:",
+		"Backup flow", "flow-graph", "flow-graph-data",
+		"Next run:",
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered HTML missing %q", want)
@@ -52,27 +53,69 @@ func TestRenderProducesWellFormedPage(t *testing.T) {
 	if strings.Count(html, "<html") != 1 || !strings.Contains(html, "</html>") {
 		t.Error("rendered HTML doesn't look well-formed")
 	}
-
-	if strings.Count(html, `class="flow-host`) != 2 {
-		t.Errorf("expected 2 flow-group hosts (nas, nuc), got %d", strings.Count(html, `class="flow-host`))
-	}
 }
 
-func TestRenderFlowGroupOmitsNextRunWithoutSchedule(t *testing.T) {
+func TestRenderFlowGraphJSONShape(t *testing.T) {
 	snap := &Snapshot{
 		Hosts:        map[string]HostStatus{},
 		Destinations: map[string]DestUsage{},
 		Errors:       map[string]string{},
 		Entries: []EntryWithBadge{
-			{CatalogEntry: CatalogEntry{Name: "fotos", Type: "folder", Host: "nas", Source: "/mnt/user/Fotos", Destinations: []string{"pcloud"}}, Badge: "ok"},
+			{CatalogEntry: CatalogEntry{Name: "fotos", Type: "folder", Host: "nas", Source: "/mnt/user/Fotos", Destinations: []string{"pcloud", "ugreen"}, Schedule: "04:40:00"}, Badge: "ok"},
+			{CatalogEntry: CatalogEntry{Name: "forgejo", Type: "service", Host: "nuc", Source: []any{"forgejo-data"}, Destinations: []string{"pcloud"}}, Badge: "failed"},
 		},
 	}
 	html, err := Render(snap)
 	if err != nil {
 		t.Fatalf("Render: %v", err)
 	}
-	if strings.Contains(html, "Next run:") {
-		t.Error("next-run label should be omitted for an entry with no schedule")
+
+	start := strings.Index(html, `id="flow-graph-data">`)
+	if start == -1 {
+		t.Fatal("flow-graph-data script tag not found")
+	}
+	start += len(`id="flow-graph-data">`)
+	end := strings.Index(html[start:], "</script>")
+	if end == -1 {
+		t.Fatal("flow-graph-data script tag not closed")
+	}
+	raw := html[start : start+end]
+
+	var g flowGraph
+	if err := json.Unmarshal([]byte(raw), &g); err != nil {
+		t.Fatalf("embedded flow graph is not valid JSON: %v\nraw: %s", err, raw)
+	}
+
+	// nas host + fotos entry + pcloud dest + ugreen dest + nuc host + forgejo entry = 6,
+	// pcloud shared across both entries so it appears once.
+	if len(g.Nodes) != 6 {
+		t.Errorf("expected 6 nodes, got %d: %+v", len(g.Nodes), g.Nodes)
+	}
+	// host->entry (x2) + fotos->pcloud + fotos->ugreen + forgejo->pcloud = 5
+	if len(g.Links) != 5 {
+		t.Errorf("expected 5 links, got %d: %+v", len(g.Links), g.Links)
+	}
+
+	var sawHostWithSub, sawHostWithoutSub, sawFailedEntry bool
+	for _, n := range g.Nodes {
+		if n.Kind == "host" && n.ID == "host:nas" && n.Sub != "" {
+			sawHostWithSub = true
+		}
+		if n.Kind == "host" && n.ID == "host:nuc" && n.Sub == "" {
+			sawHostWithoutSub = true
+		}
+		if n.Kind == "entry" && n.State == "failed" {
+			sawFailedEntry = true
+		}
+	}
+	if !sawHostWithSub {
+		t.Error("expected nas host node to carry a next-run Sub label")
+	}
+	if !sawHostWithoutSub {
+		t.Error("expected nuc host node to have no Sub label (no schedule set)")
+	}
+	if !sawFailedEntry {
+		t.Error("expected forgejo entry node to carry state=failed")
 	}
 }
 
