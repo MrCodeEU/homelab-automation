@@ -86,6 +86,17 @@ node 'nuc.tail33930.ts.net' {
   class { 'roles::netronome_agent':
     base_path => '/opt',
   }
+  # speedtest (Netronome) switched to network_mode: host to give the
+  # container real routing to tailnet peer IPs for auto-discovery -
+  # Docker's own bridge-network NAT no longer fronts this port, so it
+  # needs the same explicit firewalld_port host-networked containers
+  # always need (see roles::iperf3/roles::netronome_agent).
+  firewalld_port { 'netronome-speedtest-tcp':
+    ensure   => present,
+    zone     => 'trusted',
+    port     => 8090,
+    protocol => 'tcp',
+  }
   include roles::wd_mycloud_proxy
   include roles::wd_mycloud_node_exporter_proxy
   include roles::unraid_proxy

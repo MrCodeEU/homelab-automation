@@ -3,12 +3,11 @@ services:
     image: ghcr.io/autobrr/netronome:latest
     container_name: ${COMPOSE_PROJECT_NAME:-speedtest}
     restart: unless-stopped
-    ports:
-      - "8090:7575"
+    network_mode: host
     environment:
       TZ: ${TZ:-Europe/Vienna}
       NETRONOME__HOST: 0.0.0.0
-      NETRONOME__PORT: 7575
+      NETRONOME__PORT: 8090
       NETRONOME__SESSION_SECRET: ${NETRONOME_SESSION_SECRET:-}
       NETRONOME__TAILSCALE_ENABLED: "true"
       NETRONOME__TAILSCALE_METHOD: host
@@ -21,10 +20,8 @@ services:
     volumes:
       - netronome-data:/data
       - /var/run/tailscale:/var/run/tailscale:ro
-    networks:
-      - speedtest
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7575"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8090"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -33,10 +30,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-networks:
-  speedtest:
-    driver: bridge
 
 volumes:
   netronome-data:
