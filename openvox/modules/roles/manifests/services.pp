@@ -128,6 +128,15 @@ class roles::services (
       'admin_user'     => lookup('vault_mailarchiver_admin_user', { 'default_value' => 'admin' }),
       'admin_password' => lookup('vault_mailarchiver_admin_password', { 'default_value' => '' }),
     },
+    'dmarc-monitor' => {
+      'db_password' => lookup('vault_dmarcmonitor_db_password', { 'default_value' => '' }),
+      'imap_host'   => lookup('vault_dmarcmonitor_imap_host', { 'default_value' => 'mail.mljr.eu' }),
+      'imap_user'   => lookup('vault_dmarcmonitor_imap_user', { 'default_value' => 'dmarc-reports@mljr.eu' }),
+      # dmarc-reports@ and noreply@ are deliberately the same mailbox
+      # password by admin choice - reuses the shared SMTP secret rather
+      # than duplicating it under a new key, same as newsletter/speedtest.
+      'imap_password' => lookup('vault_smtp_password', { 'default_value' => '' }),
+    },
     'sudoku' => {
       'api_user'     => lookup('vault_sudoku_api_user', { 'default_value' => '' }),
       'api_password' => lookup('vault_sudoku_api_password', { 'default_value' => '' }),
@@ -161,6 +170,10 @@ class roles::services (
     'grafana' => {
       'admin_user'     => lookup('vault_grafana_admin_user', { 'default_value' => 'admin' }),
       'admin_password' => lookup('vault_grafana_admin_password', { 'default_value' => '' }),
+      # Same value as dmarc-monitor's own db_password - Grafana just needs
+      # read access to that one Postgres instance for the DMARC dashboard,
+      # not a separate credential.
+      'dmarc_postgres_password' => lookup('vault_dmarcmonitor_db_password', { 'default_value' => '' }),
     },
     'crowdsec' => {
       'firewall_bouncer_key'       => lookup('vault_crowdsec_firewall_bouncer_key', { 'default_value' => '' }),

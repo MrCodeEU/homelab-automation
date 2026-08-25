@@ -25,3 +25,22 @@ datasources:
     access: proxy
     url: http://loki:3100
     editable: true
+
+  # dmarc-monitor's Postgres lives in its own compose project on nuc, not
+  # this one, so it can't be reached by container name like victoriametrics/
+  # loki above - reached over Tailscale via its published port instead, same
+  # cross-project pattern healthreport already uses for its VictoriaMetrics
+  # queries (HEALTHREPORT_VM_URL).
+  - name: DMARC Postgres
+    uid: dmarc-postgres
+    type: postgres
+    access: proxy
+    url: 100.100.10.1:5432
+    database: parsedmarc
+    user: parsedmarc
+    secureJsonData:
+      password: ${DMARC_POSTGRES_PASSWORD}
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1600
+    editable: true

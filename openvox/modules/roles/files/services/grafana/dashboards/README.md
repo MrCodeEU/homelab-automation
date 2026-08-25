@@ -7,6 +7,9 @@ Provisioned datasources use stable UIDs:
 
 - `prometheus`
 - `loki`
+- `dmarc-postgres` (dmarc-monitor's Postgres, reached over Tailscale - it
+  lives in a separate Compose project on `nuc`, see
+  `provisioning/datasources/datasources.yml`)
 
 ## Current Dashboards
 
@@ -23,6 +26,9 @@ Provisioned datasources use stable UIDs:
 - `homelab-crowdsec.json`: active ban decisions (total and by origin - CAPI's
   community blocklist vs. this box's own local detections, since those are
   very different scales), alert/bucket-overflow rate, top ban reasons.
+- `homelab-dmarc.json`: DMARC pass rate, message volume by disposition, top
+  sending sources and top failing sources - from dmarc-monitor's parsedmarc
+  Postgres database, not Prometheus/Loki like the others.
 
 ## NAS / Unraid
 

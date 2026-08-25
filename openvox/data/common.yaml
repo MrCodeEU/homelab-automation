@@ -260,6 +260,14 @@ services_catalog:
     description: "Mail Archiver"
     icon: "mdi:email"
 
+  - name: dmarc-monitor
+    enabled: true
+    managed: true
+    port: 0
+    host: nuc
+    description: "parsedmarc DMARC aggregate report processor (IMAP watch -> Postgres, visualized in Grafana). No Caddy route."
+    icon: "mdi:email-check"
+
   - name: mailcow
     enabled: true
     domain: "mail.mljr.eu"

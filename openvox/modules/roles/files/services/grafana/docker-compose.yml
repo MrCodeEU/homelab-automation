@@ -12,6 +12,9 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_INSTALL_PLUGINS=grafana-lokiexplore-app
+      # Consumed by provisioning/datasources/datasources.yml's ${DMARC_POSTGRES_PASSWORD}
+      # substitution - kept out of the checked-in datasource YAML.
+      - DMARC_POSTGRES_PASSWORD=${DMARC_POSTGRES_PASSWORD}
     volumes:
       - grafana-data:/var/lib/grafana
       - ./provisioning:/etc/grafana/provisioning:ro
