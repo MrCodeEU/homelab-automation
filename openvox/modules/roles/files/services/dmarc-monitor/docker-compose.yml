@@ -1,0 +1,58 @@
+services:
+  dmarc-monitor:
+    image: ghcr.io/domainaware/parsedmarc:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-dmarc-monitor}-app
+    restart: unless-stopped
+    command: ["-c", "/config.ini"]
+    environment:
+      TZ: ${TZ:-Europe/Vienna}
+      PARSEDMARC_IMAP_HOST: ${DMARCMONITOR_IMAP_HOST}
+      PARSEDMARC_IMAP_USER: ${DMARCMONITOR_IMAP_USER}
+      PARSEDMARC_IMAP_PASSWORD: ${DMARCMONITOR_IMAP_PASSWORD}
+      PARSEDMARC_POSTGRESQL_HOST: postgres
+      PARSEDMARC_POSTGRESQL_USER: parsedmarc
+      PARSEDMARC_POSTGRESQL_PASSWORD: ${DMARCMONITOR_DB_PASSWORD}
+    volumes:
+      - ./config.ini:/config.ini:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dmarc-monitor-internal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-dmarc-monitor}-db
+    restart: unless-stopped
+    # Published (not just internal) so Grafana - a separate compose
+    # project - can reach it as a datasource. Same cross-project pattern
+    # already used for healthreport's HEALTHREPORT_VM_URL.
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:5432:5432"
+    environment:
+      POSTGRES_DB: parsedmarc
+      POSTGRES_USER: parsedmarc
+      POSTGRES_PASSWORD: ${DMARCMONITOR_DB_PASSWORD}
+    volumes:
+      - dmarc-monitor-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parsedmarc -d parsedmarc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - dmarc-monitor-internal
+
+networks:
+  dmarc-monitor-internal:
+    driver: bridge
+
+volumes:
+  dmarc-monitor-pgdata:
+    driver: local
