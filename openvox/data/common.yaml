@@ -466,6 +466,22 @@ services_catalog:
     description: "Grafana Alloy telemetry agent for the NAS"
     icon: "mdi:chart-line"
 
+  - name: iperf3-nas
+    enabled: true
+    managed: true
+    port: 0
+    host: nas
+    description: "Network performance testing server for the NAS"
+    icon: "mdi:speedometer"
+
+  - name: netronome-agent-nas
+    enabled: true
+    managed: true
+    port: 0
+    host: nas
+    description: "Netronome system-metrics agent for the NAS"
+    icon: "mdi:chart-line"
+
   - name: ollama
     enabled: true
     managed: true

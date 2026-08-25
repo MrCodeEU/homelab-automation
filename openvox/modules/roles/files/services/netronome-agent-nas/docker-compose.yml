@@ -1,0 +1,19 @@
+services:
+  netronome-agent:
+    image: ghcr.io/autobrr/netronome:latest
+    container_name: netronome-agent
+    restart: unless-stopped
+    network_mode: host
+    command: ["agent", "--tailscale", "--tailscale-method", "host"]
+    environment:
+      NETRONOME__AGENT_HOST: 0.0.0.0
+      NETRONOME__AGENT_PORT: 8200
+    dns:
+      - 100.100.100.100
+    volumes:
+      - /var/run/tailscale:/var/run/tailscale:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
