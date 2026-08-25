@@ -50,6 +50,10 @@ class roles::iperf3 (
   docker_compose { 'iperf3':
     compose_files => ["${base_path}/iperf3/docker-compose.yml"],
     ensure        => present,
-    require       => File["${base_path}/iperf3/docker-compose.yml"],
+    # subscribe, not require - see roles::netronome_agent's identical
+    # docker_compose resource for why: exists? never diffs file content,
+    # so a require-only relationship leaves stale containers running
+    # after a compose change goes unnoticed by Puppet.
+    subscribe     => File["${base_path}/iperf3/docker-compose.yml"],
   }
 }
