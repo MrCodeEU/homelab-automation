@@ -49,7 +49,7 @@ class roles::netronome_agent (
 
   $agent_interface_env = $interface ? {
     ''      => '',
-    default => "\n          NETRONOME__AGENT_INTERFACE: ${interface}",
+    default => "\n      NETRONOME__AGENT_INTERFACE: ${interface}",
   }
 
   $compose_content = @("END"/L)
