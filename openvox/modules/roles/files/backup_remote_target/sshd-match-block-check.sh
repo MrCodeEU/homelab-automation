@@ -12,9 +12,7 @@ if grep -qF "BEGIN SPOT MANAGED BLOCK - backup-remote-target" "$CONF" 2>/dev/nul
   exit 1
 fi
 
-sed -n '/# BEGIN OPENVOX MANAGED BLOCK - backup-remote-target/,/# END OPENVOX MANAGED BLOCK - backup-remote-target/p' "$CONF" > /tmp/.backup-remote-target-current-block
-
-cat > /tmp/.backup-remote-target-expected-block <<'BLOCK'
+expected=$(cat <<'BLOCK'
 # BEGIN OPENVOX MANAGED BLOCK - backup-remote-target
 Match User rclone-backup
   ChrootDirectory /volume1/homelab-backups
@@ -26,5 +24,7 @@ Match User rclone-backup
   PasswordAuthentication no
 # END OPENVOX MANAGED BLOCK - backup-remote-target
 BLOCK
+)
 
-diff -q /tmp/.backup-remote-target-current-block /tmp/.backup-remote-target-expected-block >/dev/null
+current=$(sed -n '/# BEGIN OPENVOX MANAGED BLOCK - backup-remote-target/,/# END OPENVOX MANAGED BLOCK - backup-remote-target/p' "$CONF")
+[ "$current" = "$expected" ]

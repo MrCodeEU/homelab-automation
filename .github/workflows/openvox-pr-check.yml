@@ -1,0 +1,94 @@
+name: OpenVox PR Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "openvox/**"
+      - "services/**"
+      - "scripts/**"
+      - "tools/**"
+      - "Makefile"
+      - ".githooks/pre-commit"
+      - ".github/workflows/openvox-pr-check.yml"
+      - ".github/workflows/deploy.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openvox-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  offline-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install validation dependencies
+        run: |
+          sudo gem install --no-document openvox --version 8.28.1
+          pip install --quiet pyyaml jinja2
+
+      - name: Install Caddy for rendered-config validation
+        env:
+          CADDY_VERSION: "2.11.2"
+        run: |
+          curl -sSL \
+            "https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_linux_amd64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin caddy
+          caddy version
+
+      - name: Validate OpenVox, services, and scripts
+        run: |
+          puppet parser validate openvox/manifests/site.pp openvox/modules/roles/manifests/*.pp openvox/modules/roles/manifests/services/*.pp openvox/modules/roles/manifests/services_nas/*.pp
+          find openvox/modules/roles/templates -type f -name '*.epp' -print0 | xargs -0 -n1 puppet epp validate
+          find scripts openvox/modules/roles/files -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
+          make test
+
+  live-noop:
+    name: Live production noop
+    needs: offline-validation
+    # Only the repository owner's same-repository PRs may receive the
+    # production-check environment's Tailscale credentials.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == 'MrCodeEU'
+    runs-on: ubuntu-latest
+    environment: production-check
+    env:
+      MLJR_HOST: mljr.tail33930.ts.net
+      NUC_HOST: nuc.tail33930.ts.net
+      UGREEN_HOST: ugreen.tail33930.ts.net
+      OPENVOX_ENV_DIR: /tmp/openvox-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Run isolated live noop
+        run: |
+          set -o pipefail
+          rc=0
+          : > /tmp/openvox-output.log
+          for host in "$MLJR_HOST" "$NUC_HOST" "$UGREEN_HOST"; do
+            if ! ./scripts/openvox-sync.sh "$host" noop 2>&1 | tee -a /tmp/openvox-output.log; then
+              rc=1
+            fi
+          done
+          exit "$rc"
+
+      - name: Upload noop log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openvox-pr-noop-${{ github.run_id }}
+          path: /tmp/openvox-output.log
+          if-no-files-found: ignore
+          retention-days: 14
