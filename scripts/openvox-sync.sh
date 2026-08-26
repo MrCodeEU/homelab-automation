@@ -117,14 +117,21 @@ exit_code="${PIPESTATUS[0]}"
 
 elapsed=$(( $(date +%s) - start_epoch ))
 
+changed=$(grep -cE "/(ensure|content|returns|mode|owner|group):" "$log_file" 2>/dev/null || true)
+errors=$(grep -cE "^Error:" "$log_file" 2>/dev/null || true)
+if [ "${errors:-0}" -gt 0 ]; then
+  # `puppet apply` can return zero even when individual resources fail unless
+  # detailed exit codes are requested. Never let a logged Puppet error become
+  # a green host result or successful deployment workflow.
+  exit_code=1
+fi
+
 if [ "$exit_code" -eq 0 ]; then
   echo "${c_bold}==> ${label}${c_green} OK${c_reset} (${mode}, ${elapsed}s) - log: ${log_file}" | prefix
 else
   echo "${c_bold}==> ${label}${c_red} FAILED${c_reset} (${mode}, exit ${exit_code}, ${elapsed}s) - log: ${log_file}" | prefix
 fi
 
-changed=$(grep -cE "/(ensure|content|returns|mode|owner|group):" "$log_file" 2>/dev/null || true)
-errors=$(grep -cE "^Error:" "$log_file" 2>/dev/null || true)
 if [ "${errors:-0}" -gt 0 ]; then
   echo "${c_yellow}==> ${label}: ${errors} error line(s):${c_reset}" | prefix
   grep -E "^Error:" "$log_file" | prefix
