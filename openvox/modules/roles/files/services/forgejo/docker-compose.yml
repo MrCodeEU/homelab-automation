@@ -133,9 +133,15 @@ networks:
   runner-control:
     driver: bridge
     internal: true
+    ipam:
+      config:
+        - subnet: 10.254.250.0/29
   runner-egress:
     driver: bridge
     internal: false
+    ipam:
+      config:
+        - subnet: 10.254.250.8/29
 
 volumes:
   forgejo-data:
