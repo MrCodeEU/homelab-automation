@@ -4,10 +4,6 @@
 
 set -e
 
-SERVICE_NAME="$1"
-SERVICES_FILE="$2"
-TARGET_DIR="/opt/$SERVICE_NAME"
-
 # Color definitions
 RED='\033[0;31m'
 GREEN='\033[0;32m'

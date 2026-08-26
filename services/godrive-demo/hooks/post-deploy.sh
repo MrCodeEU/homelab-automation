@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CONTAINER="godrive-demo"
 TIMER_NAME="godrive-demo-reset"
 
 cat > /etc/systemd/system/${TIMER_NAME}.service <<'EOF'

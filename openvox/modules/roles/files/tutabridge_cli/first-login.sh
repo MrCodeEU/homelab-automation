@@ -7,6 +7,8 @@
 set -euo pipefail
 MARKER=/opt/tutabridge/.first-login-done
 command -v expect >/dev/null 2>&1 || dnf install -y expect
+# The Expect program must receive its own $variables literally.
+# shellcheck disable=SC2016
 XDG_RUNTIME_DIR=/run/user/0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus \
   expect -c '
     set timeout 3600

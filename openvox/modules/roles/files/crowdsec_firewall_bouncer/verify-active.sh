@@ -3,7 +3,7 @@
 # 5s delay = 150s ceiling) - on failure dumps status+journal to stderr
 # before failing the apply, same diagnostic shape.
 set -uo pipefail
-for i in $(seq 1 30); do
+for _ in $(seq 1 30); do
   state=$(systemctl show crowdsec-firewall-bouncer --property=ActiveState --value)
   [ "$state" = "active" ] && exit 0
   sleep 5

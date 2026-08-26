@@ -60,7 +60,7 @@ fi
 echo "🔧 Configuring for reverse proxy mode..."
 
 # Backup config
-cp mailcow.conf mailcow.conf.backup-$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+cp mailcow.conf "mailcow.conf.backup-$(date +%Y%m%d-%H%M%S)" 2>/dev/null || true
 
 # Update mailcow.conf for reverse proxy
 sed -i "s/^HTTP_PORT=.*/HTTP_PORT=$HTTP_PORT/" mailcow.conf

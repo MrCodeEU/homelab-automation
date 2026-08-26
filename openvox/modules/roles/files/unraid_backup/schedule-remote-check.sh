@@ -7,6 +7,8 @@ schedule=/boot/config/plugins/user.scripts/schedule.json
 runtime=/tmp/user.scripts/schedule.json
 script_path="/boot/config/plugins/user.scripts/scripts/${SCRIPT_NAME}/script"
 
+# PHP variables are intentionally protected from shell expansion.
+# shellcheck disable=SC2016
 php -r '
   $data = json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR);
   $path = $argv[2];

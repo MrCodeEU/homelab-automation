@@ -81,10 +81,10 @@ class roles::grafana_alloy (
     ensure  => file,
     mode    => '0644',
     content => Sensitive(epp('roles/grafana_alloy/config.alloy.epp', {
-      'hostname'                     => $hostname,
-      'prometheus_remote_write_url'  => $prometheus_remote_write_url,
-      'loki_push_url'                => $loki_push_url,
-      'homeassistant_token'          => $homeassistant_token,
+      'hostname'                    => $hostname,
+      'prometheus_remote_write_url' => $prometheus_remote_write_url,
+      'loki_push_url'               => $loki_push_url,
+      'homeassistant_token'         => $homeassistant_token,
     })),
     require => File['/opt/grafana-alloy'],
   }

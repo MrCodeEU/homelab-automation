@@ -68,7 +68,7 @@ REMOTE
 # The command above returns as soon as the remote background job is
 # launched, before pkill runs - now poll fresh connections until the
 # device is back and confirmed on the target version.
-for i in $(seq 1 24); do
+for _ in $(seq 1 24); do
   sleep 5
   CURRENT=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "$TARGET" \
     "[ -x $BASE/current/tailscale ] && $BASE/current/tailscale version | head -1 || echo none" 2>/dev/null || echo unreachable)

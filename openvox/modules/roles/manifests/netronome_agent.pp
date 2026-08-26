@@ -112,8 +112,8 @@ class roles::netronome_agent (
   }
 
   docker_compose { 'netronome-agent':
-    compose_files => ["${base_path}/netronome-agent/docker-compose.yml"],
     ensure        => present,
+    compose_files => ["${base_path}/netronome-agent/docker-compose.yml"],
     # subscribe, not require: docker_compose's own exists? only checks
     # that a container is running per service+image, it never diffs the
     # compose file's actual content - so a require-only relationship

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Remote paths and commands below are deliberately constructed from validated
+# client-side values.
+# shellcheck disable=SC2029
 # Syncs openvox/manifests + openvox/modules/roles + hiera.yaml + data/
 # (encrypted eyaml data only - decrypt keys are deployed separately, see
 # scripts/install-openvox-eyaml.sh) to a target host, then runs
@@ -68,6 +71,8 @@ fi
 # Short label for prefixing/log naming, e.g. "mljr.tail33930.ts.net" -> "mljr".
 label="${host%%.*}"
 
+# Invoked indirectly by the EXIT trap below.
+# shellcheck disable=SC2329
 cleanup_isolated_env() {
   if [ "$isolated_env" = true ]; then
     ssh "${ssh_opts[@]}" "root@${host}" "rm -rf -- '${env_dir}'" >/dev/null 2>&1 || true

@@ -7,7 +7,7 @@ if ! pgrep -f "tailscaled --statedir" >/dev/null 2>&1; then
         sleep 5
         i=$((i + 1))
     done
-    cd "$TS_DIR"
+    cd "$TS_DIR" || exit 1
     nohup ./tailscaled --statedir=/mnt/HD/HD_a2/tailscale/tailscale_lib >> "$LOG" 2>&1 &
     sleep 3
     ./tailscale up --hostname=wd-mycloud --accept-dns=false --ssh >> "$LOG" 2>&1

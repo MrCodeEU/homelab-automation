@@ -1,0 +1,171 @@
+name: Static Analysis Baseline
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: static-analysis-${{ github.ref }}
+  cancel-in-progress: true
+
+# Every scanner records and uploads its report. Jobs are blocking once their
+# findings are fixed or their narrowly scoped exceptions are documented.
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Run ShellCheck 0.11.0
+        id: scan
+        run: |
+          set -o pipefail
+          find scripts openvox/modules/roles/files services tools -type f -name '*.sh' -print0 \
+            | xargs -0 docker run --rm -v "$PWD:/repo:ro" -w /repo koalaman/shellcheck:v0.11.0 \
+            2>&1 | tee shellcheck.txt
+
+      - name: Record baseline result
+        if: always()
+        run: |
+          echo "### ShellCheck" >> "$GITHUB_STEP_SUMMARY"
+          echo "Scan outcome: **${{ steps.scan.outcome }}** (blocking)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload ShellCheck report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: shellcheck-report
+          path: shellcheck.txt
+          if-no-files-found: warn
+
+  puppet-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install puppet-lint 5.1.1
+        run: sudo gem install --no-document puppet-lint --version 5.1.1
+
+      - name: Run puppet-lint
+        id: scan
+        run: |
+          set -o pipefail
+          find openvox -type f -name '*.pp' -print0 \
+            | xargs -0 puppet-lint --fail-on-warnings 2>&1 | tee puppet-lint.txt
+
+      - name: Record baseline result
+        if: always()
+        run: |
+          echo "### puppet-lint" >> "$GITHUB_STEP_SUMMARY"
+          echo "Scan outcome: **${{ steps.scan.outcome }}** (blocking; embedded config line lengths are exempt)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload puppet-lint report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: puppet-lint-report
+          path: puppet-lint.txt
+          if-no-files-found: warn
+
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Run actionlint 1.7.12
+        id: scan
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint:1.7.12 -color=false \
+            2>&1 | tee actionlint.txt
+
+      - name: Record baseline result
+        if: always()
+        run: |
+          echo "### actionlint" >> "$GITHUB_STEP_SUMMARY"
+          echo "Scan outcome: **${{ steps.scan.outcome }}** (blocking)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload actionlint report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: actionlint-report
+          path: actionlint.txt
+          if-no-files-found: warn
+
+  zizmor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Run zizmor 1.29.0 offline
+        id: scan
+        run: |
+          set -o pipefail
+          docker run --rm -v "$PWD:/repo:ro" -w /repo ghcr.io/zizmorcore/zizmor:1.29.0 \
+            --format=plain . 2>&1 | tee zizmor.txt
+
+      - name: Record baseline result
+        if: always()
+        run: |
+          echo "### zizmor" >> "$GITHUB_STEP_SUMMARY"
+          echo "Scan outcome: **${{ steps.scan.outcome }}** (offline and blocking)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload zizmor report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: zizmor-report
+          path: zizmor.txt
+          if-no-files-found: warn
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run Gitleaks 8.30.1 over Git history
+        id: scan
+        run: |
+          set -o pipefail
+          docker run --rm \
+            -v "$PWD:/repo:ro" \
+            -v "$RUNNER_TEMP:/reports" \
+            -w /repo \
+            ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo \
+            --redact=100 --report-format=json --report-path=/reports/gitleaks.json \
+            2>&1 | tee gitleaks.txt
+
+      - name: Record baseline result
+        if: always()
+        run: |
+          cp "$RUNNER_TEMP/gitleaks.json" gitleaks.json 2>/dev/null || printf '[]\n' > gitleaks.json
+          echo "### Gitleaks" >> "$GITHUB_STEP_SUMMARY"
+          echo "Scan outcome: **${{ steps.scan.outcome }}** (redacted and blocking)." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload redacted Gitleaks report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: gitleaks-report
+          path: |
+            gitleaks.txt
+            gitleaks.json
+          if-no-files-found: warn

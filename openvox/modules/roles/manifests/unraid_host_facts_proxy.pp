@@ -46,10 +46,10 @@ class roles::unraid_host_facts_proxy (
   $auth_entry   = "restrict,from=\"100.100.10.1\",command=\"/usr/local/bin/homelab-facts\" ${pubkey_bare} homelab-healthreport"
 
   exec { 'unraid-host-facts-script':
-    command     => "${work_dir}/script-apply.sh",
-    unless      => "${work_dir}/script-check.sh",
-    path        => ['/usr/bin', '/bin'],
-    require     => [File[$work_dir], File["${staging_dir}/homelab-facts.py"]],
+    command => "${work_dir}/script-apply.sh",
+    unless  => "${work_dir}/script-check.sh",
+    path    => ['/usr/bin', '/bin'],
+    require => [File[$work_dir], File["${staging_dir}/homelab-facts.py"]],
   }
 
   exec { 'unraid-host-facts-key':

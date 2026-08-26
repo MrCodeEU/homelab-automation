@@ -24,7 +24,9 @@ jobs:
   offline-validation:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Install validation dependencies
         run: |
@@ -63,10 +65,12 @@ jobs:
       UGREEN_HOST: ugreen.tail33930.ts.net
       OPENVOX_ENV_DIR: /tmp/openvox-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Setup Tailscale
-        uses: tailscale/github-action@v3
+        uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
@@ -86,7 +90,7 @@ jobs:
 
       - name: Upload noop log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: openvox-pr-noop-${{ github.run_id }}
           path: /tmp/openvox-output.log

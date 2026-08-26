@@ -4,8 +4,8 @@
 # listens on this host's own Tailscale IP so the central Dockhand
 # instance on nas can connect inbound; no public exposure.
 class roles::hawser_agent (
-  Integer $port           = 2376,
   String  $tailscale_ip,
+  Integer $port           = 2376,
   String  $install_script = 'https://raw.githubusercontent.com/Finsys/hawser/main/scripts/install.sh',
   String  $binary         = '/usr/local/bin/hawser',
 ) {

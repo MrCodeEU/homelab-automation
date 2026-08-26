@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# The validated target hostname is deliberately expanded on the client when
+# constructing the remote certname command.
+# shellcheck disable=SC2029
 # Installs the OpenVox agent (Puppet fork, Apache-2.0, Vox Pupuli-governed)
 # on a Rocky Linux host. Picks the el9/el10 release package by the
 # target's own OS - the two rocky hosts are on different major versions

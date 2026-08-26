@@ -27,4 +27,4 @@ wait_for "${NAS_SYNCTHING_URL}/rest/noauth/health" "NAS Syncthing"
 # removed that debug flag entirely, so any Go 1.24+ binary run with it
 # still set exits with a fatal "removed GODEBUG" panic before main()
 # even runs. Scoped to just this process, not touching the system file.
-GODEBUG= "${SCRIPT_DIR}/provision-syncthing"
+GODEBUG="" "${SCRIPT_DIR}/provision-syncthing"

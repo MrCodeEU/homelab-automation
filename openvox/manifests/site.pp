@@ -13,14 +13,14 @@ $weekly_maintenance = $facts['openvox_weekly_maintenance'] == 'true'
 
 node 'mljr.tail33930.ts.net' {
   class { 'roles::base':
-    swap_enabled         => true,
-    public_ip            => '157.173.97.107',
-    ssh_breakglass_port  => 2299,
-    tailscale_ip         => '100.100.20.1',
+    swap_enabled            => true,
+    public_ip               => '157.173.97.107',
+    ssh_breakglass_port     => 2299,
+    tailscale_ip            => '100.100.20.1',
     cockpit_console_enabled => true,
-    domain               => 'mljr.eu',
-    docker_prune_enabled => $weekly_maintenance,
-    reboot_if_needed     => $weekly_maintenance,
+    domain                  => 'mljr.eu',
+    docker_prune_enabled    => $weekly_maintenance,
+    reboot_if_needed        => $weekly_maintenance,
   }
   class { 'roles::iperf3':
     base_path => '/opt',
@@ -34,21 +34,21 @@ node 'mljr.tail33930.ts.net' {
   include roles::glance
   include roles::mailcow
   class { 'roles::backup':
-    services   => ['authelia', 'mailcow', 'ntfy', 'goaccess', 'crowdsec', 'newsletter'],
+    services  => ['authelia', 'mailcow', 'ntfy', 'goaccess', 'crowdsec', 'newsletter'],
     # Must match ansible/inventory's inventory_hostname exactly, not this
     # VPS's real OS hostname (vmi2945702) - see roles::backup's own
     # $hostname param doc for why.
-    hostname   => 'mljr',
+    hostname  => 'mljr',
     # This 4vCPU/7.5GB VPS also runs every service it backs up (unlike
     # nas/nuc's on-prem headroom) - the default 8/16 pCloud concurrency
     # saturated it enough that Kuma's 48s timeout tripped on nearly every
     # container, including uptime.mljr.eu itself, for minutes during its
     # own nightly backup (2026-08-14). Matches the real, already-live
     # ansible/inventory/hosts.yml override for this host exactly.
-    transfers  => 2,
-    checkers   => 4,
-    bwlimit    => '8M',
-    cpu_quota  => '40%',
+    transfers => 2,
+    checkers  => 4,
+    bwlimit   => '8M',
+    cpu_quota => '40%',
   }
   class { 'roles::services':
     hostname => 'mljr',
@@ -133,8 +133,8 @@ node 'nuc.tail33930.ts.net' {
 
 node 'ugreen.tail33930.ts.net' {
   class { 'roles::iperf3':
-    base_path        => '/volume1/homelab',
-    manage_firewall  => false,
+    base_path       => '/volume1/homelab',
+    manage_firewall => false,
   }
   class { 'roles::netronome_agent':
     base_path       => '/volume1/homelab',
@@ -151,12 +151,12 @@ node 'ugreen.tail33930.ts.net' {
     cleanup_enabled => false,
   }
   class { 'roles::host_facts_endpoint':
-    os_family      => 'ugreen',
-    hostname       => 'ugreen',
-    dest           => '/volume1/homelab/bin/homelab-facts',
-    needs_symlink  => true,
-    dest_dir       => '/volume1/homelab/bin',
-    base_path      => '/volume1/homelab',
+    os_family     => 'ugreen',
+    hostname      => 'ugreen',
+    dest          => '/volume1/homelab/bin/homelab-facts',
+    needs_symlink => true,
+    dest_dir      => '/volume1/homelab/bin',
+    base_path     => '/volume1/homelab',
   }
   class { 'roles::grafana_alloy':
     hostname          => 'ugreen',

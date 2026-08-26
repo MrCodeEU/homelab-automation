@@ -32,7 +32,7 @@ Requires=docker.service
 Type=oneshot
 WorkingDirectory=${SERVICE_DIR}
 # The compose default command is --noop, so --send must be explicit here.
-# `run --rm` gives a fresh transient container instead of restarting the
+# docker run --rm gives a fresh transient container instead of restarting the
 # deploy-time one.
 ExecStart=/usr/bin/docker compose run --rm healthreport --send
 TimeoutStartSec=1800
