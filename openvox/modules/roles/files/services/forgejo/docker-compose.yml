@@ -39,20 +39,51 @@ services:
       - forgejo-internal
 
   runner-dind:
-    image: docker:dind
+    image: docker@sha256:12e683a161823b2a839aeea999b9d960e6e1f9a97b1679ad6b441982e2d9cf07
     container_name: ${COMPOSE_PROJECT_NAME:-forgejo}-runner-dind
     restart: unless-stopped
     privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
     command:
       - dockerd
       - -H
       - tcp://0.0.0.0:2375
       - --tls=false
+    cpus: "2.0"
+    mem_limit: 4g
+    pids_limit: 512
+    healthcheck:
+      test: ["CMD", "docker", "-H", "tcp://127.0.0.1:2375", "info"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     networks:
-      - forgejo-internal
+      - runner-control
+      - runner-egress
+
+  runner-dind-cleanup:
+    image: docker@sha256:12e683a161823b2a839aeea999b9d960e6e1f9a97b1679ad6b441982e2d9cf07
+    container_name: ${COMPOSE_PROJECT_NAME:-forgejo}-runner-dind-cleanup
+    restart: unless-stopped
+    environment:
+      DOCKER_HOST: tcp://runner-dind:2375
+      DOCKER_TLS_CERTDIR: ""
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        while true; do
+          sleep 6h
+          docker system prune --all --force --volumes --filter "until=24h"
+        done
+    depends_on:
+      runner-dind:
+        condition: service_healthy
+    networks:
+      - runner-control
 
   runner:
-    image: data.forgejo.org/forgejo/runner:12
+    image: data.forgejo.org/forgejo/runner@sha256:eb6e7bc21973382d261e6eb883dbd27b8cb56939d33a3bfd79a1352b7f9a33a0
     container_name: ${COMPOSE_PROJECT_NAME:-forgejo}-runner
     restart: unless-stopped
     user: "1000:1000"
@@ -73,9 +104,10 @@ services:
       forgejo:
         condition: service_started
       runner-dind:
-        condition: service_started
+        condition: service_healthy
     networks:
       - forgejo-internal
+      - runner-control
 
   db:
     image: postgres:15-alpine
@@ -98,6 +130,12 @@ services:
 networks:
   forgejo-internal:
     driver: bridge
+  runner-control:
+    driver: bridge
+    internal: true
+  runner-egress:
+    driver: bridge
+    internal: false
 
 volumes:
   forgejo-data:

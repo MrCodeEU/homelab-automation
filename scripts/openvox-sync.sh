@@ -27,13 +27,39 @@ set -uo pipefail
 
 host="${1:?usage: openvox-sync.sh <ssh-target> [apply]}"
 mode="${2:-noop}"
-env_dir="/etc/puppetlabs/code/environments/production"
+env_dir="${OPENVOX_ENV_DIR:-/etc/puppetlabs/code/environments/production}"
+
+# PR checks use a per-run tree under /tmp so proposed code never replaces the
+# live production environment. Keep the override deliberately narrow: this
+# variable reaches root SSH commands and must never accept a general path.
+isolated_env=false
+if [ -n "${OPENVOX_ENV_DIR:-}" ]; then
+  if [[ ! "$env_dir" =~ ^/tmp/openvox-pr-[0-9]+-[0-9]+$ ]]; then
+    echo "invalid OPENVOX_ENV_DIR: $env_dir" >&2
+    exit 2
+  fi
+  isolated_env=true
+fi
+# Third-party modules were installed into the production environment by the
+# original bootstrap script. Proposed `roles` code must win, while those pinned
+# host-local dependencies remain available to compile the isolated catalog.
+module_path="${env_dir}/modules:/etc/puppetlabs/code/environments/production/modules:/etc/puppetlabs/code/modules:/opt/puppetlabs/puppet/modules"
 
 # accept-new (not the no-op "no"): trusts a host's key on first contact and
 # persists it, but still refuses a key that later CHANGES. Needed because a
 # fresh CI runner has no known_hosts entries at all for this tailnet, unlike
 # a dev machine that's already SSH'd into these hosts before.
-ssh_opts=(-o StrictHostKeyChecking=accept-new)
+# Deployment addressing and authentication are explicit; do not inherit an
+# operator workstation's ProxyCommand/Host overrides (or fail because an
+# unrelated system SSH fragment has unsafe ownership/mode).
+ssh_opts=(
+  -F /dev/null
+  -o BatchMode=yes
+  -o ConnectTimeout=10
+  -o ServerAliveInterval=15
+  -o ServerAliveCountMax=3
+  -o StrictHostKeyChecking=accept-new
+)
 facter_prefix=""
 if [ "${OPENVOX_WEEKLY_MAINTENANCE:-false}" = "true" ]; then
   facter_prefix="FACTER_openvox_weekly_maintenance=true "
@@ -41,6 +67,13 @@ fi
 
 # Short label for prefixing/log naming, e.g. "mljr.tail33930.ts.net" -> "mljr".
 label="${host%%.*}"
+
+cleanup_isolated_env() {
+  if [ "$isolated_env" = true ]; then
+    ssh "${ssh_opts[@]}" "root@${host}" "rm -rf -- '${env_dir}'" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup_isolated_env EXIT
 
 if [ -t 1 ]; then
   c_bold=$'\033[1m'; c_green=$'\033[32m'; c_red=$'\033[31m'; c_yellow=$'\033[33m'; c_reset=$'\033[0m'
@@ -75,9 +108,9 @@ echo "${c_bold}==> ${label}${c_reset} (${mode}) starting..." | prefix
   fi
 
   if [ "${mode}" = "apply" ]; then
-    ssh "${ssh_opts[@]}" "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply --color=false ${env_dir}/manifests/site.pp"
+    ssh "${ssh_opts[@]}" "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply --color=false --modulepath='${module_path}' --hiera_config='${env_dir}/hiera.yaml' '${env_dir}/manifests/site.pp'"
   else
-    ssh "${ssh_opts[@]}" "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply --color=false --noop ${env_dir}/manifests/site.pp"
+    ssh "${ssh_opts[@]}" "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply --color=false --noop --modulepath='${module_path}' --hiera_config='${env_dir}/hiera.yaml' '${env_dir}/manifests/site.pp'"
   fi
 } 2>&1 | tee "$log_file" | prefix
 exit_code="${PIPESTATUS[0]}"

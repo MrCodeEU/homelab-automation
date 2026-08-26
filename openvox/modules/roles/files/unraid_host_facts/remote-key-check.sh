@@ -5,7 +5,7 @@
 # healthreport key, confirmed live on mljr/nuc/nas) is intentionally left
 # untouched, this role was never asked to own it.
 set -uo pipefail
-ENTRY="$1"
+ENTRY=$(printf '%s' "$1" | base64 -d)
 AUTH_KEYS=/root/.ssh/authorized_keys
 KEY_LINE=$(echo "$ENTRY" | awk '{print $2, $3}')
 

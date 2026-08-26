@@ -73,7 +73,9 @@ log:
 
 runner:
   file: /data/.runner
-  capacity: 2
+  # One job per DinD daemon prevents concurrent workflows from inspecting or
+  # mutating each other's containers, volumes, and build state.
+  capacity: 1
   timeout: 3h
   insecure: false
   fetch_timeout: 5s

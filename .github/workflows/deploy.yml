@@ -28,15 +28,9 @@ on:
   # limit=...` (or the GitHub UI), scoped to what actually changed. The
   # weekly schedule below remains the untargeted safety net.
 
-  # Check mode (dry run / noop) on pull requests - use as required PR check
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'openvox/**'
-      - 'services/**'
-      - 'scripts/**'
-      - '.github/workflows/deploy.yml'
+  # Pull requests are handled by openvox-pr-check.yml. Keeping PR code out of
+  # this deployment workflow prevents its reporting/notification steps from
+  # writing to production during a dry run.
 
   # Weekly full deployment to keep all systems and containers up to date
   schedule:

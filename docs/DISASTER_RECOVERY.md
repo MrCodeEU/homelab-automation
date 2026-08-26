@@ -291,3 +291,12 @@ correction).
   here.
 - Actually test this runbook against a throwaway VM once resources allow
   - everything above is verified-by-reading-code, not verified-by-doing.
+- Bring the Tailscale control plane into this repository where the API permits:
+  manage ACL grants, tags, tag ownership, and the `tag:ci` OAuth client as code
+  (likely OpenTofu), while keeping OAuth secrets and tailnet recovery access
+  outside Git. Add an export/check path for settings the provider cannot own.
+- Revisit the accepted shared-eyaml-key risk after the higher-priority audit
+  items are complete. If implemented, use one eyaml file and key pair per host;
+  duplicate secrets needed by multiple hosts so each copy has independently
+  encrypted ciphertext. This limits a host compromise to that host's secrets,
+  at the cost of additional bootstrap, backup, rotation, and CI complexity.

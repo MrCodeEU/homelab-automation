@@ -279,12 +279,18 @@ inspection.
 
 ## GitHub Actions
 
-`.github/workflows/deploy.yml` deploys on the weekly schedule, pull
-requests in check mode (`openvox/**`/`services/**`/`scripts/**` paths),
-manual dispatch, and repository dispatch from external repos — calling
+Pull requests are handled by `.github/workflows/openvox-pr-check.yml`.
+`.github/workflows/deploy.yml` handles manual dispatch, the weekly schedule,
+and repository dispatch from external repositories, calling
 `scripts/openvox-sync.sh` directly, no Ansible tooling involved. Needs no
 vault-password secret (see Secrets Management above); only
 `TS_OAUTH_CLIENT_ID`/`TS_OAUTH_SECRET` for Tailscale.
+
+The PR workflow first validates OpenVox/EPP/shell syntax offline. Its live
+production noop is restricted to same-repository PRs authored by `MrCodeEU`,
+uses the `production-check` GitHub environment, and syncs proposed code into a
+per-run `/tmp/openvox-pr-*` environment that is removed afterward. Configure
+`production-check` protection in GitHub before making this check required.
 
 External repos can trigger a specific service deployment with `repository_dispatch`. The workflow resolves the service's host from `services_catalog` and applies that host's full catalog (+ `mljr` too, for the Caddy snippet) — Puppet's whole-catalog apply is idempotent enough that there's no surgical single-service fast path to target separately, unlike the old Ansible pipeline's `environment` field:
 
