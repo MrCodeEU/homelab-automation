@@ -52,7 +52,14 @@ module_path="${env_dir}/modules:/etc/puppetlabs/code/environments/production/mod
 # Deployment addressing and authentication are explicit; do not inherit an
 # operator workstation's ProxyCommand/Host overrides (or fail because an
 # unrelated system SSH fragment has unsafe ownership/mode).
-ssh_opts=(-F /dev/null -o StrictHostKeyChecking=accept-new)
+ssh_opts=(
+  -F /dev/null
+  -o BatchMode=yes
+  -o ConnectTimeout=10
+  -o ServerAliveInterval=15
+  -o ServerAliveCountMax=3
+  -o StrictHostKeyChecking=accept-new
+)
 facter_prefix=""
 if [ "${OPENVOX_WEEKLY_MAINTENANCE:-false}" = "true" ]; then
   facter_prefix="FACTER_openvox_weekly_maintenance=true "
