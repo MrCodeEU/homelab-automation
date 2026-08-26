@@ -65,8 +65,7 @@ jobs:
             --compact \
             --output cli \
             --output sarif \
-            --output-file-path console,reports/checkov/checkov.sarif \
-            --soft-fail
+            --output-file-path console,reports/checkov/checkov.sarif
 
       - name: Upload Checkov report artifact
         if: always()
