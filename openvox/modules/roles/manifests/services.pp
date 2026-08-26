@@ -159,6 +159,9 @@ class roles::services (
       'app_secret'        => lookup('vault_umami_app_secret', { 'default_value' => '' }),
       'postgres_password' => lookup('vault_umami_postgres_password', { 'default_value' => '' }),
     },
+    'oxicloud' => {
+      'postgres_password' => lookup('vault_oxicloud_postgres_password', { 'default_value' => '' }),
+    },
     'forgejo' => {
       'postgres_password' => lookup('vault_forgejo_postgres_password', { 'default_value' => '' }),
       'runner_secret'     => lookup('vault_forgejo_runner_secret', { 'default_value' => '' }),

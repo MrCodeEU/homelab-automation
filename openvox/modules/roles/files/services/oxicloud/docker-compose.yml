@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: "${OXICLOUD_POSTGRES_PASSWORD}"
       POSTGRES_DB: oxicloud
     # No host port publish - oxicloud reaches this over the internal Docker
     # network. Publishing 5432 would put a default-credential Postgres
@@ -34,10 +34,7 @@ services:
       # docker-proxy's external port publish cannot - confirmed live 2026-08-10,
       # container reported "healthy" while the published port was unreachable.
       OXICLOUD_SERVER_HOST: "0.0.0.0"
-      # checkov:skip=CKV_SECRET_4: upstream default creds, accepted deliberately -
-      # initial test only, no host-published Postgres port, reachable over
-      # Tailscale only. Not a production deployment.
-      OXICLOUD_DB_CONNECTION_STRING: "postgres://postgres:postgres@postgres:5432/oxicloud"
+      OXICLOUD_DB_CONNECTION_STRING: "postgres://postgres:${OXICLOUD_POSTGRES_PASSWORD}@postgres:5432/oxicloud"
       # No domain/Caddy route for this initial test - reached directly over
       # Tailscale, so the base URL must point at the tailnet address.
       # docker-compose.yml files in this repo are copied raw (not Jinja-
