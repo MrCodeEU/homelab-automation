@@ -63,8 +63,10 @@ if ! (
 
   declare -A MESH_TARGETS=([mljr]=5201 [ugreen]=5201 [nas]=5201)
 
+  # Register each target as a saved iperf3 server (populates the UI's
+  # server dropdown) - purely informational for scheduling purposes, see
+  # below.
   existing_servers=$(api_get "/iperf/servers")
-  server_ids=()
   for host in "${!MESH_TARGETS[@]}"; do
     port="${MESH_TARGETS[$host]}"
     sid=$(echo "$existing_servers" | jq -r --arg h "$host" '.[] | select(.name==$h) | .id')
@@ -72,22 +74,39 @@ if ! (
       sid=$(api_post "/iperf/servers" "$(jq -nc --arg n "$host" --arg h "$host" --argjson p "$port" '{name:$n,host:$h,port:$p}')" | jq -r '.server.id')
       echo "SUCCESS: registered iperf3 target $host:$port (id=$sid)."
     fi
-    server_ids+=("$sid")
   done
-  server_ids_json=$(printf '%s\n' "${server_ids[@]}" | jq -R . | jq -sc 'sort')
 
+  # One schedule PER host, not one combined schedule: confirmed live
+  # (2026-08-26) that RunTest's iperf3 branch
+  # (internal/speedtest/speedtest.go) dispatches on a single
+  # `Options.ServerHost` string, not `Options.ServerIDs` - `serverIds` is
+  # only consumed by the Speedtest.net/Ookla path. A schedule created with
+  # serverIds:["1","2","3"] and an empty serverHost silently falls through
+  # to that Ookla path and fails forever with "requested server(s) [1 2 3]
+  # not found in public list" (schedule never advances nextRun, so it
+  # retries every scheduler tick, indefinitely) - the saved-server IDs
+  # from /iperf/servers above are NOT a valid way to reference targets in
+  # a schedule.
   existing_schedules=$(api_get "/schedules")
-  has_schedule=$(echo "$existing_schedules" | jq --argjson want "$server_ids_json" \
-    '[.[] | select(.options.useIperf==true and ((.serverIds|sort)==$want))] | length')
-  if [ "$has_schedule" -eq 0 ]; then
-    options=$(jq -nc --argjson ids "$server_ids_json" \
-      '{enableDownload:true,enableUpload:true,enablePacketLoss:false,enablePing:false,enableJitter:false,serverIds:$ids,isScheduled:true,useIperf:true,useLibrespeed:false,isPublicServer:false}')
-    api_post "/schedules" "$(jq -nc --argjson ids "$server_ids_json" --argjson opts "$options" \
-      '{serverIds:$ids,interval:"1h",enabled:true,options:$opts}')" >/dev/null
-    echo "SUCCESS: hourly mesh iperf3 schedule created (targets: ${!MESH_TARGETS[*]})."
-  fi
+  for host in "${!MESH_TARGETS[@]}"; do
+    has_schedule=$(echo "$existing_schedules" | jq --arg h "$host" \
+      '[.[] | select(.options.useIperf==true and .options.serverHost==$h)] | length')
+    if [ "$has_schedule" -eq 0 ]; then
+      options=$(jq -nc --arg h "$host" \
+        '{enableDownload:true,enableUpload:true,enablePacketLoss:false,enablePing:false,enableJitter:false,serverIds:[],isScheduled:true,useIperf:true,useLibrespeed:false,serverHost:$h,serverName:$h,isPublicServer:false}')
+      api_post "/schedules" "$(jq -nc --argjson opts "$options" \
+        '{serverIds:[],interval:"1h",enabled:true,options:$opts}')" >/dev/null
+      echo "SUCCESS: hourly iperf3 schedule created for $host."
+    fi
+  done
 
-  NTFY_URL="ntfy://ntfy.mljr.eu/netronome-alerts"
+  # Topic renamed by the user directly in the Netronome UI (2026-08-26,
+  # netronome-alerts -> speed) - this idempotency check matches by exact
+  # URL, so it must track whatever the real deployed value is or it will
+  # create a duplicate channel next deploy. No ongoing reconciliation: if
+  # this changes again in the UI, update this literal to match, don't
+  # expect the check to detect a rename on its own.
+  NTFY_URL="ntfy://ntfy.mljr.eu/speed"
   existing_channels=$(api_get "/notifications/channels")
   channel_id=$(echo "$existing_channels" | jq -r --arg u "$NTFY_URL" '.[] | select(.url==$u) | .id')
   if [ -z "$channel_id" ]; then

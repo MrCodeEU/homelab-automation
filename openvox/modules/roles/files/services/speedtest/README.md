@@ -109,16 +109,27 @@ API for it (`POST /api/iperf/servers`, `/api/schedules`,
 `speedtest` service's own `hooks/post-deploy.sh` uses it, idempotently, on
 every deploy:
 
-- Registers `mljr`/`ugreen`/`nas` (port `5201`) as saved iperf3 targets.
-- Creates one hourly (`1h`) schedule testing all three, download+upload.
-- Creates an ntfy channel (`ntfy://ntfy.mljr.eu/netronome-alerts`, same
+- Registers `mljr`/`ugreen`/`nas` (port `5201`) as saved iperf3 targets
+  (populates the UI's server dropdown only - schedules don't reference
+  these by ID, see below).
+- Creates one hourly (`1h`) schedule **per target host**, download+upload
+  - NOT one combined schedule. Confirmed live (2026-08-26):
+  `RunTest`'s iperf3 branch (`internal/speedtest/speedtest.go`) dispatches
+  on a single `Options.ServerHost` string, not `Options.ServerIDs` -
+  `serverIds` is only consumed by the Speedtest.net/Ookla path. A
+  combined schedule with `serverIds:["1","2","3"]` and no `serverHost`
+  silently falls through to that Ookla path and fails forever
+  (`"requested server(s) [1 2 3] not found in public list"`, retried every
+  scheduler tick since a failed run never advances `nextRun`) - the saved
+  `/iperf/servers` IDs above are not a valid way to target a schedule.
+- Creates an ntfy channel (`ntfy://ntfy.mljr.eu/speed`, same
   unauthenticated instance as the `backup`/`homelab-health` topics) and
   low-speed rules for both `download_low`/`upload_low` at 20 Mbps
   (`threshold_operator: lt`).
 
 To change the threshold, targets, or interval, either edit
 `hooks/post-deploy.sh` (idempotency checks match on server name / schedule
-serverIds+useIperf / channel URL / rule channel+event - change the
+useIperf+serverHost / channel URL / rule channel+event - change the
 matched value if you change what gets created, or the old one won't get
 cleaned up automatically) or just edit it by hand in the Netronome UI -
 the API only creates on first deploy, it doesn't fight manual UI changes
