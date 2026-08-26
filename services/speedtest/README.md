@@ -87,21 +87,40 @@ package manager), so bandwidth data - the main reason to run an agent -
 wouldn't work there anyway. Only CPU/mem/disk would populate. Decided not
 worth the added complexity on this already-fragile device (2026-08-26).
 
-### Mesh iperf3 tests (manual, no config-as-code)
+### Mesh iperf3 tests + low-speed alerts (auto-provisioned)
 
 `roles::iperf3` runs an `iperf3 -s` server (host network) on `mljr`,
 `nuc`, `ugreen`; `nas` gets one via `services_catalog` (`iperf3-nas`,
 `nuc` proxy-execs it). `wd-mycloud` has none.
 
-There is no API for configuring which hosts test against which - this has
-to be done by hand in the Netronome UI, per pair you want mesh data for:
+**Architecturally this is nuc -> {mljr, ugreen, nas}, not a true
+all-pairs mesh**: Netronome runs as a single instance (this container, on
+`nuc`) and is the only process that ever execs `iperf3` as a client - the
+per-host agents only report their own metrics, they never run their own
+scheduled tests. A real all-pairs mesh would need a separate Netronome
+instance per host, which is out of scope.
 
-1. Open the Netronome dashboard -> **Monitor Agents**.
-2. Pick a discovered agent (e.g. `nuc`) -> **Edit Monitoring Settings**.
-3. Under iperf3 test targets, add the other hosts running `iperf3 -s`
-   (their Tailscale hostname, port `5201`, the default `iperf3` port).
-4. Repeat per host you want as a source. Test frequency/schedule is also
-   configured here.
+Despite the UI's "Edit Monitoring Settings" dialog making this look
+manual-only, Netronome does have a real session-cookie-authenticated REST
+API for it (`POST /api/iperf/servers`, `/api/schedules`,
+`/api/notifications/{channels,rules}` - confirmed by reading
+`internal/server/`, `internal/handlers/iperf.go`,
+`internal/database/notifications_types.go` in the upstream repo). The
+`speedtest` service's own `hooks/post-deploy.sh` uses it, idempotently, on
+every deploy:
 
-There's no bulk/mesh-all button - configure each pair you actually care
-about.
+- Registers `mljr`/`ugreen`/`nas` (port `5201`) as saved iperf3 targets.
+- Creates one hourly (`1h`) schedule testing all three, download+upload.
+- Creates an ntfy channel (`ntfy://ntfy.mljr.eu/netronome-alerts`, same
+  unauthenticated instance as the `backup`/`homelab-health` topics) and
+  low-speed rules for both `download_low`/`upload_low` at 20 Mbps
+  (`threshold_operator: lt`).
+
+To change the threshold, targets, or interval, either edit
+`hooks/post-deploy.sh` (idempotency checks match on server name / schedule
+serverIds+useIperf / channel URL / rule channel+event - change the
+matched value if you change what gets created, or the old one won't get
+cleaned up automatically) or just edit it by hand in the Netronome UI -
+the API only creates on first deploy, it doesn't fight manual UI changes
+after that (no ongoing reconciliation, same as the admin-password step
+above it).
