@@ -4,7 +4,7 @@
 # "crowdsec" catalog entry) time to come up before the bouncer package
 # tries to reach it, without hardcoding a fixed sleep.
 set -uo pipefail
-for i in $(seq 1 60); do
+for _ in $(seq 1 60); do
   if (exec 3<>/dev/tcp/127.0.0.1/8088) 2>/dev/null; then
     exec 3>&- 3<&-
     exit 0

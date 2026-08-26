@@ -15,8 +15,8 @@ class roles::hetrixtools_agent (
   Sensitive[String] $api_token = Sensitive(lookup('vault_hetrixtools_api_token', { 'default_value' => '' })),
 ) {
   exec { 'hetrixtools-agent-install':
-    command => "/bin/bash -c \"curl -s https://raw.githubusercontent.com/hetrixtools/agent/master/hetrixtools_install.sh | bash -s '${api_token.unwrap}' 0 0 0 0 0 0\"",
-    creates => '/etc/hetrixtools/hetrixtools_agent.sh',
+    command   => "/bin/bash -c \"curl -s https://raw.githubusercontent.com/hetrixtools/agent/master/hetrixtools_install.sh | bash -s '${api_token.unwrap}' 0 0 0 0 0 0\"",
+    creates   => '/etc/hetrixtools/hetrixtools_agent.sh',
     # Never log this command's own text - it embeds the raw API token as
     # a literal argv string, unlike lookup()'d values used only as an
     # environment variable elsewhere in this migration (mailcow/services'

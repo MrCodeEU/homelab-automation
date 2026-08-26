@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# These paths are deliberately expanded and validated on the client before
+# being embedded in the fixed remote command.
+# shellcheck disable=SC2029
 # Installs the hiera-eyaml gem into OpenVox's bundled Ruby and deploys the
 # PKCS7 decrypt key pair to a host that needs to consume roles::* secrets
 # via lookup('vault_...'). Deliberately a separate, explicit step per

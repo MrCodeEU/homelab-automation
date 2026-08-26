@@ -1,0 +1,23 @@
+# Historical credentials from the retired Nightscout, Keycloak and SonarQube
+# stacks. These files no longer exist at HEAD and the corresponding services
+# are no longer deployed. Rewriting a public Git history would not revoke
+# already-published values, so these exact location-bound fingerprints are
+# accepted after retirement instead. Never add broad path or rule exclusions.
+0c737d9f77348fff1006b3444adb35ac84f629c8:services/sonarqube/hooks/post-deploy.sh:curl-auth-user:42
+1c6ebf0f086af9127b6af47cd44618f82f9d5cd9:services/sonarqube/hooks/post-deploy.sh:curl-auth-user:42
+25bcf77cb84832227c6f05afe94beb48cc9878a3:NIGHTSCOUT_SETTINGS.md:generic-api-key:72
+34c4b2b877e6b3cc4dcbb88b5c73a5be194924e7:ansible/roles/keycloak/templates/docker-compose.yml.j2:generic-api-key:35
+45cf43f3ae8e03ae456168fed7a854e7edb47af9:docs/KEYCLOAK_SONARQUBE_SETUP.md:generic-api-key:149
+45cf43f3ae8e03ae456168fed7a854e7edb47af9:services/keycloak/docker-compose.yml:generic-api-key:35
+8ffbda2018c14864b5deae6608acf778ac9e1c3d:NIGHTSCOUT_FIX.md:generic-api-key:54
+9153afe15290ab63933455858e1f944b1017c29d:services/sonarqube/hooks/post-deploy.sh:curl-auth-user:43
+9153afe15290ab63933455858e1f944b1017c29d:services/sonarqube/hooks/post-deploy.sh:curl-auth-user:72
+999d36c316c03dfa9da52084cc5cfced7153046a:GITHUB_SECRETS.md:generic-api-key:64
+9b879991d69893180572f85759471079418a3c8d:NIGHTSCOUT_SETTINGS.md:generic-api-key:72
+b1af29052474c9c54c0a5db5aef7bda376c365d6:docs/KEYCLOAK_SONARQUBE_SETUP.md:generic-api-key:149
+b1af29052474c9c54c0a5db5aef7bda376c365d6:services/keycloak/docker-compose.yml:generic-api-key:35
+d894f10a84940eb27c0e81fc4022f3f59ea0a677:ansible/roles/keycloak/templates/docker-compose.yml.j2:generic-api-key:35
+e7345122e6a7d07d8c895e8ac459d85abfaf64f8:configs/nightscout/.env.example:generic-api-key:51
+e82c71a75629c4955dbc09d9445b31fd6e04e4ee:GITHUB_SECRETS.md:generic-api-key:64
+e8f61cabbcfa8b63f00c0464da37630082c98529:NIGHTSCOUT_FIX.md:generic-api-key:54
+e8f61cabbcfa8b63f00c0464da37630082c98529:configs/nightscout/.env.example:generic-api-key:51

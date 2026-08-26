@@ -2,7 +2,7 @@
 # Read-only health check, always runs regardless of noop - never mutates
 # anything, it just proves the end result works.
 set -uo pipefail
-for i in 1 2 3 4 5; do
+for _ in 1 2 3 4 5; do
   code=$(curl -k -s -o /dev/null -w '%{http_code}' --max-time 5 "https://deploy.mljr.eu" 2>/dev/null || echo "000")
   case "$code" in
     200|301|302) echo "caddy is serving requests"; exit 0 ;;

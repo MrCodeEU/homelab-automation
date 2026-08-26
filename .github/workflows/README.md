@@ -1,14 +1,18 @@
 # GitHub Actions Deployment Workflows
 
-This directory contains the GitHub Actions workflows for deploying the homelab with Ansible over Tailscale.
+This directory contains the GitHub Actions workflows for validating and deploying the homelab with OpenVox over Tailscale. The legacy Ansible tree remains available as the migration reference.
 
 ## Workflows
 
 ### Standard Deploy (`deploy.yml`)
 
-Sequential deployment with validation, change detection, Ansible execution, summary generation, and ntfy notification.
+Sequential deployment with validation, OpenVox execution, summary generation, and ntfy notification.
 
-It runs in check mode for pull requests and can deploy changed services only when the git diff is narrow enough.
+Pull requests use the separate `openvox-pr-check.yml` workflow. Production deployments are manual, scheduled, or service-update dispatches.
+
+### Static Analysis Baseline (`static-analysis.yml`)
+
+Read-only, no-secrets scans using pinned ShellCheck, puppet-lint, actionlint, zizmor, and Gitleaks versions. Each scanner has its own job and uploaded report. A scanner becomes blocking once its findings are fixed or narrowly documented. Puppet lint exempts only the 140-character check because several manifests embed systemd units and configuration files as strings; its structural checks remain blocking.
 
 ### IaC Security Scan (`iac-security.yml`)
 

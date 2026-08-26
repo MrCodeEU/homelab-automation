@@ -63,6 +63,11 @@ class roles::host_facts_endpoint (
     }
   }
 
+  $dest_requirement = $needs_symlink ? {
+    true    => File[$dest_dir],
+    default => undef,
+  }
+
   file { $dest:
     ensure  => file,
     owner   => 'root',
@@ -78,7 +83,7 @@ class roles::host_facts_endpoint (
       'facts_backup_remotes'    => $facts_backup_remotes,
       'facts_backup_paths'      => $facts_backup_paths,
     }),
-    require => $needs_symlink ? { true => File[$dest_dir], default => undef },
+    require => $dest_requirement,
   }
 
   if $needs_symlink {

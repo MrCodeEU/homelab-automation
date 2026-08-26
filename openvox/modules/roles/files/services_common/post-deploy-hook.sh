@@ -14,7 +14,7 @@ svc_name="$1"
 deploy_path="$2"
 critical="${3:-false}"
 
-cd "$deploy_path"
+cd "$deploy_path" || exit 1
 
 if [ -f .env ]; then
   set -a

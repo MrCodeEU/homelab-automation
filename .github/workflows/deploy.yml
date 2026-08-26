@@ -50,12 +50,17 @@ concurrency:
   group: ${{ github.event_name == 'repository_dispatch' && format('deploy-svc-{0}', github.event.client_payload.service) || format('deploy-{0}', github.ref) }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   # Validate service configurations before deployment
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Install Python deps for validation
         run: pip install --quiet pyyaml jinja2
@@ -82,14 +87,16 @@ jobs:
       NUC_HOST: nuc.tail33930.ts.net
       UGREEN_HOST: ugreen.tail33930.ts.net
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Install Python deps
         # Runs on its own runner, separate from the validate job - needs its
         # own pyyaml for the services_catalog lookups below.
         run: pip install --quiet pyyaml
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: tools/go.mod
 
@@ -142,13 +149,13 @@ jobs:
             fi
             DISPATCH_SERVICE="$RAW_DISPATCH_SERVICE"
             echo "Repository dispatch - deploying service: $DISPATCH_SERVICE"
-          elif [ "${{ github.ref }}" != "refs/heads/main" ]; then
+          elif [ "${GITHUB_REF}" != "refs/heads/main" ]; then
             # Non-main branches: check mode only
             CHECK_MODE="true"
           fi
 
-          echo "check_mode=$CHECK_MODE" >> $GITHUB_OUTPUT
-          echo "dispatch_service=$DISPATCH_SERVICE" >> $GITHUB_OUTPUT
+          echo "check_mode=$CHECK_MODE" >> "$GITHUB_OUTPUT"
+          echo "dispatch_service=$DISPATCH_SERVICE" >> "$GITHUB_OUTPUT"
           echo "Check mode: $CHECK_MODE"
           if [ -n "$DISPATCH_SERVICE" ]; then
             echo "Target service: $DISPATCH_SERVICE"
@@ -158,11 +165,11 @@ jobs:
         id: hosts
         run: |
           LIMIT="all"
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${{ inputs.limit }}" != "" ]; then
-            LIMIT="${{ inputs.limit }}"
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] && [ "${INPUTS_LIMIT}" != "" ]; then
+            LIMIT="${INPUTS_LIMIT}"
           fi
 
-          DISPATCH_SERVICE="${{ steps.env.outputs.dispatch_service }}"
+          DISPATCH_SERVICE="${STEPS_ENV_OUTPUTS_DISPATCH_SERVICE}"
           if [ -n "$DISPATCH_SERVICE" ]; then
             # Puppet applies a whole host catalog idempotently, so there is no
             # equivalent to Ansible's surgical single-service fast path
@@ -201,12 +208,15 @@ jobs:
             echo "Fast path: service=$DISPATCH_SERVICE resolved host=$SERVICE_HOST -> applying: $HOSTS"
           fi
 
-          echo "hosts=$HOSTS" >> $GITHUB_OUTPUT
-          echo "limit=$LIMIT" >> $GITHUB_OUTPUT
+          echo "hosts=$HOSTS" >> "$GITHUB_OUTPUT"
+          echo "limit=$LIMIT" >> "$GITHUB_OUTPUT"
           echo "Target hosts: $HOSTS"
+        env:
+          INPUTS_LIMIT: ${{ inputs.limit }}
+          STEPS_ENV_OUTPUTS_DISPATCH_SERVICE: ${{ steps.env.outputs.dispatch_service }}
 
       - name: Setup Tailscale
-        uses: tailscale/github-action@v3
+        uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
@@ -214,19 +224,19 @@ jobs:
 
       - name: Notify deployment start
         run: |
-          if [ "${{ steps.env.outputs.check_mode }}" == "true" ]; then
+          if [ "${STEPS_ENV_OUTPUTS_CHECK_MODE}" == "true" ]; then
             echo "Check mode - skipping start notification"
             exit 0
           fi
 
-          DISPATCH_SERVICE="${{ steps.env.outputs.dispatch_service }}"
+          DISPATCH_SERVICE="${STEPS_ENV_OUTPUTS_DISPATCH_SERVICE}"
           if [ -n "$DISPATCH_SERVICE" ]; then
             TITLE="Deployment starting - $DISPATCH_SERVICE"
             MSG="🚀 Deploying service: $DISPATCH_SERVICE (trigger: ${{ github.event_name }})"
           else
             TITLE="Deployment starting"
             SHA="${{ github.sha }}"
-            MSG="🚀 Homelab deployment starting (trigger: ${{ github.event_name }}, branch: ${{ github.ref_name }}, commit: ${SHA:0:7})"
+            MSG="🚀 Homelab deployment starting (trigger: ${{ github.event_name }}, branch: ${GITHUB_REF_NAME}, commit: ${SHA:0:7})"
           fi
 
           # Best-effort: don't fail the workflow if ntfy is unreachable
@@ -236,12 +246,15 @@ jobs:
             -H "Tags: openvox,homelab,rocket" \
             -d "$MSG" \
             https://ntfy.mljr.eu/deployment || echo "Start notification failed (non-critical)"
+        env:
+          STEPS_ENV_OUTPUTS_CHECK_MODE: ${{ steps.env.outputs.check_mode }}
+          STEPS_ENV_OUTPUTS_DISPATCH_SERVICE: ${{ steps.env.outputs.dispatch_service }}
 
       - name: Record deployment start
         id: deploy_start
         run: |
-          echo "start_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
-          echo "start_epoch=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "start_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          echo "start_epoch=$(date +%s)" >> "$GITHUB_OUTPUT"
 
       - name: Run OpenVox
         id: openvox
@@ -249,7 +262,7 @@ jobs:
         run: |
           set -o pipefail
           MODE="apply"
-          if [ "${{ steps.env.outputs.check_mode }}" == "true" ]; then
+          if [ "${STEPS_ENV_OUTPUTS_CHECK_MODE}" == "true" ]; then
             MODE="noop"
             echo "Running in CHECK MODE (noop) - no changes will be made"
           fi
@@ -266,12 +279,12 @@ jobs:
           fi
           export OPENVOX_WEEKLY_MAINTENANCE="$WEEKLY_MAINTENANCE"
 
-          echo "🚀 Running: openvox-sync.sh on [${{ steps.hosts.outputs.hosts }}] mode=$MODE"
+          echo "🚀 Running: openvox-sync.sh on [${STEPS_HOSTS_OUTPUTS_HOSTS}] mode=$MODE"
           echo "::group::OpenVox Deployment"
 
           EXIT_CODE=0
           : > /tmp/openvox-output.log
-          for host in ${{ steps.hosts.outputs.hosts }}; do
+          for host in ${STEPS_HOSTS_OUTPUTS_HOSTS}; do
             echo "--- $host ---" | tee -a /tmp/openvox-output.log
             if ! ./scripts/openvox-sync.sh "$host" "$MODE" 2>&1 | tee -a /tmp/openvox-output.log; then
               EXIT_CODE=1
@@ -279,7 +292,7 @@ jobs:
           done
 
           echo "::endgroup::"
-          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
 
           # openvox-sync.sh prefixes every line with "[host] ", so "Error:"
           # no longer starts the line - match past the prefix instead.
@@ -289,11 +302,14 @@ jobs:
             echo "::endgroup::"
           fi
 
-          exit $EXIT_CODE
+          exit "$EXIT_CODE"
+        env:
+          STEPS_ENV_OUTPUTS_CHECK_MODE: ${{ steps.env.outputs.check_mode }}
+          STEPS_HOSTS_OUTPUTS_HOSTS: ${{ steps.hosts.outputs.hosts }}
 
       - name: Upload OpenVox apply log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: openvox-log-${{ github.run_id }}
           path: /tmp/openvox-output.log
@@ -307,6 +323,8 @@ jobs:
           START_EPOCH: ${{ steps.deploy_start.outputs.start_epoch }}
           OPENVOX_EXIT_CODE: ${{ steps.openvox.outputs.exit_code }}
           CHECK_MODE: ${{ steps.env.outputs.check_mode }}
+          STEPS_ENV_OUTPUTS_DISPATCH_SERVICE: ${{ steps.env.outputs.dispatch_service }}
+          STEPS_HOSTS_OUTPUTS_LIMIT: ${{ steps.hosts.outputs.limit }}
         run: |
           set +e  # Don't exit on errors - status page update is non-critical
 
@@ -322,7 +340,7 @@ jobs:
 
           COMMIT_MSG=$(git log -1 --pretty=%B 2>/dev/null | head -1 | cut -c1-100 || echo "No commit message")
           export COMMIT_MSG
-          DISPATCH_SERVICE="${{ steps.env.outputs.dispatch_service }}"
+          DISPATCH_SERVICE="${STEPS_ENV_OUTPUTS_DISPATCH_SERVICE}"
 
           WORKDIR=$(mktemp -d)
           WORKDIR="$WORKDIR" python3 -c "import os, yaml, json; d = yaml.safe_load(open('openvox/data/common.yaml')); json.dump(d['services_catalog'], open(os.path.join(os.environ['WORKDIR'], 'services.json'), 'w'))"
@@ -330,6 +348,11 @@ jobs:
             "root@${MLJR_HOST}:/opt/caddy/site/data/deployments.json" \
             "$WORKDIR/deployments.json" 2>/dev/null || \
             echo '{"deployments":[],"services":[],"last_updated":""}' > "$WORKDIR/deployments.json"
+
+          CHECK_MODE_ARGS=()
+          if [ "$CHECK_MODE" == "true" ]; then
+            CHECK_MODE_ARGS+=(--check-mode)
+          fi
 
           /tmp/build-deploy-status \
             --existing-json "$WORKDIR/deployments.json" \
@@ -341,16 +364,16 @@ jobs:
             --duration-seconds "$DURATION" \
             --status "$STATUS" \
             --trigger "${{ github.event_name }}" \
-            --branch "${{ github.ref_name }}" \
+            --branch "${GITHUB_REF_NAME}" \
             --commit-sha "${{ github.sha }}" \
             --commit-message "$COMMIT_MSG" \
-            --actor "${{ github.actor }}" \
-            --limit "${{ steps.hosts.outputs.limit }}" \
+            --actor "${GITHUB_ACTOR}" \
+            --limit "${STEPS_HOSTS_OUTPUTS_LIMIT}" \
             --tags "n/a" \
             --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --ara-artifact "openvox-log-${{ github.run_id }}" \
             --targeted-service "$DISPATCH_SERVICE" \
-            $([ "$CHECK_MODE" == "true" ] && echo --check-mode) \
+            "${CHECK_MODE_ARGS[@]}" \
             || echo "Deployment status build failed"
 
           ssh -o StrictHostKeyChecking=accept-new "root@${MLJR_HOST}" \
@@ -373,35 +396,42 @@ jobs:
         if: always()
         run: |
           STATUS="${{ steps.openvox.outputs.exit_code == '0' && 'success' || 'failure' }}"
-          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:** $([[ "$STATUS" == "success" ]] && echo "✅ Success" || echo "❌ Failed")" >> $GITHUB_STEP_SUMMARY
-          echo "**Mode:** ${{ steps.env.outputs.check_mode == 'true' && '🧪 Dry Run (noop)' || '🎯 Live Deployment' }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## 🚀 Deployment Summary"
+            echo ""
+            echo "**Status:** $([[ "$STATUS" == "success" ]] && echo "✅ Success" || echo "❌ Failed")"
+            echo "**Mode:** ${{ steps.env.outputs.check_mode == 'true' && '🧪 Dry Run (noop)' || '🎯 Live Deployment' }}"
+            echo ""
+            echo "### Configuration"
+            echo "- **Target Hosts:** \`${STEPS_HOSTS_OUTPUTS_HOSTS}\`"
+            echo "- **Trigger:** ${{ github.event_name }}"
+            echo "- **Branch:** \`${GITHUB_REF_NAME}\`"
 
-          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
-          echo "- **Target Hosts:** \`${{ steps.hosts.outputs.hosts }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+            if [ -n "${STEPS_ENV_OUTPUTS_DISPATCH_SERVICE}" ]; then
+              echo "- **Service:** \`${STEPS_ENV_OUTPUTS_DISPATCH_SERVICE}\`"
+            fi
+            echo ""
 
-          if [ -n "${{ steps.env.outputs.dispatch_service }}" ]; then
-            echo "- **Service:** \`${{ steps.env.outputs.dispatch_service }}\`" >> $GITHUB_STEP_SUMMARY
-          fi
-          echo "" >> $GITHUB_STEP_SUMMARY
+            if [ -f /tmp/openvox-output.log ]; then
+              echo "### 📊 Execution Details"
+              echo "\`\`\`"
+              tail -n 50 /tmp/openvox-output.log | head -n 30 || echo "Output not available"
+              echo "\`\`\`"
+            fi
 
-          if [ -f /tmp/openvox-output.log ]; then
-            echo "### 📊 Execution Details" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-            tail -n 50 /tmp/openvox-output.log | head -n 30 >> $GITHUB_STEP_SUMMARY || echo "Output not available" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          fi
+            if [ "$STATUS" != "success" ]; then
+              echo ""
+              echo "### ⚠️ Failure Information"
+              echo "Check the OpenVox Deployment section above for detailed error messages."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$STATUS" != "success" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### ⚠️ Failure Information" >> $GITHUB_STEP_SUMMARY
-            echo "Check the OpenVox Deployment section above for detailed error messages." >> $GITHUB_STEP_SUMMARY
             echo "::error::Deployment failed - check logs for details"
           fi
+        env:
+          STEPS_HOSTS_OUTPUTS_HOSTS: ${{ steps.hosts.outputs.hosts }}
+          STEPS_ENV_OUTPUTS_DISPATCH_SERVICE: ${{ steps.env.outputs.dispatch_service }}
 
       - name: Notify
         if: always()
@@ -411,15 +441,11 @@ jobs:
           PRIORITY=$([[ "$STATUS" == "success" ]] && echo "default" || echo "high")
 
           MODE=""
-          if [ "${{ steps.env.outputs.check_mode }}" == "true" ]; then
+          if [ "${STEPS_ENV_OUTPUTS_CHECK_MODE}" == "true" ]; then
             MODE=" [DRY RUN]"
           fi
 
-          SERVICE_INFO=""
-          DISPATCH_SERVICE="${{ steps.env.outputs.dispatch_service }}"
-          if [ -n "$DISPATCH_SERVICE" ]; then
-            SERVICE_INFO=" service: $DISPATCH_SERVICE"
-          fi
+          DISPATCH_SERVICE="${STEPS_ENV_OUTPUTS_DISPATCH_SERVICE}"
 
           if curl -s --connect-timeout 3 --max-time 3 https://ntfy.mljr.eu/deployment -o /dev/null; then
             echo "Sending notification to ntfy..."
@@ -439,15 +465,21 @@ jobs:
                 -H "Title: Deployment $STATUS$MODE" \
                 -H "Priority: $PRIORITY" \
                 -H "Tags: openvox,homelab" \
-                -d "$EMOJI Homelab deployed (hosts: ${{ steps.hosts.outputs.hosts }})$MODE" \
+                -d "$EMOJI Homelab deployed (hosts: ${STEPS_HOSTS_OUTPUTS_HOSTS})$MODE" \
                 https://ntfy.mljr.eu/deployment || echo "Failed to send notification"
             fi
           else
             echo "⚠️  Ntfy service is not reachable, skipping notification"
           fi
+        env:
+          STEPS_ENV_OUTPUTS_CHECK_MODE: ${{ steps.env.outputs.check_mode }}
+          STEPS_ENV_OUTPUTS_DISPATCH_SERVICE: ${{ steps.env.outputs.dispatch_service }}
+          STEPS_HOSTS_OUTPUTS_HOSTS: ${{ steps.hosts.outputs.hosts }}
 
       - name: Fail workflow when OpenVox failed
         if: steps.openvox.outputs.exit_code != '0'
         run: |
-          echo "::error::OpenVox deployment failed with exit code ${{ steps.openvox.outputs.exit_code }}"
+          echo "::error::OpenVox deployment failed with exit code ${STEPS_OPENVOX_OUTPUTS_EXIT_CODE}"
           exit 1
+        env:
+          STEPS_OPENVOX_OUTPUTS_EXIT_CODE: ${{ steps.openvox.outputs.exit_code }}

@@ -12,6 +12,6 @@ if ! pgrep -f "node_exporter --web.listen-address" >/dev/null 2>&1; then
         sleep 5
         i=$((i + 1))
     done
-    cd "$NE_DIR"
+    cd "$NE_DIR" || exit 1
     nohup ./node_exporter --web.listen-address=100.100.10.5:9100 >> "$LOG" 2>&1 &
 fi

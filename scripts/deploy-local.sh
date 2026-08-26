@@ -44,7 +44,15 @@ STATUS_VARS_FILE=""
 chmod 600 "$VAULT_PASS_FILE"
 echo "$VAULT_PASS" > "$VAULT_PASS_FILE"
 unset VAULT_PASS
-trap "rm -f '$VAULT_PASS_FILE' ${STATUS_VARS_FILE:+'$STATUS_VARS_FILE'}" EXIT INT TERM
+# Invoked indirectly by the signal/exit trap below.
+# shellcheck disable=SC2329
+cleanup_temp_files() {
+    rm -f "$VAULT_PASS_FILE"
+    if [[ -n "$STATUS_VARS_FILE" ]]; then
+        rm -f "$STATUS_VARS_FILE"
+    fi
+}
+trap cleanup_temp_files EXIT INT TERM
 
 export ANSIBLE_VAULT_PASSWORD_FILE="$VAULT_PASS_FILE"
 

@@ -5,7 +5,6 @@
 set -e
 
 SERVICE_NAME="$1"
-SERVICES_FILE="$2"
 
 # Color definitions
 RED='\033[0;31m'
