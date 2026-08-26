@@ -92,3 +92,17 @@ original semantics exactly (`host == this host and enabled`, nothing else)
 re-filters `services_catalog` for a purpose other than "should I deploy
 this" must re-derive its own filter, never reuse another class's
 deploy-scoped list.**
+
+## Forge module dependencies
+
+`Puppetfile` pins every direct and transitive Forge module. Do not install
+modules manually: `scripts/openvox-modules.sh` verifies production during a
+noop, reconciles it before an apply, and installs candidate versions into the
+isolated PR environment for the live noop.
+
+Dependabot does not support Puppetfiles. `renovate.json` configures Renovate's
+native Puppet manager to open grouped, non-automerge update PRs after a
+seven-day release delay. The Renovate GitHub App must be enabled for this
+repository once; the PR checks then validate dependency compatibility and the
+owner-authored PRs additionally validate the resulting production catalog in
+an isolated live noop. Renovate PRs never receive the production-check secrets.

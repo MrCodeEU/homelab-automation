@@ -29,10 +29,12 @@ ssh "root@${host}" "
     el_major=\$(rpm -E %{rhel})
     dnf install -y \"https://yum.voxpupuli.org/openvox8-release-el-\${el_major}.noarch.rpm\"
     dnf install -y openvox-agent
-    /opt/puppetlabs/bin/puppet module install puppet-firewalld
-    /opt/puppetlabs/bin/puppet module install puppetlabs-docker
   fi
   mkdir -p /etc/puppetlabs/puppet
   /opt/puppetlabs/bin/puppet config set certname '${host}' --section main
   echo \"certname: \$(/opt/puppetlabs/bin/puppet config print certname)\"
 "
+
+# Reconcile even when the agent was already installed: module versions are
+# deployment inputs and must not depend on when a host was bootstrapped.
+./scripts/openvox-modules.sh reconcile "$host"
