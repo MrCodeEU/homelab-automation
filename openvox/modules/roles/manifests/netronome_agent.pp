@@ -19,13 +19,37 @@
 # by Tailscale. Only monitoring can be toggled." - confirmed live).
 # Tailnet membership is the trust boundary in this mode; setting a key
 # here just makes every discovered agent 401 forever.
+#
+# Historical bandwidth export needs a real vnstatd running continuously
+# with a persisted db - confirmed live that the agent's own bundled
+# `vnstat` binary is CLI-only, it never starts the daemon itself, so
+# without this sidecar every agent's /export/historical 500s forever
+# ("vnStat daemon should have created the database"). Matches Netronome's
+# own documented pattern (docs/README "Monitoring a Host Interface"): a
+# vergoh/vnstat container in host network mode, sharing /var/lib/vnstat
+# with the agent. $interface pins which host interface it and the agent
+# both track - same reasoning as the nas-specific override this repo
+# already carries (vnstat's own auto-pick landed on an inert interface
+# on a many-interface host).
 class roles::netronome_agent (
   String  $base_path       = '/opt',
   Boolean $manage_firewall = true,
+  String  $interface       = '',
 ) {
   file { "${base_path}/netronome-agent":
     ensure => directory,
     mode   => '0755',
+  }
+
+  file { "${base_path}/netronome-agent/vnstat-db":
+    ensure  => directory,
+    mode    => '0755',
+    require => File["${base_path}/netronome-agent"],
+  }
+
+  $agent_interface_env = $interface ? {
+    ''      => '',
+    default => "\n          NETRONOME__AGENT_INTERFACE: ${interface}",
   }
 
   $compose_content = @("END"/L)
@@ -38,11 +62,30 @@ class roles::netronome_agent (
         command: ["agent", "--tailscale", "--tailscale-method", "host"]
         environment:
           NETRONOME__AGENT_HOST: 0.0.0.0
-          NETRONOME__AGENT_PORT: 8200
+          NETRONOME__AGENT_PORT: 8200${agent_interface_env}
         dns:
           - 100.100.100.100
         volumes:
           - /var/run/tailscale:/var/run/tailscale:ro
+          - ${base_path}/netronome-agent/vnstat-db:/var/lib/vnstat:ro
+        logging:
+          driver: "json-file"
+          options:
+            max-size: "5m"
+            max-file: "2"
+      vnstat:
+        image: ghcr.io/vergoh/vnstat:latest
+        container_name: netronome-vnstat
+        restart: unless-stopped
+        network_mode: host
+        cap_add:
+          - NET_ADMIN
+          - NET_RAW
+        environment:
+          TZ: Europe/Vienna
+          HTTP_PORT: "0"
+        volumes:
+          - ${base_path}/netronome-agent/vnstat-db:/var/lib/vnstat
         logging:
           driver: "json-file"
           options:

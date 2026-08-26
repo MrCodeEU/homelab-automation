@@ -27,6 +27,7 @@ node 'mljr.tail33930.ts.net' {
   }
   class { 'roles::netronome_agent':
     base_path => '/opt',
+    interface => 'eth0',
   }
   include roles::caddy
   include roles::authelia
@@ -85,6 +86,7 @@ node 'nuc.tail33930.ts.net' {
   }
   class { 'roles::netronome_agent':
     base_path => '/opt',
+    interface => 'enp2s0',
   }
   # speedtest (Netronome) switched to network_mode: host to give the
   # container real routing to tailnet peer IPs for auto-discovery -
@@ -137,6 +139,7 @@ node 'ugreen.tail33930.ts.net' {
   class { 'roles::netronome_agent':
     base_path       => '/volume1/homelab',
     manage_firewall => false,
+    interface       => 'eth0',
   }
   include roles::backup_remote_target
   include roles::ugreen_tailscale

@@ -18,6 +18,35 @@ services:
       - 100.100.100.100
     volumes:
       - /var/run/tailscale:/var/run/tailscale:ro
+      - /mnt/user/appdata/homelab/netronome-agent-nas/vnstat-db:/var/lib/vnstat:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+  # Historical bandwidth export needs a real vnstatd running continuously
+  # with a persisted db - confirmed live the agent's own bundled vnstat
+  # binary is CLI-only, it never starts the daemon, so without this
+  # sidecar /export/historical 500s forever. Matches Netronome's own
+  # documented pattern: a vergoh/vnstat container in host network mode,
+  # sharing /var/lib/vnstat with the agent.
+  vnstat:
+    image: ghcr.io/vergoh/vnstat:latest
+    container_name: netronome-vnstat
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      TZ: Europe/Vienna
+      HTTP_PORT: "0"
+      # nas has ~35 interfaces total (docker bridges, bond0, unused
+      # eth1-3, tunl0, ...) - exclude the noisy virtual ones so the db
+      # only tracks real interfaces, br0 included.
+      EXCLUDE_PATTERN: "^veth|^docker|^br-|^vnet|^tunl"
+    volumes:
+      - /mnt/user/appdata/homelab/netronome-agent-nas/vnstat-db:/var/lib/vnstat
     logging:
       driver: "json-file"
       options:
