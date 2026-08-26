@@ -8,6 +8,12 @@ services:
     environment:
       NETRONOME__AGENT_HOST: 0.0.0.0
       NETRONOME__AGENT_PORT: 8200
+      # nas has ~35 interfaces (docker bridges, bond0, unused eth1-3,
+      # tunl0, ...) - vnstat's own auto-pick landed on tunl0 (always
+      # zero traffic), confirmed live. br0 is nas's real LAN-facing
+      # Unraid bridge, mljr/nuc/ugreen don't need this override since
+      # they have a single unambiguous primary interface.
+      NETRONOME__AGENT_INTERFACE: br0
     dns:
       - 100.100.100.100
     volumes:
