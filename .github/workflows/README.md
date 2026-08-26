@@ -18,6 +18,10 @@ Read-only, no-secrets scans using pinned ShellCheck, puppet-lint, actionlint, zi
 
 Read-only Infrastructure-as-Code scanning with Checkov. This workflow intentionally does not receive the Ansible Vault password, Tailscale OAuth credentials, or any production deployment secret. It uploads a Checkov artifact and, when repository settings allow it, SARIF results for GitHub code scanning.
 
+Checkov is blocking for active infrastructure. The top-level `ansible/` tree is
+excluded because it is retained only as the OpenVox migration reference and is
+no longer a deployment path.
+
 ## Required GitHub Secrets
 
 Configure these secrets in your GitHub repository settings (Settings → Secrets and variables → Actions):
