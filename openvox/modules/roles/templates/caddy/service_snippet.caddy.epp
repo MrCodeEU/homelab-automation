@@ -15,7 +15,7 @@
   $is_domain_string = $domain =~ String
   $target_port = $service['port']
   $auth_type = pick_default($service['caddy_auth'], '')
-  $has_dev_folder = pick_default($service['dev_deploy'], false)
+  $has_dev_folder = pick_default($service['staging'], false)
 -%>
 <% if $is_domain_string { -%>
 <%= $domain %> {

@@ -67,8 +67,7 @@ Two more hosts sit outside the diagram above: `wd_mycloud` (WD My Cloud EX2 Ultr
   resource blocks.
 - Automatic Caddy HTTPS and reverse proxy snippets.
 - Staging deployments through `services/<name>/dev/docker-compose.yml`
-  (catalog entries with `dev_deploy: true` deploy unconditionally to `nuc`,
-  no separate toggle needed).
+  (catalog entries with `staging: true` deploy explicitly to `nuc`).
 - Cleanup of disabled or moved services to avoid stale containers and Caddy snippets.
 - Weekly Docker image/container pruning + gated reboot during the scheduled
   CI run only (`FACTER_openvox_weekly_maintenance`, see `openvox/manifests/site.pp`).
@@ -136,7 +135,7 @@ Important options:
 | `port` | Backend port, or `0` for notification-only/no UI services |
 | `host` | Which host owns this service |
 | `caddy_auth` | `basicauth` or `authelia` |
-| `dev_deploy` | Also deploy a `<name>-staging` instance to `nuc`, unconditionally |
+| `staging` | Allows an explicit `<name>-staging` deployment to `nuc` |
 
 Disabled services can remain in the catalog so orphan-cleanup can remove old
 deployments and stale proxy snippets safely. **`managed:false` and
@@ -226,11 +225,18 @@ Once a host sends metrics/logs with matching `instance`/`host` labels, the provi
 
 ## Staging
 
-Set `dev_deploy: true` on a catalog entry in `openvox/data/common.yaml` and
-add `services/<name>/dev/docker-compose.yml` to make a service
-staging-capable. `roles::services` deploys it unconditionally on every
-apply to `nuc` (no separate flag/run needed — see `services.pp`'s own
-`$staging_services` block), proxied as `<service>.dev.mljr.eu`.
+Set `staging: true` on a catalog entry in `openvox/data/common.yaml` and add
+`services/<name>/dev/docker-compose.yml` to make a service staging-capable.
+Staging is deliberately explicit: normal production applies do not start or
+recreate staging containers. Deploy one or more staging services on `nuc` with
+either `make openvox-staging SERVICE=homepage,speedtest` or the **Deploy
+Homelab** workflow's `staging_services` input. The requested names must be
+enabled, managed catalog entries with `staging: true`.
+
+Staging receives the existing `<service>.dev.mljr.eu` Caddy route and a
+non-blocking health probe on production port + 10000. It never runs a
+production post-deploy hook, so it cannot register or mutate shared external
+state by accident.
 
 ## Validation
 
@@ -319,8 +325,8 @@ External repos can trigger a specific service deployment with `repository_dispat
    `roles::services`' own `$all_secrets` hash in
    `openvox/modules/roles/manifests/services.pp` (or `services_nas.pp` for
    a `nas`-hosted service) mapping them into the service's `.env`.
-4. Add `services/<name>/dev/docker-compose.yml` and set `dev_deploy: true`
-   in the catalog entry if staging is needed.
+4. Add `services/<name>/dev/docker-compose.yml` and set `staging: true` in
+   the catalog entry if staging is needed.
 5. Run `make test`, then `make openvox-check-<host>` before a real
    `openvox-deploy-<host>`.
 

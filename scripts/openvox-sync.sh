@@ -17,7 +17,9 @@
 # schedule sets this) forwards FACTER_openvox_weekly_maintenance=true to
 # the remote `puppet apply`, the masterless equivalent of Ansible's
 # docker_prune_enabled/reboot_if_needed extra-vars - see site.pp's own
-# $weekly_maintenance fact read.
+# $weekly_maintenance fact read. OPENVOX_STAGING_SERVICES is an optional,
+# comma-separated catalog selection that explicitly deploys staging instances
+# on nuc; normal applies deliberately leave those containers alone.
 #
 # Every line of remote output is prefixed with the host's short label
 # (e.g. "[mljr]") - this is the main readability fix over the old plain
@@ -69,6 +71,18 @@ ssh_opts=(
 facter_prefix=""
 if [ "${OPENVOX_WEEKLY_MAINTENANCE:-false}" = "true" ]; then
   facter_prefix="FACTER_openvox_weekly_maintenance=true "
+fi
+
+staging_services="${OPENVOX_STAGING_SERVICES:-}"
+if [ -n "$staging_services" ]; then
+  # This value is interpolated into the remote command as a Facter value. Keep
+  # its grammar deliberately narrower than service names in general so a
+  # workflow input cannot inject shell syntax on the privileged SSH target.
+  if [[ ! "$staging_services" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*(,[A-Za-z0-9][A-Za-z0-9._-]*)*$ ]]; then
+    echo "invalid OPENVOX_STAGING_SERVICES: expected comma-separated service names" >&2
+    exit 2
+  fi
+  facter_prefix+="FACTER_openvox_staging_services=${staging_services} "
 fi
 
 # Short label for prefixing/log naming, e.g. "mljr.tail33930.ts.net" -> "mljr".

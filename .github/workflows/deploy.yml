@@ -10,6 +10,11 @@ on:
         required: false
         default: 'all'
         type: string
+      staging_services:
+        description: 'Optional comma-separated staging services to deploy on nuc (for example: homepage,speedtest)'
+        required: false
+        default: ''
+        type: string
       docker_prune:
         description: 'Prune unused Docker images/containers during deployment'
         required: false
@@ -119,9 +124,11 @@ jobs:
         # every later consumer of those outputs is safe by construction.
         env:
           RAW_DISPATCH_SERVICE: ${{ github.event.client_payload.service }}
+          RAW_STAGING_SERVICES: ${{ inputs.staging_services }}
         run: |
           CHECK_MODE="false"
           DISPATCH_SERVICE=""
+          STAGING_SERVICES=""
 
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             CHECK_MODE="true"
@@ -154,11 +161,32 @@ jobs:
             CHECK_MODE="true"
           fi
 
-          echo "check_mode=$CHECK_MODE" >> "$GITHUB_OUTPUT"
-          echo "dispatch_service=$DISPATCH_SERVICE" >> "$GITHUB_OUTPUT"
+          if [ -n "$RAW_STAGING_SERVICES" ]; then
+            case "$RAW_STAGING_SERVICES" in
+              *[!A-Za-z0-9,._-]* | ,* | *, | *,,* )
+                echo "::error::staging_services must be comma-separated service names"
+                exit 1
+                ;;
+            esac
+            if [ "${#RAW_STAGING_SERVICES}" -gt 256 ]; then
+              echo "::error::staging_services is longer than 256 characters"
+              exit 1
+            fi
+            STAGING_SERVICES="$RAW_STAGING_SERVICES"
+            echo "Staging deployment requested: $STAGING_SERVICES"
+          fi
+
+          {
+            echo "check_mode=$CHECK_MODE"
+            echo "dispatch_service=$DISPATCH_SERVICE"
+            echo "staging_services=$STAGING_SERVICES"
+          } >> "$GITHUB_OUTPUT"
           echo "Check mode: $CHECK_MODE"
           if [ -n "$DISPATCH_SERVICE" ]; then
             echo "Target service: $DISPATCH_SERVICE"
+          fi
+          if [ -n "$STAGING_SERVICES" ]; then
+            echo "Staging services: $STAGING_SERVICES"
           fi
 
       - name: Resolve target hosts
@@ -170,6 +198,7 @@ jobs:
           fi
 
           DISPATCH_SERVICE="${STEPS_ENV_OUTPUTS_DISPATCH_SERVICE}"
+          STAGING_SERVICES="${STEPS_ENV_OUTPUTS_STAGING_SERVICES}"
           if [ -n "$DISPATCH_SERVICE" ]; then
             # Puppet applies a whole host catalog idempotently, so there is no
             # equivalent to Ansible's surgical single-service fast path
@@ -208,12 +237,19 @@ jobs:
             echo "Fast path: service=$DISPATCH_SERVICE resolved host=$SERVICE_HOST -> applying: $HOSTS"
           fi
 
+          if [ -n "$STAGING_SERVICES" ]; then
+            STAGING_SERVICES="$STAGING_SERVICES" python3 -c "import os, yaml; requested=os.environ['STAGING_SERVICES'].split(','); catalog=yaml.safe_load(open('openvox/data/common.yaml'))['services_catalog']; allowed={s['name'] for s in catalog if s.get('staging') and s.get('enabled', True) and s.get('managed', True) and not s.get('skip_deploy', False)}; invalid=[name for name in requested if name not in allowed]; (_ for _ in ()).throw(SystemExit('Unknown or non-staging service(s): ' + ', '.join(invalid))) if invalid else None"
+            HOSTS="$NUC_HOST"
+            echo "Staging target: $STAGING_SERVICES -> applying nuc only"
+          fi
+
           echo "hosts=$HOSTS" >> "$GITHUB_OUTPUT"
           echo "limit=$LIMIT" >> "$GITHUB_OUTPUT"
           echo "Target hosts: $HOSTS"
         env:
           INPUTS_LIMIT: ${{ inputs.limit }}
           STEPS_ENV_OUTPUTS_DISPATCH_SERVICE: ${{ steps.env.outputs.dispatch_service }}
+          STEPS_ENV_OUTPUTS_STAGING_SERVICES: ${{ steps.env.outputs.staging_services }}
 
       - name: Setup Tailscale
         uses: tailscale/github-action@6cae46e2d796f265265cfcf628b72a32b4d7cade # v3
@@ -278,6 +314,7 @@ jobs:
             echo "Weekly maintenance enabled: docker prune + gated reboot"
           fi
           export OPENVOX_WEEKLY_MAINTENANCE="$WEEKLY_MAINTENANCE"
+          export OPENVOX_STAGING_SERVICES="${STEPS_ENV_OUTPUTS_STAGING_SERVICES}"
 
           echo "🚀 Running: openvox-sync.sh on [${STEPS_HOSTS_OUTPUTS_HOSTS}] mode=$MODE"
           echo "::group::OpenVox Deployment"
@@ -306,6 +343,7 @@ jobs:
         env:
           STEPS_ENV_OUTPUTS_CHECK_MODE: ${{ steps.env.outputs.check_mode }}
           STEPS_HOSTS_OUTPUTS_HOSTS: ${{ steps.hosts.outputs.hosts }}
+          STEPS_ENV_OUTPUTS_STAGING_SERVICES: ${{ steps.env.outputs.staging_services }}
 
       - name: Upload OpenVox apply log
         if: always()

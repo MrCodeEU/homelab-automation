@@ -248,6 +248,12 @@ openvox-deploy-nuc:
 openvox-deploy-ugreen:
 	@./scripts/openvox-sync.sh ugreen.tail33930.ts.net apply
 
+# Explicit staging deployment on nuc. Usage:
+#   make openvox-staging SERVICE=homepage
+openvox-staging:
+	@test -n "$(SERVICE)" || (echo "Usage: make openvox-staging SERVICE=<service>[,<service>...]" >&2; exit 2)
+	@OPENVOX_STAGING_SERVICES="$(SERVICE)" ./scripts/openvox-sync.sh nuc.tail33930.ts.net apply
+
 ################################################################################
 # Housekeeping
 ################################################################################

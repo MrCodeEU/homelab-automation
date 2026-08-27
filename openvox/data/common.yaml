@@ -344,7 +344,6 @@ services_catalog:
     # render time) as static catalog data instead, since Puppet's compiler
     # has no equivalent of Ansible's controller-side `lookup('fileglob', ...)`
     # against a path outside anything it manages.
-    dev_deploy: true
     description: "Personal Homepage (Go + Templ + HTMX)"
     icon: "mdi:account-circle"
     caddy_extra_config: |
@@ -404,7 +403,6 @@ services_catalog:
     port: 8083
     host: mljr
     staging: true
-    dev_deploy: true
     description: "mljr-ui Component Showcase"
     icon: "mdi:palette-swatch"
 
@@ -454,7 +452,7 @@ services_catalog:
     domain: "speedtest.mljr.eu"
     port: 8090
     host: nuc
-    dev_deploy: true
+    staging: true
     description: "Netronome Network Monitor"
     icon: "mdi:speedometer"
 
@@ -729,7 +727,6 @@ services_catalog:
     port: 8181
     host: nuc
     staging: true
-    dev_deploy: true
     description: "Prod/Staging Template Service"
     icon: "mdi:shape-outline"
 

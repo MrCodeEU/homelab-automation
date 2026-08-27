@@ -21,9 +21,8 @@ define roles::services::service (
   Hash $secrets = {},
   # When true, deploys this catalog entry's `dev/` compose file under
   # base_path/staging/<name> instead of base_path/<name> - see
-  # roles::services' own staging_services block. No post-deploy hook or
-  # healthcheck for staging instances (Ansible's own staging loop never
-  # ran either).
+  # roles::services' own staging_services block. Staging skips production
+  # post-deploy hooks but receives its own non-blocking health probe.
   Boolean $staging = false,
   Boolean $run_post_deploy_hook = false,
   Boolean $critical = false,
@@ -38,7 +37,7 @@ define roles::services::service (
   Array[String] $executables = [],
 ) {
   # $title is only a unique resource identifier - for a service that's
-  # both nuc-hosted in production AND dev_deploy (speedtest,
+  # both nuc-hosted in production AND staging-enabled (speedtest,
   # service-template), the prod and staging instances share a host and
   # need distinct titles ("speedtest" vs "speedtest-staging"). $real_name
   # is the actual catalog service name, used everywhere that must match
@@ -122,18 +121,20 @@ define roles::services::service (
     require => [File[$deploy_path], File["${deploy_path}/.env"]],
   }
 
-  # Staging instances get neither a healthcheck nor a post-deploy hook -
-  # Ansible's own staging_services loop never ran either (hook_services is
-  # filtered from host_services, staging_services is a separate list that's
-  # never fed into it).
-  if !$staging {
-    if pick($service['port'], 0) > 0 {
-      exec { "services-${svc_name}-healthcheck":
-        command => "${work_dir}/healthcheck.sh ${svc_name} ${service['port']}",
-        require => Exec["services-${svc_name}-deploy"],
-      }
+  if pick($service['port'], 0) > 0 {
+    $health_port = $staging ? {
+      true    => $service['port'] + 10000,
+      default => $service['port'],
     }
+    exec { "services-${svc_name}-healthcheck":
+      command => "${work_dir}/healthcheck.sh ${svc_name} ${health_port}",
+      require => Exec["services-${svc_name}-deploy"],
+    }
+  }
 
+  # Staging deliberately does not run production hooks: those may register a
+  # public endpoint or mutate shared external state.
+  if !$staging {
     # Unconditional, like compose-deploy.sh itself - the hook script is
     # expected to be idempotent (registration/convergence checks), not a
     # one-time bootstrap step. Non-critical failures are swallowed inside
