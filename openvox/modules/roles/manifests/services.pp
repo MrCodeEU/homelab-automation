@@ -17,7 +17,7 @@
 # services/<name>/, NOT read live from the repo the way Ansible's
 # rsync-from-controller did - Puppet's compiler has no controller-side
 # filesystem to read from at apply time, same constraint that shaped
-# roles::caddy's dev_deploy catalog flag), EPP-rendered .env (ported
+# roles::caddy's staging catalog flag), EPP-rendered .env (ported
 # from ansible/roles/services/templates/env.j2), Docker Hub + GHCR
 # login, `docker compose up -d --remove-orphans`, non-blocking
 # healthcheck.
@@ -25,11 +25,9 @@
 # PHASE 2 (this revision) - post-deploy hooks (post_deploy_hook_services/
 # critical_hook_services, ported 1:1 from group_vars/all/all.yml),
 # orphaned-service cleanup (cleanup-check.sh/cleanup-apply.sh, gated by
-# $cleanup_enabled), staging/dev deploys (the 4 dev_deploy: true catalog
-# entries, always deployed to nuc regardless of their own production
-# host - mirrors roles::caddy's own `is_staging_deployment = true`
-# default, which already assumes this continuously rather than as an
-# opt-in Ansible extra-var), and Kuma auto-provisioning (checksum-gated,
+# $cleanup_enabled), explicitly selected staging deploys (the 4 staging: true
+# catalog entries to nuc regardless of their production host), and Kuma
+# auto-provisioning (checksum-gated,
 # venv + provisioning script). Still NOT ported: sysctl requirements (no
 # live catalog entry needs one today).
 #
@@ -302,19 +300,32 @@ class roles::services (
     }
   }
 
-  # Staging/dev deploys - ansible/inventory/group_vars/all/all.yml's
-  # staging_host: "nuc" is a fixed value (no per-host override anywhere in
-  # the inventory), so this stays hardcoded rather than a class param.
-  # Selected from the WHOLE catalog (not $host_services) since a staging
-  # copy can target nuc even when the entry's own production host is
-  # mljr (e.g. homepage, ui-showcase).
+  # Staging deploys are opt-in per apply. A normal production apply must not
+  # start or recreate every development instance. The selection comes from
+  # OPENVOX_STAGING_SERVICES via FACTER_openvox_staging_services, validated by
+  # openvox-sync.sh before it reaches a privileged remote shell.
+  #
+  # The staging host is fixed as nuc. Select from the whole catalog, not
+  # $host_services, because a staging copy can target nuc while production is
+  # on mljr (homepage, ui-showcase).
   if $hostname == 'nuc' {
-    $staging_services = $catalog.filter |$s| {
-      pick($s['dev_deploy'], false)
+    $staging_candidates = $catalog.filter |$s| {
+      pick($s['staging'], false)
         and pick($s['enabled'], true)
         and pick($s['managed'], true)
         and !pick($s['skip_deploy'], false)
     }
+    $requested_staging = $facts['openvox_staging_services'] ? {
+      undef   => [],
+      ''      => [],
+      default => split($facts['openvox_staging_services'], ','),
+    }
+    $staging_candidate_names = $staging_candidates.map |$s| { $s['name'] }
+    $unknown_staging = $requested_staging.filter |$name| { !($name in $staging_candidate_names) }
+    if !empty($unknown_staging) {
+      fail("Unknown or non-staging service selection: ${unknown_staging.join(', ')}")
+    }
+    $staging_services = $staging_candidates.filter |$s| { $s['name'] in $requested_staging }
 
     $staging_services.each |$svc| {
       roles::services::service { "${svc['name']}-staging":

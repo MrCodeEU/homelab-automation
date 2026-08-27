@@ -25,7 +25,7 @@
 # class's job.
 #
 # No orphaned-service cleanup, no staging/dev deploys, no Kuma
-# provisioning here - none of the 4 managed nas services are dev_deploy
+# provisioning here - none of the managed nas services are staging-enabled
 # or run kuma, and cleanup is permanently disabled for this host by
 # design (see above), not just deferred.
 class roles::services_nas (

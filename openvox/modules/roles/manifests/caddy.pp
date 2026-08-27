@@ -23,7 +23,7 @@
 #   - the has_dev_folder Jinja check does a live fileglob against
 #     services/<name>/dev/docker-compose.yml on the Ansible controller
 #     at render time; Puppet's compiler has no controller-side
-#     filesystem to glob against, so it's now a `dev_deploy: true` flag
+#     filesystem to glob against, so it's now a `staging: true` flag
 #     on the 4 catalog entries that actually have a dev/ folder
 #     (homepage, service-template, speedtest, ui-showcase) - confirmed
 #     against the real filesystem when this was ported. Production is
