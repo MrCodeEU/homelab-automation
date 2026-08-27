@@ -1,0 +1,16 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "assignees": ["MrCodeEU"],
+  "dependencyDashboard": true,
+  "labels": ["dependencies"],
+  "minimumReleaseAge": "7 days",
+  "packageRules": [
+    {
+      "description": "Keep OpenVox Forge updates separate and manually reviewed",
+      "matchManagers": ["puppet"],
+      "groupName": "OpenVox Forge modules",
+      "automerge": false
+    }
+  ]
+}

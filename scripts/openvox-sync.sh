@@ -62,6 +62,9 @@ ssh_opts=(
   -o ServerAliveInterval=15
   -o ServerAliveCountMax=3
   -o StrictHostKeyChecking=accept-new
+  -o ControlMaster=auto
+  -o ControlPersist=5
+  -o ControlPath=/tmp/openvox-ssh-%C
 )
 facter_prefix=""
 if [ "${OPENVOX_WEEKLY_MAINTENANCE:-false}" = "true" ]; then
@@ -98,6 +101,14 @@ start_epoch=$(date +%s)
 echo "${c_bold}==> ${label}${c_reset} (${mode}) starting..." | prefix
 
 {
+  # Candidate PR dependencies go into the isolated environment. Production
+  # noops stay read-only; applies reconcile the pinned dependency set first.
+  if [ "$isolated_env" = true ] || [ "$mode" = apply ]; then
+    ./scripts/openvox-modules.sh reconcile "$host" "${env_dir}/modules"
+  else
+    ./scripts/openvox-modules.sh verify "$host" "${env_dir}/modules"
+  fi
+
   ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p ${env_dir}/manifests ${env_dir}/modules/roles ${env_dir}/data"
 
   if [ "${host}" = "ugreen.tail33930.ts.net" ]; then
