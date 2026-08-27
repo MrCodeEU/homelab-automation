@@ -254,6 +254,12 @@ openvox-staging:
 	@test -n "$(SERVICE)" || (echo "Usage: make openvox-staging SERVICE=<service>[,<service>...]" >&2; exit 2)
 	@OPENVOX_STAGING_SERVICES="$(SERVICE)" ./scripts/openvox-sync.sh nuc.tail33930.ts.net apply
 
+# Keep the vendored OpenVox files tree equal to the deployable assets in
+# services/. `make test` checks this automatically; use this target after
+# changing a generic service Compose/config file.
+sync-openvox-services:
+	@./scripts/sync-openvox-service-files.sh sync
+
 ################################################################################
 # Housekeeping
 ################################################################################

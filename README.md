@@ -64,7 +64,8 @@ Two more hosts sit outside the diagram above: `wd_mycloud` (WD My Cloud EX2 Ultr
 - Generic Docker Compose service deployment from `services/<name>/docker-compose.yml`,
   data-driven from one `services_catalog` list (`openvox/data/common.yaml`)
   via a single `roles::services::service` defined type — not ~30 hand-unrolled
-  resource blocks.
+  resource blocks. `services/` is canonical; deployable assets are checked
+  against OpenVox's required vendored copy on every test run.
 - Automatic Caddy HTTPS and reverse proxy snippets.
 - Staging deployments through `services/<name>/dev/docker-compose.yml`
   (catalog entries with `staging: true` deploy explicitly to `nuc`).
@@ -245,6 +246,9 @@ From the repository root:
 ```bash
 make test
 ```
+
+When changing a generic service's deployable files, update the OpenVox copy
+with `make sync-openvox-services`; the pre-commit hook and CI reject drift.
 
 Runs service-catalog validation (`.githooks/pre-commit`) and Caddy
 template rendering — both engine-independent, since they validate
