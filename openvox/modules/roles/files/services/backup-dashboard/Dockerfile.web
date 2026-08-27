@@ -13,7 +13,7 @@
 # maintained way to satisfy Checkov's "container must not run as root"
 # check without hand-patching nginx.conf to relocate the pidfile/cache dirs
 # and drop privilege ourselves.
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.29-alpine
 
 # Explicit, even though the base image already runs as this user (confirmed
 # live: `docker exec ... id` -> uid=101(nginx)) - Checkov's static analysis
