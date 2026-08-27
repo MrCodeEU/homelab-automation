@@ -37,5 +37,11 @@ if ! (cd "$REPO_ROOT/tools" && go run ./cmd/validate-services); then
     exit 1
 fi
 
+if ! "$REPO_ROOT/scripts/sync-openvox-service-files.sh" check; then
+    echo -e "${RED}✗ OpenVox service assets are out of sync!${NC}"
+    echo -e "${RED}  Run: make sync-openvox-services${NC}"
+    exit 1
+fi
+
 echo -e "${GREEN}✓ All pre-commit validations passed!${NC}"
 exit 0
