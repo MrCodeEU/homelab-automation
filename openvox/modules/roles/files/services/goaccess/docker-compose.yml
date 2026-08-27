@@ -1,7 +1,7 @@
 services:
   # Static Go binary that reads Caddy JSON logs and converts them to GoAccess format
   log-converter:
-    image: alpine:3.20
+    image: alpine:3.24
     container_name: goaccess-converter
     restart: unless-stopped
     env_file:

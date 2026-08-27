@@ -1,4 +1,4 @@
-FROM alpine:3.20
+FROM alpine:3.24
 
 # No HEALTHCHECK: this is a one-shot batch job started by a systemd timer, not
 # a long-running service. There is no steady state to probe.
