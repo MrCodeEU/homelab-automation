@@ -110,7 +110,7 @@ services:
       - runner-control
 
   db:
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-forgejo}-db
     restart: unless-stopped
     environment:
@@ -118,7 +118,10 @@ services:
       POSTGRES_USER: forgejo
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - forgejo-db-data:/var/lib/postgresql/data
+      # postgres 18+ images refuse to run with a volume mounted directly at
+      # /var/lib/postgresql/data - see docker-library/postgres#1259. Mount
+      # the parent dir instead; PGDATA lands in a versioned subdir.
+      - forgejo-db-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U forgejo"]
       interval: 5s

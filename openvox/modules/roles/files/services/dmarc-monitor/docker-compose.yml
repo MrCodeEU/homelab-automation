@@ -26,7 +26,7 @@ services:
         max-file: "3"
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-dmarc-monitor}-db
     restart: unless-stopped
     # Published (not just internal) so Grafana - a separate compose
@@ -39,7 +39,10 @@ services:
       POSTGRES_USER: parsedmarc
       POSTGRES_PASSWORD: ${DMARCMONITOR_DB_PASSWORD}
     volumes:
-      - dmarc-monitor-pgdata:/var/lib/postgresql/data
+      # postgres 18+ images refuse to run with a volume mounted directly at
+      # /var/lib/postgresql/data - see docker-library/postgres#1259. Mount
+      # the parent dir instead; PGDATA lands in a versioned subdir.
+      - dmarc-monitor-pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U parsedmarc -d parsedmarc"]
       interval: 10s
