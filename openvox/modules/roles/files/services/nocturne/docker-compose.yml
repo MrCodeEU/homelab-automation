@@ -1,6 +1,6 @@
 services:
   nocturne-postgres:
-    image: "docker.io/library/postgres:17.10"
+    image: "docker.io/library/postgres:18.4"
     container_name: ${COMPOSE_PROJECT_NAME:-nocturne}-postgres
     restart: unless-stopped
     environment:
