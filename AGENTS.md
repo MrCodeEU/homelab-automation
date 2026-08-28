@@ -1,306 +1,117 @@
 # AGENTS.md
 
-This file provides guidance to coding agents working in this repository.
+Guidance for coding agents working in this repository. For architecture,
+features, and full command reference see [`README.md`](README.md) — this
+file covers conventions and gotchas an agent needs but wouldn't get from
+reading the code alone.
 
-## Overview
+## What this repo is
 
-This repository automates the `mljr.eu` homelab with Ansible. Managed Rocky Linux hosts are connected over Tailscale and receive base OS configuration, Docker Compose services, Caddy reverse proxy config, monitoring agents, backup setup, and security enforcement through GitHub Actions or local Ansible runs.
+Masterless OpenVox (a Puppet fork) automation for the `mljr.eu` homelab.
+Each agent-managed host (`mljr`, `nuc`, `ugreen`) runs `puppet apply`
+locally against its own rsynced copy of `openvox/` — no puppetserver,
+no PuppetDB, no cross-host catalog sharing. `nas` (Unraid, tmpfs root) and
+`wd_mycloud` (busybox) have no agent at all; every mutating action against
+them is a proxy `exec` declared on **nuc's own node block**, reached over
+SSH from nuc at apply time.
 
-## Initial Setup
+`ansible/` is the fully-superseded previous implementation (cut over
+2026-08-23). It is not deployed by CI, not documented as a supported path,
+and should not be edited except to consult `git log` on a role directory
+when porting behavior that isn't yet reflected in `openvox/`. Do not "fix"
+anything in `ansible/` — treat it as a frozen reference.
 
-After cloning the repository, run:
-
-```bash
-git config core.hooksPath .githooks
-cd ansible
-ansible-galaxy collection install -r requirements.yml
-```
-
-Mitogen is enabled in `ansible/ansible.cfg` for faster deployments. Install it locally:
-
-```bash
-pip install mitogen ansible-mitogen
-```
-
-If Mitogen is unavailable, Ansible may fail before running tasks. Temporarily disable it by commenting out the Mitogen strategy in `ansible/ansible.cfg`.
-
-## Validation
-
-Use the repo test target before handing off changes:
+## Before making a change
 
 ```bash
-ANSIBLE_LOCAL_TEMP=/tmp/ansible-local ANSIBLE_HOME=/tmp/ansible-home make test
+git config core.hooksPath .githooks   # once, if not already set
+make test                              # service-catalog validation + compose YAML lint
 ```
 
-The pre-commit hook validates service definitions, Caddy template rendering, Ansible syntax, and Docker Compose syntax. Run it directly with:
+There is no `puppet parser validate` wired into CI — a manifest syntax
+error is only ever caught live on the first `openvox-sync.sh noop` against
+a real host. Run `make openvox-check-<host>` before `openvox-deploy-<host>`
+for anything touching `openvox/manifests` or `openvox/modules`.
 
-```bash
-./.githooks/pre-commit
-```
+If you touch a generic service's deployable files under `services/<name>/`,
+run `make sync-openvox-services` — the OpenVox tree keeps its own vendored
+copy and CI rejects drift between the two.
 
-The hook creates `.githooks/.venv` automatically. Do not bypass it by running the validation script directly unless debugging the hook itself.
+## Conventions that aren't obvious from the code
 
-## Commands
+**`managed:false` vs `skip_deploy:true`** (both are `services_catalog`
+flags, both mean "don't deploy the normal way", but they are not
+interchangeable):
+- `managed:false` — a container someone set up by hand (e.g. Unraid UI).
+  Nothing ever deploys it; catalog entry exists purely for
+  health-report/backup-dashboard visibility.
+- `skip_deploy:true` — a dedicated class owns deployment (`authelia`,
+  `glance`, `mailcow`). The entry is still "active on this host" for
+  orphan-cleanup purposes.
 
-Run these from `ansible/` unless noted otherwise:
+**Real incident (2026-08-23):** `roles::services`' cleanup-orphaned exec
+reused the deploy loop's filtered host-service list (which excludes
+`skip_deploy` entries) as its "is this active" check, and deleted
+`/opt/authelia` — a real, running service — on its first production apply.
+Any class that re-filters `services_catalog` for a purpose other than
+"should I deploy this" must re-derive its own filter (`host == this host
+and enabled`, nothing else — see `$host_active_names` in
+`openvox/manifests/services.pp`). Never reuse another class's
+deploy-scoped list for a different purpose.
 
-```bash
-# Deploy all
-ansible-playbook playbooks/site.yml
+**The check/apply script-pair pattern.** A plain `exec`'s `command` does
+*not* run under `puppet apply --noop` — but its `unless`/`onlyif` guard
+*does*, for real, since Puppet needs the guard's exit code even in noop
+mode. A guard with a mutating branch is therefore genuinely dangerous under
+noop. Anywhere a guard would otherwise mutate (cleanup, provisioning,
+keyring self-heal, etc.), split it into `<name>-check.sh` (read-only,
+used as the guard) and `<name>-apply.sh` (the real mutating logic, only
+reachable via the exec's `command`). See
+`openvox/modules/roles/files/services_common/cleanup-check.sh` /
+`cleanup-apply.sh` for the canonical example. Follow this pattern for any
+new guarded exec.
 
-# Deploy a specific host
-ansible-playbook playbooks/site.yml --limit mljr
+**Secrets decrypt host-side, never centrally.** Every `vault_*` key in
+`openvox/data/common.eyaml` is hiera-eyaml/PKCS7, resolved via
+`lookup('vault_...')` on the host itself at apply time — there is no
+central unlock point and CI needs no vault-password secret. Edit secrets
+through a host that already has the key pair (see README's Secrets
+Management section for the scp/eyaml-edit/scp-back flow); never attempt to
+decrypt `common.eyaml` locally, there's no `eyaml` binary outside Puppet's
+bundled Ruby.
 
-# Deploy specific tags
-ansible-playbook playbooks/site.yml --tags caddy,services
+**Staging is opt-in and explicit.** `staging: true` on a catalog entry plus
+`services/<name>/dev/docker-compose.yml` is required; production applies
+never start or recreate staging containers, and staging never runs a
+production `post-deploy.sh`.
 
-# Dry run
-ansible-playbook playbooks/site.yml --check --diff
-
-# Staging deployment for services with services/<name>/dev/docker-compose.yml
-ansible-playbook playbooks/site.yml -e is_staging_deployment=true
-
-# Deploy only changed services
-ansible-playbook playbooks/site.yml -e changed_services=myservice,homepage
-
-# Force full service file sync and .env regeneration
-ansible-playbook playbooks/site.yml --tags services -e force_redeploy=true
-
-# Force Caddy snippet regeneration
-ansible-playbook playbooks/site.yml --tags caddy -e force_regen_caddy=true
-
-# Run Docker image/container pruning
-ansible-playbook playbooks/site.yml --tags prune -e docker_prune_enabled=true
-```
-
-## Architecture
-
-### Hosts
-
-```yaml
-managed:
-  rocky:     # Full Ansible control: mljr, nuc
-  unraid:    # Partial: most NAS apps stay manual (Unraid UI), but catalog
-             # entries marked `managed: true` are deployed by the Unraid play
-ugreen:      # Separate group, NOT part of managed. Real Debian NAS (UGOS),
-             # persistent root filesystem - but deliberately kept out of
-             # roles/base (no dnf, vendor A/B overlay root). Some services
-             # DO deploy here via the plain services role (oxicloud,
-             # smartctl-exporter, syncthing-ugreen) since it has working
-             # Docker - "not roles/base" and "not a services target" are
-             # separate things, don't conflate them. Also gets
-             # host-facts-endpoint, grafana-alloy (systemd+btrfs+SMART
-             # collectors all enabled), iperf3, and backup-remote-target
-             # (SFTP chroot as a backup destination). Individual plays list
-             # `ugreen` explicitly rather than folding it into `managed` or
-             # `rocky`.
-wd_mycloud:  # WD My Cloud EX2 Ultra - backup-target-only. BusyBox userland,
-             # no systemd/apt/opkg/os-release, no package manager, no Docker,
-             # no 32-bit ARM Alloy build. Tailscale (roles/wd-mycloud-tailscale)
-             # and node_exporter (roles/wd-mycloud-node-exporter, remote-
-             # scraped from nuc's Alloy) both live entirely on the persistent
-             # data partition since the system partition is wiped on firmware
-             # updates - AND both need a clamAV/start.sh boot hook since even
-             # the persistent partition's crontab doesn't survive a reboot,
-             # see the Monitoring section below. Not a services/base target.
-proxy_only:  # Caddy-only routing targets
-```
-
-The NAS is partially managed. `inventory/group_vars/unraid.yml` sets
-`base_path: /mnt/user/appdata/homelab` (because `/` is tmpfs) and, critically,
-`cleanup_enabled: false` so orphan cleanup can never remove UI-created
-containers. `roles/unraid-bootstrap` installs a User Scripts entry that runs at
-array start to restore compose projects, helper binaries and registry
-credentials after the tmpfs root is rebuilt. Do not "correct" the
-`managed: true` NAS entries back to false.
-
-`mljr` is the public ingress and critical infrastructure host. `nuc` is the stronger compute node and hosts heavier internal services such as Grafana and Netronome. `ugreen` is a second NAS, currently backup-target-only with light read-only monitoring - not a deployment target for general services.
-
-### Key Files
+## Key files
 
 | File | Purpose |
 |------|---------|
-| `ansible/inventory/group_vars/all/all.yml` | Service catalog and global settings |
-| `ansible/inventory/group_vars/all/secrets.yml` | Vault variable mappings |
-| `ansible/inventory/hosts.yml` | Host and Tailscale target definitions |
-| `ansible/playbooks/site.yml` | Main playbook and role order |
-| `ansible/roles/services/` | Generic Docker Compose deployment role |
-| `services/<name>/docker-compose.yml` | Service Compose definitions |
+| `openvox/manifests/site.pp` | Entrypoint — one node block per agent-managed host |
+| `openvox/data/common.yaml` | `services_catalog` + global config |
+| `openvox/data/common.eyaml` | Encrypted `vault_*` secrets |
+| `openvox/modules/roles/manifests/*.pp` | One class per role |
+| `services/<name>/docker-compose.yml` | Canonical service Compose definitions |
+| `scripts/openvox-sync.sh` | rsync manifests to a host + run `puppet apply` |
+| `tools/cmd/` | Go tools (service validation, healthreport, backup-dashboard, etc.) |
 
-## Service Catalog
+## Adding a service
 
-Services are defined in `ansible/inventory/group_vars/all/all.yml`:
+1. Add to `services_catalog` in `openvox/data/common.yaml`.
+2. Create `services/<name>/docker-compose.yml`.
+3. Secrets needed? Add `vault_*` keys to `common.eyaml`, then map them into
+   the service's `.env` in `roles::services`' `$all_secrets` hash
+   (`services_nas.pp` instead, for a `nas`-hosted service).
+4. Staging needed? Add `services/<name>/dev/docker-compose.yml` and set
+   `staging: true`.
+5. `make test`, then `make openvox-check-<host>` before a real deploy.
 
-```yaml
-services:
-  - name: myservice
-    enabled: true
-    domain: "myservice.mljr.eu"  # string or list
-    port: 1337                    # use 0 for no web UI
-    host: nuc                     # inventory hostname
-    managed: true                 # false means Caddy proxy only
-    caddy_auth: "authelia"        # "basicauth" or "authelia"
-    skip_deploy: false            # true means a dedicated role owns it
-    backup_critical: true
-    requires_sysctl: "key=value"
-    https_backend: true
-    description: "Human-readable description"
-    icon: "mdi:icon-name"
-```
+## Full reference
 
-The services role only deploys enabled, managed services that are not marked `skip_deploy`. Disabled services remain in the catalog so cleanup and Caddy reconciliation can remove old containers and snippets idempotently.
-
-## Deployment Flow
-
-The main playbook order is:
-
-1. Gather facts
-2. Backup remote keypair (`nuc`) and target (`ugreen`, an SFTP chroot) - runs
-   early because both `backup` (rocky) and `unraid-backup` read
-   `hostvars['nuc']['backup_remote_privkey']`
-3. Syncthing NAS key (`nas`), read before the Ugreen Services play consumes it
-4. Base setup
-5. Standalone container reconciliation
-6. HetrixTools, backup, dashboard, mail, Authelia
-7. Health Report agent state (`nuc`), then Host Facts Endpoint
-   (`managed` + `ugreen` explicitly)
-8. Generic Docker services (rocky), then Unraid Services, then Ugreen Services
-9. CrowdSec firewall bouncer on `mljr`, when enabled
-10. Grafana Alloy (rocky + `ugreen`), iperf3 (rocky + `ugreen`), Hawser agent
-11. Caddy reverse proxy
-
-This order is intentional. The CrowdSec bouncer runs after the Dockerized
-CrowdSec service is deployed. Plays that touch `ugreen` set
-`ignore_unreachable: true` and are never gated on `ugreen_enabled` if they are
-read-only (facts, Alloy, iperf3) - only the write-path roles
-(`backup-remote-target`, `services` on ugreen) respect that flag, so
-monitoring keeps working even while the write side is deliberately disabled
-during a recovery.
-
-## Docker Cleanup
-
-Weekly scheduled GitHub deployments enable `docker_prune_enabled=true`, which prunes unused Docker images and stopped containers but not volumes.
-
-## Security
-
-CrowdSec is the primary security engine. The Dockerized CrowdSec service runs on `mljr`, reads system/Caddy logs, exposes the web UI on `crowdsec.mljr.eu` and `security.mljr.eu`, and creates the firewall bouncer API key from `CROWDSEC_FIREWALL_BOUNCER_KEY`.
-
-Host-level enforcement is handled by `ansible/roles/crowdsec-firewall-bouncer`, which installs `crowdsec-firewall-bouncer-nftables` on `mljr` and points it at the Dockerized CrowdSec LAPI on `127.0.0.1:8088`.
-
-Fail2ban is no longer managed by this playbook. CrowdSec is the active security engine:
-
-```yaml
-crowdsec_firewall_bouncer_enabled: true
-```
-
-Do not reintroduce fail2ban without also defining its migration and cleanup behavior.
-
-## Monitoring
-
-Grafana replaced SigNoz. The stack lives in `services/grafana/` and is deployed on `nuc`. Grafana Alloy runs on `mljr`/`nuc` (rocky), `ugreen`, and `nas` (Unraid, via `services/nas-alloy/` since Unraid has no `python3-docker` SDK for the templated role's `docker_container` module) and forwards host metrics, Docker metrics, Docker logs, Caddy logs, and CrowdSec metrics to the Grafana stack. `wd_mycloud` cannot run Alloy at all - no 32-bit ARM build is published (only amd64/arm64/ppc64le/s390x) - so it runs a bare `node_exporter` binary instead (`roles/wd-mycloud-node-exporter`), remote-scraped from nuc's Alloy over Tailscale. Home Assistant is scraped the same remote way (its own `prometheus:` core integration, not an agent) since it's a `proxy_only` host, not a Docker target.
-
-Every Linux host's `prometheus.exporter.unix` runs the `systemd` and `btrfs` collectors (systemd is opt-in via `enable_collectors`, btrfs is on by default once `/dev` is bind-mounted into the container - see `config.alloy.j2`'s comments for the container-privilege reasoning). `mdadm` is explicitly disabled on nas - Unraid's array uses its own proprietary superblock format, not real Linux mdadm, so that collector can never succeed there. SMART data comes from a separate `smartctl-exporter` (or `smartctl-exporter-<host>`) service per host with real disks - `privileged: true` + `user: root`, scraped locally on `127.0.0.1:9633`. Not deployed to mljr (Contabo VPS, virtio-only block storage, no real SMART data behind it) or wd_mycloud (no Docker).
-
-The metrics store is VictoriaMetrics (replaced Prometheus): PromQL-compatible, retention 10y, accepts Prometheus `remote_write` natively at `/api/v1/write`. Host port 19090 maps to VM's 8428 so the Alloy remote-write URL in `roles/grafana-alloy/tasks/main.yml` stays unchanged. The Grafana datasource keeps name/uid `prometheus` (pointed at `http://victoriametrics:8428`) so dashboard JSON needs no changes. The mljr.eu homepage also queries this endpoint over Tailscale for its live homelab panel (`HOMELAB_PROM_URL` in `services/homepage/docker-compose.yml`). `services/grafana/prometheus/` is legacy config, kept only until first VM deploy is verified.
-
-Grafana datasources and dashboards are provisioned from the repo (`services/grafana/dashboards/*.json`, auto-discovered by folder). Use stable datasource UIDs `prometheus` and `loki` in dashboard JSON. Current dashboards: `homelab-overview` (host/Docker/network/logs + fleet-wide scrape-target up/down table), `homelab-security` (CrowdSec), `homelab-storage` (SMART/systemd/btrfs/all-mounts disk usage), `homelab-homeassistant` (every `hass_*` sensor family). `services/grafana/nas-alloy.example.alloy` is a stale leftover reference doc, not the real deployment - don't trust it, `services/nas-alloy/config.alloy` is the actual checked-in config.
-
-Two Alloy details that are easy to get wrong, both fixed in `roles/grafana-alloy/templates/config.alloy.j2`:
-- `prometheus.scrape` attaches its own `instance` label from the scrape target, which **wins over** `remote_write`'s `external_labels`. mljr therefore reported as `vmi2945702.contaboserver.net` until a `prometheus.relabel` component was added to force the inventory hostname. Remote-scrape blocks (Home Assistant, wd_mycloud) deliberately do NOT route through this relabel - see their comments for why.
-- `loki.source.docker`'s static `labels` block **replaces** everything `discovery.docker` produced, so the container name was lost and Docker logs were unattributable. A `discovery.relabel` promotes `__meta_docker_container_name` to a `container` label first.
-
-### WD MyCloud reboot persistence
-
-WD has no persistent crontab (regenerated from vendor defaults on every real reboot, confirmed live) and no accessible init.d/systemd. The one thing confirmed to survive and re-run after a reboot is each installed app's own `start.sh` (WD's app-management layer invokes these itself at boot) - `roles/wd-mycloud-tailscale` and `roles/wd-mycloud-node-exporter` both append a `blockinfile`-managed block to `clamAV`'s `start.sh` (clamAV is installed but unused on this box) as the actual boot hook. The `*/5 * * * *` cron watchdog entries still exist and matter for crash recovery once cron itself exists again post-deploy, but they alone do NOT survive a reboot. Both watchdog scripts retry for up to a minute (binary existence, and for node_exporter, the Tailscale IP actually being assigned) since this hook fires very early in boot, before the persistent data partition and the Tailscale interface are necessarily ready.
-
-## Health Report
-
-`services/healthreport/` is a one-shot container on `nuc`, run by a systemd timer, that collects facts, assigns severity from `services/healthreport/rules.yml`, diffs against the previous run, and sends a report via ntfy and email. See its README for the design.
-
-Two invariants: severity is decided by the rules file **before** the LLM runs and the model may not change it; and a collector that fails becomes a finding in the report rather than a silent gap. Facts that are not reachable over the network (CrowdSec LAPI, nftables, Unraid array/SMART) come from `roles/host-facts-endpoint` — a read-only script behind an SSH key restricted with `command=`, not an open port. The facts template (`homelab-facts.py.j2`) branches on OS family - Unraid, `ugreen`, and Rocky each get a different section set; `ugreen`'s adds mdraid/LVM/btrfs storage-health (it sits behind mdraid1 → LVM → btrfs, with a second mdraid1(NVMe) → LVM bcache tier) rather than the dnf/nftables sections that assume a Rocky host.
-
-## Backup
-
-Two separate mechanisms, not to be confused:
-
-- `roles/backup` (rocky) - the primary backup role, borg-based, restores on
-  fresh install.
-- `roles/unraid-backup` - deploys a systemd timer on the NAS that runs
-  `unraid_backup_paths` entries (`ansible/roles/unraid-backup/defaults/main.yml`)
-  through rclone. Each entry has a `tier`: `critical` goes to both pCloud and,
-  best-effort, `ugreen`; `important` goes to `ugreen` only.
-- `roles/backup-remote-key` (nuc) generates an SSH keypair; `roles/backup-remote-target`
-  (`ugreen`) provisions a chrooted SFTP user restricted to that key, gated on
-  `ugreen_enabled` since it is a write path. The Unraid backup script also
-  probes writability independently, so a disabled or unreachable ugreen
-  degrades gracefully rather than failing the whole run.
-
-## Network Testing
-
-`speedtest.mljr.eu` is Netronome, deployed from `services/speedtest/` on `nuc` and proxied through Caddy on `mljr`. Cross-node iperf servers are managed by the `iperf3` role. Netronome targets and schedules are configured in the Netronome UI.
-
-## Authentication
-
-Caddy supports:
-
-| Value | Description |
-|-------|-------------|
-| `basicauth` | Uses `CADDY_AUTH_USER` and `CADDY_AUTH_PASSWORD_HASH` |
-| `authelia` | SSO through Authelia |
-
-Prefer `authelia` for user-facing internal tools.
-
-## Service Hooks
-
-Services can define hook scripts in `services/<name>/hooks/`:
-
-| Hook | When it runs |
-|------|-------------|
-| `pre-deploy.sh` | Before deployment |
-| `post-deploy.sh` | After Docker Compose deployment |
-| `validate.sh` | Service validation |
-
-Register every `post-deploy.sh` in `post_deploy_hook_services` in `all.yml`; otherwise the services role warns and skips the hook. Hooks load `.env` with the role's dotenv parser, so secrets containing shell-special characters are handled safely.
-
-## Staging
-
-Staging is opt-in by creating `services/<name>/dev/docker-compose.yml`. When `is_staging_deployment=true`, staging services deploy to `staging_host` (`nuc`) and Caddy proxies `<service>.dev.mljr.eu` to the explicit port from the dev Compose file. Use the production port plus `10000` unless there is a strong reason not to.
-
-## Secrets
-
-Secrets are mapped from Ansible Vault variables in `ansible/inventory/group_vars/all/secrets.yml`:
-
-```yaml
-secrets:
-  grafana:
-    admin_password: "{{ vault_grafana_admin_password | default('') }}"
-```
-
-When adding a secret-backed service, update `secrets.yml`, `vault.yml.example`, and `.github/workflows/README.md`.
-
-## Important Tags
-
-| Tag | Description |
-|-----|-------------|
-| `base` | System packages and Docker |
-| `prune` | Docker image/container pruning |
-| `services` | Generic Docker Compose services |
-| `caddy` | Reverse proxy configuration |
-| `security` | CrowdSec security tasks |
-| `crowdsec` | CrowdSec firewall bouncer tasks |
-| `grafana-alloy` | Metrics/log collection agent |
-| `monitoring` | Monitoring-related roles |
-| `iperf3` | Network performance test server |
-| `hawser-agent` | Remote Docker management agent |
-| `backup` | Backup and restore configuration |
-| `glance` | Dashboard |
-| `mailcow` | Mail server |
-| `authelia` | SSO identity provider |
-| `ugreen` | Plays that explicitly include the ugreen host |
-| `healthreport` | Health report agent state and facts endpoint |
-| `hetrixtools` | External uptime monitoring agent |
-| `homepage-data-sync` | Syncs site-data.json for the homepage service |
-| `cleanup` | Standalone container reconciliation |
-| `tailscale-update` | Tailscale version check/update on hosts with no other patch coverage (ugreen, wd_mycloud) |
-| `node-exporter-update` | node_exporter version check/update on wd_mycloud (no Alloy support there) |
-| `wd-mycloud` | Plays that explicitly include the WD My Cloud host |
+Architecture diagram, monitoring stack details, GitHub Actions workflow
+behavior, and the complete command list live in [`README.md`](README.md).
+`openvox/README.md` covers internal OpenVox-specific conventions
+(masterless model, hiera hierarchy, EPP templates, Forge module pinning)
+in more depth than this file does.
