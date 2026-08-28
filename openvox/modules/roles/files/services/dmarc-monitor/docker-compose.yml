@@ -26,7 +26,7 @@ services:
         max-file: "3"
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-dmarc-monitor}-db
     restart: unless-stopped
     # Published (not just internal) so Grafana - a separate compose
