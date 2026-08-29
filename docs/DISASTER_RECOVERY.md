@@ -38,9 +38,10 @@ prerequisites:
    Tailscale admin console to approve the new device and confirm it has
    the right ACL tags.
 3. **Install OpenVox itself** on the target host (`scripts/install-openvox.sh`
-   handles the package install; see `openvox/README.md` for the masterless
+   handles the Rocky package install; Ugreen's Debian bootstrap is specified
+   in its host section below). See `openvox/README.md` for the masterless
    model this repo relies on - no puppetserver, no PuppetDB, every host
-   applies its own copy of `manifests/site.pp` locally).
+   applies its own copy of `manifests/site.pp` locally.
 4. **Deploy the eyaml decrypt key pair to the host**:
    `./scripts/install-openvox-eyaml.sh <host>`. This scp's
    `openvox/keys/private_key.pkcs7.pem` (gitignored, **not** a GitHub
@@ -208,6 +209,18 @@ taken the local backup down with it. Added it to `unraid_backup_paths`
 as `tier: critical` (mirrors whatever the plugin currently has on disk,
 no separate retention logic needed on this side).
 
+**Nextcloud AIO master-volume gap, fixed 2026-08-29:** its configuration
+lives in the named Docker volume
+`nextcloud_aio_mastercontainer`, not in `/mnt/user/appdata`. The AppData
+Backup plugin now includes its physical path
+`/mnt/fastpool/docker/volumes/nextcloud_aio_mastercontainer/_data/` as an
+extra folder. A manual backup created `extra_files.tar`; a read-only
+`tar -tf` validation confirmed it contains the AIO configuration and Borg
+recovery metadata. That archive is included by the existing offsite
+`appdata-backup` mirror on its next scheduled run. Keep this setting in
+the Unraid plugin, not OpenVox: Unraid owns these UI-managed containers
+and their local backup lifecycle.
+
 **Still genuinely uncovered**: Syncthing's own *content* folders on nas
 (not its config, which the plugin does cover - deliberately deferred
 pending the folder restructuring already tracked in the backlog, see
@@ -215,7 +228,7 @@ the Syncthing memory notes).
 
 ## ugreen (UGreen NAS, UGOS)
 
-`role::ugreen`-managed subset only: `syncthing-ugreen`, `oxicloud`
+OpenVox-managed subset only: `syncthing-ugreen`, `oxicloud`
 (explicitly an initial test, no backup), `smartctl-exporter`, plus
 `roles::host_facts_endpoint`, `roles::grafana_alloy`, `roles::iperf3`,
 `roles::ugreen_tailscale` (version-check only, UGOS itself isn't
@@ -231,10 +244,49 @@ as leaving Unraid's own OS layer unmanaged). Recovery for that layer is
 whatever UGOS's own recovery/reset process provides - not something
 OpenVox touches or could reproduce.
 
-Note: this device died catastrophically once already (2026-07-31,
-rebuilt on new hardware by 2026-08-10) - that recovery happened, but was
-never written up as a repeatable procedure, only left as inventory
-comments. Worth doing properly if it's rebuilt again.
+### Rebuild procedure
+
+The 2026-07-31 filesystem failure was recovered by rebuilding on new
+hardware. The repeatable boundary is deliberately clear:
+
+1. **Rebuild storage in UGOS first.** Use the UGOS UI/recovery media to
+   recreate the data pool before running any automation. The current
+   verified layout is two 10.9-TB HDDs in `md1` (RAID1) → LVM → Btrfs,
+   mounted at `/volume1`, with a separate two-NVMe RAID1 bcache tier
+   (`md2`). Verify `/volume1` is writable. OpenVox must never create,
+   repair, or format this vendor-managed layout.
+2. **Restore connectivity.** Add the Debian 12 Tailscale package source,
+   install Tailscale, then authenticate with `tailscale up --ssh`. Approve
+   the device and its intended tags in the Tailscale admin console. This
+   is the first remote-management path after a factory reset.
+3. **Install OpenVox for Debian 12.** Add the OpenVox Debian 12 apt source
+   (`https://apt.voxpupuli.org`, suite `debian12 openvox8`) and install the
+   OpenVox agent. Set its certname to `ugreen.tail33930.ts.net`. The
+   generic `scripts/install-openvox.sh` is Rocky-only; do not run it here.
+4. **Install the eyaml key pair**, then sync and apply:
+
+   ```bash
+   ./scripts/install-openvox-eyaml.sh ugreen.tail33930.ts.net
+   make openvox-check-ugreen
+   make openvox-deploy-ugreen
+   ```
+
+   The apply recreates `/volume1/homelab`, the managed Compose services,
+   `homelab-facts`, Grafana Alloy, iperf3/Netronome, the SFTP backup
+   account and chroot (`/volume1/homelab-backups/data`), and the Btrfs
+   backup-history timer. It deliberately does not manage a firewall on
+   Ugreen; access is Tailscale-only.
+5. **Repopulate the backup target from authoritative sources.** A rebuilt
+   Ugreen is an empty *destination*, not a source of truth. Let the next
+   backup runs from mljr/nuc/nas upload fresh data; do not try to make an
+   incomplete old Ugreen copy authoritative. Its historical Btrfs
+   snapshots are lost with the pool and start again after the first new
+   backup.
+6. **Verify before relying on it:** `tailscaled` and Docker are active,
+   the expected containers are healthy, the SFTP target is writable by the
+   restricted backup user, `homelab-backup-snapshot.timer` is enabled, and
+   the next source backup completes to Ugreen. Confirm Grafana and the
+   health report see the host again.
 
 ## wd_mycloud (WD MyCloud EX2 Ultra)
 
@@ -259,9 +311,8 @@ HA is `proxy_only` in the service catalog - `roles::services` only
 generates its Caddy route, nothing about the appliance itself is
 managed here. **Deliberately not being brought into OpenVox-managed
 backup either** - it already backs up to pCloud on its own, separately
-from this repo's backup system (flagged during the original audit as
-not a great setup, worth a proper look later, but that's a separate
-discussion, not part of this pass).
+from this repo's backup system. This is an intentional independent
+backup path.
 Recovery for HA is entirely through its own backup/restore mechanism,
 not this repo.
 
@@ -329,9 +380,6 @@ correction).
   recreation steps for each if it doesn't.
 - Write up ugreen's 2026-07-31 rebuild as a real procedure instead of
   leaving it as inventory comments only, in case it happens again.
-- Revisit Home Assistant's own pCloud backup setup (flagged as "not
-  really good" during this audit) - separate discussion, not decided
-  here.
 - Actually test this runbook against a throwaway VM once resources allow
   - everything above is verified-by-reading-code, not verified-by-doing.
 - Bring the Tailscale control plane into this repository where the API permits:
