@@ -14,15 +14,33 @@ Sequential deployment: validate → set up Tailscale → run OpenVox → build d
 
 Pull requests use the separate `openvox-pr-check.yml` workflow, kept out of this one so its reporting/notification steps never run against a dry run.
 
+### OpenVox PR Check (`openvox-pr-check.yml`)
+
+Runs on PRs touching `openvox/**`, `services/**`, `scripts/**`, `tools/**`, `Makefile`, `renovate.json`, `.githooks/pre-commit`, or either of the two OpenVox-related workflow files. `offline-validation` (no secrets) validates Forge modules, `puppet parser validate`/`puppet epp validate`, shell syntax, and `make test`. `live-noop` runs an actual `puppet apply --noop` against all 3 production hosts over Tailscale, but only for same-repo PRs opened by the repo owner (`MrCodeEU`) - fork and external PRs never get production credentials.
+
 ### Static Analysis Baseline (`static-analysis.yml`)
 
-Read-only, no-secrets scans using pinned ShellCheck, puppet-lint, actionlint, zizmor, and Gitleaks versions. Each scanner has its own job and uploaded report. A scanner becomes blocking once its findings are fixed or narrowly documented. Puppet lint exempts only the 140-character check because several manifests embed systemd units and configuration files as strings; its structural checks remain blocking.
+Read-only, no-secrets scans using pinned ShellCheck, puppet-lint, actionlint, zizmor, and Gitleaks versions, plus a `go build`/`go vet`/`go mod tidy` check for `tools/`. Each scanner has its own job and uploaded report. Runs unconditionally on every push/PR to `main` (no path filter) - this is what makes its jobs safe to require for merge (see "Branch protection" below). A scanner becomes blocking once its findings are fixed or narrowly documented. Puppet lint exempts only the 140-character check because several manifests embed systemd units and configuration files as strings; its structural checks remain blocking.
 
 ### IaC Security Scan (`iac-security.yml`)
 
 Read-only Infrastructure-as-Code scanning with Checkov. This workflow intentionally does not receive Tailscale OAuth credentials or any production deployment secret. It uploads a Checkov artifact and, when repository settings allow it, SARIF results for GitHub code scanning.
 
 Checkov is blocking for active infrastructure. The top-level `ansible/` tree is excluded because it is retained only as the OpenVox migration reference and is no longer a deployment path.
+
+### Claude Code (`claude.yml`, `claude-code-review.yml`)
+
+`claude-code-review.yml` runs an automatic Claude review comment on every PR open/sync. `claude.yml` responds to `@claude` mentions in issues, PR comments, and PR reviews. Both are advisory only - neither is a required status check.
+
+## Branch Protection
+
+The `Main` ruleset on `main` requires a PR (no direct pushes) and has **no bypass actors** - this applies to everyone, including repo admins. Required status checks to merge: `shellcheck`, `puppet-lint`, `actionlint`, `zizmor`, `gitleaks`, `go` (all from `static-analysis.yml`, chosen specifically because none of them are path-filtered, so they always run on every PR).
+
+`openvox-pr-check.yml`'s `offline-validation` and `iac-security.yml`'s `Checkov` are deliberately **not** required checks, even though they're useful - both are path-filtered workflows, and GitHub's required-status-checks does not auto-pass a check that never triggers. Making a path-filtered check required would leave any PR that doesn't touch a matching path (e.g. a doc-only change) permanently stuck on a check that will never report.
+
+`delete_branch_on_merge` is enabled repo-wide - merging a PR (including Renovate's) deletes its branch automatically, no manual cleanup needed.
+
+If a long-lived branch (like a Renovate PR opened before a new required check was added) is missing a required check because its workflow file predates the change, update it onto the latest `main` first (`gh api -X PUT repos/:owner/:repo/pulls/:number/update-branch`, or push a rebase) so the current workflow file - and its required jobs - actually run.
 
 ## Required GitHub Secrets
 
