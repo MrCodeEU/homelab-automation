@@ -249,20 +249,45 @@ class roles::services (
     'backup-dashboard'  => ['backup-dashboard-collect'],
   }
 
+  # Explicit, one-shot major-version migrations. The persistent marker is
+  # written only after a logical dump/import into the new volume succeeds;
+  # this makes it visible in noop without risking an accidental re-run.
+  $postgres_major_upgrades = {
+    'umami' => {
+      'old_image'    => 'postgres:15-alpine',
+      'new_image'    => 'postgres:18-alpine',
+      'old_volume'   => 'umami_umami-db-data',
+      'new_volume'   => 'umami_umami-db-data-v18',
+      'database'     => 'umami',
+      'username'     => 'umami',
+      'db_container' => 'umami-db',
+    },
+    'mail-archiver' => {
+      'old_image'    => 'postgres:16-alpine',
+      'new_image'    => 'postgres:18-alpine',
+      'old_volume'   => 'mail-archiver_mail-archiver-pgdata',
+      'new_volume'   => 'mail-archiver_mail-archiver-pgdata-v18',
+      'database'     => 'MailArchiver',
+      'username'     => 'mailuser',
+      'db_container' => 'mail-archiver-db',
+    },
+  }
+
   $host_services.each |$svc| {
     roles::services::service { $svc['name']:
-      service              => $svc,
-      base_path            => $base_path,
-      domain               => $domain,
-      email                => $email,
-      timezone             => $timezone,
-      bind_addr            => pick($svc['public_bind'], $bind_addr),
-      work_dir             => $work_dir,
-      secrets              => pick($all_secrets[$svc['name']], {}),
-      run_post_deploy_hook => $svc['name'] in $post_deploy_hook_services,
-      critical             => $svc['name'] in $critical_hook_services,
-      executables          => pick($service_executables[$svc['name']], []),
-      require              => [Exec['services-dockerhub-login'], Exec['services-ghcr-login']],
+      service                => $svc,
+      base_path              => $base_path,
+      domain                 => $domain,
+      email                  => $email,
+      timezone               => $timezone,
+      bind_addr              => pick($svc['public_bind'], $bind_addr),
+      work_dir               => $work_dir,
+      secrets                => pick($all_secrets[$svc['name']], {}),
+      run_post_deploy_hook   => $svc['name'] in $post_deploy_hook_services,
+      critical               => $svc['name'] in $critical_hook_services,
+      executables            => pick($service_executables[$svc['name']], []),
+      postgres_major_upgrade => pick($postgres_major_upgrades[$svc['name']], {}),
+      require                => [Exec['services-dockerhub-login'], Exec['services-ghcr-login']],
     }
   }
 

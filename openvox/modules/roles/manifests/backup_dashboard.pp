@@ -83,7 +83,7 @@ class roles::backup_dashboard (
     { 'name' => 'kuma', 'host' => 'nuc', 'source' => ['kuma_uptime-kuma-data'] },
     { 'name' => 'forgejo', 'host' => 'nuc', 'source' => ['forgejo-data', 'forgejo-db-data', '/opt/backups/forgejo-dumps'] },
     { 'name' => 'mail-archiver', 'host' => 'nuc', 'source' => ['mail-archiver_mail-archiver-dp-keys', '/opt/backups/mail-archiver-dumps'] },
-    { 'name' => 'umami', 'host' => 'nuc', 'source' => ['umami_umami-db-data', '/opt/backups/umami-dumps'] },
+    { 'name' => 'umami', 'host' => 'nuc', 'source' => ['umami_umami-db-data-v18', '/opt/backups/umami-dumps'] },
     { 'name' => 'grafana', 'host' => 'nuc', 'source' => ['grafana-data', 'victoriametrics-data', 'loki-data'] },
     { 'name' => 'nocturne', 'host' => 'nuc', 'source' => ['nocturne_nocturne-postgres-data', '/opt/backups/nocturne-dumps'] },
   ]
