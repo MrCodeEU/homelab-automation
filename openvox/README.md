@@ -165,3 +165,9 @@ pinned VoxBox image containing OpenVox 8.28.1. It has no host, Tailscale, or
 secret access. The test fixture downloads the same pinned `puppetlabs/stdlib`
 version as `Puppetfile` into ignored `openvox/spec/fixtures/`; CI runs this
 target for every OpenVox PR before the owner-only live noop.
+
+`make test-openvox-caddy-render` is the integration-level complement: it
+compiles a small fixture service catalog spanning local/remote backends,
+Authelia, HTTPS, custom blocks, and staging routes, then validates the
+assembled result with a pinned Caddy image. It is a disposable local
+render only, not a host deployment.

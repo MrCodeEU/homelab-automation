@@ -183,16 +183,16 @@ DISASTER_RECOVERY.md backlog section.
 - [ ] **rspec-puppet for classes with real logic.** Start with
       `roles::firewalld` and `roles::backup` (highest blast radius) —
       catch bugs before they reach the live-noop stage, let alone apply.
-- [ ] **Port the `tests/` e2e harness to OpenVox.** The old Ansible-only
-      Docker/SSH harness was deleted 2026-08-29 (see P1 ansible-reference
-      cleanup above) rather than kept dead — it only drove
-      `ansible-playbook`, which no longer has a deploy path. A real
-      OpenVox equivalent would spin up containers, run
-      `scripts/openvox-sync.sh`/`puppet apply` against them, and assert
-      on generated Caddy snippets the same way the old harness did.
-      Accepted as a coverage gap until this lands; `make test`'s fast
-      local checks (parser validate, epp validate, compose lint) plus
-      live-noop CI on real hosts are the current substitute.
+- [x] **Port the useful part of the `tests/` e2e harness to OpenVox.** DONE
+      2026-08-29 — the deleted Ansible Docker/SSH harness only rendered its
+      retired templates and checked for empty snippets. Its OpenVox-native
+      replacement compiles a varied Caddy fixture catalog in pinned VoxBox,
+      exports the real EPP-generated files to a temporary directory, and
+      validates the assembled result using pinned Caddy 2.11.2. It covers
+      local/remote upstreams, Authelia, HTTPS backends, custom blocks,
+      staging routes, and disabled services without SSH, Tailscale, secrets,
+      or host mutation. `make test-openvox-caddy-render` and the unprivileged
+      `OpenVox Caddy render test` CI job run it before live noop.
 - [ ] **Fix `ParseFailedServices` for OpenVox log shape.**
       `tools/internal/deploystatus/status.go`'s own comment admits it
       always returns empty against a real OpenVox apply log today — it
