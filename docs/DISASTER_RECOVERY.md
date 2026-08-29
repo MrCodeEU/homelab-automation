@@ -8,11 +8,12 @@ mechanism since 2026-08-23 (see `openvox/README.md`) - every gap below
 was verified against the actual role/catalog code, not assumed.
 
 `ansible/` is still kept in the repo as reference for a few weeks (per
-standing instruction) and still owns 3 bootstrap-only roles
-(`syncthing-nas-key`, `unraid-bootstrap`, `wd-mycloud-tailscale`) that
-were never ported - one-time host-bootstrap actions, not something an
-idempotent config-mgmt run needs to repeat. Everything else described
-below goes through OpenVox now.
+standing instruction). Every recovery step below goes entirely through
+OpenVox now - the three roles that looked unported by name
+(`syncthing-nas-key`, `unraid-bootstrap`, `wd-mycloud-tailscale`) turned
+out to already be covered under different class names
+(`roles::unraid_proxy`, `roles::wd_mycloud_proxy`, a static vault
+secret) - see `docs/OPENVOX_BACKLOG.md` for the full correction.
 
 Not yet tested against a real from-scratch rebuild (no spare hardware to
 throwaway-test against). Treat the steps below as the best current
@@ -52,10 +53,8 @@ prerequisites:
    `scripts/openvox-sync.sh`, which rsyncs (scp for `ugreen`) the whole
    `openvox/` tree to `/etc/puppetlabs/code/environments/production/` on
    the target, then runs `puppet apply` locally there.
-6. **Tooling for the 3 still-ansible-only bootstrap roles** (see intro
-   above), if the host needs one of them: `ansible-galaxy collection
-   install -r ansible/requirements.yml`, `pip install ansible-core
-   mitogen ansible-mitogen`, and `git config core.hooksPath .githooks`.
+6. **`git config core.hooksPath .githooks`** - repo-standard pre-commit
+   hooks, unrelated to any specific host.
 
 **The eyaml private key is the single point of failure for every
 `vault_*` secret in this repo, and it lives nowhere in Git.** If
@@ -77,7 +76,7 @@ secret, it's deployed straight to hosts): `TS_OAUTH_CLIENT_ID`,
 Tailscale admin console configuration itself - ACLs, device tags, the
 `tag:ci` OAuth client scope, and every node's one-time interactive login.
 If that's gone, every host needs re-enrolling and re-approving by hand
-before Ansible can reach any of them.
+before OpenVox can reach any of them.
 
 ## mljr (Rocky, production ingress)
 
@@ -112,17 +111,18 @@ Non-critical services still get their data back if you run `restore.sh
 
 ## nuc (Rocky, staging + misc services)
 
-Same mechanism as mljr: `--limit nuc`. Covers TutaBridge CLI (headless
-Tuta export), health-report agent, Hawser Docker agent, and every
-`services`-role catalog entry scoped to `host: nuc` (mail-archiver,
-umami, forgejo, kuma, grafana, and the various demo/utility services).
+Same mechanism as mljr: `make openvox-deploy-nuc`. Covers TutaBridge CLI
+(headless Tuta export), health-report agent, Hawser Docker agent, and
+every service-catalog entry scoped to `host: nuc` (mail-archiver, umami,
+forgejo, kuma, grafana, and the various demo/utility services).
 
 **TutaBridge specifically** needs one extra thing beyond a plain deploy:
-the role handles gnome-keyring bootstrapping and the first Tuta login
-automatically (via `ansible.builtin.expect`, since this account has no
-TOTP) - no manual step needed here anymore, unlike Outlook's OAuth Device
-Code Flow (see mail-archiver below), which does need a human to
-visit a URL once per Microsoft account.
+`roles::tutabridge_cli` handles gnome-keyring bootstrapping and the
+first Tuta login automatically (drives an interactive login via
+`expect`, since this account has no TOTP) - no manual step needed here
+anymore, unlike Outlook's OAuth Device Code Flow (see mail-archiver
+below), which does need a human to visit a URL once per Microsoft
+account.
 
 **Just fixed as part of this audit (2026-08-13):** `mail-archiver` was
 flagged `backup_critical: true` in the service catalog but had zero
@@ -161,19 +161,20 @@ for the common case of restoring one service after loss or corruption.
 ## nas (Unraid)
 
 **Unraid's boot flash drive is backed up** - `/boot` → pCloud daily,
-`tier: critical`, per `roles/unraid-backup/defaults/main.yml`. This is
-the single most important thing for Unraid recovery (Unraid's own
-guidance): it holds every array/share/plugin/Docker-template
-configuration and the license key. Recovery: boot from a fresh flash
-drive image, restore this backup onto it, boot.
+`tier: critical`, per `roles::unraid_backup_proxy` (nas has no agent,
+this runs on nuc over SSH - see `openvox/README.md`'s masterless
+model). This is the single most important thing for Unraid recovery
+(Unraid's own guidance): it holds every array/share/plugin/
+Docker-template configuration and the license key. Recovery: boot from
+a fresh flash drive image, restore this backup onto it, boot.
 
 Also backed up (all `tier: critical`, pCloud + best-effort ugreen/WD
 depending on entry): `Fotos/Fotos`, `Fotos/Videos`, `Fotos/Wichtiges
 Scans Adressen`, `Fotos/Musik`, and the Nextcloud borg repository.
 
 **11 of 15 nas-hosted catalog services are `managed: false`**
-(Unraid-UI-owned containers, Ansible only generates their Caddy proxy
-snippet): `nas` (management UI), `immich`, `nextcloud`, `dockhand`,
+(Unraid-UI-owned containers, `roles::services_nas` only generates their
+Caddy proxy snippet): `nas` (management UI), `immich`, `nextcloud`, `dockhand`,
 `syncthing`, `filerun` (disabled), `test-ocis`, `stats` (disabled),
 `projects` (Vikunja), `pairdrop` (disabled), `dawarich`. **None of these
 have a recreation definition anywhere in this repo** - no XML templates,
@@ -214,11 +215,13 @@ the Syncthing memory notes).
 
 ## ugreen (UGreen NAS, UGOS)
 
-Ansible-managed subset only: `syncthing-ugreen`, `oxicloud` (explicitly
-an initial test, no backup), `smartctl-exporter`, plus
-`host-facts-endpoint`, `grafana-alloy`, `iperf3`, `ugreen-tailscale`
-(version-check role, UGOS itself isn't `dnf`-managed by design), and
-`backup-remote-target` (the SFTP chroot other hosts push backups into).
+`role::ugreen`-managed subset only: `syncthing-ugreen`, `oxicloud`
+(explicitly an initial test, no backup), `smartctl-exporter`, plus
+`roles::host_facts_endpoint`, `roles::grafana_alloy`, `roles::iperf3`,
+`roles::ugreen_tailscale` (version-check only, UGOS itself isn't
+`dnf`-managed by design), and `roles::backup_remote_target` (the SFTP
+chroot other hosts push backups into). Unlike mljr/nuc, ugreen has no
+`roles::base` - see `role::ugreen`'s own comment for why.
 
 Everything else - UGOS's own storage pool layout (mdraid → LVM → btrfs),
 network share definitions, UGOS app-store installs - is vendor-appliance
@@ -226,7 +229,7 @@ config living entirely outside this repo, deliberately (per the
 inventory's own comments: no dnf, vendor A/B overlay root, same posture
 as leaving Unraid's own OS layer unmanaged). Recovery for that layer is
 whatever UGOS's own recovery/reset process provides - not something
-Ansible touches or could reproduce.
+OpenVox touches or could reproduce.
 
 Note: this device died catastrophically once already (2026-07-31,
 rebuilt on new hardware by 2026-08-10) - that recovery happened, but was
@@ -235,27 +238,30 @@ comments. Worth doing properly if it's rebuilt again.
 
 ## wd_mycloud (WD MyCloud EX2 Ultra)
 
-Only two roles touch it: `wd-mycloud-tailscale` and
-`wd-mycloud-node-exporter`, both bare ARM binaries on a persistent data
-partition with a boot-hook (hijacked `clamAV/start.sh` - the one thing
-confirmed to survive/re-run after a reboot on this BusyBox device, no
-systemd/cron persistence otherwise). Full detail already written up
-separately: see the `wd-mycloud-reboot-persistence` memory/notes.
+Only two proxy classes touch it, both run on nuc over SSH (wd_mycloud
+has no agent - busybox, no libc match for any Puppet-family runtime):
+`roles::wd_mycloud_proxy` and `roles::wd_mycloud_node_exporter_proxy`,
+both bare ARM binaries on a persistent data partition with a boot-hook
+(hijacked `clamAV/start.sh` - the one thing confirmed to survive/re-run
+after a reboot on this BusyBox device, no systemd/cron persistence
+otherwise). Full detail already written up separately: see the
+`wd-mycloud-reboot-persistence` memory/notes.
 
 This device is purely a backup **destination** (`wd_cloud: true` entries
 in `unraid_backup_paths`), never a source. Its own RAID/share
-configuration is vendor-firmware-level, untouched by Ansible, and not
+configuration is vendor-firmware-level, untouched by OpenVox, and not
 something this repo can recreate - recovery there is whatever WD's own
 firmware/RAID-rebuild tooling provides.
 
 ## Home Assistant - explicitly out of scope
 
-HA is `proxy_only` in the inventory - Ansible only generates its Caddy
-route, nothing about the appliance itself is managed here. **Deliberately
-not being brought into Ansible-managed backup either** - it already
-backs up to pCloud on its own, separately from this repo's backup system
-(flagged during this audit as not a great setup, worth a proper look
-later, but that's a separate discussion, not part of this pass).
+HA is `proxy_only` in the service catalog - `roles::services` only
+generates its Caddy route, nothing about the appliance itself is
+managed here. **Deliberately not being brought into OpenVox-managed
+backup either** - it already backs up to pCloud on its own, separately
+from this repo's backup system (flagged during the original audit as
+not a great setup, worth a proper look later, but that's a separate
+discussion, not part of this pass).
 Recovery for HA is entirely through its own backup/restore mechanism,
 not this repo.
 
@@ -278,7 +284,7 @@ regenerate identically, not just "annoying":
 - **`vault_pcloud_token`** - the OAuth token for the primary offsite
   backup remote. Without it, neither backup role can reach existing
   backups. Re-authenticating rclone against the same pCloud account gets
-  a new token, but that's a manual step outside Ansible.
+  a new token, but that's a manual step outside OpenVox.
 - **`vault_tuta_email` / `vault_tuta_password`**,
   **`vault_google_client_id/secret`**, **`vault_strava_*`**,
   **`vault_homeassistant_token`** - third-party identities, regenerable

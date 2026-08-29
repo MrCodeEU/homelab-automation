@@ -1,14 +1,18 @@
 # GitHub Actions Deployment Workflows
 
-This directory contains the GitHub Actions workflows for validating and deploying the homelab with OpenVox over Tailscale. The legacy Ansible tree remains available as the migration reference.
+This directory contains the GitHub Actions workflows for validating and deploying the homelab with OpenVox over Tailscale. The `ansible/` tree is retained only as a historical migration reference and has no deployment path of its own.
 
 ## Workflows
 
 ### Standard Deploy (`deploy.yml`)
 
-Sequential deployment with validation, OpenVox execution, summary generation, and ntfy notification.
+Sequential deployment: validate → set up Tailscale → run OpenVox → build deployment status page → notify.
 
-Pull requests use the separate `openvox-pr-check.yml` workflow. Production deployments are manual, scheduled, or service-update dispatches.
+- `workflow_dispatch`: manual run, any branch. Non-`main` branches automatically run in check mode (noop). Inputs: `limit` (`all`/`mljr`/`nuc`/`ugreen`), `staging_services`, `docker_prune`, `reboot_if_needed`.
+- `schedule`: weekly, Sunday 00:00 UTC, full apply on all hosts with weekly maintenance (docker prune + gated reboot) enabled.
+- `repository_dispatch` (`service-update`): fast path for a single service - resolves the service's host from `openvox/data/common.yaml`'s `services_catalog` and applies just that host (plus mljr for its Caddy snippet).
+
+Pull requests use the separate `openvox-pr-check.yml` workflow, kept out of this one so its reporting/notification steps never run against a dry run.
 
 ### Static Analysis Baseline (`static-analysis.yml`)
 
@@ -16,11 +20,9 @@ Read-only, no-secrets scans using pinned ShellCheck, puppet-lint, actionlint, zi
 
 ### IaC Security Scan (`iac-security.yml`)
 
-Read-only Infrastructure-as-Code scanning with Checkov. This workflow intentionally does not receive the Ansible Vault password, Tailscale OAuth credentials, or any production deployment secret. It uploads a Checkov artifact and, when repository settings allow it, SARIF results for GitHub code scanning.
+Read-only Infrastructure-as-Code scanning with Checkov. This workflow intentionally does not receive Tailscale OAuth credentials or any production deployment secret. It uploads a Checkov artifact and, when repository settings allow it, SARIF results for GitHub code scanning.
 
-Checkov is blocking for active infrastructure. The top-level `ansible/` tree is
-excluded because it is retained only as the OpenVox migration reference and is
-no longer a deployment path.
+Checkov is blocking for active infrastructure. The top-level `ansible/` tree is excluded because it is retained only as the OpenVox migration reference and is no longer a deployment path.
 
 ## Required GitHub Secrets
 
@@ -37,12 +39,7 @@ Configure these secrets in your GitHub repository settings (Settings → Secrets
 2. Generate OAuth client credentials
 3. Add tag `tag:ci` to the OAuth client permissions
 
-### Ansible Vault
-| Secret | Description |
-|--------|-------------|
-| `ANSIBLE_VAULT_PASSWORD` | Password used to decrypt `ansible/inventory/group_vars/all/vault.yml` |
-
-Application secrets live in the encrypted Ansible Vault file. Update `ansible/inventory/group_vars/all/vault.yml.example` and `secrets.yml` when adding a new secret-backed service.
+Application secrets are stored per-host, encrypted with hiera-eyaml (`openvox/data/common.eyaml`), decrypted locally on each host with its own PKCS7 keypair - there is no fleet-wide secret or vault password for CI to hold. See `openvox/README.md` for the encryption setup.
 
 ## How It Works
 
@@ -52,44 +49,35 @@ Application secrets live in the encrypted Ansible Vault file. Update `ansible/in
 │  Runner (Ubuntu)    │
 └──────────┬──────────┘
            │
-           │ 1. Install Ansible
-           │ 2. Set up Tailscale VPN
+           │ 1. Validate service configs / Caddy templates
+           │ 2. Set up Tailscale VPN (tag:ci)
            ▼
 ┌─────────────────────┐
 │  Tailscale Network  │
 └──────────┬──────────┘
            │
-           │ 3. Run ansible-playbook
+           │ 3. scripts/openvox-sync.sh <host> <noop|apply>
+           │    (rsync manifests, puppet apply on each host)
            ▼
 ┌─────────────────────┐
 │  Target Hosts       │
-│  (mljr/nuc/nas)     │
+│  (mljr/nuc/ugreen)  │
 └─────────────────────┘
 ```
 
 **Workflow steps:**
 1. Checkout repository
-2. Set up Tailscale VPN connection
-3. Install Ansible, Mitogen, and ARA (cached)
-4. Install Ansible collections
-5. Decrypt the Ansible Vault password into a temporary file
-6. Run `ansible-playbook playbooks/site.yml` with selected limit/tags/check mode
-7. Upload ARA run data as a workflow artifact
-8. Fail the job when Ansible fails and send deployment notification
+2. Validate service configurations and Caddy templates (`.githooks/pre-commit`)
+3. Resolve target hosts (`limit` input, dispatched service, or staging services)
+4. Set up Tailscale VPN
+5. For each target host, run `scripts/openvox-sync.sh <host> <noop|apply>` (syncs `openvox/` to the host, then runs `puppet apply` there)
+6. Upload the combined apply log as a workflow artifact
+7. Build and publish the deployment status page (`tools/cmd/build-deploy-status`) to `https://deploy.mljr.eu`
+8. Notify via ntfy; fail the job if any host's OpenVox run failed
 
-The weekly scheduled `deploy.yml` run also sets `docker_prune_enabled=true`, pruning unused Docker images and stopped containers. Volumes are intentionally excluded.
+## Deployment Status Page
 
-## ARA Reporting
-
-Deployments enable the ARA callback plugin in offline mode. Each run records playbook, task, and host results to `/tmp/ara/ansible.sqlite`, exports basic JSON summaries, and uploads everything as an artifact named `ara-report-<run id>`.
-
-To inspect a downloaded artifact locally:
-
-```bash
-pip install "ara[server]"
-ARA_DATABASE=sqlite:////path/to/artifact/ara/ansible.sqlite ara playbook list
-ARA_DATABASE=sqlite:////path/to/artifact/ara/ansible.sqlite ara host list
-```
+Every run (check or apply) publishes a status page to `https://deploy.mljr.eu`, built by `tools/cmd/build-deploy-status` from the OpenVox apply log, the services catalog, and prior deployment history. No separate report download is needed - the page is the record.
 
 ## IaC Security Scanning
 
@@ -97,26 +85,12 @@ ARA_DATABASE=sqlite:////path/to/artifact/ara/ansible.sqlite ara host list
 
 KICS remains a useful secondary scanner, but the Checkmarx GitHub Action and Docker distribution should not be used in this secret-bearing deploy workflow until the supply-chain situation has been reviewed and a trusted, pinned release path is chosen.
 
-## Ansible Roles (Tags)
-
-| Tag | Description | Hosts |
-|-----|-------------|-------|
-| `base` | Install base packages and Docker | rocky |
-| `prune` | Prune unused Docker images/containers | rocky |
-| `services` | Deploy Docker Compose services | rocky |
-| `caddy` | Configure Caddy reverse proxy | mljr |
-| `security` | Security setup and CrowdSec bouncer | mljr |
-| `crowdsec` | CrowdSec firewall bouncer | mljr |
-| `grafana-alloy` | Monitoring agent | rocky |
-| `monitoring` | Monitoring-related roles | rocky |
-| `backup` | Backup/restore setup | rocky |
-
 ## Security Features
 
 - **No SSH keys in repository**: Uses Tailscale authentication
 - **Ephemeral connections**: VPN exists only during workflow run
 - **Scoped permissions**: OAuth client tagged with `tag:ci`
-- **Secrets in Vault**: Ansible decrypts `vault.yml` with `ANSIBLE_VAULT_PASSWORD`
+- **No fleet-wide secret**: hiera-eyaml, per-host PKCS7 keypairs - a compromised CI runner never holds a key that unlocks more than one host's data
 - **No public exposure**: All communication over private Tailscale network
 - **CrowdSec enforcement**: `mljr` installs the nftables firewall bouncer for host-level remediation
 
@@ -124,40 +98,38 @@ KICS remains a useful secondary scanner, but the Checkmarx GitHub Action and Doc
 
 ### "Cannot connect to host"
 - Verify Tailscale is running on target device
-- Check hostname in `ansible/inventory/hosts.yml`
+- Check the host list in `Makefile`'s `OPENVOX_HOSTS`
 - Ensure `tag:ci` is allowed in your Tailscale ACLs
 
 ### "Permission denied"
-- Verify user has sudo/root permissions
-- Check `ansible_user` in inventory
+- Verify the deploy SSH user has sudo/root permissions on the target host
 
-### "Module not found"
-- Run `ansible-galaxy collection install -r requirements.yml`
+### OpenVox catalog compile errors
+- Run `puppet parser validate` locally (`make test` includes this) before pushing
+- Check `openvox/hiera.yaml` data-source ordering if a class parameter isn't resolving as expected
 
 ## Example Usage
 
 ### Deploy everything to all hosts:
 ```bash
-# Via GitHub Actions: select limit=all, tags=all
+gh workflow run deploy.yml -f limit=all
 # Or locally:
-cd ansible && ansible-playbook playbooks/site.yml
+make openvox-deploy
 ```
 
-### Deploy only to VPS:
+### Deploy only to one host:
 ```bash
-# Via GitHub Actions: select limit=mljr
+gh workflow run deploy.yml -f limit=mljr
 # Or locally:
-cd ansible && ansible-playbook playbooks/site.yml --limit mljr
+make openvox-deploy-mljr
 ```
 
-### Deploy only Caddy configuration:
+### Dry run (noop) on one host:
 ```bash
-# Via GitHub Actions: select tags=caddy
-# Or locally:
-cd ansible && ansible-playbook playbooks/site.yml --tags caddy
+make openvox-check-nuc
 ```
 
-### Deploy services to specific host:
+### Deploy a single service via its catalog entry:
 ```bash
-cd ansible && ansible-playbook playbooks/site.yml --limit mljr --tags services
+gh api repos/:owner/:repo/dispatches -f event_type=service-update -f 'client_payload[service]=homepage'
 ```

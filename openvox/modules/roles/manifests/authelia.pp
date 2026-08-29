@@ -227,10 +227,8 @@ class roles::authelia (
   }
 
   # Bind-mounted config files don't trigger a compose recreate on content
-  # change - a real restart is required to pick them up, same as the
-  # Ansible role's own notify: Restart Authelia. refreshonly - only runs
-  # when one of the 3 file/exec resources above actually changed, except
-  # authelia-users-database which (see class doc) always reports changed.
+  # change - a real restart is required to pick them up. refreshonly - only
+  # runs when one of the 3 file/exec resources above actually changed.
   exec { 'authelia-restart':
     command     => 'docker compose pull && docker compose up -d && docker compose restart',
     provider    => shell,

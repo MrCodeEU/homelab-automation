@@ -60,7 +60,7 @@ func truncate(s string, n int) string {
 func run() error {
 	existingJSON := flag.String("existing-json", "", "")
 	servicesJSON := flag.String("services-json", "", "")
-	ansibleLog := flag.String("ansible-log", "", "")
+	deployLog := flag.String("deploy-log", "", "")
 	outputJSON := flag.String("output-json", "", "")
 	outputHTML := flag.String("output-html", "", "")
 	startTime := flag.String("start-time", "", "")
@@ -76,13 +76,13 @@ func run() error {
 	limit := flag.String("limit", "all", "")
 	tags := flag.String("tags", "all", "")
 	runURL := flag.String("run-url", "", "")
-	araArtifact := flag.String("ara-artifact", "", "")
+	logArtifact := flag.String("log-artifact", "", "")
 	targetedService := flag.String("targeted-service", "", "")
 	targetEnvironment := flag.String("target-environment", "", "")
 	flag.Parse()
 
 	required := map[string]string{
-		"existing-json": *existingJSON, "services-json": *servicesJSON, "ansible-log": *ansibleLog,
+		"existing-json": *existingJSON, "services-json": *servicesJSON, "deploy-log": *deployLog,
 		"output-json": *outputJSON, "output-html": *outputHTML, "start-time": *startTime,
 		"status": *status, "trigger": *trigger, "branch": *branch, "actor": *actor,
 	}
@@ -98,7 +98,7 @@ func run() error {
 	})
 
 	var logLines []string
-	if raw, err := os.ReadFile(*ansibleLog); err == nil {
+	if raw, err := os.ReadFile(*deployLog); err == nil {
 		logLines = splitLines(string(raw))
 	}
 	failedServices := deploystatus.ParseFailedServices(logLines, servicesConfig)
@@ -154,7 +154,7 @@ func run() error {
 		"limit":            *limit,
 		"tags":             *tags,
 		"run_url":          *runURL,
-		"ara_artifact":     *araArtifact,
+		"log_artifact":     *logArtifact,
 		"services":         serviceResults,
 		"summary":          summary,
 	}

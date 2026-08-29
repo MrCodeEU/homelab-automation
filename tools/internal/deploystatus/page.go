@@ -365,7 +365,7 @@ func GenerateHTML(data map[string]any) (string, error) {
 				stagingBadge = `<span class="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-400 rounded">staging</span>`
 			}
 			runURL := esc(str(dep, "run_url"))
-			araArtifact := esc(str(dep, "ara_artifact"))
+			logArtifact := esc(str(dep, "log_artifact"))
 			trigger := str(dep, "trigger")
 
 			linksHTML := ""
@@ -377,17 +377,17 @@ func GenerateHTML(data map[string]any) (string, error) {
                 </a>
             `, runURL)
 			}
-			if araArtifact != "" {
+			if logArtifact != "" {
 				linksHTML += fmt.Sprintf(`
                 <span title="Download artifact '%s' from the GitHub Actions run" class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-500/15 text-blue-300 rounded">
                     <iconify-icon icon="mdi:database-search"></iconify-icon>
-                    ARA
+                    Log
                 </span>
-            `, araArtifact)
+            `, logArtifact)
 			}
 			if linksHTML == "" && trigger == "local" {
 				linksHTML = `
-                <span title="Executed locally via make deploy" class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-slate-700/50 text-slate-300 rounded">
+                <span title="Executed locally via make openvox-deploy-<host>" class="inline-flex items-center gap-1 px-2 py-1 text-xs bg-slate-700/50 text-slate-300 rounded">
                     <iconify-icon icon="mdi:console"></iconify-icon>
                     Local
                 </span>

@@ -395,7 +395,7 @@ jobs:
           /tmp/build-deploy-status \
             --existing-json "$WORKDIR/deployments.json" \
             --services-json "$WORKDIR/services.json" \
-            --ansible-log /tmp/openvox-output.log \
+            --deploy-log /tmp/openvox-output.log \
             --output-json "$WORKDIR/deployments-out.json" \
             --output-html "$WORKDIR/index.html" \
             --start-time "$START_TIME" \
@@ -409,7 +409,7 @@ jobs:
             --limit "${STEPS_HOSTS_OUTPUTS_LIMIT}" \
             --tags "n/a" \
             --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --ara-artifact "openvox-log-${{ github.run_id }}" \
+            --log-artifact "openvox-log-${{ github.run_id }}" \
             --targeted-service "$DISPATCH_SERVICE" \
             "${CHECK_MODE_ARGS[@]}" \
             || echo "Deployment status build failed"

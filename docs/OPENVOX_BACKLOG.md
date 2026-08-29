@@ -52,12 +52,38 @@ DISASTER_RECOVERY.md backlog section.
       behavior/content, not just class-name string matches — this repo
       has more than one migration lineage (`migration/spot` predates the
       main `openvox` cutover) and names don't line up 1:1.
-- [ ] **Remove active ansible references outside `ansible/`.** Full
-      classification audit run 2026-08-29 (414 matches across ~110
-      files) — most are fine (provenance comments like "ported from
-      ansible/roles/x", kept deliberately). These are NOT fine — each
-      documents or runs Ansible as if it were still the live tool, and
-      `ansible/` is slated for eventual removal:
+- [x] **Remove active ansible references outside `ansible/`.** DONE
+      2026-08-29. Full classification audit run same day (414 matches
+      across ~110 files) — most were fine (provenance comments like
+      "ported from ansible/roles/x", kept deliberately). All findings
+      below fixed: `Makefile` rewritten (syntax check retargeted to
+      `puppet parser validate`, `test-e2e`/`view-ara`/`deploy*` targets
+      removed, header/help text rewritten OpenVox-first);
+      `scripts/deploy-local.sh` deleted; `.github/workflows/README.md`
+      fully rewritten around OpenVox as the only live deploy path;
+      `docs/DEPLOYMENT_OPTIMIZATION.md` and `docs/ANSIBLE_TOOLING.md`
+      deleted; `docs/DISASTER_RECOVERY.md` nas/ugreen/Home-Assistant/nuc
+      sections fixed to name the real `roles::*` proxy classes;
+      `.github/workflows/iac-security.yml` dropped `ansible/**` from
+      trigger paths; `.checkov.yml` dead `docs/ansible-map.md` skip-path
+      removed; `tools/cmd/build-deploy-status` +
+      `.github/workflows/deploy.yml` flags renamed `--ansible-log` →
+      `--deploy-log`, `--ara-artifact` → `--log-artifact`;
+      `openvox/modules/roles/manifests/services.pp` +
+      `tools/cmd/provision-kuma/main.go` renamed
+      `inventory_hostname`/`ansible_host` → `node_name`/`node_host`;
+      `tools/internal/deploystatus/page.go` `ARA` label → `Log`;
+      `.githooks/pre-commit` swapped its `$ANSIBLE_VAULT` header check
+      for an `ENC[PKCS7` check on `openvox/data/common.eyaml`, and
+      `ansible/inventory/group_vars/all/vault.yml` was deleted
+      (git-history-recoverable; `.example` kept — still documents key
+      names for `docs/DISASTER_RECOVERY.md`); `tests/` e2e harness
+      deleted rather than ported (see new P2 item below) since it only
+      exercised Ansible's own now-removed deploy path. Historical
+      "ported from ansible/roles/x"-style comments were deliberately
+      left alone per the user's own "except for historical how-did-we-
+      get-here stuff" carve-out. Original bucket-C findings, for
+      reference:
       - `Makefile`: `make test` silently runs an Ansible syntax check
         against `ansible/playbooks/site.yml` if `ansible-playbook`
         happens to be installed; `make test-e2e` is a fully separate
@@ -157,6 +183,26 @@ DISASTER_RECOVERY.md backlog section.
 - [ ] **rspec-puppet for classes with real logic.** Start with
       `roles::firewalld` and `roles::backup` (highest blast radius) —
       catch bugs before they reach the live-noop stage, let alone apply.
+- [ ] **Port the `tests/` e2e harness to OpenVox.** The old Ansible-only
+      Docker/SSH harness was deleted 2026-08-29 (see P1 ansible-reference
+      cleanup above) rather than kept dead — it only drove
+      `ansible-playbook`, which no longer has a deploy path. A real
+      OpenVox equivalent would spin up containers, run
+      `scripts/openvox-sync.sh`/`puppet apply` against them, and assert
+      on generated Caddy snippets the same way the old harness did.
+      Accepted as a coverage gap until this lands; `make test`'s fast
+      local checks (parser validate, epp validate, compose lint) plus
+      live-noop CI on real hosts are the current substitute.
+- [ ] **Fix `ParseFailedServices` for OpenVox log shape.**
+      `tools/internal/deploystatus/status.go`'s own comment admits it
+      always returns empty against a real OpenVox apply log today — it
+      only matches Ansible-shaped markers (`TASK [...]`, `fatal:`,
+      `failed:`, `FAILED!`). The deployment status page currently has no
+      real per-service failure detail for OpenVox runs because of this.
+      Needs matching against `puppet apply`'s actual failure output
+      shape (e.g. `Error:`/`Error: /Stage[...]` catalog lines, already
+      partially relied on by `openvox-sync.sh`'s own
+      `^\[[^]]+\] Error:` grep in `deploy.yml`).
 
 ## P3 — net-new capability
 

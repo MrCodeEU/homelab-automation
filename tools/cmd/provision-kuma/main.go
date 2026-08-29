@@ -57,8 +57,8 @@ func firstDomain(d any) string {
 }
 
 type host struct {
-	InventoryHostname string `yaml:"inventory_hostname"`
-	AnsibleHost       string `yaml:"ansible_host"`
+	NodeName string `yaml:"node_name"`
+	NodeHost string `yaml:"node_host"`
 }
 
 type catalog struct {
@@ -82,8 +82,8 @@ func getExpectedMonitorNames(services []service, hosts []host) map[string]bool {
 		}
 	}
 	for _, h := range hosts {
-		if h.InventoryHostname != "" {
-			expected[pingPrefix+h.InventoryHostname] = true
+		if h.NodeName != "" {
+			expected[pingPrefix+h.NodeName] = true
 		}
 	}
 	expected[smtpPrefix+mailcowSMTPHost] = true
@@ -143,18 +143,18 @@ func syncServiceMonitors(ctx context.Context, client *kuma.Client, services []se
 
 func syncPingMonitors(ctx context.Context, client *kuma.Client, hosts []host, existing map[string]monitor.Base, st *stats) {
 	for _, h := range hosts {
-		if h.InventoryHostname == "" || h.AnsibleHost == "" {
+		if h.NodeName == "" || h.NodeHost == "" {
 			continue
 		}
-		monitorName := pingPrefix + h.InventoryHostname
+		monitorName := pingPrefix + h.NodeName
 
 		if base, ok := existing[monitorName]; ok {
 			var pingMon monitor.Ping
 			_ = base.As(&pingMon)
-			if pingMon.Hostname != h.AnsibleHost || pingMon.MaxRetries != 3 {
-				fmt.Printf("  Updating %s: hostname=%s, maxretries=3\n", monitorName, h.AnsibleHost)
+			if pingMon.Hostname != h.NodeHost || pingMon.MaxRetries != 3 {
+				fmt.Printf("  Updating %s: hostname=%s, maxretries=3\n", monitorName, h.NodeHost)
 				pingMon.Base = base
-				pingMon.Hostname = h.AnsibleHost
+				pingMon.Hostname = h.NodeHost
 				pingMon.Base.Name = monitorName
 				pingMon.Base.MaxRetries = 3
 				if err := client.UpdateMonitor(ctx, &pingMon); err != nil {
@@ -167,10 +167,10 @@ func syncPingMonitors(ctx context.Context, client *kuma.Client, hosts []host, ex
 				st.skipped++
 			}
 		} else {
-			fmt.Printf("  Creating %s (%s)\n", monitorName, h.AnsibleHost)
+			fmt.Printf("  Creating %s (%s)\n", monitorName, h.NodeHost)
 			m := &monitor.Ping{
 				Base:        monitor.Base{Name: monitorName, Interval: 60, RetryInterval: 60, MaxRetries: 3},
-				PingDetails: monitor.PingDetails{Hostname: h.AnsibleHost},
+				PingDetails: monitor.PingDetails{Hostname: h.NodeHost},
 			}
 			if _, err := client.CreateMonitor(ctx, m); err != nil {
 				fmt.Printf("  Failed to create %s: %v\n", monitorName, err)
