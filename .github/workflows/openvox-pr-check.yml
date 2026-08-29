@@ -59,9 +59,24 @@ jobs:
           find scripts openvox/modules/roles/files -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
           make test
 
+  openvox-unit:
+    name: OpenVox catalog tests
+    needs: offline-validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Compile catalog specs in pinned VoxBox
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE/openvox:/repo" \
+            ghcr.io/voxpupuli/voxbox@sha256:704dfe406a3f2f16d0b2a4d71fb4de4b72a9768df1e1cda06134240e5f01dc3c \
+            spec
+
   live-noop:
     name: Live production noop
-    needs: offline-validation
+    needs: [offline-validation, openvox-unit]
     # Only the repository owner's same-repository PRs may receive the
     # production-check environment's Tailscale credentials.
     if: >-
