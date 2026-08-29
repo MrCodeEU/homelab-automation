@@ -127,5 +127,10 @@ chmod 0600 "$marker"
 
 # The original volume and logical dump are intentionally retained. The source
 # copy only served the read-only export and is now safe to remove.
+# It remains attached to the stopped source container until that container is
+# explicitly removed.  Detach it first, otherwise Docker correctly refuses to
+# remove the volume and turns an otherwise completed migration into a failed
+# catalog run.
+docker rm -f "$source_container" >/dev/null 2>&1 || true
 docker volume rm "$source_copy" >/dev/null
 echo "PostgreSQL v18 migration prepared for ${service}; original volume retained: ${old_volume}"
