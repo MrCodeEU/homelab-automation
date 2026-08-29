@@ -20,6 +20,7 @@
 # $weekly_maintenance fact read. OPENVOX_STAGING_SERVICES is an optional,
 # comma-separated catalog selection that explicitly deploys staging instances
 # on nuc; normal applies deliberately leave those containers alone.
+# OPENVOX_RECOVERY_SERVICES is a separate, explicit fresh-host-only selection.
 #
 # Every line of remote output is prefixed with the host's short label
 # (e.g. "[mljr]") - this is the main readability fix over the old plain
@@ -45,6 +46,7 @@ if [ -n "${OPENVOX_ENV_DIR:-}" ]; then
   fi
   isolated_env=true
 fi
+
 # Third-party modules were installed into the production environment by the
 # original bootstrap script. Proposed `roles` code must win, while those pinned
 # host-local dependencies remain available to compile the isolated catalog.
@@ -83,6 +85,15 @@ if [ -n "$staging_services" ]; then
     exit 2
   fi
   facter_prefix+="FACTER_openvox_staging_services=${staging_services} "
+fi
+
+recovery_services="${OPENVOX_RECOVERY_SERVICES:-}"
+if [ -n "$recovery_services" ]; then
+  if [[ ! "$recovery_services" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*(,[A-Za-z0-9][A-Za-z0-9._-]*)*$ ]]; then
+    echo "invalid OPENVOX_RECOVERY_SERVICES: expected comma-separated service names" >&2
+    exit 2
+  fi
+  facter_prefix+="FACTER_openvox_recovery_services=${recovery_services} "
 fi
 
 # Short label for prefixing/log naming, e.g. "mljr.tail33930.ts.net" -> "mljr".

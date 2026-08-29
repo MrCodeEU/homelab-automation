@@ -109,20 +109,22 @@ services (forgejo, mail-archiver, umami, nocturne) - `restore.sh
 --service <name>` now waits for the DB container to be ready and pipes
 the dump straight in.
 
-**Real remaining limitation, by design of the deploy order, not a bug to
-fix**: this only works when the target container is already running -
-i.e. the common case of restoring one service's data after
-loss/corruption. It does NOT run during the from-scratch auto-restore
-path, because `site.yml`'s "Backup Setup" play runs *before* "Docker
-Services" (deliberately - restored files/volumes need to already exist
-on disk before a container mounts them). On a genuinely fresh install,
-run `restore.sh --service <name>` again by hand once the normal Ansible
-deploy has finished and the container is up - the raw volume restore
-already happened as part of the deploy, this second manual pass is only
-needed if that volume restore turns out to be unusable and you need the
-`.sql` dump as the fallback. A cleaner fix (wiring this into the
-existing per-service `hooks/post-deploy.sh` mechanism, which runs after
-containers are up) is a real follow-up, not done here.
+**Recovery sequencing**: PostgreSQL dumps are imported only after the target
+container is running. For a fresh OpenVox host rebuild, use the explicit
+recovery mode before the normal service apply, for example:
+
+```bash
+make openvox-recovery HOST=nuc SERVICE=forgejo,umami
+```
+
+It refuses an initialized host, restores raw service data before Docker starts,
+and deliberately leaves PostgreSQL volumes empty for dump-backed services; the
+registered post-deploy hook imports the matching logical dump once PostgreSQL
+is ready. This avoids restoring both a physical PostgreSQL volume and its SQL
+dump into the same database.
+
+For an already-running service, the targeted manual restore remains available
+for the common case of restoring one service after loss or corruption.
 
 ## nas (Unraid)
 
