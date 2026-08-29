@@ -25,31 +25,33 @@ DISASTER_RECOVERY.md backlog section.
       `environments/vendor-modules` dir so a release swap doesn't need a
       full Forge reinstall or duplicate modules per release. See
       `openvox/README.md` "Releases and rollback".
-- [ ] **Port the 3 remaining ansible-only roles to OpenVox — CORRECTED
-      2026-08-29.** Previously marked here as "confirm these are
-      intentionally bootstrap-only" — wrong call, reversed after reading
-      the actual role code. All three do real ongoing reconciliation, not
-      one-time setup, and leaving them ansible-only means a from-scratch
-      DR still needs a working Ansible toolchain, defeating the point of
-      migrating at all. `ansible/` is slated for eventual removal, so
-      these are real migration debt, not accepted scope:
-      - `syncthing-nas-key`: reads the NAS's live Syncthing API key
-        (`/mnt/user/appdata/syncthing/config.xml`) via SSH-proxy (nas has
-        no agent), for `roles::services_nas`/`ugreen_tailscale`-style
-        cross-play to consume — same shape as the existing
-        `unraid_host_facts_proxy` pattern, port as another nuc-side proxy
-        class.
-      - `unraid-bootstrap`: installs/maintains a User Scripts boot-hook
-        entry + merges `schedule.json` idempotently on nas every apply
-        (array-started guard, retired-script cleanup) — reconciled state,
-        not bootstrap. Port as `roles::unraid_bootstrap_proxy` alongside
-        the other nas proxy classes on nuc's node block.
-      - `wd-mycloud-tailscale`: checks installed vs latest Tailscale
-        version every run, updates the binary + watchdog script + cron +
-        clamAV boot hook on wd_mycloud (busybox, no agent) — this is
-        exactly what `roles::wd_mycloud_proxy`/`wd_mycloud_node_exporter_proxy`
-        already do for that host's other pieces, just missing this one.
-        Port as `roles::wd_mycloud_tailscale_proxy`.
+- [x] **Port the 3 remaining ansible-only roles to OpenVox — RESOLVED
+      2026-08-29, false alarm on the second look too.** Two separate
+      grep-based checks (this session's original review, then a
+      "corrected" backlog entry) both concluded these needed porting by
+      matching literal ansible role names against openvox class names —
+      both wrong. Reading the actual manifest bodies found all three
+      already covered, ported earlier via an intermediate `migration/spot`
+      branch under different class names, predating this session's
+      openvox cutover:
+      - `wd-mycloud-tailscale` → `roles::wd_mycloud_proxy`
+        (`wd_mycloud_proxy.pp`), already live in `role::nuc`. Class
+        comment: "Logic-port of spot/playbooks/wd-mycloud-tailscale.yml
+        (migration/spot, already validated live in production)".
+      - `unraid-bootstrap` → `roles::unraid_proxy` (`unraid_proxy.pp`),
+        already live in `role::nuc`. Same spot-port lineage, same
+        array-precondition/bootstrap-script/schedule-merge logic.
+      - `syncthing-nas-key` → not a proxy class, but functionally
+        covered: the NAS's Syncthing API key is a static vault secret
+        (`vault_syncthing_nas_api_key`, real encrypted value present in
+        `data/common.eyaml`) consumed directly in `roles::services`'
+        `syncthing-ugreen` catalog entry. Architecturally different from
+        Ansible's live SSH-read (the key is stable, doesn't rotate, so a
+        one-time captured secret is equivalent with less machinery).
+      Nothing to port. Lesson for future audits in this repo: grep for
+      behavior/content, not just class-name string matches — this repo
+      has more than one migration lineage (`migration/spot` predates the
+      main `openvox` cutover) and names don't line up 1:1.
 - [ ] **Remove active ansible references outside `ansible/`.** Full
       classification audit run 2026-08-29 (414 matches across ~110
       files) — most are fine (provenance comments like "ported from
