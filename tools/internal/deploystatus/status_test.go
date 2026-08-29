@@ -2,8 +2,29 @@ package deploystatus
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
+
+func TestGenerateHTMLRendersTypedCollections(t *testing.T) {
+	html, err := GenerateHTML(map[string]any{
+		"last_updated": "2026-08-29T18:23:33Z",
+		"deployments": []map[string]any{{
+			"timestamp": "2026-08-29T18:16:19Z",
+			"status":    "success",
+			"summary":   map[string]any{"ok": 1, "failed": 0, "total_services": 1},
+		}},
+		"services": []map[string]any{{"name": "umami", "host": "nuc", "status": "ok"}},
+	})
+	if err != nil {
+		t.Fatalf("GenerateHTML() error = %v", err)
+	}
+	for _, want := range []string{"Total deployments: 1", "umami", "const deployments = [{"} {
+		if !strings.Contains(html, want) {
+			t.Errorf("GenerateHTML() missing %q", want)
+		}
+	}
+}
 
 func TestParseFailedServicesOpenVoxResourcePath(t *testing.T) {
 	services := []map[string]any{
