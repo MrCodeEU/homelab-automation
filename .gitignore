@@ -87,6 +87,8 @@ __pycache__/
 openvox/keys/private_key.pkcs7.pem
 !openvox/keys/public_key.pkcs7.pem
 
-# Downloaded only by the pinned VoxBox catalog-test container.
-openvox/spec/fixtures/
+# Downloaded only by the pinned VoxBox catalog-test container. Keep the empty
+# mountpoint tracked so the read-only integration runner can overlay it.
+openvox/spec/fixtures/modules/*
+!openvox/spec/fixtures/modules/.gitkeep
 tools/bin/

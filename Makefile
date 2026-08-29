@@ -5,6 +5,7 @@
 #   make test              Fast local tests — no Docker needed (CI default)
 #   make test-services     Ping all production services (requires VPN/Tailscale)
 #   make test-openvox-unit Catalog tests in the pinned OpenVox VoxBox image
+#   make test-openvox-caddy-render Render and validate a fixture Caddy catalog
 #
 # OpenVox deploy (the real production deploy path - see openvox/README.md):
 #   make openvox-check-<host>    Noop against one host (mljr|nuc|ugreen)
@@ -18,7 +19,7 @@
 # target below and has no deployment path of its own anymore.
 ################################################################################
 
-.PHONY: test test-quick test-services test-services-verbose test-healthreport test-openvox-unit \
+.PHONY: test test-quick test-services test-services-verbose test-healthreport test-openvox-unit test-openvox-caddy-render \
         help \
         _check-validate _check-syntax _check-compose \
         openvox-check openvox-deploy openvox-recovery openvox-rollback
@@ -36,7 +37,11 @@ test: _check-validate _check-syntax _check-compose
 test-openvox-unit:
 	@docker run --rm -v "$(CURDIR)/openvox:/repo" \
 	  ghcr.io/voxpupuli/voxbox@sha256:704dfe406a3f2f16d0b2a4d71fb4de4b72a9768df1e1cda06134240e5f01dc3c \
-	  spec
+	  spec SPEC=spec/classes
+
+## Render a varied fixture catalog and validate its assembled Caddyfile.
+test-openvox-caddy-render:
+	@./scripts/test-openvox-caddy-render.sh
 
 ## 1. Pre-commit service definition validation (port/domain uniqueness etc.)
 _check-validate:

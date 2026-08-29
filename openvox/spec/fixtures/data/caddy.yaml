@@ -1,0 +1,30 @@
+---
+services_catalog:
+  - name: local-authelia
+    enabled: true
+    host: mljr
+    port: 8080
+    domain: local.example.test
+    caddy_auth: authelia
+    staging: true
+  - name: remote-https
+    enabled: true
+    host: nuc
+    port: 8443
+    domain: [app.example.test, alt.example.test]
+    https_backend: true
+  - name: custom-upstream
+    enabled: true
+    host: nuc
+    port: 9000
+    domain: custom.example.test
+    caddy_extra_config: |
+      handle /health {
+        reverse_proxy __TARGET_HOST__:__TARGET_PORT__
+      }
+    upstream: http://custom-backend:9000
+  - name: disabled
+    enabled: false
+    host: mljr
+    port: 9999
+    domain: disabled.example.test
