@@ -11,12 +11,16 @@ var taskRe = regexp.MustCompile(`TASK \[(?:[^:]+ : )?(.*?)\]`)
 
 var whitespaceRe = regexp.MustCompile(`\s+`)
 
-// ParseFailedServices ports build_deploy_status.py's regex-based Ansible
-// log scraping. Known dead in the OpenVox era - Puppet's own log lines
-// (Notice:/Error:) never match these Ansible-shaped markers (TASK [...],
-// fatal:, failed:, FAILED!), so this always returns empty against a real
-// OpenVox apply log today. Kept as a faithful, unmodified port rather
-// than "fixed" as a side effect of the Go rewrite.
+var openvoxErrorRe = regexp.MustCompile(`(?:^|\]\s)Error:\s`)
+
+var openvoxServiceResourceRe = regexp.MustCompile(`(?i)Roles::Services::Service\[([A-Za-z0-9][A-Za-z0-9._-]*)\]`)
+
+var openvoxServiceExecRe = regexp.MustCompile(`(?i)Exec\[services-([A-Za-z0-9][A-Za-z0-9._-]*)-(?:deploy|healthcheck|post-deploy-hook)\]`)
+
+// ParseFailedServices extracts service-level failures from combined deployment
+// logs. It keeps the legacy Ansible markers so old retained logs remain
+// readable, and recognises OpenVox's Error: resource paths emitted by puppet
+// apply. Host-prefixed lines (for example, "[nuc] Error: ...") are supported.
 func ParseFailedServices(logLines []string, services []map[string]any) map[string]string {
 	failed := map[string]string{}
 	var currentTaskServices []string
@@ -51,9 +55,37 @@ func ParseFailedServices(logLines []string, services []map[string]any) map[strin
 				}
 			}
 		}
+
+		if openvoxErrorRe.MatchString(line) {
+			errMsg := whitespaceRe.ReplaceAllString(strings.TrimSpace(line), " ")
+			errMsg = truncate(errMsg, 200)
+
+			for _, match := range openvoxServiceResourceRe.FindAllStringSubmatch(line, -1) {
+				markFailedService(failed, services, match[1], errMsg)
+			}
+			for _, match := range openvoxServiceExecRe.FindAllStringSubmatch(line, -1) {
+				markFailedService(failed, services, match[1], errMsg)
+			}
+		}
 	}
 
 	return failed
+}
+
+// markFailedService resolves an OpenVox resource title against the canonical
+// catalog name, preserving its spelling for the status-page JSON. First error
+// wins because later Puppet lines are usually cascaded/skipped consequences.
+func markFailedService(failed map[string]string, services []map[string]any, candidate, errMsg string) {
+	for _, service := range services {
+		name := str(service, "name")
+		if name == "" || !strings.EqualFold(name, candidate) {
+			continue
+		}
+		if _, exists := failed[name]; !exists {
+			failed[name] = errMsg
+		}
+		return
+	}
 }
 
 // ServiceList ports build_deploy_status.py's service_list().
