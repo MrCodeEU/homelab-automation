@@ -26,11 +26,11 @@ on:
         default: false
         type: boolean
 
-  # Deliberately no `push` trigger on main: this repo pushes straight to main
-  # often (branch protection is bypassable), and every push auto-deploying
-  # with LIMIT=all meant even a one-line doc fix ran a full deploy. Deploys
-  # are now always a conscious step: `gh workflow run deploy.yml -f
-  # limit=...` (or the GitHub UI), scoped to what actually changed. The
+  # Deliberately no `push` trigger on main: every push (i.e. every merged
+  # PR) auto-deploying with LIMIT=all meant even a one-line doc fix ran a
+  # full deploy. Deploys are now always a conscious step: `gh workflow run
+  # deploy.yml -f limit=...` (or the GitHub UI), scoped to what actually
+  # changed. The
   # weekly schedule below remains the untargeted safety net.
 
   # Pull requests are handled by openvox-pr-check.yml. Keeping PR code out of
