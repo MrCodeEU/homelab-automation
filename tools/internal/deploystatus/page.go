@@ -110,14 +110,22 @@ func domainOf(svc map[string]any) string {
 }
 
 func list(m map[string]any, key string) []map[string]any {
-	raw, _ := m[key].([]any)
-	out := make([]map[string]any, 0, len(raw))
-	for _, item := range raw {
-		if im, ok := item.(map[string]any); ok {
-			out = append(out, im)
+	switch raw := m[key].(type) {
+	case []map[string]any:
+		// The status builder constructs typed slices before generating HTML.
+		// JSON decoded from disk instead arrives as []any.
+		return raw
+	case []any:
+		out := make([]map[string]any, 0, len(raw))
+		for _, item := range raw {
+			if im, ok := item.(map[string]any); ok {
+				out = append(out, im)
+			}
 		}
+		return out
+	default:
+		return nil
 	}
-	return out
 }
 
 // GenerateHTML ports generate_deploy_page.py's generate_html() line for
