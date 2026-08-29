@@ -157,3 +157,11 @@ seven-day release delay. The Renovate GitHub App must be enabled for this
 repository once; the PR checks then validate dependency compatibility and the
 owner-authored PRs additionally validate the resulting production catalog in
 an isolated live noop. Renovate PRs never receive the production-check secrets.
+
+## Catalog unit tests
+
+`make test-openvox-unit` compiles the seed `rspec-puppet` catalog tests in a
+pinned VoxBox image containing OpenVox 8.28.1. It has no host, Tailscale, or
+secret access. The test fixture downloads the same pinned `puppetlabs/stdlib`
+version as `Puppetfile` into ignored `openvox/spec/fixtures/`; CI runs this
+target for every OpenVox PR before the owner-only live noop.

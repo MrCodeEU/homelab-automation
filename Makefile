@@ -4,6 +4,7 @@
 # Testing:
 #   make test              Fast local tests — no Docker needed (CI default)
 #   make test-services     Ping all production services (requires VPN/Tailscale)
+#   make test-openvox-unit Catalog tests in the pinned OpenVox VoxBox image
 #
 # OpenVox deploy (the real production deploy path - see openvox/README.md):
 #   make openvox-check-<host>    Noop against one host (mljr|nuc|ugreen)
@@ -17,7 +18,7 @@
 # target below and has no deployment path of its own anymore.
 ################################################################################
 
-.PHONY: test test-quick test-services test-services-verbose test-healthreport \
+.PHONY: test test-quick test-services test-services-verbose test-healthreport test-openvox-unit \
         help \
         _check-validate _check-syntax _check-compose \
         openvox-check openvox-deploy openvox-recovery openvox-rollback
@@ -29,6 +30,13 @@
 test: _check-validate _check-syntax _check-compose
 	@echo ""
 	@echo "All fast tests passed."
+
+## OpenVox catalog tests (no hosts, secrets, or Tailscale access).
+## The image digest is pinned and contains OpenVox 8.28.1.
+test-openvox-unit:
+	@docker run --rm -v "$(CURDIR)/openvox:/repo" \
+	  ghcr.io/voxpupuli/voxbox@sha256:704dfe406a3f2f16d0b2a4d71fb4de4b72a9768df1e1cda06134240e5f01dc3c \
+	  spec
 
 ## 1. Pre-commit service definition validation (port/domain uniqueness etc.)
 _check-validate:
