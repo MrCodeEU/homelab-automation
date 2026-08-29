@@ -37,17 +37,23 @@ DISASTER_RECOVERY.md backlog section.
 
 ## P2 — migration debt (ansible-shaped Puppet → idiomatic Puppet)
 
-- [ ] **Introduce roles/profiles layering.** Today `site.pp` node blocks
-      call `roles::*` directly with inline params (34 flat files under
-      the single `roles` module, 1:1 from ansible roles). Split into
-      `profile::*` (composable, hiera-driven config) and thin `role::*`
-      (one per node archetype) so per-host variance moves out of
-      `site.pp` and into hiera data.
-- [ ] **Move per-host variance from `site.pp` params into hiera.**
-      No per-node hiera layer exists yet (`hiera.yaml` is a flat
-      common → common.eyaml hierarchy). Add a node-scoped layer
-      (`data/nodes/%{trusted.certname}.yaml`) so host-specific values
-      aren't hardcoded as class-call arguments.
+- [x] **Introduce roles/profiles layering.** DONE 2026-08-29 — new
+      `role` module (`role::mljr`/`role::nuc`/`role::ugreen`, one per
+      node archetype), `site.pp` node blocks now one-liners. No separate
+      `profile::*` module: `roles::*` already fills that role (hand-rolled,
+      technology-specific) — a 1:1 wrapper would be pure indirection at
+      3-host scale. See `openvox/README.md` "Roles and profiles".
+- [x] **Move per-host variance from `site.pp` params into hiera.** DONE
+      2026-08-29, same change — added the `nodes/%{trusted.certname}.yaml`
+      hiera layer, every `class { 'roles::x': param => val }` in `site.pp`
+      became `include roles::x` with data in
+      `data/nodes/<certname>.yaml`, bound via Puppet's automatic
+      class-parameter hiera lookup. `roles::base`'s
+      docker_prune_enabled/reboot_if_needed now self-compute from the
+      `openvox_weekly_maintenance` fact instead of being passed in.
+      Verified byte-identical catalogs via noop on all 3 hosts before a
+      real `make openvox-deploy-<host>` on each (0 errors, matching
+      pre-refactor resource-change counts).
 - [ ] **Audit the 34 `roles::*` classes for ansible-task-list smell**
       (ordered `exec`/`file` chains instead of declarative resources,
       missing `unless`/`onlyif` idempotency guards, no use of Puppet

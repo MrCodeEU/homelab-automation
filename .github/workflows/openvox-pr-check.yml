@@ -54,7 +54,7 @@ jobs:
                 --target-dir="$module_dir" --force --ignore-dependencies
             done
           puppet module list --color=false --modulepath="$module_dir"
-          puppet parser validate openvox/manifests/site.pp openvox/modules/roles/manifests/*.pp openvox/modules/roles/manifests/services/*.pp openvox/modules/roles/manifests/services_nas/*.pp
+          puppet parser validate openvox/manifests/site.pp openvox/modules/role/manifests/*.pp openvox/modules/roles/manifests/*.pp openvox/modules/roles/manifests/services/*.pp openvox/modules/roles/manifests/services_nas/*.pp
           find openvox/modules/roles/templates -type f -name '*.epp' -print0 | xargs -0 -n1 puppet epp validate
           find scripts openvox/modules/roles/files -type f -name '*.sh' -print0 | xargs -0 -n1 bash -n
           make test

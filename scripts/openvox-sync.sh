@@ -163,16 +163,18 @@ echo "${c_bold}==> ${label}${c_reset} (${mode}) starting..." | prefix
     xfer_dir="${releases_dir}/${release_ts}"
   fi
 
-  ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p ${xfer_dir}/manifests ${xfer_dir}/modules/roles ${xfer_dir}/data"
+  ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p ${xfer_dir}/manifests ${xfer_dir}/modules/roles ${xfer_dir}/modules/role ${xfer_dir}/data"
 
   if [ "${host}" = "ugreen.tail33930.ts.net" ]; then
     scp -rq "${ssh_opts[@]}" openvox/manifests/. "root@${host}:${xfer_dir}/manifests/"
     scp -rq "${ssh_opts[@]}" openvox/modules/roles/. "root@${host}:${xfer_dir}/modules/roles/"
+    scp -rq "${ssh_opts[@]}" openvox/modules/role/. "root@${host}:${xfer_dir}/modules/role/"
     scp -q "${ssh_opts[@]}" openvox/hiera.yaml "root@${host}:${xfer_dir}/hiera.yaml"
     scp -rq "${ssh_opts[@]}" openvox/data/. "root@${host}:${xfer_dir}/data/"
   else
     rsync -az -e "ssh ${ssh_opts[*]}" openvox/manifests/ "root@${host}:${xfer_dir}/manifests/"
     rsync -az --delete -e "ssh ${ssh_opts[*]}" openvox/modules/roles/ "root@${host}:${xfer_dir}/modules/roles/"
+    rsync -az --delete -e "ssh ${ssh_opts[*]}" openvox/modules/role/ "root@${host}:${xfer_dir}/modules/role/"
     rsync -az -e "ssh ${ssh_opts[*]}" openvox/hiera.yaml "root@${host}:${xfer_dir}/hiera.yaml"
     rsync -az -e "ssh ${ssh_opts[*]}" openvox/data/ "root@${host}:${xfer_dir}/data/"
   fi

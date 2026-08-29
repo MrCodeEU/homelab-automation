@@ -25,8 +25,14 @@ class roles::base (
   String  $tailscale_ip           = '',
   Boolean $cockpit_console_enabled = false,
   String  $domain                 = 'mljr.eu',
-  Boolean $docker_prune_enabled   = false,
-  Boolean $reboot_if_needed       = false,
+  # Self-computed from the fact CI's weekly-maintenance run sets
+  # (FACTER_openvox_weekly_maintenance=true, see .github/workflows/deploy.yml)
+  # instead of being passed in by every caller - the masterless equivalent
+  # of Ansible's docker_prune_enabled/reboot_if_needed extra-vars. Every
+  # other trigger leaves the fact unset, so both stay off by default here
+  # too, same as before this was a self-computed default.
+  Boolean $docker_prune_enabled   = $facts['openvox_weekly_maintenance'] == 'true',
+  Boolean $reboot_if_needed       = $facts['openvox_weekly_maintenance'] == 'true',
   Boolean $reboot_enabled         = true,
   # nuc has a second, real LAN (192.168.50.0/24) that also needs to land
   # in the trusted zone - not something a generic default can guess, so

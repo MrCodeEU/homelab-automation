@@ -5,6 +5,31 @@ mechanism for this repo (see the root `README.md` for the user-facing
 overview and `make openvox-*` commands). This file covers the internal
 conventions worth knowing before touching anything in here.
 
+## Roles and profiles
+
+`manifests/site.pp` node blocks are one-liners (`include role::mljr`, etc).
+The `role` module (`modules/role/manifests/<host>.pp`) has one class per
+node archetype, each just listing which `roles::*` classes apply plus any
+genuinely node-specific one-off resources (e.g. nuc's Netronome firewall
+port). `roles::*` (the pre-existing module) is this repo's technology tier
+- hand-rolled, site-specific classes, already the equivalent of a
+"profile" in the standard Puppet roles/profiles pattern. There's
+deliberately no separate `profile::*` module: it would 1:1-wrap `roles::*`
+with no grouping value at this scale (3 hosts, not a fleet) - see
+`docs/OPENVOX_BACKLOG.md` for the fuller reasoning.
+
+Per-host variance that used to be literal `class { 'roles::x': param =>
+value }` arguments in `site.pp` now lives in
+`data/nodes/<certname>.yaml`, bound automatically by Puppet's
+class-parameter hiera lookup - every `roles::*` class is declared via
+plain `include`, never `class { }`. `hiera.yaml`'s per-node hierarchy
+level (`nodes/%{trusted.certname}.yaml`) is checked before `common.yaml`.
+
+Since `role` is a second local module alongside `roles`,
+`scripts/openvox-sync.sh` syncs both (`modules/role/` and
+`modules/roles/`) and `openvox-pr-check.yml`'s `puppet parser validate`
+covers both.
+
 ## Masterless model
 
 There is no puppetserver/PuppetDB. `scripts/openvox-sync.sh <host> [noop|apply]`

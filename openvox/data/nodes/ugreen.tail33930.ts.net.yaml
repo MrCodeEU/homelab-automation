@@ -1,0 +1,28 @@
+# Per-host data for role::ugreen (see modules/role/manifests/ugreen.pp).
+# Values here are ported verbatim from the site.pp literal class{} args
+# they replaced - zero behavior change, see docs/OPENVOX_BACKLOG.md.
+# ugreen has no roles::base (UGOS, not dnf-managed) - see role::ugreen.
+---
+roles::iperf3::base_path: '/volume1/homelab'
+roles::iperf3::manage_firewall: false
+
+roles::netronome_agent::base_path: '/volume1/homelab'
+roles::netronome_agent::manage_firewall: false
+roles::netronome_agent::interface: 'eth0'
+
+roles::services::hostname: 'ugreen'
+roles::services::base_path: '/volume1/homelab'
+roles::services::tailscale_ip: '100.100.10.4'
+# Matches ansible/inventory/group_vars/ugreen.yml's cleanup_enabled: false.
+roles::services::cleanup_enabled: false
+
+roles::host_facts_endpoint::os_family: 'ugreen'
+roles::host_facts_endpoint::hostname: 'ugreen'
+roles::host_facts_endpoint::dest: '/volume1/homelab/bin/homelab-facts'
+roles::host_facts_endpoint::needs_symlink: true
+roles::host_facts_endpoint::dest_dir: '/volume1/homelab/bin'
+roles::host_facts_endpoint::base_path: '/volume1/homelab'
+
+roles::grafana_alloy::hostname: 'ugreen'
+roles::grafana_alloy::docker_root: '/volume1/@docker'
+roles::grafana_alloy::manage_docker_sdk: true
