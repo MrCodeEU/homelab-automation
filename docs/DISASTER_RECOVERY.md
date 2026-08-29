@@ -2,9 +2,17 @@
 
 What it actually takes to get this homelab back from a dead/corrupted/
 reinstalled host, host-by-host, and an honest list of what is **not**
-covered today. Written from a real audit (2026-08-13), not aspirational -
-every gap below was verified against the actual role/catalog code, not
-assumed.
+covered today. Originally written from a real audit (2026-08-13);
+updated 2026-08-29 to reflect OpenVox as the real production deploy
+mechanism since 2026-08-23 (see `openvox/README.md`) - every gap below
+was verified against the actual role/catalog code, not assumed.
+
+`ansible/` is still kept in the repo as reference for a few weeks (per
+standing instruction) and still owns 3 bootstrap-only roles
+(`syncthing-nas-key`, `unraid-bootstrap`, `wd-mycloud-tailscale`) that
+were never ported - one-time host-bootstrap actions, not something an
+idempotent config-mgmt run needs to repeat. Everything else described
+below goes through OpenVox now.
 
 Not yet tested against a real from-scratch rebuild (no spare hardware to
 throwaway-test against). Treat the steps below as the best current
@@ -13,7 +21,7 @@ doc against it) is its own backlog item.
 
 ## Before any of this works at all
 
-Nothing in this repo can turn a bare OS install into an Ansible-
+Nothing in this repo can turn a bare OS install into an OpenVox-
 controllable host by itself. These are manual, one-time, outside-Git
 prerequisites:
 
@@ -28,19 +36,42 @@ prerequisites:
    Tailscale authentication"*). Whoever does this needs access to the
    Tailscale admin console to approve the new device and confirm it has
    the right ACL tags.
-3. **`ansible-vault create ansible/inventory/group_vars/all/vault.yml`**,
-   filling in every value from `vault.yml.example` (see the credentials
-   checklist below).
-4. **Have the vault password available.** It's a GitHub Actions secret
-   (`ANSIBLE_VAULT_PASSWORD`) for CI; for local runs it has to come from
-   wherever it's kept outside this repo (a password manager - confirm
-   it's actually there, this doc can't do that for you).
-5. **Tooling**: `ansible-galaxy collection install -r ansible/requirements.yml`,
-   `pip install ansible-core mitogen ansible-mitogen`, and
-   `git config core.hooksPath .githooks`.
+3. **Install OpenVox itself** on the target host (`scripts/install-openvox.sh`
+   handles the package install; see `openvox/README.md` for the masterless
+   model this repo relies on - no puppetserver, no PuppetDB, every host
+   applies its own copy of `manifests/site.pp` locally).
+4. **Deploy the eyaml decrypt key pair to the host**:
+   `./scripts/install-openvox-eyaml.sh <host>`. This scp's
+   `openvox/keys/private_key.pkcs7.pem` (gitignored, **not** a GitHub
+   Actions secret - see below) to `/etc/puppetlabs/puppet/eyaml/` on the
+   target and installs the `hiera-eyaml` gem. Without this step, any
+   class that does `lookup('vault_...')` fails outright - there's no
+   puppetserver to fall back on for decryption.
+5. **Sync the environment and apply**: `make openvox-deploy-<host>` (or
+   `make openvox-check-<host>` first, to noop it) runs
+   `scripts/openvox-sync.sh`, which rsyncs (scp for `ugreen`) the whole
+   `openvox/` tree to `/etc/puppetlabs/code/environments/production/` on
+   the target, then runs `puppet apply` locally there.
+6. **Tooling for the 3 still-ansible-only bootstrap roles** (see intro
+   above), if the host needs one of them: `ansible-galaxy collection
+   install -r ansible/requirements.yml`, `pip install ansible-core
+   mitogen ansible-mitogen`, and `git config core.hooksPath .githooks`.
 
-**GitHub Actions secrets** (only 3, everything else is Tailscale/Vault):
-`TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `ANSIBLE_VAULT_PASSWORD`.
+**The eyaml private key is the single point of failure for every
+`vault_*` secret in this repo, and it lives nowhere in Git.** If
+`openvox/keys/private_key.pkcs7.pem` is lost and no host still has a
+copy under `/etc/puppetlabs/puppet/eyaml/`, `data/common.eyaml` becomes
+permanently undecryptable - not merely inconvenient, actually
+unrecoverable, since PKCS7 has no backdoor. **Confirm today that this
+key file has an outside-Git backup** (password manager, offline copy -
+this doc can't verify that for you) before treating anything else in
+this runbook as trustworthy. This replaces the old Ansible-vault-password
+requirement; there is no equivalent single CI secret for it, deliberately
+(masterless design, no single unlock point - see `openvox/README.md`).
+
+**GitHub Actions secrets** (only 2 now - the eyaml key is never a CI
+secret, it's deployed straight to hosts): `TS_OAUTH_CLIENT_ID`,
+`TS_OAUTH_SECRET`.
 
 **The single biggest thing this repo cannot back up or reproduce**: the
 Tailscale admin console configuration itself - ACLs, device tags, the
@@ -50,17 +81,18 @@ before Ansible can reach any of them.
 
 ## mljr (Rocky, production ingress)
 
-Once Tailscale-enrolled and the vault is in place, a full run of
-`ansible-playbook playbooks/site.yml --limit mljr` (or the normal CI
-deploy path) brings up: base packages/Docker/firewalld, CrowdSec +
-nftables bouncer, Caddy (reverse proxy/ingress + ACME TLS), Authelia
-(SSO), Mailcow, Glance, HetrixTools agent, and every `services`-role
-catalog entry scoped to `host: mljr`.
+Once Tailscale-enrolled, OpenVox-installed, and the eyaml key deployed
+(steps above), `make openvox-deploy-mljr` (or the normal CI deploy path
+via `.github/workflows/deploy.yml`) brings up: base packages/Docker/
+firewalld, CrowdSec + nftables bouncer, Caddy (reverse proxy/ingress +
+ACME TLS), Authelia (SSO), Mailcow, Glance, HetrixTools agent, and every
+service-catalog entry scoped to `host: mljr`.
 
-`roles/backup` then auto-restores every `backup_critical: true` service
-on a detected fresh install (`.initialized` flag missing). Non-critical
-services still get their data back if you run `restore.sh --service
-<name>` manually.
+`roles::backup` then auto-restores every `backup_critical: true` service
+on a detected fresh install (`.initialized` flag missing) - see the
+explicit fresh-host recovery mode below (`make openvox-recovery`).
+Non-critical services still get their data back if you run `restore.sh
+--service <name>` manually.
 
 **Known friction, not data loss:**
 - Caddy's ACME/TLS certificate cache isn't backed up - Let's Encrypt just
@@ -229,11 +261,13 @@ not this repo.
 
 ## Credentials checklist
 
-Every `vault_*` value needs to exist somewhere outside Git if the vault
-itself and its password are both lost - see
-`ansible/inventory/group_vars/all/vault.yml.example` for the full list
-(60+ entries as of this audit). The ones that are genuinely painful or
-impossible to regenerate identically, not just "annoying":
+Every `vault_*` value needs to exist somewhere outside Git if
+`data/common.eyaml` and the eyaml private key are both lost - the key
+names are unchanged from the Ansible-era vault, so
+`ansible/inventory/group_vars/all/vault.yml.example` (kept as reference,
+not consumed by OpenVox) still lists the full set accurately (65 entries
+as of this update). The ones that are genuinely painful or impossible to
+regenerate identically, not just "annoying":
 
 - **`vault_authelia_storage_encryption_key` / `jwt_secret` /
   `session_secret`** - the single most damaging one to lose. Without
@@ -303,3 +337,11 @@ correction).
   duplicate secrets needed by multiple hosts so each copy has independently
   encrypted ciphertext. This limits a host compromise to that host's secrets,
   at the cost of additional bootstrap, backup, rotation, and CI complexity.
+- FIXED (2026-08-29): this doc was still Ansible-vault-framed after the
+  2026-08-23 OpenVox cutover - rewritten for the eyaml PKCS7 bootstrap flow.
+- Confirm and document, outside this repo, that
+  `openvox/keys/private_key.pkcs7.pem` actually has a real backup
+  (password manager or equivalent) - it is the single point of failure
+  for every `vault_*` secret and this doc cannot verify that for you.
+  See `docs/OPENVOX_BACKLOG.md` for the broader OpenVox review backlog
+  this DR-doc fix came out of.

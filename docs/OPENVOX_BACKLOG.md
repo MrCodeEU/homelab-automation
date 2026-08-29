@@ -1,0 +1,84 @@
+# OpenVox Backlog
+
+Working backlog from the 2026-08-29 review of `openvox/` (post-migration
+from `ansible/`). Three buckets: **P1** correctness/risk items, **P2**
+1:1-migration debt (ansible patterns that should become idiomatic Puppet),
+**P3** net-new capability. Check items off as they land; leave a one-line
+note (commit/PR ref) instead of deleting, same convention as the
+DISASTER_RECOVERY.md backlog section.
+
+## P1 — correctness / risk
+
+- [x] **Rewrite `docs/DISASTER_RECOVERY.md` for OpenVox.** DONE
+      2026-08-29 — bootstrap steps now cover OpenVox install + eyaml key
+      deployment instead of `ansible-vault`/`ANSIBLE_VAULT_PASSWORD`;
+      mljr deploy command updated; credentials-checklist wording fixed;
+      flagged the eyaml private key as the new single point of failure
+      and added a follow-up item in the doc's own backlog section to
+      verify it has a real outside-Git backup.
+- [ ] **Add rollback for `openvox-sync.sh`.** Currently rsync-overwrites
+      `/etc/puppetlabs/code/environments/production/` in place. Move to
+      timestamped-dir + symlink-swap so a bad apply has a one-command
+      revert (keep last N).
+- [ ] **Confirm the 3 unported ansible roles are intentionally
+      ansible-only**, not forgotten: `syncthing-nas-key`,
+      `unraid-bootstrap`, `wd-mycloud-tailscale`. If confirmed
+      bootstrap-only, note that explicitly in `openvox/README.md` so it
+      doesn't look like migration debt to future-you.
+- [ ] **Live-noop CI gap for fork/external PRs.** `openvox-pr-check.yml`
+      only runs the live-noop leg for owner PRs from the same repo — fork
+      PRs get offline validation only. Decide if that's acceptable
+      long-term or needs a manual-approval gate to unlock live-noop.
+
+## P2 — migration debt (ansible-shaped Puppet → idiomatic Puppet)
+
+- [ ] **Introduce roles/profiles layering.** Today `site.pp` node blocks
+      call `roles::*` directly with inline params (34 flat files under
+      the single `roles` module, 1:1 from ansible roles). Split into
+      `profile::*` (composable, hiera-driven config) and thin `role::*`
+      (one per node archetype) so per-host variance moves out of
+      `site.pp` and into hiera data.
+- [ ] **Move per-host variance from `site.pp` params into hiera.**
+      No per-node hiera layer exists yet (`hiera.yaml` is a flat
+      common → common.eyaml hierarchy). Add a node-scoped layer
+      (`data/nodes/%{trusted.certname}.yaml`) so host-specific values
+      aren't hardcoded as class-call arguments.
+- [ ] **Audit the 34 `roles::*` classes for ansible-task-list smell**
+      (ordered `exec`/`file` chains instead of declarative resources,
+      missing `unless`/`onlyif` idempotency guards, no use of Puppet
+      relationship metaparameters). Go class-by-class; fix worst
+      offenders first (firewalld already fixed — use as the model).
+- [ ] **rspec-puppet for classes with real logic.** Start with
+      `roles::firewalld` and `roles::backup` (highest blast radius) —
+      catch bugs before they reach the live-noop stage, let alone apply.
+
+## P3 — net-new capability
+
+- [ ] **Fleet-state reporting into existing monitoring.** Push
+      last-apply status/timestamp per host into VictoriaMetrics/Grafana
+      (already deployed) instead of relying on `deploy-logs/` grep.
+      Doesn't need full PuppetDB — a small JSON-per-host + exporter is
+      enough at 3 hosts.
+- [ ] **Daily drift-detection noop + ntfy alert.** Weekly cron + manual
+      dispatch means drift can go up to a week unseen. Add a daily
+      noop-only run that diffs resource-count and pings ntfy (already in
+      use elsewhere) above a threshold.
+- [ ] **Atomic environment swap** — same mechanism as the P1 rollback
+      item above; listed here too since it's also the enabling piece for
+      safe drift-remediation applies.
+- [ ] **Profile layer** — tracked above under P2 as the correctness fix;
+      re-confirm it also unlocks clean multi-host scaling before adding
+      a 4th/5th agent host.
+- [ ] **rspec-puppet coverage expansion** — once the P2 seed (firewalld,
+      backup) is in place, extend to remaining `roles::*` classes with
+      non-trivial logic.
+
+## Notes
+
+- `nas` (Unraid) and `wd_mycloud` (busybox) are proxy-managed via `exec`
+  over SSH from `nuc`'s node block, not real Puppet agents — no drift
+  protection from OpenVox itself on those two hosts. Out of scope for
+  P1-P3 above (vendor-appliance constraint), but worth remembering when
+  reasoning about "is the fleet actually converged."
+- CI/secrets design (hiera-eyaml, Puppetfile pinning, puppet-lint,
+  live-noop) reviewed as solid — no backlog items needed there.
