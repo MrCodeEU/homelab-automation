@@ -143,13 +143,15 @@ DISASTER_RECOVERY.md backlog section.
       `tutabridge_cli`, `backup`, `grafana_alloy`, and the rest — already
       follows the check/apply guard convention correctly, no action
       needed.
-- [ ] **Fix `roles::authelia`'s restart-on-every-apply.** Found during
-      the audit above. Not a migration-introduced bug — ported faithfully
-      from identical Ansible behavior (random argon2 salt every run means
-      the rendered users_database.yml always looks "changed"). Needs a
-      decision on the actual fix (e.g. guard with `creates` so the file
-      generates once — trade-off: rotating `vault_authelia_admin_password`
-      then needs a manual file delete to take effect) before landing it.
+- [x] **Fix `roles::authelia`'s restart-on-every-apply.** DONE
+      2026-08-29 — guarded the users-database exec with
+      `creates => "${config_path}/users_database.yml"`. Verified live on
+      mljr: noop change-line count dropped by exactly one, and the real
+      apply afterward left `authelia`'s container uptime untouched (no
+      restart). Trade-off accepted: rotating
+      `vault_authelia_admin_password` now needs a manual
+      `rm users_database.yml` to take effect, documented in the class's
+      own comment.
 - [ ] **rspec-puppet for classes with real logic.** Start with
       `roles::firewalld` and `roles::backup` (highest blast radius) —
       catch bugs before they reach the live-noop stage, let alone apply.
