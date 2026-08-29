@@ -193,16 +193,11 @@ DISASTER_RECOVERY.md backlog section.
       staging routes, and disabled services without SSH, Tailscale, secrets,
       or host mutation. `make test-openvox-caddy-render` and the unprivileged
       `OpenVox Caddy render test` CI job run it before live noop.
-- [ ] **Fix `ParseFailedServices` for OpenVox log shape.**
-      `tools/internal/deploystatus/status.go`'s own comment admits it
-      always returns empty against a real OpenVox apply log today — it
-      only matches Ansible-shaped markers (`TASK [...]`, `fatal:`,
-      `failed:`, `FAILED!`). The deployment status page currently has no
-      real per-service failure detail for OpenVox runs because of this.
-      Needs matching against `puppet apply`'s actual failure output
-      shape (e.g. `Error:`/`Error: /Stage[...]` catalog lines, already
-      partially relied on by `openvox-sync.sh`'s own
-      `^\[[^]]+\] Error:` grep in `deploy.yml`).
+- [x] **Fix `ParseFailedServices` for OpenVox log shape.** DONE 2026-08-29 —
+      parses host-prefixed `Error:` resource paths from `puppet apply`, maps
+      `Roles::Services::Service[name]` (and service exec fallback) to the
+      catalog entry, preserves legacy Ansible-log readability, and avoids
+      falsely attributing host/catalog failures to an arbitrary service.
 
 ## P3 — net-new capability
 
