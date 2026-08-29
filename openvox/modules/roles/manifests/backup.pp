@@ -213,12 +213,12 @@ class roles::backup (
       'history_volumes'   => ['mail-archiver_mail-archiver-dp-keys'],
     },
     'umami' => {
-      'volumes'           => ['umami_umami-db-data'],
+      'volumes'           => ['umami_umami-db-data-v18'],
       'pre_hook'          => $umami_pre_hook,
       'paths'             => ['/opt/backups/umami-dumps'],
       'post_hook'         => 'rm -rf /opt/backups/umami-dumps',
       'restore_post_hook' => $umami_restore_hook,
-      'recovery_skip_volumes' => ['umami_umami-db-data'],
+      'recovery_skip_volumes' => ['umami_umami-db-data-v18'],
       'critical'          => false,
     },
     'grafana' => {

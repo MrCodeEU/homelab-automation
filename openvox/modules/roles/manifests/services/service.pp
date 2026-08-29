@@ -35,6 +35,9 @@ define roles::services::service (
   # from 1001:1000 to Puppet's own default on the first real apply).
   # This forces the mode on just the listed file(s) instead.
   Array[String] $executables = [],
+  # Optional one-shot logical database migration, run after the managed
+  # Compose/.env files are present but before Compose sees the new image.
+  Hash $postgres_major_upgrade = {},
 ) {
   # $title is only a unique resource identifier - for a service that's
   # both nuc-hosted in production AND staging-enabled (speedtest,
@@ -114,6 +117,20 @@ define roles::services::service (
   # while prod leaves it blank (directory-basename project naming,
   # unchanged from phase 1).
   $compose_project = $staging ? { true => "${real_name}-staging", default => '' }
+
+  if !$staging and !empty($postgres_major_upgrade) {
+    $upgrade_marker = "${deploy_path}/.openvox-postgres-v18-migration"
+    exec { "services-${svc_name}-postgres-v18-migration":
+      command => "/bin/bash ${work_dir}/postgres-major-upgrade.sh apply ${deploy_path} ${real_name} ${postgres_major_upgrade['old_image']} ${postgres_major_upgrade['new_image']} ${postgres_major_upgrade['old_volume']} ${postgres_major_upgrade['new_volume']} ${postgres_major_upgrade['database']} ${postgres_major_upgrade['username']} ${postgres_major_upgrade['db_container']} ${upgrade_marker}",
+      # A noop does not create the just-managed helper script, but Puppet
+      # still evaluates `unless`. Check the persistent marker directly so the
+      # noop remains a safe, useful preview of this one-shot migration.
+      unless  => "/usr/bin/test -f ${upgrade_marker}",
+      timeout => 1800,
+      require => [File[$deploy_path], File["${deploy_path}/.env"], File[$work_dir]],
+      before  => Exec["services-${svc_name}-deploy"],
+    }
+  }
 
   exec { "services-${svc_name}-deploy":
     command => "${work_dir}/compose-deploy.sh ${deploy_path} ${build_from_source} ${compose_project}",

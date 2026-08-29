@@ -24,7 +24,7 @@ services:
       POSTGRES_USER: umami
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - umami-db-data:/var/lib/postgresql/data
+      - umami-db-data-v18:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U umami"]
       interval: 5s
@@ -38,5 +38,5 @@ networks:
     driver: bridge
 
 volumes:
-  umami-db-data:
+  umami-db-data-v18:
     driver: local
