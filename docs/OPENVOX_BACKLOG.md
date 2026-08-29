@@ -201,11 +201,12 @@ DISASTER_RECOVERY.md backlog section.
 
 ## P3 — net-new capability
 
-- [ ] **Fleet-state reporting into existing monitoring.** Push
-      last-apply status/timestamp per host into VictoriaMetrics/Grafana
-      (already deployed) instead of relying on `deploy-logs/` grep.
-      Doesn't need full PuppetDB — a small JSON-per-host + exporter is
-      enough at 3 hosts.
+- [x] **Fleet-state reporting into existing monitoring.** DONE 2026-08-29 —
+      the deployment workflow emits per-host production/noop success,
+      timestamp, duration, changed-resource, and error-line gauges directly
+      to existing VictoriaMetrics. The Homelab Overview dashboard shows the
+      latest production apply state; no PuppetDB, extra host daemon, or
+      stored CI credential was added.
 - [ ] **Daily drift-detection noop + ntfy alert.** Weekly cron + manual
       dispatch means drift can go up to a week unseen. Add a daily
       noop-only run that diffs resource-count and pings ntfy (already in

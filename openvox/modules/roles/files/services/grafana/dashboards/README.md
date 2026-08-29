@@ -13,8 +13,8 @@ Provisioned datasources use stable UIDs:
 
 ## Current Dashboards
 
-- `homelab-overview.json`: Host, Docker, storage, network, recent logs, and
-  a fleet-wide scrape-target up/down table.
+- `homelab-overview.json`: Host, Docker, storage, network, recent logs,
+  fleet-wide scrape-target status, and CI-published OpenVox apply state.
 - `homelab-security.json`: CrowdSec decisions, alerts, SSH/Caddy activity, and security logs.
 - `homelab-storage.json`: SMART health/temperature, systemd failed units,
   btrfs pool usage/errors, and all-mounts disk usage across the fleet.
