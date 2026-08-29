@@ -321,11 +321,35 @@ jobs:
 
           EXIT_CODE=0
           : > /tmp/openvox-output.log
+          : > /tmp/openvox-fleet.prom
           for host in ${STEPS_HOSTS_OUTPUTS_HOSTS}; do
+            HOST_LABEL="${host%%.*}"
+            HOST_START=$(date +%s)
+            HOST_LOG=$(mktemp)
             echo "--- $host ---" | tee -a /tmp/openvox-output.log
-            if ! ./scripts/openvox-sync.sh "$host" "$MODE" 2>&1 | tee -a /tmp/openvox-output.log; then
+            if ! ./scripts/openvox-sync.sh "$host" "$MODE" 2>&1 | tee -a /tmp/openvox-output.log | tee "$HOST_LOG"; then
               EXIT_CODE=1
+              HOST_SUCCESS=0
+            else
+              HOST_SUCCESS=1
             fi
+
+            HOST_END=$(date +%s)
+            HOST_DURATION=$((HOST_END - HOST_START))
+            HOST_TIMESTAMP_MS=$((HOST_END * 1000))
+            HOST_CHANGES=$(grep -cE '/(ensure|content|returns|mode|owner|group):' "$HOST_LOG" || true)
+            HOST_ERRORS=$(grep -cE '^\[[^]]+\] Error:' "$HOST_LOG" || true)
+            {
+              echo "homelab_openvox_run_success{host=\"$HOST_LABEL\",mode=\"$MODE\"} $HOST_SUCCESS $HOST_TIMESTAMP_MS"
+              echo "homelab_openvox_last_run_timestamp_seconds{host=\"$HOST_LABEL\",mode=\"$MODE\"} $HOST_END $HOST_TIMESTAMP_MS"
+              echo "homelab_openvox_run_duration_seconds{host=\"$HOST_LABEL\",mode=\"$MODE\"} $HOST_DURATION $HOST_TIMESTAMP_MS"
+              echo "homelab_openvox_resource_changes{host=\"$HOST_LABEL\",mode=\"$MODE\"} $HOST_CHANGES $HOST_TIMESTAMP_MS"
+              echo "homelab_openvox_error_lines{host=\"$HOST_LABEL\",mode=\"$MODE\"} $HOST_ERRORS $HOST_TIMESTAMP_MS"
+              if [ "$HOST_SUCCESS" -eq 1 ]; then
+                echo "homelab_openvox_last_success_timestamp_seconds{host=\"$HOST_LABEL\",mode=\"$MODE\"} $HOST_END $HOST_TIMESTAMP_MS"
+              fi
+            } >> /tmp/openvox-fleet.prom
+            rm -f "$HOST_LOG"
           done
 
           echo "::endgroup::"
@@ -344,6 +368,24 @@ jobs:
           STEPS_ENV_OUTPUTS_CHECK_MODE: ${{ steps.env.outputs.check_mode }}
           STEPS_HOSTS_OUTPUTS_HOSTS: ${{ steps.hosts.outputs.hosts }}
           STEPS_ENV_OUTPUTS_STAGING_SERVICES: ${{ steps.env.outputs.staging_services }}
+
+      - name: Publish OpenVox fleet metrics
+        if: always()
+        run: |
+          if [ ! -s /tmp/openvox-fleet.prom ]; then
+            echo "No OpenVox host metrics collected; skipping VictoriaMetrics publish"
+            exit 0
+          fi
+
+          # CI already has Tailscale access to nuc for the deployment itself.
+          # This is deliberately best-effort: observability must not hide a
+          # real deployment result or prevent a recovery apply from completing.
+          curl --fail --silent --show-error --connect-timeout 5 --max-time 15 \
+            -H 'Content-Type: text/plain; version=0.0.4' \
+            --data-binary @/tmp/openvox-fleet.prom \
+            "http://${NUC_HOST}:19090/api/v1/import/prometheus" \
+            && echo "Published OpenVox fleet metrics to VictoriaMetrics" \
+            || echo "WARNING: failed to publish OpenVox fleet metrics (non-critical)"
 
       - name: Upload OpenVox apply log
         if: always()
