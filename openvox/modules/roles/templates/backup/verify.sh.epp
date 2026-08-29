@@ -1,0 +1,184 @@
+<%- | String $remote_name,
+      String $remote_path,
+      String $local_path,
+      String $hostname,
+      String $ntfy_url,
+      Hash $host_configs,
+| -%>
+#!/usr/bin/env bash
+# Read-only backup integrity and disposable restore verifier.
+# Managed by OpenVox. It never touches live service data or retention state.
+set -euo pipefail
+
+MODE="${1:-integrity}"
+case "$MODE" in integrity|restore) ;; *) echo "usage: $0 [integrity|restore]" >&2; exit 2;; esac
+
+LOCAL_PATH="<%= $local_path %>"
+REMOTE="<%= $remote_name %>:<%= $remote_path %>"
+HOST="<%= $hostname %>"
+NTFY_URL="<%= $ntfy_url %>"
+STATE_DIR="${LOCAL_PATH}/verification"
+STATUS="${STATE_DIR}/status.json"
+RESULTS=$(mktemp)
+WORK=$(mktemp -d)
+trap 'rm -f "$RESULTS"; rm -rf "$WORK"' EXIT
+mkdir -p "$STATE_DIR"
+# The integrity and restore systemd instances share one status document and
+# pCloud bandwidth. A later invocation is harmlessly skipped instead of
+# racing the active one or doubling the remote load.
+exec 9>"${STATE_DIR}/verify.lock"
+if ! flock -n 9; then
+  echo "backup verification already running; skipping ${MODE}" >&2
+  exit 0
+fi
+
+# An initial result establishes the baseline silently. Thereafter alert only
+# on a state change: a failed verification and its eventual recovery matter;
+# repeating either result on every run would not.
+PREVIOUS_STATE=$(python3 - "$STATUS" "$MODE" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as fh:
+        payload = json.load(fh)
+    mode = sys.argv[2]
+    checks = payload.get('checks', {})
+    if isinstance(checks, dict):
+        state = checks.get(mode, {}).get('state')
+    elif payload.get('last_mode') == mode:
+        state = payload.get('state')
+    else:
+        state = ''
+    print(state if state in ('ok', 'failed') else '')
+except (OSError, ValueError, TypeError):
+    print('')
+PY
+)
+
+check_tree() {
+  local name="$1" local_tree="$2" remote_tree="$3"
+  if [[ ! -d "$local_tree" ]]; then
+    printf '%s\tskipped\tlocal path absent\n' "$name" >> "$RESULTS"
+    return
+  fi
+  # pCloud has high per-directory listing latency. The backup trees are
+  # bounded, so a single in-memory listing is preferable to many API walks.
+  if rclone check "$local_tree" "$remote_tree" --one-way --fast-list --stats=0 --log-level ERROR; then
+    printf '%s\tok\t\n' "$name" >> "$RESULTS"
+  else
+    printf '%s\tfailed\trclone check failed\n' "$name" >> "$RESULTS"
+  fi
+}
+
+restore_sample() {
+  local sample relative remote_sample restored sample_root
+  sample=""
+  # Restrict sampling to the same current backup contract as integrity checks.
+  # The snapshot tree intentionally retains data for retired/moved services;
+  # restoring one of those files proves nothing about today's recoverability.
+  # Prefer ordinary path backups, then current service volumes.
+  local -a sample_roots=("${LOCAL_PATH}/paths"
+<% $host_configs.each |String $service, Hash $config| { -%>
+<% $config['volumes'].each |String $volume| { -%>
+    "${LOCAL_PATH}/volumes/<%= $volume %>"
+<% } -%>
+<% } -%>
+  )
+  for sample_root in "${sample_roots[@]}"; do
+    [[ -d "$sample_root" ]] || continue
+    sample=$(find "$sample_root" -type f -size -64M -print -quit 2>/dev/null || true)
+    [[ -n "$sample" ]] && break
+  done
+  if [[ -z "$sample" ]]; then
+    printf 'sample_restore\tskipped\tno bounded sample file\n' >> "$RESULTS"
+    return
+  fi
+  relative="${sample#${LOCAL_PATH}/}"
+  remote_sample="${REMOTE}/${relative}"
+  restored="${WORK}/sample"
+  if rclone copyto "$remote_sample" "$restored" --stats=0 --log-level ERROR && cmp -s "$sample" "$restored"; then
+    printf 'sample_restore\tok\t%s\n' "$relative" >> "$RESULTS"
+  else
+    printf 'sample_restore\tfailed\trestored sample differs or is unreadable\n' >> "$RESULTS"
+  fi
+}
+
+if [[ "$MODE" == integrity ]]; then
+  # The local snapshot area is intentionally retained across service moves.
+  # Verify only volumes in this host's current backup contract; retired or
+  # moved services must not turn an otherwise healthy backup red.
+<% $host_configs.each |String $service, Hash $config| { -%>
+<% $config['volumes'].each |String $volume| { -%>
+  check_tree "volume:<%= $volume %>" "${LOCAL_PATH}/volumes/<%= $volume %>" "${REMOTE}/volumes/<%= $volume %>"
+<% } -%>
+<% } -%>
+  check_tree paths "${LOCAL_PATH}/paths" "${REMOTE}/paths"
+else
+  restore_sample
+fi
+
+FINAL_STATE=ok
+if grep -q $'\tfailed\t' "$RESULTS"; then
+  FINAL_STATE=failed
+fi
+
+python3 - "$STATUS" "$HOST" "$MODE" "$RESULTS" "$FINAL_STATE" <<'PY'
+import json, os, sys, tempfile
+from datetime import datetime, timezone
+
+status, host, mode, results_file, final_state = sys.argv[1:]
+results = []
+with open(results_file, encoding='utf-8') as fh:
+    for line in fh:
+        name, result_state, detail = line.rstrip('\n').split('\t', 2)
+        results.append({'name': name, 'state': result_state, 'detail': detail})
+try:
+    with open(status, encoding='utf-8') as fh:
+        previous = json.load(fh)
+except (OSError, ValueError, TypeError):
+    previous = {}
+checks = previous.get('checks', {}) if isinstance(previous.get('checks'), dict) else {}
+# Upgrade the initial single-result schema without discarding it. Thereafter
+# integrity and restore are retained independently: a passing restore cannot
+# hide a failed integrity check (or the other way round).
+if previous.get('version') == 1 and previous.get('last_mode') in ('integrity', 'restore'):
+    checks[previous['last_mode']] = {
+        'state': previous.get('state', 'unknown'),
+        'updated_at': previous.get('updated_at'),
+        'results': previous.get('results', []),
+    }
+now = datetime.now(timezone.utc).isoformat()
+checks[mode] = {'state': final_state, 'updated_at': now, 'results': results}
+integrity = checks.get('integrity', {})
+payload = {
+    'version': 2,
+    'host': host,
+    'updated_at': integrity.get('updated_at'),
+    'last_mode': 'integrity' if integrity else mode,
+    'state': integrity.get('state', 'unknown'),
+    'results': integrity.get('results', []),
+    'checks': checks,
+}
+fd, temp = tempfile.mkstemp(dir=os.path.dirname(status), prefix='.status.', text=True)
+with os.fdopen(fd, 'w', encoding='utf-8') as fh:
+    json.dump(payload, fh, sort_keys=True)
+    fh.write('\n')
+os.replace(temp, status)
+PY
+
+if [[ -n "$PREVIOUS_STATE" && "$PREVIOUS_STATE" != "$FINAL_STATE" && -n "$NTFY_URL" ]]; then
+  if [[ "$FINAL_STATE" == failed ]]; then
+    TITLE="Backup verification failed on ${HOST}"
+    PRIORITY=5
+    TAGS="rotating_light,backup"
+  else
+    TITLE="Backup verification recovered on ${HOST}"
+    PRIORITY=3
+    TAGS="white_check_mark,backup"
+  fi
+  curl --fail --silent --show-error --max-time 20 \
+    -H "Title: ${TITLE}" -H "Priority: ${PRIORITY}" -H "Tags: ${TAGS}" \
+    -d "mode=${MODE}; state=${FINAL_STATE}" "$NTFY_URL" \
+    || echo "backup verification notification failed" >&2
+fi
+
+[[ "$FINAL_STATE" == ok ]]

@@ -357,12 +357,12 @@ class roles::services (
     # (same shape as the healthreport secrets block above, which already
     # hardcodes every host's Tailscale IP for the same reason).
     $kuma_hosts = [
-      { 'inventory_hostname' => 'mljr',          'ansible_host' => 'mljr.tail33930.ts.net' },
-      { 'inventory_hostname' => 'nuc',           'ansible_host' => 'nuc.tail33930.ts.net' },
-      { 'inventory_hostname' => 'nas',           'ansible_host' => 'nas.tail33930.ts.net' },
-      { 'inventory_hostname' => 'ugreen',        'ansible_host' => 'ugreen.tail33930.ts.net' },
-      { 'inventory_hostname' => 'wd-mycloud',    'ansible_host' => 'wd-mycloud.tail33930.ts.net' },
-      { 'inventory_hostname' => 'homeassistant', 'ansible_host' => 'homeassistant.tail33930.ts.net' },
+      { 'node_name' => 'mljr',          'node_host' => 'mljr.tail33930.ts.net' },
+      { 'node_name' => 'nuc',           'node_host' => 'nuc.tail33930.ts.net' },
+      { 'node_name' => 'nas',           'node_host' => 'nas.tail33930.ts.net' },
+      { 'node_name' => 'ugreen',        'node_host' => 'ugreen.tail33930.ts.net' },
+      { 'node_name' => 'wd-mycloud',    'node_host' => 'wd-mycloud.tail33930.ts.net' },
+      { 'node_name' => 'homeassistant', 'node_host' => 'homeassistant.tail33930.ts.net' },
     ]
 
     # Valid JSON is valid YAML, and provision-kuma.py only ever calls

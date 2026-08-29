@@ -206,6 +206,7 @@
         {{ else if .Reason }}
         <div class="card-sub">{{ .Reason }}</div>
         {{ end }}
+        <div class="card-sub">{{ .VerificationLabel }}</div>
       </div>
       {{ end }}
     </div>
@@ -221,6 +222,23 @@
         <div class="card-value mono">{{ .UsedLabel }}</div>
         <div class="gauge-bar"><div class="gauge-fill {{ .GaugeClass }}" style="width: {{ .UsedPercent }}%;"></div></div>
         <div class="card-sub mono">{{ .FreeLabel }}</div>
+      </div>
+      {{ end }}
+    </div>
+  </section>
+  {{ end }}
+
+  {{ if .History }}
+  <section>
+    <div class="section-title">Local history</div>
+    <div class="grid">
+      {{ range .History }}
+      <div class="card state-{{ .State }}">
+        <div class="card-head">
+          <span class="card-host mono">{{ .Name }} Btrfs history</span>
+          <span class="pill pill-{{ .State }}">{{ .State }}</span>
+        </div>
+        <div class="card-sub">{{ .Details }}</div>
       </div>
       {{ end }}
     </div>

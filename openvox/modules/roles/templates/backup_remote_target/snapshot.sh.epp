@@ -1,0 +1,146 @@
+<%- | String $data_dir,
+      String $snapshot_dir,
+      Integer $minimum_free_percent,
+      Integer $retention_daily,
+      Integer $retention_weekly,
+      Integer $retention_monthly,
+| -%>
+#!/usr/bin/env bash
+# Btrfs history helper for the Ugreen backup target.
+# `plan` is read-only. `create` makes one read-only Btrfs snapshot and prunes
+# only snapshots outside the configured 14 daily / 8 weekly / 12 monthly set.
+set -euo pipefail
+
+MODE="${1:-plan}"
+case "$MODE" in plan|create) ;; *) echo "usage: $0 [plan|create]" >&2; exit 2;; esac
+
+DATA_DIR="<%= $data_dir %>"
+SNAPSHOT_DIR="<%= $snapshot_dir %>"
+STATUS="$(dirname "$DATA_DIR")/snapshot-status.json"
+MINIMUM_FREE_PERCENT=<%= $minimum_free_percent %>
+RETENTION_DAILY=<%= $retention_daily %>
+RETENTION_WEEKLY=<%= $retention_weekly %>
+RETENTION_MONTHLY=<%= $retention_monthly %>
+
+exec 9>"$(dirname "$STATUS")/.snapshot.lock"
+if ! flock -n 9; then
+  echo "backup snapshot already running; skipping ${MODE}" >&2
+  exit 0
+fi
+
+write_status() {
+  local state="$1" action="$2" reason="$3"
+  python3 - "$STATUS" "$DATA_DIR" "$SNAPSHOT_DIR" "$MINIMUM_FREE_PERCENT" "$RETENTION_DAILY" "$RETENTION_WEEKLY" "$RETENTION_MONTHLY" "$state" "$action" "$reason" <<'PY'
+import json, os, sys, tempfile
+from datetime import datetime, timezone
+
+status, data_dir, snapshot_dir, floor, daily, weekly, monthly, state, action, reason = sys.argv[1:]
+snapshots = []
+if os.path.isdir(snapshot_dir):
+    snapshots = sorted((n for n in os.listdir(snapshot_dir)
+                        if n.startswith('data-') and os.path.isdir(os.path.join(snapshot_dir, n))), reverse=True)
+usage = os.statvfs(data_dir) if os.path.isdir(data_dir) else None
+free_percent = None
+if usage and usage.f_blocks:
+    free_percent = round(usage.f_bavail * 100.0 / usage.f_blocks, 1)
+
+# Keep the newest snapshot for each of the daily, ISO-weekly and monthly
+# buckets. A snapshot selected by an earlier tier remains kept, so this is
+# 14 daily + 8 weekly + 12 monthly *at most*, never a duplicate copy.
+keep, seen_day, seen_week, seen_month = set(), set(), set(), set()
+for name in snapshots:
+    try:
+        stamp = datetime.strptime(name, 'data-%Y%m%dT%H%M%SZ')
+    except ValueError:
+        continue
+    day = stamp.strftime('%Y-%m-%d')
+    iso = stamp.isocalendar()
+    week = '%04d-W%02d' % (iso.year, iso.week)
+    month = stamp.strftime('%Y-%m')
+    if len(seen_day) < int(daily) and day not in seen_day:
+        keep.add(name); seen_day.add(day)
+    elif len(seen_week) < int(weekly) and week not in seen_week:
+        keep.add(name); seen_week.add(week)
+    elif len(seen_month) < int(monthly) and month not in seen_month:
+        keep.add(name); seen_month.add(month)
+prune_candidates = [name for name in snapshots if name not in keep]
+payload = {
+    'version': 1, 'updated_at': datetime.now(timezone.utc).isoformat(),
+    'state': state, 'action': action, 'reason': reason,
+    'data_dir': data_dir, 'snapshot_dir': snapshot_dir,
+    'snapshot_count': len(snapshots), 'latest_snapshot': snapshots[0] if snapshots else None,
+    'free_percent': free_percent, 'floor_percent': int(floor),
+    'retention': {'daily': int(daily), 'weekly': int(weekly), 'monthly': int(monthly),
+                  'prune_candidates': len(prune_candidates)},
+}
+fd, temporary = tempfile.mkstemp(dir=os.path.dirname(status), prefix='.snapshot-status.', text=True)
+with os.fdopen(fd, 'w', encoding='utf-8') as fh:
+    json.dump(payload, fh, sort_keys=True)
+    fh.write('\n')
+os.replace(temporary, status)
+PY
+}
+
+if ! btrfs subvolume show "$DATA_DIR" >/dev/null 2>&1; then
+  write_status failed "$MODE" "backup data path is not a Btrfs subvolume"
+  exit 1
+fi
+
+FREE_PERCENT=$(df -P "$DATA_DIR" | awk 'NR == 2 && $2 > 0 { printf "%.1f", ($4 * 100) / $2 }')
+if [[ -z "$FREE_PERCENT" ]]; then
+  write_status failed "$MODE" "could not determine filesystem free space"
+  exit 1
+fi
+if awk -v free="$FREE_PERCENT" -v floor="$MINIMUM_FREE_PERCENT" 'BEGIN { exit !(free < floor) }'; then
+  write_status blocked "$MODE" "free space is below the ${MINIMUM_FREE_PERCENT}% safety floor"
+  exit 1
+fi
+
+if [[ "$MODE" == create ]]; then
+  mkdir -p "$SNAPSHOT_DIR"
+  chmod 0700 "$SNAPSHOT_DIR"
+  name="data-$(date -u +%Y%m%dT%H%M%SZ)"
+  btrfs subvolume snapshot -r "$DATA_DIR" "${SNAPSHOT_DIR}/${name}"
+  # Let Python perform the calendar bucketing (including ISO-week handling),
+  # then delete only validated, read-only Btrfs snapshots under our dedicated
+  # snapshot directory. No source data and no pCloud data are ever removed.
+  pruned=0
+  while IFS= read -r candidate; do
+    [[ "$candidate" =~ ^data-[0-9]{8}T[0-9]{6}Z$ ]] || continue
+    target="${SNAPSHOT_DIR}/${candidate}"
+    [[ -d "$target" && ! -L "$target" ]] || continue
+    btrfs subvolume show "$target" >/dev/null 2>&1 || {
+      write_status failed create "refusing to prune non-subvolume ${candidate}"
+      exit 1
+    }
+    btrfs subvolume delete "$target"
+    pruned=$((pruned + 1))
+  done < <(python3 - "$SNAPSHOT_DIR" "$RETENTION_DAILY" "$RETENTION_WEEKLY" "$RETENTION_MONTHLY" <<'PY'
+import os, sys
+from datetime import datetime
+
+root, daily, weekly, monthly = sys.argv[1:]
+snapshots = sorted((n for n in os.listdir(root)
+                    if n.startswith('data-') and os.path.isdir(os.path.join(root, n))), reverse=True)
+keep, days, weeks, months = set(), set(), set(), set()
+for name in snapshots:
+    try:
+        stamp = datetime.strptime(name, 'data-%Y%m%dT%H%M%SZ')
+    except ValueError:
+        continue
+    day, week, month = stamp.strftime('%Y-%m-%d'), stamp.strftime('%G-W%V'), stamp.strftime('%Y-%m')
+    if len(days) < int(daily) and day not in days:
+        keep.add(name); days.add(day)
+    elif len(weeks) < int(weekly) and week not in weeks:
+        keep.add(name); weeks.add(week)
+    elif len(months) < int(monthly) and month not in months:
+        keep.add(name); months.add(month)
+for name in snapshots:
+    if name not in keep:
+        print(name)
+PY
+)
+  write_status ok create "created ${name}; pruned ${pruned} snapshots outside retention"
+else
+  write_status ready plan "history target ready; scheduled creation follows configured retention"
+fi

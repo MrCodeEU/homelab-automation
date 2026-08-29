@@ -15,20 +15,23 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 echo -e "${YELLOW}Running pre-commit validations...${NC}"
 
-# Guard: vault.yml must never be committed unencrypted
-VAULT_FILE="$REPO_ROOT/ansible/inventory/group_vars/all/vault.yml"
-if git diff --cached --name-only | grep -qx "ansible/inventory/group_vars/all/vault.yml"; then
-    VAULT_HEADER=$(git show ":ansible/inventory/group_vars/all/vault.yml" 2>/dev/null | head -1)
-    if [ -z "$VAULT_HEADER" ]; then
-        echo -e "${RED}✗ vault.yml is staged but empty or unreadable!${NC}"
+# Guard: common.eyaml's secret values must never be committed unencrypted.
+# Every non-blank, non-comment line must carry an ENC[PKCS7,...] value.
+EYAML_FILE="openvox/data/common.eyaml"
+if git diff --cached --name-only | grep -qx "$EYAML_FILE"; then
+    EYAML_CONTENT=$(git show ":$EYAML_FILE" 2>/dev/null)
+    if [ -z "$EYAML_CONTENT" ]; then
+        echo -e "${RED}✗ common.eyaml is staged but empty or unreadable!${NC}"
         exit 1
     fi
-    if [[ "$VAULT_HEADER" != '$ANSIBLE_VAULT'* ]]; then
-        echo -e "${RED}✗ vault.yml is NOT encrypted! Aborting commit.${NC}"
-        echo -e "${RED}  Run: ansible-vault encrypt $VAULT_FILE${NC}"
+    PLAINTEXT_LINES=$(echo "$EYAML_CONTENT" | grep -vE '^\s*(#.*)?$' | grep -vF 'ENC[PKCS7' || true)
+    if [ -n "$PLAINTEXT_LINES" ]; then
+        echo -e "${RED}✗ common.eyaml has unencrypted value(s)! Aborting commit.${NC}"
+        echo -e "${RED}  Encrypt with: eyaml encrypt -l <label> -s '<value>' --pkcs7-public-key=...${NC}"
+        echo "$PLAINTEXT_LINES"
         exit 1
     fi
-    echo -e "${GREEN}✓ vault.yml is encrypted${NC}"
+    echo -e "${GREEN}✓ common.eyaml is encrypted${NC}"
 fi
 
 # Run service definition validation (ports, domains, uniqueness, etc.)

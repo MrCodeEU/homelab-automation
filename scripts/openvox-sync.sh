@@ -20,6 +20,7 @@
 # $weekly_maintenance fact read. OPENVOX_STAGING_SERVICES is an optional,
 # comma-separated catalog selection that explicitly deploys staging instances
 # on nuc; normal applies deliberately leave those containers alone.
+# OPENVOX_RECOVERY_SERVICES is a separate, explicit fresh-host-only selection.
 #
 # Every line of remote output is prefixed with the host's short label
 # (e.g. "[mljr]") - this is the main readability fix over the old plain
@@ -45,10 +46,34 @@ if [ -n "${OPENVOX_ENV_DIR:-}" ]; then
   fi
   isolated_env=true
 fi
-# Third-party modules were installed into the production environment by the
-# original bootstrap script. Proposed `roles` code must win, while those pinned
-# host-local dependencies remain available to compile the isolated catalog.
-module_path="${env_dir}/modules:/etc/puppetlabs/code/environments/production/modules:/etc/puppetlabs/code/modules:/opt/puppetlabs/puppet/modules"
+
+# Releases live at sibling releases/<timestamp>/ next to env_dir, e.g.
+# /etc/puppetlabs/code/environments/releases/20260829T101500Z. `production`
+# (env_dir) is kept as a symlink to the current release so a real apply can
+# ln -sfn to a new release atomically (see below) and openvox-rollback.sh can
+# point it back at a previous one without re-syncing anything. Noop/isolated
+# runs never touch this - they sync straight into env_dir as before, since
+# they're read-only checks, not a real deploy.
+env_base="$(dirname "$env_dir")"
+releases_dir="${env_base}/releases"
+release_keep="${OPENVOX_RELEASE_KEEP:-5}"
+use_release=false
+if [ "$isolated_env" = false ] && [ "$mode" = "apply" ]; then
+  use_release=true
+fi
+
+# Forge modules (stdlib, apt, docker, ...) are pinned by Puppetfile, not by a
+# given release - they live in a persistent shared dir, sibling to env_dir,
+# instead of inside a per-release directory. Otherwise every release swap
+# would need a full forge reinstall, and releases/ would balloon in size.
+# `roles` (this repo's own code) is the thing that actually changes release
+# to release, so it stays inside env_dir (the release currently symlinked).
+shared_modules_dir="${env_base}/vendor-modules"
+module_target="${env_dir}/modules"
+if [ "$isolated_env" = false ]; then
+  module_target="$shared_modules_dir"
+fi
+module_path="${env_dir}/modules:${shared_modules_dir}:/etc/puppetlabs/code/modules:/opt/puppetlabs/puppet/modules"
 
 # accept-new (not the no-op "no"): trusts a host's key on first contact and
 # persists it, but still refuses a key that later CHANGES. Needed because a
@@ -85,6 +110,15 @@ if [ -n "$staging_services" ]; then
   facter_prefix+="FACTER_openvox_staging_services=${staging_services} "
 fi
 
+recovery_services="${OPENVOX_RECOVERY_SERVICES:-}"
+if [ -n "$recovery_services" ]; then
+  if [[ ! "$recovery_services" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*(,[A-Za-z0-9][A-Za-z0-9._-]*)*$ ]]; then
+    echo "invalid OPENVOX_RECOVERY_SERVICES: expected comma-separated service names" >&2
+    exit 2
+  fi
+  facter_prefix+="FACTER_openvox_recovery_services=${recovery_services} "
+fi
+
 # Short label for prefixing/log naming, e.g. "mljr.tail33930.ts.net" -> "mljr".
 label="${host%%.*}"
 
@@ -118,23 +152,49 @@ echo "${c_bold}==> ${label}${c_reset} (${mode}) starting..." | prefix
   # Candidate PR dependencies go into the isolated environment. Production
   # noops stay read-only; applies reconcile the pinned dependency set first.
   if [ "$isolated_env" = true ] || [ "$mode" = apply ]; then
-    ./scripts/openvox-modules.sh reconcile "$host" "${env_dir}/modules"
+    ./scripts/openvox-modules.sh reconcile "$host" "$module_target"
   else
-    ./scripts/openvox-modules.sh verify "$host" "${env_dir}/modules"
+    ./scripts/openvox-modules.sh verify "$host" "$module_target"
   fi
 
-  ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p ${env_dir}/manifests ${env_dir}/modules/roles ${env_dir}/data"
+  xfer_dir="$env_dir"
+  if [ "$use_release" = true ]; then
+    release_ts="$(date -u +%Y%m%dT%H%M%SZ)"
+    xfer_dir="${releases_dir}/${release_ts}"
+  fi
+
+  ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p ${xfer_dir}/manifests ${xfer_dir}/modules/roles ${xfer_dir}/modules/role ${xfer_dir}/data"
 
   if [ "${host}" = "ugreen.tail33930.ts.net" ]; then
-    scp -rq "${ssh_opts[@]}" openvox/manifests/. "root@${host}:${env_dir}/manifests/"
-    scp -rq "${ssh_opts[@]}" openvox/modules/roles/. "root@${host}:${env_dir}/modules/roles/"
-    scp -q "${ssh_opts[@]}" openvox/hiera.yaml "root@${host}:${env_dir}/hiera.yaml"
-    scp -rq "${ssh_opts[@]}" openvox/data/. "root@${host}:${env_dir}/data/"
+    scp -rq "${ssh_opts[@]}" openvox/manifests/. "root@${host}:${xfer_dir}/manifests/"
+    scp -rq "${ssh_opts[@]}" openvox/modules/roles/. "root@${host}:${xfer_dir}/modules/roles/"
+    scp -rq "${ssh_opts[@]}" openvox/modules/role/. "root@${host}:${xfer_dir}/modules/role/"
+    scp -q "${ssh_opts[@]}" openvox/hiera.yaml "root@${host}:${xfer_dir}/hiera.yaml"
+    scp -rq "${ssh_opts[@]}" openvox/data/. "root@${host}:${xfer_dir}/data/"
   else
-    rsync -az -e "ssh ${ssh_opts[*]}" openvox/manifests/ "root@${host}:${env_dir}/manifests/"
-    rsync -az --delete -e "ssh ${ssh_opts[*]}" openvox/modules/roles/ "root@${host}:${env_dir}/modules/roles/"
-    rsync -az -e "ssh ${ssh_opts[*]}" openvox/hiera.yaml "root@${host}:${env_dir}/hiera.yaml"
-    rsync -az -e "ssh ${ssh_opts[*]}" openvox/data/ "root@${host}:${env_dir}/data/"
+    rsync -az -e "ssh ${ssh_opts[*]}" openvox/manifests/ "root@${host}:${xfer_dir}/manifests/"
+    rsync -az --delete -e "ssh ${ssh_opts[*]}" openvox/modules/roles/ "root@${host}:${xfer_dir}/modules/roles/"
+    rsync -az --delete -e "ssh ${ssh_opts[*]}" openvox/modules/role/ "root@${host}:${xfer_dir}/modules/role/"
+    rsync -az -e "ssh ${ssh_opts[*]}" openvox/hiera.yaml "root@${host}:${xfer_dir}/hiera.yaml"
+    rsync -az -e "ssh ${ssh_opts[*]}" openvox/data/ "root@${host}:${xfer_dir}/data/"
+  fi
+
+  if [ "$use_release" = true ]; then
+    # Atomic swap: build the symlink under a temp name, then rename it over
+    # env_dir in one syscall - env_dir is never briefly missing or partial.
+    # First-ever run: env_dir may still be a real directory from before this
+    # release scheme existed - move it into releases/ so it becomes a valid
+    # rollback target instead of just being clobbered by the symlink.
+    ssh "${ssh_opts[@]}" "root@${host}" "
+      set -e
+      mkdir -p '${releases_dir}'
+      if [ -d '${env_dir}' ] && [ ! -L '${env_dir}' ]; then
+        mv -T '${env_dir}' '${releases_dir}/pre-release-migration-$(date -u +%Y%m%dT%H%M%SZ)'
+      fi
+      ln -sfn '${xfer_dir}' '${env_dir}.new'
+      mv -Tf '${env_dir}.new' '${env_dir}'
+      ls -1dt '${releases_dir}'/*/ 2>/dev/null | tail -n +$((release_keep + 1)) | xargs -r rm -rf --
+    "
   fi
 
   if [ "${mode}" = "apply" ]; then

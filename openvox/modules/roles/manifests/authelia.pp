@@ -9,15 +9,18 @@
 # deploy this depends on (run once per host, not part of the general
 # environment sync).
 #
-# KNOWN LIMITATION, ported faithfully rather than fixed: the admin
-# password hash uses a random salt every call
+# FIXED 2026-08-29 (inherited from the Ansible role, not introduced by
+# this port): the admin password hash uses a random salt every call
 # (`authelia crypto hash generate argon2`), so users_database.yml's
 # content differs on literally every run regardless of whether the
-# password changed. This means the users-database exec always reports
-# CHANGED and always restarts the authelia container - pre-existing
-# behavior inherited from the Ansible role's own identical
-# `notify: Restart Authelia` on that same templated file, not introduced
-# by this port. configuration.yml and docker-compose.yml are real stable
+# password changed - the users-database exec used to have no guard and
+# always reported CHANGED, restarting the authelia container on every
+# single apply. Now guarded with `creates` (see the exec below): the
+# file generates once, on first creation, and is left alone after that.
+# Trade-off, accepted deliberately: rotating vault_authelia_admin_password
+# no longer regenerates it automatically - delete
+# ${config_path}/users_database.yml by hand to force a rebuild with the
+# new password. configuration.yml and docker-compose.yml are real stable
 # content and only trigger a restart when something actually changed.
 class roles::authelia (
   String $config_path = '/opt/authelia',
@@ -177,6 +180,7 @@ class roles::authelia (
     command  => $users_db_script,
     provider => shell,
     path     => ['/usr/bin', '/bin'],
+    creates  => "${config_path}/users_database.yml",
     require  => File[$config_path],
     notify   => Exec['authelia-restart'],
   }
@@ -223,10 +227,8 @@ class roles::authelia (
   }
 
   # Bind-mounted config files don't trigger a compose recreate on content
-  # change - a real restart is required to pick them up, same as the
-  # Ansible role's own notify: Restart Authelia. refreshonly - only runs
-  # when one of the 3 file/exec resources above actually changed, except
-  # authelia-users-database which (see class doc) always reports changed.
+  # change - a real restart is required to pick them up. refreshonly - only
+  # runs when one of the 3 file/exec resources above actually changed.
   exec { 'authelia-restart':
     command     => 'docker compose pull && docker compose up -d && docker compose restart',
     provider    => shell,

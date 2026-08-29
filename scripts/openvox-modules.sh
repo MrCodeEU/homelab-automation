@@ -6,7 +6,7 @@ set -euo pipefail
 
 action="${1:?usage: openvox-modules.sh <validate|verify|reconcile> [ssh-target] [module-dir]}"
 host="${2:-}"
-module_dir="${3:-/etc/puppetlabs/code/environments/production/modules}"
+module_dir="${3:-/etc/puppetlabs/code/environments/vendor-modules}"
 puppetfile="openvox/Puppetfile"
 
 case "$action" in
@@ -14,7 +14,8 @@ case "$action" in
   verify|reconcile)
     [ -n "$host" ] || { echo "missing ssh target" >&2; exit 2; }
     [[ "$host" =~ ^[a-zA-Z0-9.-]+$ ]] || { echo "invalid ssh target: $host" >&2; exit 2; }
-    [[ "$module_dir" =~ ^(/etc/puppetlabs/code/environments/production|/tmp/openvox-pr-[0-9]+-[0-9]+)/modules$ ]] || {
+    [[ "$module_dir" == /etc/puppetlabs/code/environments/vendor-modules ]] ||
+      [[ "$module_dir" =~ ^/tmp/openvox-pr-[0-9]+-[0-9]+/modules$ ]] || {
       echo "invalid module directory: $module_dir" >&2
       exit 2
     }
@@ -54,6 +55,12 @@ ssh_opts=(
   -o ControlPersist=5
   -o ControlPath=/tmp/openvox-ssh-%C
 )
+
+# puppet/firewalld was replaced by roles::firewalld. Remove only that known,
+# obsolete module on reconciliation; never prune arbitrary operator modules.
+if [ "$action" = reconcile ]; then
+  ssh "${ssh_opts[@]}" "root@${host}" "rm -rf -- '$module_dir/firewalld'"
+fi
 ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p '$module_dir'"
 
 # Seed all cached modules before taking the one installed-version inventory.
@@ -62,7 +69,7 @@ if [[ "$module_dir" == /tmp/openvox-pr-*/modules ]]; then
     module=${entry%% *}
     short_name=${module#*/}
     ssh "${ssh_opts[@]}" "root@${host}" \
-      "if [ ! -e '$module_dir/$short_name' ] && [ -d '/etc/puppetlabs/code/environments/production/modules/$short_name' ]; then cp -a '/etc/puppetlabs/code/environments/production/modules/$short_name' '$module_dir/'; fi"
+      "if [ ! -e '$module_dir/$short_name' ] && [ -d '/etc/puppetlabs/code/environments/vendor-modules/$short_name' ]; then cp -a '/etc/puppetlabs/code/environments/vendor-modules/$short_name' '$module_dir/'; fi"
   done
 fi
 

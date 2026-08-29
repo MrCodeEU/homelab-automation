@@ -1,0 +1,38 @@
+# Per-host data for role::nuc (see modules/role/manifests/nuc.pp).
+# Values here are ported verbatim from the site.pp literal class{} args
+# they replaced - zero behavior change, see docs/OPENVOX_BACKLOG.md.
+---
+roles::base::tailscale_ip: '100.100.10.1'
+# nuc's own real LAN, not just Tailscale - the trusted zone is an
+# exact-set match in puppet-firewalld, so every source has to be listed
+# here explicitly or the native zone resource would drop it.
+roles::base::trusted_zone_sources:
+  - '100.64.0.0/10'
+  - '192.168.50.0/24'
+
+roles::iperf3::base_path: '/opt'
+
+roles::netronome_agent::base_path: '/opt'
+roles::netronome_agent::interface: 'enp2s0'
+
+roles::backup::services:
+  - kuma
+  - forgejo
+  - mail-archiver
+  - umami
+  - grafana
+  - nocturne
+roles::backup::hostname: 'nuc'
+roles::backup::verification_integrity_schedule: 'Sun *-*-* 06:30:00'
+roles::backup::verification_restore_schedule: 'Sun *-*-01..07 10:30:00'
+
+roles::services::hostname: 'nuc'
+roles::services::tailscale_ip: '100.100.10.1'
+
+roles::hawser_agent::tailscale_ip: '100.100.10.1'
+
+roles::host_facts_endpoint::os_family: 'rocky'
+roles::host_facts_endpoint::hostname: 'nuc'
+roles::host_facts_endpoint::dest: '/usr/local/bin/homelab-facts'
+
+roles::grafana_alloy::hostname: 'nuc'

@@ -342,10 +342,12 @@ roles ported 1:1, verified live against real production infrastructure
 role-by-role before the CI cutover). It's kept as a short-lived reference
 only — not deployed by CI, not documented as a supported path — while the
 OpenVox port settles. If you're looking for the old `ansible-playbook`/
-`ansible-vault`/`make deploy-*` workflow, the roles/playbooks/vault are
-still there, just no longer wired into anything; `git log` on any
-`ansible/roles/<name>/` directory is the most reliable way to see what a
-given role used to do before its Puppet port.
+`ansible-vault`/`make deploy-*` workflow, the roles/playbooks are still
+there (the encrypted vault itself was deleted, git-history-recoverable,
+once `openvox/data/common.eyaml` took over — see
+`ansible/inventory/group_vars/all/vault.yml.example` for the key names);
+`git log` on any `ansible/roles/<name>/` directory is the most reliable
+way to see what a given role used to do before its Puppet port.
 
 ## License
 

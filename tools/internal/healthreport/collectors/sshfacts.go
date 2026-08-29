@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 	"time"
 
 	hr "github.com/MrCodeEU/homelab-automation/tools/internal/healthreport"
@@ -23,6 +24,23 @@ var sshOptions = []string{
 	"-o", "ConnectTimeout=10",
 	"-o", "StrictHostKeyChecking=accept-new",
 	"-o", "IdentitiesOnly=yes",
+}
+
+const (
+	backupIntegrityMaxAge = 8 * 24 * time.Hour
+	backupRestoreMaxAge   = 35 * 24 * time.Hour
+)
+
+func verificationStale(updatedAt any, maxAge time.Duration) (bool, string) {
+	stamp := fmt.Sprint(updatedAt)
+	parsed, err := time.Parse(time.RFC3339, stamp)
+	if err != nil {
+		return true, stamp
+	}
+	if time.Since(parsed) > maxAge {
+		return true, stamp
+	}
+	return false, stamp
 }
 
 func fetchFacts(cfg hr.Config, host, address string) (map[string]any, error) {
@@ -236,7 +254,7 @@ func rockyObservations(result *hr.CollectorResult, host string, sections map[str
 			result.Observations = append(result.Observations, &hr.Observation{
 				ID: "reboot_required." + host + ".", Collector: "ssh_facts", Subject: host,
 				Kind: "reboot_required", Value: value,
-				Message: fmt.Sprintf("%s needs a reboot to activate installed updates (running %s)", host, kernelLabel),
+				Message:  fmt.Sprintf("%s needs a reboot to activate installed updates (running %s)", host, kernelLabel),
 				Evidence: map[string]any{"running_kernel": kernel, "advisories_pending_reboot": count},
 				Severity: "info",
 			})
@@ -428,9 +446,93 @@ func rockyObservations(result *hr.CollectorResult, host string, sections map[str
 			})
 		}
 	}
+
+	if verification, ok := sections["backup_verification"].(map[string]any); ok {
+		data, _ := verification["data"].(map[string]any)
+		if data != nil && boolOr(data["available"]) {
+			checks, _ := data["checks"].(map[string]any)
+			integrity, _ := checks["integrity"].(map[string]any)
+			if integrity == nil {
+				// Version 1 status files only have the top-level integrity result.
+				integrity = data
+			}
+			state := fmt.Sprint(integrity["state"])
+			result.Observations = append(result.Observations, &hr.Observation{
+				ID: "backup_verification." + host + ".", Collector: "ssh_facts", Subject: host,
+				Kind: "backup_verification", Value: state,
+				Message:  fmt.Sprintf("%s backup integrity verification: %s", host, state),
+				Evidence: map[string]any{"updated_at": integrity["updated_at"], "results": integrity["results"]}, Severity: "info",
+			})
+			failedModes := []string{}
+			if state == "failed" {
+				failedModes = append(failedModes, "integrity")
+			}
+			if stale, updatedAt := verificationStale(integrity["updated_at"], backupIntegrityMaxAge); stale {
+				result.Observations = append(result.Observations, &hr.Observation{
+					ID: "backup_verification_stale." + host + ".", Collector: "ssh_facts", Subject: host,
+					Kind: "backup_verification_stale", Value: updatedAt,
+					Message:  fmt.Sprintf("%s backup integrity verification is older than %s", host, backupIntegrityMaxAge),
+					Evidence: map[string]any{"updated_at": updatedAt, "max_age_hours": backupIntegrityMaxAge.Hours()}, Severity: "info",
+				})
+			}
+			if restore, _ := checks["restore"].(map[string]any); restore != nil {
+				restoreState := fmt.Sprint(restore["state"])
+				result.Observations = append(result.Observations, &hr.Observation{
+					ID: "backup_restore_verification." + host + ".", Collector: "ssh_facts", Subject: host,
+					Kind: "backup_restore_verification", Value: restoreState,
+					Message:  fmt.Sprintf("%s backup restore verification: %s", host, restoreState),
+					Evidence: map[string]any{"updated_at": restore["updated_at"], "results": restore["results"]}, Severity: "info",
+				})
+				if restoreState == "failed" {
+					failedModes = append(failedModes, "restore")
+				}
+				if stale, updatedAt := verificationStale(restore["updated_at"], backupRestoreMaxAge); stale {
+					result.Observations = append(result.Observations, &hr.Observation{
+						ID: "backup_restore_verification_stale." + host + ".", Collector: "ssh_facts", Subject: host,
+						Kind: "backup_restore_verification_stale", Value: updatedAt,
+						Message:  fmt.Sprintf("%s backup restore verification is older than %s", host, backupRestoreMaxAge),
+						Evidence: map[string]any{"updated_at": updatedAt, "max_age_hours": backupRestoreMaxAge.Hours()}, Severity: "info",
+					})
+				}
+			} else {
+				result.Observations = append(result.Observations, &hr.Observation{
+					ID: "backup_restore_verification_stale." + host + ".", Collector: "ssh_facts", Subject: host,
+					Kind: "backup_restore_verification_stale", Value: "missing",
+					Message:  fmt.Sprintf("%s has no recorded backup restore verification", host),
+					Evidence: map[string]any{"max_age_hours": backupRestoreMaxAge.Hours()}, Severity: "info",
+				})
+			}
+			if len(failedModes) > 0 {
+				result.Observations = append(result.Observations, &hr.Observation{
+					ID: "backup_verification_failed." + host + ".", Collector: "ssh_facts", Subject: host,
+					Kind: "backup_verification_failed", Value: true,
+					Message:  fmt.Sprintf("%s backup verification failed (%s)", host, strings.Join(failedModes, ", ")),
+					Evidence: map[string]any{"failed_modes": failedModes}, Severity: "info",
+				})
+			}
+		}
+	}
 }
 
 func ugreenObservations(result *hr.CollectorResult, host string, sections map[string]any) {
+	if history, ok := section(sections, "backup_history"); ok {
+		state, _ := history["state"].(string)
+		result.Observations = append(result.Observations, &hr.Observation{
+			ID: "backup_history." + host + ".", Collector: "ssh_facts", Subject: host,
+			Kind: "backup_history", Value: state,
+			Message: fmt.Sprintf("%s backup history target: %s (%v snapshots, %.1f%% free)", host, state,
+				history["snapshot_count"], numOr(history["free_percent"], 0)),
+			Evidence: history, Severity: "info",
+		})
+		if state != "ready" {
+			result.Observations = append(result.Observations, &hr.Observation{
+				ID: "backup_history_failed." + host + ".", Collector: "ssh_facts", Subject: host,
+				Kind: "backup_history_failed", Value: state,
+				Message: fmt.Sprintf("%s backup history target is not ready", host), Evidence: history, Severity: "info",
+			})
+		}
+	}
+
 	storage, ok := section(sections, "ugreen_storage")
 	if !ok {
 		return

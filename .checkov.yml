@@ -6,5 +6,3 @@ skip-path:
   # Retained only as the OpenVox migration reference; it is no longer a
   # deployment path. Active infrastructure remains fully scanned.
   - ansible
-  - docs/ansible-map.md
-  - tests

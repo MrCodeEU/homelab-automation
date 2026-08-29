@@ -1,0 +1,46 @@
+# Per-host data for role::mljr (see modules/role/manifests/mljr.pp).
+# Values here are ported verbatim from the site.pp literal class{} args
+# they replaced - zero behavior change, see docs/OPENVOX_BACKLOG.md.
+---
+roles::base::swap_enabled: true
+roles::base::public_ip: '157.173.97.107'
+roles::base::ssh_breakglass_port: 2299
+roles::base::tailscale_ip: '100.100.20.1'
+roles::base::cockpit_console_enabled: true
+roles::base::domain: 'mljr.eu'
+
+roles::iperf3::base_path: '/opt'
+
+roles::netronome_agent::base_path: '/opt'
+roles::netronome_agent::interface: 'eth0'
+
+# Must match ansible/inventory's inventory_hostname exactly, not this
+# VPS's real OS hostname - see roles::backup's own $hostname param doc.
+roles::backup::services:
+  - authelia
+  - mailcow
+  - ntfy
+  - goaccess
+  - crowdsec
+  - newsletter
+roles::backup::hostname: 'mljr'
+# This 4vCPU/7.5GB VPS also runs every service it backs up - the default
+# 8/16 pCloud concurrency saturated it enough that Kuma's 48s timeout
+# tripped on nearly every container during its own nightly backup
+# (2026-08-14). Matches the real, already-live Ansible override exactly.
+roles::backup::transfers: 2
+roles::backup::checkers: 4
+roles::backup::bwlimit: '8M'
+roles::backup::cpu_quota: '40%'
+roles::backup::verification_integrity_schedule: 'Sun *-*-* 04:30:00'
+roles::backup::verification_restore_schedule: 'Sun *-*-01..07 08:30:00'
+
+roles::services::hostname: 'mljr'
+
+roles::hawser_agent::tailscale_ip: '100.100.20.1'
+
+roles::host_facts_endpoint::os_family: 'rocky'
+roles::host_facts_endpoint::hostname: 'mljr'
+roles::host_facts_endpoint::dest: '/usr/local/bin/homelab-facts'
+
+roles::grafana_alloy::hostname: 'mljr'

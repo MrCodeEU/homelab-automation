@@ -25,8 +25,14 @@ class roles::base (
   String  $tailscale_ip           = '',
   Boolean $cockpit_console_enabled = false,
   String  $domain                 = 'mljr.eu',
-  Boolean $docker_prune_enabled   = false,
-  Boolean $reboot_if_needed       = false,
+  # Self-computed from the fact CI's weekly-maintenance run sets
+  # (FACTER_openvox_weekly_maintenance=true, see .github/workflows/deploy.yml)
+  # instead of being passed in by every caller - the masterless equivalent
+  # of Ansible's docker_prune_enabled/reboot_if_needed extra-vars. Every
+  # other trigger leaves the fact unset, so both stay off by default here
+  # too, same as before this was a self-computed default.
+  Boolean $docker_prune_enabled   = $facts['openvox_weekly_maintenance'] == 'true',
+  Boolean $reboot_if_needed       = $facts['openvox_weekly_maintenance'] == 'true',
   Boolean $reboot_enabled         = true,
   # nuc has a second, real LAN (192.168.50.0/24) that also needs to land
   # in the trusted zone - not something a generic default can guess, so
@@ -141,19 +147,15 @@ class roles::base (
   # Firewall (Tailscale internal network)
   # ==========================================================================
 
-  service { 'firewalld':
-    ensure => running,
-    enable => true,
-  }
+  include roles::firewalld
 
   # `sources` is an exact-set match (not additive) in puppet-firewalld,
   # so every source this zone needs - Tailscale plus any host-specific
   # extras like nuc's own LAN - has to be listed here via
   # $trusted_zone_sources, not layered on with separate resources.
-  firewalld_zone { 'trusted':
-    ensure  => present,
+  roles::firewalld::zone_sources { 'trusted':
+    zone    => 'trusted',
     sources => $trusted_zone_sources,
-    require => Service['firewalld'],
   }
 
   # ==========================================================================
@@ -161,12 +163,11 @@ class roles::base (
   # ==========================================================================
 
   if $public_ip and $ssh_breakglass_port {
-    firewalld_port { 'ssh-breakglass':
+    roles::firewalld::port { 'ssh-breakglass':
       ensure   => present,
       zone     => 'public',
       port     => $ssh_breakglass_port,
       protocol => 'tcp',
-      require  => Service['firewalld'],
     }
 
     exec { 'base-selinux-breakglass-port':
@@ -225,11 +226,10 @@ class roles::base (
       require => File['/etc/systemd/system/cockpit.socket.d/override.conf'],
     }
 
-    firewalld_service { 'cockpit-public':
+    roles::firewalld::service { 'cockpit-public':
       ensure  => absent,
       zone    => 'public',
       service => 'cockpit',
-      require => Service['firewalld'],
     }
   }
 
