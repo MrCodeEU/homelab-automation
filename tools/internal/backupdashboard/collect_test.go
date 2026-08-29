@@ -5,6 +5,7 @@
 package backupdashboard
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -28,6 +29,58 @@ func TestHostStatusOK(t *testing.T) {
 	}
 	if status.AgeSeconds == nil || *status.AgeSeconds != 3600 {
 		t.Errorf("age_seconds = %v, want 3600", status.AgeSeconds)
+	}
+}
+
+func TestHostStatusIncludesVerificationResult(t *testing.T) {
+	payload := factsPayload(true, true, 0, nil)
+	payload.Sections.BackupVerification.Data.Available = true
+	payload.Sections.BackupVerification.Data.State = "ok"
+	payload.Sections.BackupVerification.Data.LastMode = "restore"
+	payload.Sections.BackupVerification.Data.UpdatedAt = "2026-08-28T08:30:00Z"
+	payload.Sections.BackupVerification.Data.Checks = map[string]VerificationCheck{
+		"restore": {State: "ok", UpdatedAt: "2026-08-28T08:30:00Z"},
+	}
+
+	status := hostStatus(payload, "")
+	if status.VerificationState != "ok" || status.VerificationMode != "restore" || status.VerificationAt != "2026-08-28T08:30:00Z" {
+		t.Errorf("verification = %+v, want ok restore timestamp", status)
+	}
+	if status.RestoreState != "ok" || status.RestoreAt != "2026-08-28T08:30:00Z" {
+		t.Errorf("restore = %+v, want ok restore timestamp", status)
+	}
+}
+
+func TestHostStatusMarksMissingVerificationAsUnknown(t *testing.T) {
+	status := hostStatus(factsPayload(true, true, 0, nil), "")
+	if status.VerificationState != "unknown" {
+		t.Errorf("verification state = %q, want unknown", status.VerificationState)
+	}
+}
+
+func TestHistoryStatusIsSeparateFromBackupSourceStatus(t *testing.T) {
+	var payload FactsPayload
+	payload.Sections.BackupHistory.Data.Available = true
+	payload.Sections.BackupHistory.Data.State = "ready"
+	payload.Sections.BackupHistory.Data.SnapshotCount = 3
+	free := 46.2
+	payload.Sections.BackupHistory.Data.FreePercent = &free
+
+	history, ok := historyStatus("ugreen", &payload, "")
+	if !ok || history.Name != "ugreen" || history.State != "ready" || history.SnapshotCount != 3 || history.FreePercent == nil || *history.FreePercent != 46.2 {
+		t.Errorf("history = %+v, ok = %v", history, ok)
+	}
+}
+
+func TestHistoryStatusDecodesFactsEndpointShape(t *testing.T) {
+	raw := []byte(`{"sections":{"backup_history":{"status":"ok","data":{"available":true,"state":"ready","snapshot_count":0,"latest_snapshot":null,"free_percent":43.1,"floor_percent":20,"reason":""}}}}`)
+	var payload FactsPayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatal(err)
+	}
+	history, ok := historyStatus("ugreen", &payload, "")
+	if !ok || history.State != "ready" || history.FreePercent == nil || *history.FreePercent != 43.1 {
+		t.Fatalf("decoded history = %+v, ok = %v", history, ok)
 	}
 }
 

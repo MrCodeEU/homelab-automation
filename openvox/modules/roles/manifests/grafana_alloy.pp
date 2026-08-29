@@ -96,4 +96,42 @@ class roles::grafana_alloy (
     environment => ["ALLOY_DOCKER_ROOT=${docker_root}"],
     require     => [File['/opt/grafana-alloy/config.alloy'], File['/opt/grafana-alloy/data'], File[$work_dir]],
   }
+
+  # A bind mount pins the inode of containerd.sock. When containerd restarts
+  # it replaces that socket, leaving cAdvisor in the existing Alloy container
+  # permanently unable to collect container metrics. Restarting the container
+  # remounts the current socket; the path unit makes this self-healing rather
+  # than waiting for a future Puppet run.
+  file { '/etc/systemd/system/grafana-alloy-containerd-remount.service':
+    ensure  => file,
+    mode    => '0644',
+    content => "[Unit]\nDescription=Remount containerd socket for Grafana Alloy\nAfter=containerd.service docker.service\nWants=containerd.service docker.service\n\n[Service]\nType=oneshot\nExecStart=/usr/bin/docker restart grafana-alloy\n",
+    notify  => Exec['grafana-alloy-systemd-reload'],
+    require => Exec['grafana-alloy-run'],
+  }
+
+  file { '/etc/systemd/system/grafana-alloy-containerd-remount.path':
+    ensure  => file,
+    mode    => '0644',
+    content => "[Unit]\nDescription=Watch for containerd socket replacement\n\n[Path]\nPathChanged=/run/containerd/containerd.sock\nUnit=grafana-alloy-containerd-remount.service\n\n[Install]\nWantedBy=multi-user.target\n",
+    notify  => Exec['grafana-alloy-systemd-reload'],
+  }
+
+  exec { 'grafana-alloy-systemd-reload':
+    command     => '/usr/bin/systemctl daemon-reload',
+    refreshonly => true,
+  }
+
+  service { 'grafana-alloy-containerd-remount.path':
+    ensure  => running,
+    enable  => true,
+    require => [File['/etc/systemd/system/grafana-alloy-containerd-remount.path'], Exec['grafana-alloy-systemd-reload']],
+  }
+
+  exec { 'grafana-alloy-remount-current-containerd-socket':
+    command     => '/usr/bin/docker restart grafana-alloy',
+    refreshonly => true,
+    subscribe   => File['/etc/systemd/system/grafana-alloy-containerd-remount.service'],
+    require     => Exec['grafana-alloy-run'],
+  }
 }

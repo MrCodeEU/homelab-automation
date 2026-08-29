@@ -6,6 +6,7 @@
       Array[String] $facts_backup_watch_dirs,
       Array[String] $facts_backup_remotes,
       Array[String] $facts_backup_paths,
+      String $backup_history_root,
 | -%>
 #!/usr/bin/env python3
 """Read-only host facts endpoint for the homelab health report.
@@ -686,6 +687,61 @@ def collect_backup_log():
     }
 
 
+def collect_backup_verification():
+    """Latest read-only integrity/restore result written by verify.sh."""
+    path = "<%= $backup_local_path %>/verification/status.json"
+    if not os.path.exists(path):
+        return {"available": False, "reason": "verification has not run"}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except Exception as exc:
+        return {"available": False, "reason": "invalid verification status: " + str(exc)}
+    if data.get("version") not in (1, 2) or not isinstance(data.get("results"), list):
+        return {"available": False, "reason": "unsupported verification status"}
+    return {
+        "available": True,
+        "updated_at": data.get("updated_at"),
+        "last_mode": data.get("last_mode"),
+        "state": data.get("state", "unknown"),
+        "results": data.get("results", []),
+        # Version 2 retains a distinct result for each verification mode.
+        # Keep the top-level fields above for consumers that only need the
+        # integrity result, but expose both modes to the Health Report.
+        "checks": data.get("checks", {}) if isinstance(data.get("checks"), dict) else {},
+    }
+
+
+def collect_ugreen_backup_history():
+    """Read-only readiness/status for the Btrfs history target on Ugreen."""
+    root = "<%= $backup_history_root %>"
+    data_dir = os.path.join(root, "data")
+    snapshots_dir = os.path.join(root, "snapshots")
+    probe = run(["btrfs", "subvolume", "show", data_dir])
+    is_subvolume = probe["ok"]
+    snapshots = []
+    if os.path.isdir(snapshots_dir):
+        for name in sorted(os.listdir(snapshots_dir), reverse=True):
+            path = os.path.join(snapshots_dir, name)
+            if name.startswith("data-") and os.path.isdir(path):
+                snapshots.append(name)
+    usage = shutil.disk_usage(data_dir) if os.path.isdir(data_dir) else None
+    free_percent = None
+    if usage and usage.total:
+        free_percent = round(usage.free * 100.0 / usage.total, 1)
+    return {
+        "available": is_subvolume,
+        "state": "ready" if is_subvolume else "failed",
+        "data_dir": data_dir,
+        "snapshot_dir": snapshots_dir,
+        "snapshot_count": len(snapshots),
+        "latest_snapshot": snapshots[0] if snapshots else None,
+        "free_percent": free_percent,
+        "floor_percent": 20,
+        "reason": "" if is_subvolume else (probe["stderr"].strip() or "data is not a Btrfs subvolume"),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Unraid
 # ---------------------------------------------------------------------------
@@ -877,6 +933,7 @@ def main():
         sections["unraid_version"] = section(collect_unraid_version)
         sections["unraid_docker_image"] = section(collect_unraid_docker_image)
         sections["backup"] = section(collect_backup_log)
+        sections["backup_verification"] = section(collect_backup_verification)
         sections["backup_targets"] = section(collect_backup_targets)
         sections["watched_dirs"] = section(collect_watched_dirs)
     elif OS_FAMILY == "ugreen":
@@ -890,6 +947,7 @@ def main():
         # expansion) made this SSH round-trip redundant; see
         # healthreport/app/collectors/victoria.py.
         sections["ugreen_storage"] = section(collect_ugreen_storage)
+        sections["backup_history"] = section(collect_ugreen_backup_history)
     else:
         # systemd_failed was collected here too until 2026-08-13, removed for
         # the same reason noted in the ugreen branch above.
@@ -897,6 +955,7 @@ def main():
         sections["security_updates"] = section(collect_security_updates)
         sections["crowdsec"] = section(collect_crowdsec)
         sections["backup"] = section(collect_backup_log)
+        sections["backup_verification"] = section(collect_backup_verification)
 
     json.dump(payload, sys.stdout)
     sys.stdout.write("\n")

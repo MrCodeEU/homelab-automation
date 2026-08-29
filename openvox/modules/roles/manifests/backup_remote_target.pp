@@ -25,9 +25,16 @@ class roles::backup_remote_target (
   String $backup_user = 'rclone-backup',
   String $chroot       = '/volume1/homelab-backups',
   String $data_dir     = "${chroot}/data",
+  String $snapshot_dir = "${chroot}/snapshots",
+  Integer $snapshot_minimum_free_percent = 20,
+  Integer $snapshot_retention_daily      = 14,
+  Integer $snapshot_retention_weekly     = 8,
+  Integer $snapshot_retention_monthly    = 12,
+  String $snapshot_schedule              = '*-*-* 05:30:00',
   String $pubkey       = lookup('backup_remote_pubkey'),
 ) {
   $work_dir = '/usr/local/libexec/openvox-backup-remote-target'
+  $snapshot_work_dir = '/usr/local/libexec/openvox-backup-history'
 
   # Rocky hosts get /usr/local/libexec for free (ships with the base
   # filesystem package); this Debian box doesn't - declared explicitly
@@ -45,6 +52,14 @@ class roles::backup_remote_target (
     recurse => true,
     purge   => true,
     source  => 'puppet:///modules/roles/backup_remote_target',
+    require => File['/usr/local/libexec'],
+  }
+
+  file { $snapshot_work_dir:
+    ensure  => directory,
+    owner   => 'root',
+    group   => 'root',
+    mode    => '0755',
     require => File['/usr/local/libexec'],
   }
 
@@ -83,6 +98,68 @@ class roles::backup_remote_target (
     group   => $backup_user,
     mode    => '0750',
     require => [File[$chroot], User[$backup_user]],
+  }
+
+  file { $snapshot_dir:
+    ensure  => directory,
+    owner   => 'root',
+    group   => 'root',
+    mode    => '0700',
+    require => File[$chroot],
+  }
+
+  file { "${snapshot_work_dir}/snapshot.sh":
+    ensure  => file,
+    owner   => 'root',
+    group   => 'root',
+    mode    => '0700',
+    content => epp('roles/backup_remote_target/snapshot.sh.epp', {
+      'data_dir'             => $data_dir,
+      'snapshot_dir'         => $snapshot_dir,
+      'minimum_free_percent' => $snapshot_minimum_free_percent,
+      'retention_daily'      => $snapshot_retention_daily,
+      'retention_weekly'     => $snapshot_retention_weekly,
+      'retention_monthly'    => $snapshot_retention_monthly,
+    }),
+    require => File[$snapshot_work_dir],
+  }
+
+  file { '/etc/systemd/system/homelab-backup-snapshot-plan.service':
+    ensure  => file,
+    owner   => 'root',
+    group   => 'root',
+    mode    => '0644',
+    content => "[Unit]\nDescription=Inspect Ugreen Btrfs backup history readiness\n\n[Service]\nType=oneshot\nExecStart=${snapshot_work_dir}/snapshot.sh plan\n",
+    notify  => Exec['backup-snapshot-systemd-reload'],
+  }
+
+  file { '/etc/systemd/system/homelab-backup-snapshot.service':
+    ensure  => file,
+    owner   => 'root',
+    group   => 'root',
+    mode    => '0644',
+    content => "[Unit]\nDescription=Create and retain Ugreen Btrfs backup history\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nExecStart=${snapshot_work_dir}/snapshot.sh create\nNice=19\nIOSchedulingClass=idle\n",
+    notify  => Exec['backup-snapshot-systemd-reload'],
+  }
+
+  file { '/etc/systemd/system/homelab-backup-snapshot.timer':
+    ensure  => file,
+    owner   => 'root',
+    group   => 'root',
+    mode    => '0644',
+    content => "[Unit]\nDescription=Daily Ugreen Btrfs backup snapshot\n\n[Timer]\nOnCalendar=${snapshot_schedule}\nPersistent=true\nRandomizedDelaySec=15min\nUnit=homelab-backup-snapshot.service\n\n[Install]\nWantedBy=timers.target\n",
+    notify  => Exec['backup-snapshot-systemd-reload'],
+  }
+
+  exec { 'backup-snapshot-systemd-reload':
+    command     => '/usr/bin/systemctl daemon-reload',
+    refreshonly => true,
+  }
+
+  service { 'homelab-backup-snapshot.timer':
+    ensure  => running,
+    enable  => true,
+    require => [File['/etc/systemd/system/homelab-backup-snapshot.timer'], Exec['backup-snapshot-systemd-reload']],
   }
 
   file { "${data_dir}/.ssh":

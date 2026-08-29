@@ -72,11 +72,16 @@ func loadCatalog(path string) (*Catalog, error) {
 // (surfaced on the page, not hidden): this is the host's last backup run
 // as a whole, not per-entry. See EntryBadge.
 type HostStatus struct {
-	State          string               `json:"state"`
-	Reason         string               `json:"reason,omitempty"`
-	FailedServices []string             `json:"failed_services"`
-	AgeSeconds     *float64             `json:"age_seconds"`
-	Stats          map[string]EntryStat `json:"-"`
+	State             string               `json:"state"`
+	Reason            string               `json:"reason,omitempty"`
+	FailedServices    []string             `json:"failed_services"`
+	AgeSeconds        *float64             `json:"age_seconds"`
+	Stats             map[string]EntryStat `json:"-"`
+	VerificationState string               `json:"verification_state,omitempty"`
+	VerificationAt    string               `json:"verification_at,omitempty"`
+	VerificationMode  string               `json:"verification_mode,omitempty"`
+	RestoreState      string               `json:"restore_state,omitempty"`
+	RestoreAt         string               `json:"restore_at,omitempty"`
 }
 
 func hostStatus(payload *FactsPayload, fetchErrMsg string) HostStatus {
@@ -99,7 +104,15 @@ func hostStatus(payload *FactsPayload, fetchErrMsg string) HostStatus {
 	if failed == nil {
 		failed = []string{}
 	}
-	return HostStatus{State: state, FailedServices: failed, AgeSeconds: backup.AgeSeconds, Stats: backup.Stats}
+	verification := payload.Sections.BackupVerification.Data
+	verificationState := "unknown"
+	if verification.Available {
+		verificationState = verification.State
+	}
+	restore := verification.Checks["restore"]
+	return HostStatus{State: state, FailedServices: failed, AgeSeconds: backup.AgeSeconds, Stats: backup.Stats,
+		VerificationState: verificationState, VerificationAt: verification.UpdatedAt, VerificationMode: verification.LastMode,
+		RestoreState: restore.State, RestoreAt: restore.UpdatedAt}
 }
 
 // DestUsage is one remote destination's capacity, as shown in the
@@ -107,6 +120,31 @@ func hostStatus(payload *FactsPayload, fetchErrMsg string) HostStatus {
 type DestUsage struct {
 	UsedPercent float64 `json:"used_percent"`
 	FreeGiB     float64 `json:"free_gib"`
+}
+
+// HistoryStatus is the Btrfs snapshot-history target, which is deliberately
+// separate from a backup source host: it has no backup run of its own.
+type HistoryStatus struct {
+	Name           string   `json:"name"`
+	State          string   `json:"state"`
+	Reason         string   `json:"reason,omitempty"`
+	SnapshotCount  int      `json:"snapshot_count"`
+	LatestSnapshot *string  `json:"latest_snapshot,omitempty"`
+	FreePercent    *float64 `json:"free_percent,omitempty"`
+	FloorPercent   int      `json:"floor_percent"`
+}
+
+func historyStatus(name string, payload *FactsPayload, fetchErrMsg string) (HistoryStatus, bool) {
+	if fetchErrMsg != "" || payload == nil {
+		return HistoryStatus{}, false
+	}
+	history := payload.Sections.BackupHistory.Data
+	if !history.Available && history.State == "" && history.Reason == "" {
+		return HistoryStatus{}, false
+	}
+	return HistoryStatus{Name: name, State: history.State, Reason: history.Reason,
+		SnapshotCount: history.SnapshotCount, LatestSnapshot: history.LatestSnapshot,
+		FreePercent: history.FreePercent, FloorPercent: history.FloorPercent}, true
 }
 
 // targetUsage extracts {target_name: usage} from one host's facts
@@ -190,6 +228,7 @@ type Snapshot struct {
 	Hosts              map[string]HostStatus         `json:"hosts"`
 	DestinationOrder   []string                      `json:"-"`
 	Destinations       map[string]DestUsage          `json:"destinations"`
+	History            []HistoryStatus               `json:"history,omitempty"`
 	SourceDisk         map[string]map[string]float64 `json:"source_disk"`
 	Entries            []EntryWithBadge              `json:"entries"`
 	Errors             map[string]string             `json:"errors"`
@@ -203,11 +242,21 @@ func BuildSnapshot(ctx context.Context, cfg Config) (*Snapshot, error) {
 
 	payloads, errs := FetchAll(ctx, cfg)
 
-	hostOrder := make([]string, 0, len(cfg.SSHHosts))
+	sourceHosts := map[string]bool{}
+	for _, entry := range catalog.Entries {
+		sourceHosts[entry.Host] = true
+	}
+	hostOrder := make([]string, 0, len(sourceHosts))
 	statuses := map[string]HostStatus{}
+	history := []HistoryStatus{}
 	for _, h := range cfg.SSHHosts {
-		hostOrder = append(hostOrder, h.Name)
-		statuses[h.Name] = hostStatus(payloads[h.Name], errs[h.Name])
+		if sourceHosts[h.Name] {
+			hostOrder = append(hostOrder, h.Name)
+			statuses[h.Name] = hostStatus(payloads[h.Name], errs[h.Name])
+		}
+		if status, ok := historyStatus(h.Name, payloads[h.Name], errs[h.Name]); ok {
+			history = append(history, status)
+		}
 	}
 
 	// Destination usage is only meaningful from whichever host actually
@@ -246,6 +295,7 @@ func BuildSnapshot(ctx context.Context, cfg Config) (*Snapshot, error) {
 		Hosts:              statuses,
 		DestinationOrder:   destOrder,
 		Destinations:       destinations,
+		History:            history,
 		SourceDisk:         sourceDisk,
 		Entries:            entries,
 		Errors:             errs,

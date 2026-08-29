@@ -8,6 +8,12 @@
       Integer $transfers,
       Integer $checkers,
       String $bwlimit,
+      Boolean $history_enabled,
+      String $history_remote_path,
+      Integer $history_daily,
+      Integer $history_weekly,
+      Integer $history_monthly,
+      String $ntfy_url,
 | -%>
 #!/bin/bash
 # Homelab Backup Script
@@ -17,6 +23,8 @@ set -euo pipefail
 
 # Configuration
 REMOTE="<%= $remote_name %>:<%= $remote_path %>"
+HISTORY_ENABLED=<%= $history_enabled %>
+HISTORY_REMOTE="<%= $remote_name %>:<%= $history_remote_path %>/<%= $hostname %>"
 LOCAL_PATH="<%= $local_path %>"
 UGREEN_KEY="/opt/backup-remote/ssh/id_ed25519"
 UGREEN_REMOTE="ugreen:<%= $hostname %>"
@@ -27,6 +35,10 @@ RETENTION_DAYS=<%= $retention_days %>
 ITEM_TIMEOUT="<%= $item_timeout %>"
 PCLOUD_TRANSFERS="<%= $transfers %>"
 PCLOUD_CHECKERS="<%= $checkers %>"
+HISTORY_DAILY=<%= $history_daily %>
+HISTORY_WEEKLY=<%= $history_weekly %>
+HISTORY_MONTHLY=<%= $history_monthly %>
+NTFY_URL="<%= $ntfy_url %>"
 <% if $bwlimit == '' { -%>
 PCLOUD_BWLIMIT_ARGS=()
 <% } else { -%>
@@ -64,12 +76,20 @@ log_warn() {
     echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: $1${NC}" | tee -a "$LOG_FILE"
 }
 
-# secrets.ntfy is not configured in the vault today - Ansible's own
-# send_notification() falls back to this same log-only path on every
-# real host right now, so this matches current production behavior.
 send_notification() {
     local message="$1"
+    local priority="${2:-default}"
     log "Notification: $message"
+    # Only failure-level events are pushed immediately. Successful daily
+    # backups remain visible in the dashboard/report without notification
+    # noise. ntfy delivery is deliberately best-effort and never masks the
+    # backup's own exit status.
+    if [ "$priority" = high ] && [ -n "$NTFY_URL" ] && command -v curl >/dev/null 2>&1; then
+        curl --fail --silent --show-error --max-time 20 \
+            -H "Title: Homelab backup failed on <%= $hostname %>" \
+            -H "Priority: 5" -H "Tags: rotating_light,backup" \
+            -d "$message" "$NTFY_URL" || log_warn "ntfy notification failed"
+    fi
 }
 
 UGREEN_AVAILABLE=0
@@ -221,6 +241,54 @@ backup_path() {
     return 0
 }
 
+# Historical copies are deliberately limited to the explicit DB-dump,
+# configuration and recovery-key entries below. They never include mail,
+# general Docker-volume data, photos, media or Borg repositories.
+history_path() {
+    local service="$1" label="$2" source="$3"
+    local destination="${HISTORY_REMOTE}/${TIMESTAMP}/${service}/${label}"
+    [ "$HISTORY_ENABLED" = true ] || return 0
+    if [ ! -e "$source" ]; then
+        log_error "Historical source missing: $source"
+        return 1
+    fi
+    if [ -f "$source" ]; then
+        timeout "$ITEM_TIMEOUT" rclone copyto "$source" "$destination" \
+            --transfers "$PCLOUD_TRANSFERS" --checkers "$PCLOUD_CHECKERS" "${PCLOUD_BWLIMIT_ARGS[@]}" \
+            --timeout 60s --contimeout 20s --low-level-retries 3 --log-file="$LOG_FILE" --log-level INFO
+    else
+        timeout "$ITEM_TIMEOUT" rclone copy "$source" "$destination" \
+            --transfers "$PCLOUD_TRANSFERS" --checkers "$PCLOUD_CHECKERS" "${PCLOUD_BWLIMIT_ARGS[@]}" \
+            --timeout 60s --contimeout 20s --low-level-retries 3 --log-file="$LOG_FILE" --log-level INFO
+    fi
+}
+
+history_volume() {
+    local service="$1" volume="$2"
+    history_path "$service" "volume-${volume}" "${LOCAL_PATH}/volumes/${volume}"
+}
+
+prune_history() {
+    local snapshots snapshot stamp day week month
+    local -A days=() weeks=() months=()
+    local daily=0 weekly=0 monthly=0
+    [ "$HISTORY_ENABLED" = true ] || return 0
+    snapshots=$(rclone lsf --dirs "$HISTORY_REMOTE" --log-file="$LOG_FILE" --log-level INFO | LC_ALL=C sort -r) || return 1
+    while IFS= read -r snapshot; do
+        snapshot="${snapshot%/}"
+        [[ "$snapshot" =~ ^[0-9]{8}_[0-9]{6}$ ]] || continue
+        stamp="${snapshot:0:8}"
+        day="${stamp:0:4}-${stamp:4:2}-${stamp:6:2}"
+        week=$(date -u -d "$day" +%G-W%V)
+        month="${stamp:0:6}"
+        if [ "$daily" -lt "$HISTORY_DAILY" ] && [ -z "${days[$day]+x}" ]; then days[$day]=1; daily=$((daily + 1)); continue; fi
+        if [ "$weekly" -lt "$HISTORY_WEEKLY" ] && [ -z "${weeks[$week]+x}" ]; then weeks[$week]=1; weekly=$((weekly + 1)); continue; fi
+        if [ "$monthly" -lt "$HISTORY_MONTHLY" ] && [ -z "${months[$month]+x}" ]; then months[$month]=1; monthly=$((monthly + 1)); continue; fi
+        log "Pruning expired pCloud history snapshot: ${snapshot}"
+        rclone purge "${HISTORY_REMOTE}/${snapshot}" --log-file="$LOG_FILE" --log-level INFO || return 1
+    done <<< "$snapshots"
+}
+
 run_pre_hook() {
     local service="$1"
     local hook="$2"
@@ -276,6 +344,8 @@ main() {
 
 <% $vols = $cfg['volumes'] ? { undef => [], default => $cfg['volumes'] }
    $paths = $cfg['paths'] ? { undef => [], default => $cfg['paths'] }
+   $history_paths = $cfg['history_paths'] ? { undef => [], default => $cfg['history_paths'] }
+   $history_volumes = $cfg['history_volumes'] ? { undef => [], default => $cfg['history_volumes'] }
 -%>
 <% if $cfg['pre_hook'] { -%>
     run_pre_hook "<%= $name %>" '<%= $cfg['pre_hook'].regsubst("'", "'\\\\''", 'G') %>' || service_failed=true
@@ -285,6 +355,12 @@ main() {
 <% } -%>
 <% $paths.each |$p| { -%>
     backup_path "<%= $p %>" "false" "true" || service_failed=true
+<% } -%>
+<% $history_paths.each |$h| { -%>
+    history_path "<%= $name %>" "<%= $h['label'] %>" "<%= $h['path'] %>" || service_failed=true
+<% } -%>
+<% $history_volumes.each |$v| { -%>
+    history_volume "<%= $name %>" "<%= $v %>" || service_failed=true
 <% } -%>
 <% if $cfg['post_hook'] { -%>
     run_post_hook "<%= $name %>" '<%= $cfg['post_hook'].regsubst("'", "'\\\\''", 'G') %>' || service_failed=true
@@ -305,6 +381,7 @@ main() {
     fi
 
 <% } -%>
+    prune_history || failed_critical+=("pcloud-history-retention")
     cleanup_old_logs
 
     log "=========================================="

@@ -47,6 +47,7 @@ class roles::host_facts_endpoint (
   Array[String] $facts_backup_watch_dirs = [],
   Array[String] $facts_backup_remotes    = ['pcloud', 'wd-cloud'],
   Array[String] $facts_backup_paths      = ['/mnt/user/backup', '/mnt/fastpool'],
+  String        $backup_history_root     = '/volume1/homelab-backups',
 ) {
   # unraid-backup logs to base_path/backup/logs; the rocky backup role
   # logs to backup_local_path/logs - see the Ansible template's own
@@ -82,6 +83,7 @@ class roles::host_facts_endpoint (
       'facts_backup_watch_dirs' => $facts_backup_watch_dirs,
       'facts_backup_remotes'    => $facts_backup_remotes,
       'facts_backup_paths'      => $facts_backup_paths,
+      'backup_history_root'     => $backup_history_root,
     }),
     require => $dest_requirement,
   }

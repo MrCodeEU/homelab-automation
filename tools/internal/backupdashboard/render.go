@@ -16,11 +16,12 @@ var templateSource string
 var page = template.Must(template.New("page").Parse(templateSource))
 
 type hostCard struct {
-	Name     string
-	State    string
-	Reason   string
-	AgeLabel string
-	HasAge   bool
+	Name              string
+	State             string
+	Reason            string
+	AgeLabel          string
+	HasAge            bool
+	VerificationLabel string
 }
 
 type destCard struct {
@@ -29,6 +30,12 @@ type destCard struct {
 	FreeLabel   string
 	UsedPercent float64
 	GaugeClass  string
+}
+
+type historyCard struct {
+	Name    string
+	State   string
+	Details string
 }
 
 type entryRow struct {
@@ -137,6 +144,7 @@ type pageData struct {
 	CatalogGeneratedAt string
 	Hosts              []hostCard
 	Destinations       []destCard
+	History            []historyCard
 	Entries            []entryRow
 	HasFlowGraph       bool
 	FlowGraphJSON      template.JS
@@ -200,12 +208,20 @@ func buildPageData(snap *Snapshot) pageData {
 	for _, name := range snap.HostOrder {
 		status := snap.Hosts[name]
 		ageLabel, hasAge := formatAge(status.AgeSeconds)
+		verification := "verification: not run"
+		if status.VerificationAt != "" {
+			verification = fmt.Sprintf("verification: %s (%s, %s)", status.VerificationState, status.VerificationMode, formatTimestamp(status.VerificationAt))
+		}
+		if status.RestoreAt != "" {
+			verification += fmt.Sprintf("; restore: %s (%s)", status.RestoreState, formatTimestamp(status.RestoreAt))
+		}
 		pd.Hosts = append(pd.Hosts, hostCard{
-			Name:     name,
-			State:    status.State,
-			Reason:   status.Reason,
-			AgeLabel: ageLabel,
-			HasAge:   hasAge,
+			Name:              name,
+			State:             status.State,
+			Reason:            status.Reason,
+			AgeLabel:          ageLabel,
+			HasAge:            hasAge,
+			VerificationLabel: verification,
 		})
 		switch status.State {
 		case "ok":
@@ -227,6 +243,20 @@ func buildPageData(snap *Snapshot) pageData {
 			UsedPercent: usage.UsedPercent,
 			GaugeClass:  gaugeClass(usage.UsedPercent),
 		})
+	}
+
+	for _, history := range snap.History {
+		details := fmt.Sprintf("%d snapshots", history.SnapshotCount)
+		if history.FreePercent != nil {
+			details += fmt.Sprintf(" · %.1f%% free (floor %d%%)", *history.FreePercent, history.FloorPercent)
+		}
+		if history.LatestSnapshot != nil {
+			details += " · latest " + *history.LatestSnapshot
+		}
+		if history.Reason != "" {
+			details += " · " + history.Reason
+		}
+		pd.History = append(pd.History, historyCard{Name: history.Name, State: history.State, Details: details})
 	}
 
 	for _, entry := range snap.Entries {

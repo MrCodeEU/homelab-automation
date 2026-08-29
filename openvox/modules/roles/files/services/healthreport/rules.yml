@@ -130,6 +130,22 @@ rules:
     type: present
     level: crit
 
+  backup_verification_failed:
+    type: present
+    level: crit
+
+  backup_verification_stale:
+    type: present
+    level: crit
+
+  backup_restore_verification_stale:
+    type: present
+    level: crit
+
+  backup_history_failed:
+    type: present
+    level: crit
+
   # Kernel messages naming disk, filesystem or memory trouble. Not a general
   # dmesg error count: the pattern list is specific (I/O errors, XFS/btrfs
   # corruption, NVMe resets, OOM kills, MCE). ugreen's btrfs failed on

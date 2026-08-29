@@ -49,6 +49,8 @@ node 'mljr.tail33930.ts.net' {
     checkers  => 4,
     bwlimit   => '8M',
     cpu_quota => '40%',
+    verification_integrity_schedule => 'Sun *-*-* 04:30:00',
+    verification_restore_schedule   => 'Sun *-*-01..07 08:30:00',
   }
   class { 'roles::services':
     hostname => 'mljr',
@@ -107,6 +109,8 @@ node 'nuc.tail33930.ts.net' {
   class { 'roles::backup':
     services => ['kuma', 'forgejo', 'mail-archiver', 'umami', 'grafana', 'nocturne'],
     hostname => 'nuc',
+    verification_integrity_schedule => 'Sun *-*-* 06:30:00',
+    verification_restore_schedule   => 'Sun *-*-01..07 10:30:00',
   }
   class { 'roles::services':
     hostname     => 'nuc',
