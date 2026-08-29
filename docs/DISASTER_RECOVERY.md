@@ -226,6 +226,39 @@ and their local backup lifecycle.
 pending the folder restructuring already tracked in the backlog, see
 the Syncthing memory notes).
 
+### Flash restore checklist and safe validation
+
+Do **not** test a real flash restore on the production NAS. It can alter
+disk assignments, licensing, Docker state, and the live array. The real
+drill belongs on a spare USB and, preferably, separate hardware or a
+scheduled maintenance window.
+
+The safe no-outage validation is to extract a copy of the saved flash
+archive into a fresh temporary directory, inspect it, and compare it
+with live `/boot`. It does not write to `/boot`, start Docker, or alter
+the array. Check that it contains
+`config/plugins/dockerMan/templates-user/*.xml`, compare those template
+names/checksums with the live tree, and confirm the AppData snapshot
+also contains the matching `my-*.xml` files. The 2026-08-29 audit
+confirmed the live tree contains templates for the active UI-managed
+applications (Immich, Nextcloud AIO, Dockhand, Syncthing, Vikunja, and
+Dawarich) and their supporting containers.
+
+For an actual recovery, restore the archived boot device to a **new** USB
+with the Unraid USB Flash Creator, then boot that USB. Before starting
+the array, review every disk assignment against a pre-failure record.
+Once Docker is enabled, use Apps → Previous Apps to recreate containers
+from the restored templates, restore the AppData Backup snapshot, and
+restore Nextcloud AIO's `extra_files.tar` master-volume data before
+starting the AIO stack. Verify application data mounts and health one
+application at a time. Unraid documents that the boot device retains
+Docker templates specifically to support this recreation workflow.
+
+**Verified 2026-08-29:** the latest flash archive was extracted only into
+a disposable `/tmp` directory and compared with live `/boot`. All 40
+template files were present with identical contents (zero missing, extra,
+or mismatched files). The temporary directory was removed afterward.
+
 ## ugreen (UGreen NAS, UGOS)
 
 OpenVox-managed subset only: `syncthing-ugreen`, `oxicloud`
