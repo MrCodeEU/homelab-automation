@@ -16,10 +16,15 @@ DISASTER_RECOVERY.md backlog section.
       flagged the eyaml private key as the new single point of failure
       and added a follow-up item in the doc's own backlog section to
       verify it has a real outside-Git backup.
-- [ ] **Add rollback for `openvox-sync.sh`.** Currently rsync-overwrites
-      `/etc/puppetlabs/code/environments/production/` in place. Move to
-      timestamped-dir + symlink-swap so a bad apply has a one-command
-      revert (keep last N).
+- [x] **Add rollback for `openvox-sync.sh`.** DONE 2026-08-29 — real
+      applies now sync into `releases/<timestamp>/` and atomically
+      symlink-swap `production` onto it (keeps last `OPENVOX_RELEASE_KEEP`,
+      default 5); `scripts/openvox-rollback.sh` /
+      `make openvox-rollback HOST=<host> [STEPS=n]` swaps back and
+      re-applies. Forge modules moved to a persistent shared
+      `environments/vendor-modules` dir so a release swap doesn't need a
+      full Forge reinstall or duplicate modules per release. See
+      `openvox/README.md` "Releases and rollback".
 - [ ] **Confirm the 3 unported ansible roles are intentionally
       ansible-only**, not forgotten: `syncthing-nas-key`,
       `unraid-bootstrap`, `wd-mycloud-tailscale`. If confirmed
@@ -63,9 +68,9 @@ DISASTER_RECOVERY.md backlog section.
       dispatch means drift can go up to a week unseen. Add a daily
       noop-only run that diffs resource-count and pings ntfy (already in
       use elsewhere) above a threshold.
-- [ ] **Atomic environment swap** — same mechanism as the P1 rollback
-      item above; listed here too since it's also the enabling piece for
-      safe drift-remediation applies.
+- [x] **Atomic environment swap** — DONE 2026-08-29, same change as the
+      P1 rollback item above; the enabling piece for safe
+      drift-remediation applies too.
 - [ ] **Profile layer** — tracked above under P2 as the correctness fix;
       re-confirm it also unlocks clean multi-host scaling before adding
       a 4th/5th agent host.

@@ -93,6 +93,32 @@ re-filters `services_catalog` for a purpose other than "should I deploy
 this" must re-derive its own filter, never reuse another class's
 deploy-scoped list.**
 
+## Releases and rollback
+
+A real apply (`make openvox-deploy-<host>` / `openvox-recovery`) no longer
+overwrites `production` in place. `scripts/openvox-sync.sh` syncs into a new
+`releases/<timestamp>/` directory on the host, then atomically swaps the
+`production` symlink to point at it (`ln -sfn` into a temp name, `mv -Tf`
+over `production` - never a briefly-missing or partial `production`). The
+last `OPENVOX_RELEASE_KEEP` releases (default 5) are kept; older ones are
+pruned after each swap. Noop runs and isolated PR-check environments are
+unaffected - they still sync straight into their target directory, since
+they never mutate what's actually running.
+
+`scripts/openvox-rollback.sh <host> [steps-back]` points `production` back
+at an older release and re-applies, undoing a bad catalog without
+re-syncing anything (`make openvox-rollback HOST=<host> [STEPS=n]`). It
+rolls back manifests/hiera/data (the catalog), not service data - a bad
+apply that already changed running service state needs `restore.sh`
+separately, same as any other recovery.
+
+Forge modules (`Puppetfile`) are pinned by version, not by release, so they
+live in a persistent shared dir - `environments/vendor-modules` - instead
+of inside each release. Rolling back swaps `roles` (this repo's own code,
+inside the release) but deliberately leaves Forge module versions as
+currently reconciled; if a rollback needs to cross a Puppetfile version
+bump too, reconcile that manually first.
+
 ## Forge module dependencies
 
 `Puppetfile` pins every direct and transitive Forge module. Do not install

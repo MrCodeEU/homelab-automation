@@ -49,7 +49,7 @@ E2E_ANSIBLE_OPTS   := -e ansible_strategy=linear
         _check-validate _check-syntax _check-compose \
         _e2e-deploy _ssh-keys _wait-ssh \
         deploy deploy-check deploy-diff deploy-caddy deploy-services deploy-mljr deploy-nuc deploy-svc \
-        openvox-check openvox-deploy openvox-recovery
+        openvox-check openvox-deploy openvox-recovery openvox-rollback
 
 ################################################################################
 # DEFAULT: fast local tests (no Docker)
@@ -232,6 +232,13 @@ openvox-deploy:
 openvox-recovery:
 	@test -n "$(HOST)" && test -n "$(SERVICE)" || (echo "Usage: make openvox-recovery HOST=<mljr|nuc> SERVICE=<service>[,<service>...]" >&2; exit 2)
 	@OPENVOX_RECOVERY_SERVICES="$(SERVICE)" ./scripts/openvox-sync.sh "$(HOST).tail33930.ts.net" apply
+
+# Rolls a host's `production` symlink back to a previous release and
+# re-applies (see scripts/openvox-rollback.sh). STEPS defaults to 1 (the
+# release immediately before the current one).
+openvox-rollback:
+	@test -n "$(HOST)" || (echo "Usage: make openvox-rollback HOST=<mljr|nuc|ugreen> [STEPS=1]" >&2; exit 2)
+	@./scripts/openvox-rollback.sh "$(HOST).tail33930.ts.net" $(if $(STEPS),$(STEPS),1)
 
 # Single-host convenience targets, e.g. `make openvox-check-mljr`.
 openvox-check-mljr:
