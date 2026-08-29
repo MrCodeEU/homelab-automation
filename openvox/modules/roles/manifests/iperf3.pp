@@ -33,13 +33,13 @@ class roles::iperf3 (
   # repo either, and is Tailscale-only the same way rocky hosts are -
   # skipping here is consistent with the existing posture, not a gap.
   if $manage_firewall {
-    firewalld_port { 'iperf3-tcp':
+    roles::firewalld::port { 'iperf3-tcp':
       ensure   => present,
       zone     => 'trusted',
       port     => 5201,
       protocol => 'tcp',
     }
-    firewalld_port { 'iperf3-udp':
+    roles::firewalld::port { 'iperf3-udp':
       ensure   => present,
       zone     => 'trusted',
       port     => 5201,

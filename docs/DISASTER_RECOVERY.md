@@ -2,9 +2,18 @@
 
 What it actually takes to get this homelab back from a dead/corrupted/
 reinstalled host, host-by-host, and an honest list of what is **not**
-covered today. Written from a real audit (2026-08-13), not aspirational -
-every gap below was verified against the actual role/catalog code, not
-assumed.
+covered today. Originally written from a real audit (2026-08-13);
+updated 2026-08-29 to reflect OpenVox as the real production deploy
+mechanism since 2026-08-23 (see `openvox/README.md`) - every gap below
+was verified against the actual role/catalog code, not assumed.
+
+`ansible/` is still kept in the repo as reference for a few weeks (per
+standing instruction). Every recovery step below goes entirely through
+OpenVox now - the three roles that looked unported by name
+(`syncthing-nas-key`, `unraid-bootstrap`, `wd-mycloud-tailscale`) turned
+out to already be covered under different class names
+(`roles::unraid_proxy`, `roles::wd_mycloud_proxy`, a static vault
+secret) - see `docs/OPENVOX_BACKLOG.md` for the full correction.
 
 Not yet tested against a real from-scratch rebuild (no spare hardware to
 throwaway-test against). Treat the steps below as the best current
@@ -13,7 +22,7 @@ doc against it) is its own backlog item.
 
 ## Before any of this works at all
 
-Nothing in this repo can turn a bare OS install into an Ansible-
+Nothing in this repo can turn a bare OS install into an OpenVox-
 controllable host by itself. These are manual, one-time, outside-Git
 prerequisites:
 
@@ -28,39 +37,61 @@ prerequisites:
    Tailscale authentication"*). Whoever does this needs access to the
    Tailscale admin console to approve the new device and confirm it has
    the right ACL tags.
-3. **`ansible-vault create ansible/inventory/group_vars/all/vault.yml`**,
-   filling in every value from `vault.yml.example` (see the credentials
-   checklist below).
-4. **Have the vault password available.** It's a GitHub Actions secret
-   (`ANSIBLE_VAULT_PASSWORD`) for CI; for local runs it has to come from
-   wherever it's kept outside this repo (a password manager - confirm
-   it's actually there, this doc can't do that for you).
-5. **Tooling**: `ansible-galaxy collection install -r ansible/requirements.yml`,
-   `pip install ansible-core mitogen ansible-mitogen`, and
-   `git config core.hooksPath .githooks`.
+3. **Install OpenVox itself** on the target host (`scripts/install-openvox.sh`
+   handles the package install; see `openvox/README.md` for the masterless
+   model this repo relies on - no puppetserver, no PuppetDB, every host
+   applies its own copy of `manifests/site.pp` locally).
+4. **Deploy the eyaml decrypt key pair to the host**:
+   `./scripts/install-openvox-eyaml.sh <host>`. This scp's
+   `openvox/keys/private_key.pkcs7.pem` (gitignored, **not** a GitHub
+   Actions secret - see below) to `/etc/puppetlabs/puppet/eyaml/` on the
+   target and installs the `hiera-eyaml` gem. Without this step, any
+   class that does `lookup('vault_...')` fails outright - there's no
+   puppetserver to fall back on for decryption.
+5. **Sync the environment and apply**: `make openvox-deploy-<host>` (or
+   `make openvox-check-<host>` first, to noop it) runs
+   `scripts/openvox-sync.sh`, which rsyncs (scp for `ugreen`) the whole
+   `openvox/` tree to `/etc/puppetlabs/code/environments/production/` on
+   the target, then runs `puppet apply` locally there.
+6. **`git config core.hooksPath .githooks`** - repo-standard pre-commit
+   hooks, unrelated to any specific host.
 
-**GitHub Actions secrets** (only 3, everything else is Tailscale/Vault):
-`TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`, `ANSIBLE_VAULT_PASSWORD`.
+**The eyaml private key is the single point of failure for every
+`vault_*` secret in this repo, and it lives nowhere in Git.** If
+`openvox/keys/private_key.pkcs7.pem` is lost and no host still has a
+copy under `/etc/puppetlabs/puppet/eyaml/`, `data/common.eyaml` becomes
+permanently undecryptable - not merely inconvenient, actually
+unrecoverable, since PKCS7 has no backdoor. **Confirm today that this
+key file has an outside-Git backup** (password manager, offline copy -
+this doc can't verify that for you) before treating anything else in
+this runbook as trustworthy. This replaces the old Ansible-vault-password
+requirement; there is no equivalent single CI secret for it, deliberately
+(masterless design, no single unlock point - see `openvox/README.md`).
+
+**GitHub Actions secrets** (only 2 now - the eyaml key is never a CI
+secret, it's deployed straight to hosts): `TS_OAUTH_CLIENT_ID`,
+`TS_OAUTH_SECRET`.
 
 **The single biggest thing this repo cannot back up or reproduce**: the
 Tailscale admin console configuration itself - ACLs, device tags, the
 `tag:ci` OAuth client scope, and every node's one-time interactive login.
 If that's gone, every host needs re-enrolling and re-approving by hand
-before Ansible can reach any of them.
+before OpenVox can reach any of them.
 
 ## mljr (Rocky, production ingress)
 
-Once Tailscale-enrolled and the vault is in place, a full run of
-`ansible-playbook playbooks/site.yml --limit mljr` (or the normal CI
-deploy path) brings up: base packages/Docker/firewalld, CrowdSec +
-nftables bouncer, Caddy (reverse proxy/ingress + ACME TLS), Authelia
-(SSO), Mailcow, Glance, HetrixTools agent, and every `services`-role
-catalog entry scoped to `host: mljr`.
+Once Tailscale-enrolled, OpenVox-installed, and the eyaml key deployed
+(steps above), `make openvox-deploy-mljr` (or the normal CI deploy path
+via `.github/workflows/deploy.yml`) brings up: base packages/Docker/
+firewalld, CrowdSec + nftables bouncer, Caddy (reverse proxy/ingress +
+ACME TLS), Authelia (SSO), Mailcow, Glance, HetrixTools agent, and every
+service-catalog entry scoped to `host: mljr`.
 
-`roles/backup` then auto-restores every `backup_critical: true` service
-on a detected fresh install (`.initialized` flag missing). Non-critical
-services still get their data back if you run `restore.sh --service
-<name>` manually.
+`roles::backup` then auto-restores every `backup_critical: true` service
+on a detected fresh install (`.initialized` flag missing) - see the
+explicit fresh-host recovery mode below (`make openvox-recovery`).
+Non-critical services still get their data back if you run `restore.sh
+--service <name>` manually.
 
 **Known friction, not data loss:**
 - Caddy's ACME/TLS certificate cache isn't backed up - Let's Encrypt just
@@ -80,17 +111,18 @@ services still get their data back if you run `restore.sh --service
 
 ## nuc (Rocky, staging + misc services)
 
-Same mechanism as mljr: `--limit nuc`. Covers TutaBridge CLI (headless
-Tuta export), health-report agent, Hawser Docker agent, and every
-`services`-role catalog entry scoped to `host: nuc` (mail-archiver,
-umami, forgejo, kuma, grafana, and the various demo/utility services).
+Same mechanism as mljr: `make openvox-deploy-nuc`. Covers TutaBridge CLI
+(headless Tuta export), health-report agent, Hawser Docker agent, and
+every service-catalog entry scoped to `host: nuc` (mail-archiver, umami,
+forgejo, kuma, grafana, and the various demo/utility services).
 
 **TutaBridge specifically** needs one extra thing beyond a plain deploy:
-the role handles gnome-keyring bootstrapping and the first Tuta login
-automatically (via `ansible.builtin.expect`, since this account has no
-TOTP) - no manual step needed here anymore, unlike Outlook's OAuth Device
-Code Flow (see mail-archiver below), which does need a human to
-visit a URL once per Microsoft account.
+`roles::tutabridge_cli` handles gnome-keyring bootstrapping and the
+first Tuta login automatically (drives an interactive login via
+`expect`, since this account has no TOTP) - no manual step needed here
+anymore, unlike Outlook's OAuth Device Code Flow (see mail-archiver
+below), which does need a human to visit a URL once per Microsoft
+account.
 
 **Just fixed as part of this audit (2026-08-13):** `mail-archiver` was
 flagged `backup_critical: true` in the service catalog but had zero
@@ -109,37 +141,40 @@ services (forgejo, mail-archiver, umami, nocturne) - `restore.sh
 --service <name>` now waits for the DB container to be ready and pipes
 the dump straight in.
 
-**Real remaining limitation, by design of the deploy order, not a bug to
-fix**: this only works when the target container is already running -
-i.e. the common case of restoring one service's data after
-loss/corruption. It does NOT run during the from-scratch auto-restore
-path, because `site.yml`'s "Backup Setup" play runs *before* "Docker
-Services" (deliberately - restored files/volumes need to already exist
-on disk before a container mounts them). On a genuinely fresh install,
-run `restore.sh --service <name>` again by hand once the normal Ansible
-deploy has finished and the container is up - the raw volume restore
-already happened as part of the deploy, this second manual pass is only
-needed if that volume restore turns out to be unusable and you need the
-`.sql` dump as the fallback. A cleaner fix (wiring this into the
-existing per-service `hooks/post-deploy.sh` mechanism, which runs after
-containers are up) is a real follow-up, not done here.
+**Recovery sequencing**: PostgreSQL dumps are imported only after the target
+container is running. For a fresh OpenVox host rebuild, use the explicit
+recovery mode before the normal service apply, for example:
+
+```bash
+make openvox-recovery HOST=nuc SERVICE=forgejo,umami
+```
+
+It refuses an initialized host, restores raw service data before Docker starts,
+and deliberately leaves PostgreSQL volumes empty for dump-backed services; the
+registered post-deploy hook imports the matching logical dump once PostgreSQL
+is ready. This avoids restoring both a physical PostgreSQL volume and its SQL
+dump into the same database.
+
+For an already-running service, the targeted manual restore remains available
+for the common case of restoring one service after loss or corruption.
 
 ## nas (Unraid)
 
 **Unraid's boot flash drive is backed up** - `/boot` → pCloud daily,
-`tier: critical`, per `roles/unraid-backup/defaults/main.yml`. This is
-the single most important thing for Unraid recovery (Unraid's own
-guidance): it holds every array/share/plugin/Docker-template
-configuration and the license key. Recovery: boot from a fresh flash
-drive image, restore this backup onto it, boot.
+`tier: critical`, per `roles::unraid_backup_proxy` (nas has no agent,
+this runs on nuc over SSH - see `openvox/README.md`'s masterless
+model). This is the single most important thing for Unraid recovery
+(Unraid's own guidance): it holds every array/share/plugin/
+Docker-template configuration and the license key. Recovery: boot from
+a fresh flash drive image, restore this backup onto it, boot.
 
 Also backed up (all `tier: critical`, pCloud + best-effort ugreen/WD
 depending on entry): `Fotos/Fotos`, `Fotos/Videos`, `Fotos/Wichtiges
 Scans Adressen`, `Fotos/Musik`, and the Nextcloud borg repository.
 
 **11 of 15 nas-hosted catalog services are `managed: false`**
-(Unraid-UI-owned containers, Ansible only generates their Caddy proxy
-snippet): `nas` (management UI), `immich`, `nextcloud`, `dockhand`,
+(Unraid-UI-owned containers, `roles::services_nas` only generates their
+Caddy proxy snippet): `nas` (management UI), `immich`, `nextcloud`, `dockhand`,
 `syncthing`, `filerun` (disabled), `test-ocis`, `stats` (disabled),
 `projects` (Vikunja), `pairdrop` (disabled), `dawarich`. **None of these
 have a recreation definition anywhere in this repo** - no XML templates,
@@ -180,11 +215,13 @@ the Syncthing memory notes).
 
 ## ugreen (UGreen NAS, UGOS)
 
-Ansible-managed subset only: `syncthing-ugreen`, `oxicloud` (explicitly
-an initial test, no backup), `smartctl-exporter`, plus
-`host-facts-endpoint`, `grafana-alloy`, `iperf3`, `ugreen-tailscale`
-(version-check role, UGOS itself isn't `dnf`-managed by design), and
-`backup-remote-target` (the SFTP chroot other hosts push backups into).
+`role::ugreen`-managed subset only: `syncthing-ugreen`, `oxicloud`
+(explicitly an initial test, no backup), `smartctl-exporter`, plus
+`roles::host_facts_endpoint`, `roles::grafana_alloy`, `roles::iperf3`,
+`roles::ugreen_tailscale` (version-check only, UGOS itself isn't
+`dnf`-managed by design), and `roles::backup_remote_target` (the SFTP
+chroot other hosts push backups into). Unlike mljr/nuc, ugreen has no
+`roles::base` - see `role::ugreen`'s own comment for why.
 
 Everything else - UGOS's own storage pool layout (mdraid → LVM → btrfs),
 network share definitions, UGOS app-store installs - is vendor-appliance
@@ -192,7 +229,7 @@ config living entirely outside this repo, deliberately (per the
 inventory's own comments: no dnf, vendor A/B overlay root, same posture
 as leaving Unraid's own OS layer unmanaged). Recovery for that layer is
 whatever UGOS's own recovery/reset process provides - not something
-Ansible touches or could reproduce.
+OpenVox touches or could reproduce.
 
 Note: this device died catastrophically once already (2026-07-31,
 rebuilt on new hardware by 2026-08-10) - that recovery happened, but was
@@ -201,37 +238,42 @@ comments. Worth doing properly if it's rebuilt again.
 
 ## wd_mycloud (WD MyCloud EX2 Ultra)
 
-Only two roles touch it: `wd-mycloud-tailscale` and
-`wd-mycloud-node-exporter`, both bare ARM binaries on a persistent data
-partition with a boot-hook (hijacked `clamAV/start.sh` - the one thing
-confirmed to survive/re-run after a reboot on this BusyBox device, no
-systemd/cron persistence otherwise). Full detail already written up
-separately: see the `wd-mycloud-reboot-persistence` memory/notes.
+Only two proxy classes touch it, both run on nuc over SSH (wd_mycloud
+has no agent - busybox, no libc match for any Puppet-family runtime):
+`roles::wd_mycloud_proxy` and `roles::wd_mycloud_node_exporter_proxy`,
+both bare ARM binaries on a persistent data partition with a boot-hook
+(hijacked `clamAV/start.sh` - the one thing confirmed to survive/re-run
+after a reboot on this BusyBox device, no systemd/cron persistence
+otherwise). Full detail already written up separately: see the
+`wd-mycloud-reboot-persistence` memory/notes.
 
 This device is purely a backup **destination** (`wd_cloud: true` entries
 in `unraid_backup_paths`), never a source. Its own RAID/share
-configuration is vendor-firmware-level, untouched by Ansible, and not
+configuration is vendor-firmware-level, untouched by OpenVox, and not
 something this repo can recreate - recovery there is whatever WD's own
 firmware/RAID-rebuild tooling provides.
 
 ## Home Assistant - explicitly out of scope
 
-HA is `proxy_only` in the inventory - Ansible only generates its Caddy
-route, nothing about the appliance itself is managed here. **Deliberately
-not being brought into Ansible-managed backup either** - it already
-backs up to pCloud on its own, separately from this repo's backup system
-(flagged during this audit as not a great setup, worth a proper look
-later, but that's a separate discussion, not part of this pass).
+HA is `proxy_only` in the service catalog - `roles::services` only
+generates its Caddy route, nothing about the appliance itself is
+managed here. **Deliberately not being brought into OpenVox-managed
+backup either** - it already backs up to pCloud on its own, separately
+from this repo's backup system (flagged during the original audit as
+not a great setup, worth a proper look later, but that's a separate
+discussion, not part of this pass).
 Recovery for HA is entirely through its own backup/restore mechanism,
 not this repo.
 
 ## Credentials checklist
 
-Every `vault_*` value needs to exist somewhere outside Git if the vault
-itself and its password are both lost - see
-`ansible/inventory/group_vars/all/vault.yml.example` for the full list
-(60+ entries as of this audit). The ones that are genuinely painful or
-impossible to regenerate identically, not just "annoying":
+Every `vault_*` value needs to exist somewhere outside Git if
+`data/common.eyaml` and the eyaml private key are both lost - the key
+names are unchanged from the Ansible-era vault, so
+`ansible/inventory/group_vars/all/vault.yml.example` (kept as reference,
+not consumed by OpenVox) still lists the full set accurately (65 entries
+as of this update). The ones that are genuinely painful or impossible to
+regenerate identically, not just "annoying":
 
 - **`vault_authelia_storage_encryption_key` / `jwt_secret` /
   `session_secret`** - the single most damaging one to lose. Without
@@ -242,7 +284,7 @@ impossible to regenerate identically, not just "annoying":
 - **`vault_pcloud_token`** - the OAuth token for the primary offsite
   backup remote. Without it, neither backup role can reach existing
   backups. Re-authenticating rclone against the same pCloud account gets
-  a new token, but that's a manual step outside Ansible.
+  a new token, but that's a manual step outside OpenVox.
 - **`vault_tuta_email` / `vault_tuta_password`**,
   **`vault_google_client_id/secret`**, **`vault_strava_*`**,
   **`vault_homeassistant_token`** - third-party identities, regenerable
@@ -273,10 +315,11 @@ correction).
 
 ## Follow-up backlog items generated by this audit
 
-- FIXED: the generic Postgres-restore gap (`restore.sh.j2` now has a
-  `restore_post_hook` for forgejo/mail-archiver/umami/nocturne). Still
-  open: wire the fresh-install path into `hooks/post-deploy.sh` so a
-  from-scratch rebuild doesn't need a manual second `restore.sh` pass.
+- FIXED: the generic Postgres-restore gap (`restore.sh` imports logical
+  PostgreSQL backups through the services' post-deploy hooks). OpenVox's
+  explicit fresh-host recovery mode restores raw data before services start,
+  deliberately leaves dump-backed PostgreSQL volumes empty, and lets those
+  hooks import the matching dump after PostgreSQL is ready.
 - FIXED: Immich/Vikunja/Dawarich/Syncthing-config's appdata backup is
   now offsite (`/mnt/user/backup/appdata` added to `unraid_backup_paths`,
   `tier: critical`) - the existing weekly local plugin backup already
@@ -300,3 +343,11 @@ correction).
   duplicate secrets needed by multiple hosts so each copy has independently
   encrypted ciphertext. This limits a host compromise to that host's secrets,
   at the cost of additional bootstrap, backup, rotation, and CI complexity.
+- FIXED (2026-08-29): this doc was still Ansible-vault-framed after the
+  2026-08-23 OpenVox cutover - rewritten for the eyaml PKCS7 bootstrap flow.
+- Confirm and document, outside this repo, that
+  `openvox/keys/private_key.pkcs7.pem` actually has a real backup
+  (password manager or equivalent) - it is the single point of failure
+  for every `vault_*` secret and this doc cannot verify that for you.
+  See `docs/OPENVOX_BACKLOG.md` for the broader OpenVox review backlog
+  this DR-doc fix came out of.

@@ -5,6 +5,31 @@ mechanism for this repo (see the root `README.md` for the user-facing
 overview and `make openvox-*` commands). This file covers the internal
 conventions worth knowing before touching anything in here.
 
+## Roles and profiles
+
+`manifests/site.pp` node blocks are one-liners (`include role::mljr`, etc).
+The `role` module (`modules/role/manifests/<host>.pp`) has one class per
+node archetype, each just listing which `roles::*` classes apply plus any
+genuinely node-specific one-off resources (e.g. nuc's Netronome firewall
+port). `roles::*` (the pre-existing module) is this repo's technology tier
+- hand-rolled, site-specific classes, already the equivalent of a
+"profile" in the standard Puppet roles/profiles pattern. There's
+deliberately no separate `profile::*` module: it would 1:1-wrap `roles::*`
+with no grouping value at this scale (3 hosts, not a fleet) - see
+`docs/OPENVOX_BACKLOG.md` for the fuller reasoning.
+
+Per-host variance that used to be literal `class { 'roles::x': param =>
+value }` arguments in `site.pp` now lives in
+`data/nodes/<certname>.yaml`, bound automatically by Puppet's
+class-parameter hiera lookup - every `roles::*` class is declared via
+plain `include`, never `class { }`. `hiera.yaml`'s per-node hierarchy
+level (`nodes/%{trusted.certname}.yaml`) is checked before `common.yaml`.
+
+Since `role` is a second local module alongside `roles`,
+`scripts/openvox-sync.sh` syncs both (`modules/role/` and
+`modules/roles/`) and `openvox-pr-check.yml`'s `puppet parser validate`
+covers both.
+
 ## Masterless model
 
 There is no puppetserver/PuppetDB. `scripts/openvox-sync.sh <host> [noop|apply]`
@@ -92,6 +117,32 @@ original semantics exactly (`host == this host and enabled`, nothing else)
 re-filters `services_catalog` for a purpose other than "should I deploy
 this" must re-derive its own filter, never reuse another class's
 deploy-scoped list.**
+
+## Releases and rollback
+
+A real apply (`make openvox-deploy-<host>` / `openvox-recovery`) no longer
+overwrites `production` in place. `scripts/openvox-sync.sh` syncs into a new
+`releases/<timestamp>/` directory on the host, then atomically swaps the
+`production` symlink to point at it (`ln -sfn` into a temp name, `mv -Tf`
+over `production` - never a briefly-missing or partial `production`). The
+last `OPENVOX_RELEASE_KEEP` releases (default 5) are kept; older ones are
+pruned after each swap. Noop runs and isolated PR-check environments are
+unaffected - they still sync straight into their target directory, since
+they never mutate what's actually running.
+
+`scripts/openvox-rollback.sh <host> [steps-back]` points `production` back
+at an older release and re-applies, undoing a bad catalog without
+re-syncing anything (`make openvox-rollback HOST=<host> [STEPS=n]`). It
+rolls back manifests/hiera/data (the catalog), not service data - a bad
+apply that already changed running service state needs `restore.sh`
+separately, same as any other recovery.
+
+Forge modules (`Puppetfile`) are pinned by version, not by release, so they
+live in a persistent shared dir - `environments/vendor-modules` - instead
+of inside each release. Rolling back swaps `roles` (this repo's own code,
+inside the release) but deliberately leaves Forge module versions as
+currently reconciled; if a rollback needs to cross a Puppetfile version
+bump too, reconcile that manually first.
 
 ## Forge module dependencies
 

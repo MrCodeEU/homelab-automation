@@ -47,7 +47,7 @@ class roles::hawser_agent (
     subscribe   => File['/etc/systemd/system/hawser.service.d/override.conf'],
   }
 
-  firewalld_port { 'hawser-agent-tcp':
+  roles::firewalld::port { 'hawser-agent-tcp':
     ensure   => present,
     zone     => 'trusted',
     port     => $port,
@@ -61,7 +61,7 @@ class roles::hawser_agent (
     require   => [
       Exec['hawser-agent-install'],
       Exec['hawser-agent-daemon-reload'],
-      Firewalld_port['hawser-agent-tcp'],
+      Roles::Firewalld::Port['hawser-agent-tcp'],
     ],
   }
 }

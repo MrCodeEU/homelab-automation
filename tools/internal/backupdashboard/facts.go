@@ -38,6 +38,27 @@ type FactsPayload struct {
 				Targets []BackupTarget `json:"targets"`
 			} `json:"data"`
 		} `json:"backup_targets"`
+		BackupVerification struct {
+			Data struct {
+				Available bool                         `json:"available"`
+				Reason    string                       `json:"reason"`
+				UpdatedAt string                       `json:"updated_at"`
+				LastMode  string                       `json:"last_mode"`
+				State     string                       `json:"state"`
+				Checks    map[string]VerificationCheck `json:"checks"`
+			} `json:"data"`
+		} `json:"backup_verification"`
+		BackupHistory struct {
+			Data struct {
+				Available      bool     `json:"available"`
+				State          string   `json:"state"`
+				Reason         string   `json:"reason"`
+				SnapshotCount  int      `json:"snapshot_count"`
+				LatestSnapshot *string  `json:"latest_snapshot"`
+				FreePercent    *float64 `json:"free_percent"`
+				FloorPercent   int      `json:"floor_percent"`
+			} `json:"data"`
+		} `json:"backup_history"`
 	} `json:"sections"`
 }
 
@@ -54,6 +75,13 @@ type BackupTarget struct {
 	QuotaSupported bool     `json:"quota_supported"`
 	UsedPercent    *float64 `json:"used_percent"`
 	FreeBytes      *float64 `json:"free_bytes"`
+}
+
+// VerificationCheck is one independently retained verification mode from the
+// version-2 verifier status document (currently integrity or restore).
+type VerificationCheck struct {
+	State     string `json:"state"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 func fetchFacts(ctx context.Context, cfg Config, address string) (*FactsPayload, error) {

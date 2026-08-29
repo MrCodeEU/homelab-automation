@@ -90,26 +90,23 @@ class roles::caddy (
   # firewalld itself is already ensure=>running/enable=>true in
   # roles::base, which every host running roles::caddy also includes -
   # no need to redeclare the service resource here, just require it.
-  firewalld_service { 'caddy-http':
+  roles::firewalld::service { 'caddy-http':
     ensure  => present,
     zone    => 'public',
     service => 'http',
-    require => Service['firewalld'],
   }
 
-  firewalld_service { 'caddy-https':
+  roles::firewalld::service { 'caddy-https':
     ensure  => present,
     zone    => 'public',
     service => 'https',
-    require => Service['firewalld'],
   }
 
-  firewalld_port { 'caddy-http3':
+  roles::firewalld::port { 'caddy-http3':
     ensure   => present,
     zone     => 'public',
     port     => 443,
     protocol => 'udp',
-    require  => Service['firewalld'],
   }
 
   exec { 'caddy-dirs':

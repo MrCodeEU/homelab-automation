@@ -4,7 +4,6 @@ on:
   pull_request:
     paths:
       - ".github/workflows/**"
-      - "ansible/**"
       - "services/**/docker-compose*.yml"
       - "services/**/Dockerfile"
       - "services/**/Dockerfile.*"
@@ -17,7 +16,6 @@ on:
       - main
     paths:
       - ".github/workflows/**"
-      - "ansible/**"
       - "services/**/docker-compose*.yml"
       - "services/**/Dockerfile"
       - "services/**/Dockerfile.*"

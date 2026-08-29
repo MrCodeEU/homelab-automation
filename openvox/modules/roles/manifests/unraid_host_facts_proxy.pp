@@ -37,6 +37,9 @@ class roles::unraid_host_facts_proxy (
       'facts_backup_watch_dirs' => lookup('unraid_backup_watch_dirs'),
       'facts_backup_remotes'    => ['pcloud', 'wd-cloud'],
       'facts_backup_paths'      => ['/mnt/user/backup', '/mnt/fastpool'],
+      # Required by the shared template but never read on Unraid; its Btrfs
+      # history collector is selected only for the Ugreen OS-family branch.
+      'backup_history_root'     => '/volume1/homelab-backups',
     }),
     require => File[$staging_dir],
   }

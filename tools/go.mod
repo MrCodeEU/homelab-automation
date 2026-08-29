@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/maldikhan/go.socket.io v0.1.1 // indirect
 	github.com/maniartech/signals v1.3.1 // indirect
-	golang.org/x/net v0.54.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 )
 

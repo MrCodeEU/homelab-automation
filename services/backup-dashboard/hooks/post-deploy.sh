@@ -19,11 +19,11 @@ cd "$SERVICE_DIR"
 echo "==> building backup dashboard collector image"
 docker compose build collector
 
-# Owned by the ansible role; created here too so a manual `docker compose
-# run` works on a host that has not had a full play run yet. uid 10001
-# matches the unprivileged user in the Dockerfile - the same uid
-# healthreport's container runs as, not a separate one, since this
-# container reads healthreport's own SSH key read-only.
+# No Puppet class owns this path - created here so a manual `docker
+# compose run` works even without a prior apply. uid 10001 matches the
+# unprivileged user in the Dockerfile - the same uid healthreport's
+# container runs as, not a separate one, since this container reads
+# healthreport's own SSH key read-only.
 install -d -o 10001 -g 10001 -m 0755 /var/lib/backup-dashboard/state
 
 cat > /etc/systemd/system/${UNIT_NAME}.service <<EOF

@@ -11,6 +11,11 @@ services:
     ports:
       - "157.173.97.107:22:2222"
     command: ["-logtostderr", "-v=1"]
+    # Endlessh intentionally keeps connections open and exposes no readiness
+    # endpoint. Its image's inherited healthcheck therefore reports a false
+    # permanent failure even while it accepts SSH connections.
+    healthcheck:
+      disable: true
     mem_limit: 32m
     cpus: 0.1
     logging:

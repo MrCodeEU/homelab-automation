@@ -49,6 +49,15 @@ class roles::backup (
   # default" precedent as roles::mailcow's http_port.
   String        $remote_path    = 'homelab-backups',
   String        $backup_schedule = '*-*-* 03:00:00',
+  String        $verification_integrity_schedule = 'Sun *-*-* 04:30:00',
+  String        $verification_restore_schedule = 'Sun *-*-01..07 08:30:00',
+  Boolean       $history_enabled = false,
+  String        $history_remote_path = 'homelab-backups-history',
+  Integer       $history_daily = 14,
+  Integer       $history_weekly = 8,
+  Integer       $history_monthly = 12,
+  String        $ntfy_url = 'https://ntfy.mljr.eu/homelab-health',
+  String        $verification_ntfy_url = 'https://ntfy.mljr.eu/homelab-health',
   Integer       $retention_days = 30,
   String        $item_timeout   = '40m',
   Integer       $transfers      = 8,
@@ -155,6 +164,7 @@ class roles::backup (
       'paths'    => ['/opt/authelia'],
       'volumes'  => ['authelia_redis_data'],
       'critical' => true,
+      'history_paths' => [{'label' => 'config', 'path' => '/opt/authelia'}],
     },
     'mailcow' => {
       'volumes'  => ['mailcowdockerized_vmail-vol-1', 'mailcowdockerized_mysql-vol-1'],
@@ -162,6 +172,10 @@ class roles::backup (
       'post_hook' => 'rm -rf /opt/backups/mailcow-dumps',
       'paths'    => ['/opt/backups/mailcow-dumps', '/opt/mailcow-dockerized/data'],
       'critical' => true,
+      'history_paths' => [
+        {'label' => 'database-dump', 'path' => '/opt/backups/mailcow-dumps'},
+        {'label' => 'mailcow.conf', 'path' => '/opt/mailcow-dockerized/mailcow.conf'},
+      ],
     },
     'kuma' => {
       'volumes'  => ['kuma_uptime-kuma-data'],
@@ -177,7 +191,13 @@ class roles::backup (
       'paths'             => ['/opt/backups/forgejo-dumps'],
       'post_hook'         => 'rm -rf /opt/backups/forgejo-dumps',
       'restore_post_hook' => $forgejo_restore_hook,
+      'recovery_skip_volumes' => ['forgejo-db-data'],
       'critical'          => true,
+      'history_paths'     => [
+        {'label' => 'database-dump', 'path' => '/opt/backups/forgejo-dumps'},
+        {'label' => 'docker-compose.yml', 'path' => '/opt/forgejo/docker-compose.yml'},
+        {'label' => '.env', 'path' => '/opt/forgejo/.env'},
+      ],
     },
     'mail-archiver' => {
       'volumes'           => ['mail-archiver_mail-archiver-dp-keys'],
@@ -186,6 +206,11 @@ class roles::backup (
       'post_hook'         => 'rm -rf /opt/backups/mail-archiver-dumps',
       'restore_post_hook' => $mailarchiver_restore_hook,
       'critical'          => true,
+      'history_paths'     => [
+        {'label' => 'database-dump', 'path' => '/opt/backups/mail-archiver-dumps'},
+        {'label' => 'service-config', 'path' => '/opt/mail-archiver'},
+      ],
+      'history_volumes'   => ['mail-archiver_mail-archiver-dp-keys'],
     },
     'umami' => {
       'volumes'           => ['umami_umami-db-data'],
@@ -193,6 +218,7 @@ class roles::backup (
       'paths'             => ['/opt/backups/umami-dumps'],
       'post_hook'         => 'rm -rf /opt/backups/umami-dumps',
       'restore_post_hook' => $umami_restore_hook,
+      'recovery_skip_volumes' => ['umami_umami-db-data'],
       'critical'          => false,
     },
     'grafana' => {
@@ -205,11 +231,14 @@ class roles::backup (
       'paths'             => ['/opt/backups/nocturne-dumps'],
       'post_hook'         => 'rm -rf /opt/backups/nocturne-dumps',
       'restore_post_hook' => $nocturne_restore_hook,
+      'recovery_skip_volumes' => ['nocturne_nocturne-postgres-data'],
       'critical'          => false,
     },
     'newsletter' => {
       'volumes'  => ['newsletter_newsletter-data'],
       'critical' => true,
+      'history_paths' => [{'label' => 'service-config', 'path' => '/opt/newsletter'}],
+      'history_volumes' => ['newsletter_newsletter-data'],
     },
     'goaccess' => {
       'volumes'  => ['goaccess_goaccess-data', 'goaccess_goaccess-report'],
@@ -222,6 +251,19 @@ class roles::backup (
   }
 
   $host_configs = $backup_service_configs.filter |$k, $v| { $k in $services }
+  # Explicit fresh-host recovery only. Database volumes are skipped where a
+  # logical dump is available; the existing post-deploy hook imports it after
+  # PostgreSQL starts, avoiding an unsafe double-restore.
+  $requested_recovery = $facts['openvox_recovery_services'] ? {
+    undef => [],
+    ''    => [],
+    default => split($facts['openvox_recovery_services'], ','),
+  }
+  $unknown_recovery = $requested_recovery.filter |$name| { !($name in $services) }
+  if !empty($unknown_recovery) {
+    fail("Unknown or non-local-backup recovery selection: ${unknown_recovery.join(', ')}")
+  }
+  $recovery_services = $requested_recovery
 
   # backup.sh / restore.sh are rendered from real EPP templates
   # (templates/backup/{backup,restore}.sh.epp) instead of the
@@ -242,6 +284,12 @@ class roles::backup (
     'transfers'       => $transfers,
     'checkers'        => $checkers,
     'bwlimit'         => $bwlimit,
+    'history_enabled' => $history_enabled,
+    'history_remote_path' => $history_remote_path,
+    'history_daily'   => $history_daily,
+    'history_weekly'  => $history_weekly,
+    'history_monthly' => $history_monthly,
+    'ntfy_url'        => $ntfy_url,
   })
 
   $restore_sh_content = epp('roles/backup/restore.sh.epp', {
@@ -251,6 +299,15 @@ class roles::backup (
     'local_path'   => $local_path,
   })
 
+  $verify_sh_content = epp('roles/backup/verify.sh.epp', {
+    'remote_name' => $remote_name,
+    'remote_path' => $remote_path,
+    'local_path'  => $local_path,
+    'hostname'    => $hostname,
+    'ntfy_url'    => $verification_ntfy_url,
+    'host_configs' => $host_configs,
+  })
+
   # ==========================================================================
   # Filesystem layout, rclone, generated scripts, systemd timer
   # ==========================================================================
@@ -258,7 +315,7 @@ class roles::backup (
     ensure => installed,
   }
 
-  file { [$local_path, "${local_path}/volumes", "${local_path}/scripts", "${local_path}/logs", $rclone_config_path]:
+  file { [$local_path, "${local_path}/volumes", "${local_path}/scripts", "${local_path}/logs", "${local_path}/verification", $rclone_config_path]:
     ensure => directory,
     mode   => '0700',
   }
@@ -293,6 +350,52 @@ class roles::backup (
     require => File["${local_path}/scripts"],
   }
 
+  if !empty($recovery_services) {
+    exec { 'backup-recovery-fresh-host-guard':
+      command => "test ! -e ${base_path}/.homelab-initialized",
+      path    => ['/usr/bin', '/bin'],
+      require => [File["${local_path}/scripts/restore.sh"], File["${rclone_config_path}/rclone.conf"]],
+    }
+    $recovery_services.each |$service| {
+      $skip_volumes = pick($host_configs[$service]['recovery_skip_volumes'], []).join(',')
+      $skip_arg = $skip_volumes ? { '' => '', default => " --skip-volumes ${skip_volumes}" }
+      exec { "backup-recovery-${service}":
+        command => "${local_path}/scripts/restore.sh --force${skip_arg} --service ${service}",
+        timeout => 21600,
+        path    => ['/usr/local/bin', '/usr/bin', '/bin'],
+        require => Exec['backup-recovery-fresh-host-guard'],
+      }
+    }
+  }
+
+  file { "${local_path}/scripts/verify.sh":
+    ensure  => file,
+    mode    => '0700',
+    content => $verify_sh_content,
+    require => File["${local_path}/scripts"],
+  }
+
+  file { '/etc/systemd/system/homelab-backup-verify@.service':
+    ensure  => file,
+    mode    => '0644',
+    content => "[Unit]\nDescription=Homelab backup verification (%i)\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nExecStart=${local_path}/scripts/verify.sh %i\nTimeoutStartSec=21600\nNice=19\nIOSchedulingClass=idle\n",
+    notify  => Exec['backup-systemd-reload'],
+  }
+
+  file { '/etc/systemd/system/homelab-backup-verify-integrity.timer':
+    ensure  => file,
+    mode    => '0644',
+    content => "[Unit]\nDescription=Weekly homelab backup integrity verification\n\n[Timer]\nOnCalendar=${verification_integrity_schedule}\nPersistent=true\nRandomizedDelaySec=15min\nUnit=homelab-backup-verify@integrity.service\n\n[Install]\nWantedBy=timers.target\n",
+    notify  => Exec['backup-systemd-reload'],
+  }
+
+  file { '/etc/systemd/system/homelab-backup-verify-restore.timer':
+    ensure  => file,
+    mode    => '0644',
+    content => "[Unit]\nDescription=Monthly homelab backup disposable restore verification\n\n[Timer]\nOnCalendar=${verification_restore_schedule}\nPersistent=true\nRandomizedDelaySec=15min\nUnit=homelab-backup-verify@restore.service\n\n[Install]\nWantedBy=timers.target\n",
+    notify  => Exec['backup-systemd-reload'],
+  }
+
   $cpu_quota_line = $cpu_quota ? {
     ''      => '',
     default => ['CPUQuota=', $cpu_quota, "\n"].join(''),
@@ -323,6 +426,16 @@ class roles::backup (
     require => [File['/etc/systemd/system/homelab-backup.timer'], Exec['backup-systemd-reload']],
   }
 
+  service { ['homelab-backup-verify-integrity.timer', 'homelab-backup-verify-restore.timer']:
+    ensure  => running,
+    enable  => true,
+    require => [
+      File['/etc/systemd/system/homelab-backup-verify-integrity.timer'],
+      File['/etc/systemd/system/homelab-backup-verify-restore.timer'],
+      Exec['backup-systemd-reload'],
+    ],
+  }
+
   # Fresh-install marker. `replace => false` deliberately: unlike the
   # Ansible task (which has no such guard and re-writes this file, with a
   # fresh embedded timestamp, on every single run), this only ever
@@ -334,5 +447,9 @@ class roles::backup (
     mode    => '0644',
     replace => false,
     content => "# Homelab Initialization Flag\n# Host: ${hostname}\n#\n# This file indicates that the host has been initialized.\n# Delete this file to allow a manual restore workflow (see restore.sh).\n",
+    require => $recovery_services.empty ? {
+      true    => undef,
+      default => $recovery_services.map |$service| { Exec["backup-recovery-${service}"] },
+    },
   }
 }
