@@ -141,19 +141,15 @@ class roles::base (
   # Firewall (Tailscale internal network)
   # ==========================================================================
 
-  service { 'firewalld':
-    ensure => running,
-    enable => true,
-  }
+  include roles::firewalld
 
   # `sources` is an exact-set match (not additive) in puppet-firewalld,
   # so every source this zone needs - Tailscale plus any host-specific
   # extras like nuc's own LAN - has to be listed here via
   # $trusted_zone_sources, not layered on with separate resources.
-  firewalld_zone { 'trusted':
-    ensure  => present,
+  roles::firewalld::zone_sources { 'trusted':
+    zone    => 'trusted',
     sources => $trusted_zone_sources,
-    require => Service['firewalld'],
   }
 
   # ==========================================================================
@@ -161,12 +157,11 @@ class roles::base (
   # ==========================================================================
 
   if $public_ip and $ssh_breakglass_port {
-    firewalld_port { 'ssh-breakglass':
+    roles::firewalld::port { 'ssh-breakglass':
       ensure   => present,
       zone     => 'public',
       port     => $ssh_breakglass_port,
       protocol => 'tcp',
-      require  => Service['firewalld'],
     }
 
     exec { 'base-selinux-breakglass-port':
@@ -225,11 +220,10 @@ class roles::base (
       require => File['/etc/systemd/system/cockpit.socket.d/override.conf'],
     }
 
-    firewalld_service { 'cockpit-public':
+    roles::firewalld::service { 'cockpit-public':
       ensure  => absent,
       zone    => 'public',
       service => 'cockpit',
-      require => Service['firewalld'],
     }
   }
 

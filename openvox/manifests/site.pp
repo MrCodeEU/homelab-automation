@@ -80,7 +80,7 @@ node 'nuc.tail33930.ts.net' {
     # nuc's own real LAN, not just Tailscale - previously a hand-rolled
     # `firewall-cmd --add-source` that never touched this other source;
     # now that the trusted zone is Puppet-managed, it has to be listed
-    # explicitly or firewalld_zone's exact-set sources would drop it.
+    # explicitly or the native zone exact-set resource would drop it.
     trusted_zone_sources => ['100.64.0.0/10', '192.168.50.0/24'],
   }
   class { 'roles::iperf3':
@@ -93,9 +93,9 @@ node 'nuc.tail33930.ts.net' {
   # speedtest (Netronome) switched to network_mode: host to give the
   # container real routing to tailnet peer IPs for auto-discovery -
   # Docker's own bridge-network NAT no longer fronts this port, so it
-  # needs the same explicit firewalld_port host-networked containers
+  # needs the same explicit firewall port host-networked containers
   # always need (see roles::iperf3/roles::netronome_agent).
-  firewalld_port { 'netronome-speedtest-tcp':
+  roles::firewalld::port { 'netronome-speedtest-tcp':
     ensure   => present,
     zone     => 'trusted',
     port     => 8090,

@@ -103,7 +103,7 @@ class roles::netronome_agent (
   # Same posture as roles::iperf3: ugreen manages no firewalld anywhere
   # else in this repo, Tailscale-only there too.
   if $manage_firewall {
-    firewalld_port { 'netronome-agent-tcp':
+    roles::firewalld::port { 'netronome-agent-tcp':
       ensure   => present,
       zone     => 'trusted',
       port     => 8200,

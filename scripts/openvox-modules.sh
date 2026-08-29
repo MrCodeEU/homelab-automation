@@ -45,6 +45,12 @@ if [ "$action" = validate ]; then
   exit 0
 fi
 
+# puppet/firewalld was replaced by roles::firewalld. Remove only that known,
+# obsolete module on reconciliation; never prune arbitrary operator modules.
+if [ "$action" = reconcile ]; then
+  ssh "${ssh_opts[@]}" "root@${host}" "rm -rf -- '$module_dir/firewalld'"
+fi
+
 ssh_opts=(
   -F /dev/null
   -o BatchMode=yes
