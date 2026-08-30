@@ -94,9 +94,10 @@ define roles::services::service (
   }
 
   file { "${deploy_path}/.env":
-    ensure  => file,
-    mode    => '0600',
-    content => Sensitive(epp('roles/services/env.epp', {
+    ensure    => file,
+    mode      => '0600',
+    show_diff => false,
+    content   => Sensitive(epp('roles/services/env.epp', {
       'service_name' => $real_name,
       'domain'       => $domain,
       'email'        => $email,
@@ -105,7 +106,7 @@ define roles::services::service (
       'project_name' => $real_name,
       'secrets'      => $secrets,
     })),
-    require => File[$deploy_path],
+    require   => File[$deploy_path],
   }
 
   # Unconditional, no unless-guard - `docker compose up -d` is itself

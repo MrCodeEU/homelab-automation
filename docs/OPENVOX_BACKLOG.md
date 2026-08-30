@@ -222,9 +222,11 @@ DISASTER_RECOVERY.md backlog section.
 - [x] **Profile layer** — DONE 2026-08-29 under P2. The existing
       technology-specific `roles::*` classes deliberately serve as profiles;
       `role::*` supplies node-archetype composition.
-- [ ] **rspec-puppet coverage expansion** — once the P2 seed (firewalld,
-      backup) is in place, extend to remaining `roles::*` classes with
-      non-trivial logic.
+- [ ] **rspec-puppet coverage expansion** — `roles::services` DONE
+      2026-08-30: catalog fixtures cover deployment filtering, critical
+      hooks, safe orphan cleanup, appliance cleanup opt-out, staging
+      selection/rejection, and secret `.env` no-diff handling. Next targets:
+      `backup_remote_target`, `caddy`, then `crowdsec_firewall_bouncer`.
 
 ## Notes
 

@@ -1,0 +1,38 @@
+---
+services_catalog:
+  - name: forgejo
+    enabled: true
+    managed: true
+    host: mljr
+    port: 3000
+  - name: authelia
+    enabled: true
+    managed: true
+    skip_deploy: true
+    host: mljr
+    port: 9091
+  - name: manual-service
+    enabled: true
+    managed: false
+    host: mljr
+    port: 8081
+  - name: disabled-service
+    enabled: false
+    managed: true
+    host: mljr
+    port: 8082
+  - name: homepage
+    enabled: true
+    managed: true
+    host: mljr
+    port: 3000
+    staging: true
+  - name: speedtest
+    enabled: true
+    managed: true
+    host: nuc
+    port: 3001
+    staging: true
+
+unraid_backup_paths: []
+unraid_backup_excluded: []
