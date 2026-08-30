@@ -182,9 +182,12 @@ DISASTER_RECOVERY.md backlog section.
       `vault_authelia_admin_password` now needs a manual
       `rm users_database.yml` to take effect, documented in the class's
       own comment.
-- [ ] **rspec-puppet for classes with real logic.** Start with
-      `roles::firewalld` and `roles::backup` (highest blast radius) —
-      catch bugs before they reach the live-noop stage, let alone apply.
+- [x] **rspec-puppet P2 seed for classes with real logic.** DONE
+      2026-08-30 — `roles::firewalld` and `roles::backup` compile in
+      VoxBox without host access. Backup coverage exercises selected-service
+      rendering, timer schedules, CPU limits, recovery guards, logical-DB
+      volume skips, and no-diff handling for rclone credentials. The next
+      P3 item expands this to other non-trivial roles.
 - [x] **Port the useful part of the `tests/` e2e harness to OpenVox.** DONE
       2026-08-29 — the deleted Ansible Docker/SSH harness only rendered its
       retired templates and checked for empty snippets. Its OpenVox-native

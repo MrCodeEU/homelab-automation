@@ -330,10 +330,11 @@ class roles::backup (
   )
 
   file { "${rclone_config_path}/rclone.conf":
-    ensure  => file,
-    mode    => '0600',
-    content => $rclone_conf_content,
-    require => File[$rclone_config_path],
+    ensure    => file,
+    mode      => '0600',
+    content   => $rclone_conf_content,
+    show_diff => false,
+    require   => File[$rclone_config_path],
   }
 
   file { "${local_path}/scripts/backup.sh":
