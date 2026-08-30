@@ -88,7 +88,8 @@ jobs:
             rm -f "$host_log"
           done
 
-          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          output_file=$(mktemp)
+          python3 - <<'PY' > "$output_file"
           from pathlib import Path
 
           previous = {}
@@ -118,8 +119,8 @@ jobs:
           if notify:
               lines = []
               for host, old, current in changes:
-                  if current['homelab_openvox_run_success'] == 0 or current['errors']:
-                      state = f"FAILED ({current['errors']} error lines)"
+                  if current['homelab_openvox_run_success'] == 0 or current['homelab_openvox_error_lines']:
+                      state = f"FAILED ({current['homelab_openvox_error_lines']} error lines)"
                   elif current['homelab_openvox_resource_changes']:
                       state = f"DRIFT ({current['homelab_openvox_resource_changes']} resource changes proposed)"
                   else:
@@ -130,6 +131,10 @@ jobs:
               print('\n'.join(lines))
               print('EOF')
           PY
+          # Do not expose partial outputs: a helper error must never turn into
+          # an empty or misleading ntfy notification.
+          cat "$output_file" >> "$GITHUB_OUTPUT"
+          rm -f "$output_file"
 
           exit "$rc"
 
