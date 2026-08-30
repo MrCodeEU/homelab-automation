@@ -209,16 +209,16 @@ DISASTER_RECOVERY.md backlog section.
       to existing VictoriaMetrics. The Homelab Overview dashboard shows the
       latest production apply state; no PuppetDB, extra host daemon, or
       stored CI credential was added.
-- [ ] **Daily drift-detection noop + ntfy alert.** Weekly cron + manual
-      dispatch means drift can go up to a week unseen. Add a daily
-      noop-only run that diffs resource-count and pings ntfy (already in
-      use elsewhere) above a threshold.
+- [x] **Daily drift-detection noop + ntfy alert.** DONE 2026-08-30 —
+      `openvox-drift.yml` runs an isolated, read-only noop daily, publishes
+      `mode="drift"` metrics, and alerts ntfy only when drift/failure state
+      changes or recovers; Grafana shows the latest result and proposed count.
 - [x] **Atomic environment swap** — DONE 2026-08-29, same change as the
       P1 rollback item above; the enabling piece for safe
       drift-remediation applies too.
-- [ ] **Profile layer** — tracked above under P2 as the correctness fix;
-      re-confirm it also unlocks clean multi-host scaling before adding
-      a 4th/5th agent host.
+- [x] **Profile layer** — DONE 2026-08-29 under P2. The existing
+      technology-specific `roles::*` classes deliberately serve as profiles;
+      `role::*` supplies node-archetype composition.
 - [ ] **rspec-puppet coverage expansion** — once the P2 seed (firewalld,
       backup) is in place, extend to remaining `roles::*` classes with
       non-trivial logic.
