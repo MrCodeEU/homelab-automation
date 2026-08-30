@@ -47,9 +47,9 @@ jobs:
             curl --fail --silent --show-error --connect-timeout 5 --max-time 15 -G \
               --data-urlencode "query=last_over_time(${metric}{mode=\"drift\"}[8d])" \
               "http://${NUC_HOST}:19090/api/v1/query" \
-              | METRIC="$metric" python3 -c 'import json, os, sys; data=json.load(sys.stdin); [print("{}\\t{}\\t{}".format(row["metric"].get("host", "unknown"), os.environ["METRIC"], row["value"][1])) for row in data.get("data", {}).get("result", [])]' \
+              | METRIC="$metric" python3 -c 'import json, os, sys; data=json.load(sys.stdin); [print(row["metric"].get("host", "unknown"), os.environ["METRIC"], row["value"][1], sep=chr(9)) for row in data.get("data", {}).get("result", [])]' \
               >> /tmp/openvox-drift-previous.tsv \
-              || echo "WARNING: no previous ${metric} drift metric available"
+              || echo "WARNING: no previous ${metric} drift metric available" >&2
           done
 
       - name: Run isolated OpenVox noop
@@ -94,7 +94,10 @@ jobs:
 
           previous = {}
           for line in Path('/tmp/openvox-drift-previous.tsv').read_text().splitlines():
-              host, metric, value = line.split('\t', 2)
+              fields = line.split('\t', 2)
+              if len(fields) != 3:
+                  continue
+              host, metric, value = fields
               previous.setdefault(host, {})[metric] = int(float(value))
 
           changes = []
