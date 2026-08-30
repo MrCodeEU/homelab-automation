@@ -132,10 +132,12 @@ DISASTER_RECOVERY.md backlog section.
         encryption header on every commit. Harmless while `ansible/`
         stays read-only reference; drop this check when `ansible/` is
         actually removed.
-- [ ] **Live-noop CI gap for fork/external PRs.** `openvox-pr-check.yml`
-      only runs the live-noop leg for owner PRs from the same repo — fork
-      PRs get offline validation only. Decide if that's acceptable
-      long-term or needs a manual-approval gate to unlock live-noop.
+- [x] **Live-noop CI boundary for fork/external PRs.** CLOSED 2026-08-29 —
+      intentional security design: forks receive offline validation only and
+      never receive Tailscale credentials or production-check access. The
+      sole maintainer reviews any external contribution before merge, so the
+      absence of a live noop is an accepted validation-coverage trade-off,
+      not an infrastructure attack path.
 
 ## P2 — migration debt (ansible-shaped Puppet → idiomatic Puppet)
 
