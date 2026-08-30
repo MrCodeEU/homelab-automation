@@ -53,7 +53,7 @@ declared on `nuc`'s own node block in `openvox/manifests/site.pp`
 etc.), reached over SSH from nuc rather than by installing anything on
 the appliance itself.
 
-NAS/Unraid services are mostly managed manually and only proxied or monitored where explicitly configured. `ugreen` is not a general deployment target for `roles/base`, but does run some Docker services (oxicloud, smartctl-exporter, syncthing-ugreen) plus host-facts-endpoint, Grafana Alloy, iperf3, and (when `ugreen_enabled`) the SFTP backup target.
+NAS/Unraid services are mostly managed manually and only proxied or monitored where explicitly configured. `ugreen` is not a general deployment target for `roles/base`, but does run some Docker services (oxicloud, smartctl-exporter, syncthing-ugreen) plus host-facts-endpoint, Grafana Alloy, iperf3, and the SFTP backup target. During Ugreen storage recovery, set `role::ugreen::backup_remote_target_enabled: false` in its node data to pause management of that write path without deleting its existing contents.
 
 Two more hosts sit outside the diagram above: `wd_mycloud` (WD My Cloud EX2 Ultra - busybox, no Docker, backup-target-only; gets Tailscale and node_exporter as bare binaries with a boot-hook persistence mechanism, see AGENTS.md) and `homeassistant` (its own HAOS appliance, `proxy_only` - Caddy front door plus a remote Prometheus scrape only, no agent runs there).
 
