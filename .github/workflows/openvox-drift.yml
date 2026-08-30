@@ -1,0 +1,164 @@
+name: OpenVox Daily Drift Check
+
+on:
+  schedule:
+    # 01:17 UTC = 03:17 CEST / 02:17 CET: clear of the NAS auto-update
+    # window and the weekly full deployment at 00:00 UTC on Sunday.
+    - cron: '17 1 * * *'
+  workflow_dispatch:
+
+# This is intentionally a noop-only workflow.  Each run uses a short-lived
+# remote environment under /tmp, so even syncing the candidate catalog cannot
+# alter the production OpenVox environment.
+concurrency:
+  group: openvox-daily-drift
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: Read-only fleet drift check
+    runs-on: ubuntu-latest
+    environment: production-check
+    env:
+      MLJR_HOST: mljr.tail33930.ts.net
+      NUC_HOST: nuc.tail33930.ts.net
+      UGREEN_HOST: ugreen.tail33930.ts.net
+      # Matches openvox-sync.sh's deliberately narrow temporary-path allowlist.
+      OPENVOX_ENV_DIR: /tmp/openvox-pr-0-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Tailscale
+        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8 # v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Read previous daily drift state
+        run: |
+          : > /tmp/openvox-drift-previous.tsv
+          for metric in homelab_openvox_run_success homelab_openvox_resource_changes homelab_openvox_error_lines; do
+            curl --fail --silent --show-error --connect-timeout 5 --max-time 15 -G \
+              --data-urlencode "query=last_over_time(${metric}{mode=\"drift\"}[8d])" \
+              "http://${NUC_HOST}:19090/api/v1/query" \
+              | METRIC="$metric" python3 -c 'import json, os, sys; data=json.load(sys.stdin); [print(f"{row[\"metric\"].get(\"host\", \"unknown\")}\\t{os.environ[\"METRIC\"]}\\t{row[\"value\"][1]}") for row in data.get("data", {}).get("result", [])]' \
+              >> /tmp/openvox-drift-previous.tsv \
+              || echo "WARNING: no previous ${metric} drift metric available"
+          done
+
+      - name: Run isolated OpenVox noop
+        id: drift
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          rc=0
+          : > /tmp/openvox-drift.log
+          : > /tmp/openvox-drift-current.tsv
+          : > /tmp/openvox-drift.prom
+
+          for host in "$MLJR_HOST" "$NUC_HOST" "$UGREEN_HOST"; do
+            label="${host%%.*}"
+            started=$(date +%s)
+            host_log=$(mktemp)
+            if ! ./scripts/openvox-sync.sh "$host" noop 2>&1 | tee -a /tmp/openvox-drift.log | tee "$host_log"; then
+              rc=1
+              success=0
+            else
+              success=1
+            fi
+            ended=$(date +%s)
+            duration=$((ended - started))
+            changes=$(grep -cE '/(ensure|content|returns|mode|owner|group):' "$host_log" || true)
+            errors=$(grep -cE '^\[[^]]+\] Error:' "$host_log" || true)
+            timestamp_ms=$((ended * 1000))
+            printf '%s\t%s\t%s\t%s\n' "$label" "$success" "$changes" "$errors" >> /tmp/openvox-drift-current.tsv
+            {
+              echo "homelab_openvox_run_success{host=\"${label}\",mode=\"drift\"} ${success} ${timestamp_ms}"
+              echo "homelab_openvox_last_run_timestamp_seconds{host=\"${label}\",mode=\"drift\"} ${ended} ${timestamp_ms}"
+              echo "homelab_openvox_run_duration_seconds{host=\"${label}\",mode=\"drift\"} ${duration} ${timestamp_ms}"
+              echo "homelab_openvox_resource_changes{host=\"${label}\",mode=\"drift\"} ${changes} ${timestamp_ms}"
+              echo "homelab_openvox_error_lines{host=\"${label}\",mode=\"drift\"} ${errors} ${timestamp_ms}"
+            } >> /tmp/openvox-drift.prom
+            rm -f "$host_log"
+          done
+
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          from pathlib import Path
+
+          previous = {}
+          for line in Path('/tmp/openvox-drift-previous.tsv').read_text().splitlines():
+              host, metric, value = line.split('\t', 2)
+              previous.setdefault(host, {})[metric] = int(float(value))
+
+          changes = []
+          for line in Path('/tmp/openvox-drift-current.tsv').read_text().splitlines():
+              host, success, resources, errors = line.split('\t')
+              current = {
+                  'homelab_openvox_run_success': int(success),
+                  'homelab_openvox_resource_changes': int(resources),
+                  'homelab_openvox_error_lines': int(errors),
+              }
+              old = previous.get(host, {})
+              if current != old and (any(current.values()) is False or current['resources'] or current['errors'] or old):
+                  changes.append((host, old, current))
+
+          notify = bool(changes)
+          print(f'notify={str(notify).lower()}')
+          if notify:
+              lines = []
+              for host, old, current in changes:
+                  if current['homelab_openvox_run_success'] == 0 or current['errors']:
+                      state = f"FAILED ({current['errors']} error lines)"
+                  elif current['resources']:
+                      state = f"DRIFT ({current['resources']} resource changes proposed)"
+                  else:
+                      state = 'RECOVERED (clean noop)'
+                  lines.append(f'{host}: {state}')
+              print('title=OpenVox daily drift check changed')
+              print('message<<EOF')
+              print('\n'.join(lines))
+              print('EOF')
+          PY
+
+          exit "$rc"
+
+      - name: Publish drift metrics to VictoriaMetrics
+        if: always()
+        run: |
+          test -s /tmp/openvox-drift.prom || { echo "No drift metrics collected"; exit 0; }
+          curl --fail --silent --show-error --connect-timeout 5 --max-time 15 \
+            -H 'Content-Type: text/plain; version=0.0.4' \
+            --data-binary @/tmp/openvox-drift.prom \
+            "http://${NUC_HOST}:19090/api/v1/import/prometheus"
+
+      - name: Notify only on changed drift state
+        if: always() && steps.drift.outputs.notify == 'true'
+        run: |
+          curl --fail --silent --show-error --connect-timeout 5 --max-time 15 \
+            -H "Title: $TITLE" \
+            -H 'Priority: high' \
+            -H 'Tags: openvox,warning,mag' \
+            -d "$MESSAGE" \
+            https://ntfy.mljr.eu/deployment
+        env:
+          TITLE: ${{ steps.drift.outputs.title }}
+          MESSAGE: ${{ steps.drift.outputs.message }}
+
+      - name: Upload drift log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: openvox-drift-${{ github.run_id }}
+          path: /tmp/openvox-drift.log
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Fail when the noop itself failed
+        if: always() && steps.drift.outcome == 'failure'
+        run: exit 1
