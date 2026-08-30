@@ -105,7 +105,12 @@ jobs:
                   'homelab_openvox_error_lines': int(errors),
               }
               old = previous.get(host, {})
-              if current != old and (any(current.values()) is False or current['resources'] or current['errors'] or old):
+              if current != old and (
+                  any(current.values()) is False
+                  or current['homelab_openvox_resource_changes']
+                  or current['homelab_openvox_error_lines']
+                  or old
+              ):
                   changes.append((host, old, current))
 
           notify = bool(changes)
@@ -115,8 +120,8 @@ jobs:
               for host, old, current in changes:
                   if current['homelab_openvox_run_success'] == 0 or current['errors']:
                       state = f"FAILED ({current['errors']} error lines)"
-                  elif current['resources']:
-                      state = f"DRIFT ({current['resources']} resource changes proposed)"
+                  elif current['homelab_openvox_resource_changes']:
+                      state = f"DRIFT ({current['homelab_openvox_resource_changes']} resource changes proposed)"
                   else:
                       state = 'RECOVERED (clean noop)'
                   lines.append(f'{host}: {state}')
