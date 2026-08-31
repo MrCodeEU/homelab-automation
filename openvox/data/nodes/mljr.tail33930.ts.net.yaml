@@ -44,3 +44,5 @@ roles::host_facts_endpoint::hostname: 'mljr'
 roles::host_facts_endpoint::dest: '/usr/local/bin/homelab-facts'
 
 roles::grafana_alloy::hostname: 'mljr'
+
+roles::canary_decoys::hostname: 'mljr'
