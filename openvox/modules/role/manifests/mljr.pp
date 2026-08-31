@@ -10,6 +10,7 @@ class role::mljr {
   include roles::netronome_agent
   include roles::caddy
   include roles::authelia
+  include roles::canarytokens
   include roles::glance
   include roles::mailcow
   include roles::backup

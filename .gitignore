@@ -92,3 +92,8 @@ openvox/keys/private_key.pkcs7.pem
 openvox/spec/fixtures/modules/*
 !openvox/spec/fixtures/modules/.gitkeep
 tools/bin/
+
+# canary-gen's default output: real decoy files + auth_token per created
+# Canarytoken (deletes/edits that token if leaked) - local staging only,
+# never committed.
+canary-out/

@@ -167,6 +167,18 @@ services_catalog:
     skip_deploy: true
     backup_critical: true
 
+  - name: canarytokens
+    enabled: true
+    domain: "canary.mljr.eu"
+    # Switchboard's HTTP trigger catcher only - the admin token-management
+    # UI (frontend, port 8101) is deliberately not on this catalog entry,
+    # see roles::canarytokens' own header comment.
+    port: 8100
+    host: mljr
+    description: "Canarytokens trigger endpoint"
+    icon: "mdi:radar"
+    skip_deploy: true
+
   - name: glance
     enabled: true
     domain: "dash.mljr.eu"
