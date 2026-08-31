@@ -5,6 +5,6 @@
 set -euo pipefail
 TARGET="root@nas.tail33930.ts.net"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEST="/mnt/user/Fotos/Passwords-Backup.pdf"
+DEST="/mnt/user/Fotos/Passwords-Backup.docx"
 
-ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" "cat '$DEST' 2>/dev/null" | cmp -s - "$DIR/Passwords-Backup.pdf"
+ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" "cat '$DEST' 2>/dev/null" | cmp -s - "$DIR/Passwords-Backup.docx"
