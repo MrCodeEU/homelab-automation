@@ -38,10 +38,15 @@ class roles::canary_decoys (
 ) {
   case $hostname {
     'mljr': {
-      file { '/root/authelia-recovery-codes.pdf':
+      # ms_word, not adobe_pdf - canarytokens' PDF token type only alerts
+      # via a DNS lookup (channel_dns.py), which this HTTP-only,
+      # no-DNS-delegation deployment can't receive. ms_word/ms_excel have
+      # a real HTTP handler (_get_info_for_ms_word in tokens.py) and
+      # alert on the same plain-GET trigger URL svg/web already use here.
+      file { '/root/authelia-recovery-codes.docx':
         ensure => file,
         mode   => '0600',
-        source => 'puppet:///modules/roles/canary_decoys/mljr/authelia-recovery-codes.pdf',
+        source => 'puppet:///modules/roles/canary_decoys/mljr/authelia-recovery-codes.docx',
       }
 
       file { '/root/network-diagram.svg':
@@ -77,7 +82,7 @@ class roles::canary_decoys (
             <li><a href="https://dash.mljr.eu">dashboard</a></li>
             <li><a href="https://backup.mljr.eu">backup status</a></li>
           </ul>
-          <img src="http://canary.mljr.eu/stuff/q95ig3xyo6o5wzkzeji1tb7qe/payments.js" width="1" height="1" style="display:none">
+          <img src="http://canary.mljr.eu/stuff/jl1jj4ga2cc7px2pzb2h78kdh/payments.js" width="1" height="1" style="display:none">
           </body>
           </html>
           | NOTES
@@ -85,10 +90,11 @@ class roles::canary_decoys (
     }
 
     'ugreen': {
-      file { '/volume1/homelab-backups/nas-admin-recovery.pdf':
+      # ms_excel, not adobe_pdf - see the mljr branch above for why.
+      file { '/volume1/homelab-backups/nas-admin-recovery.xlsx':
         ensure => file,
         mode   => '0600',
-        source => 'puppet:///modules/roles/canary_decoys/ugreen/nas-admin-recovery.pdf',
+        source => 'puppet:///modules/roles/canary_decoys/ugreen/nas-admin-recovery.xlsx',
       }
     }
 

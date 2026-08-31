@@ -72,10 +72,6 @@ class roles::canarytokens (
   $smtp_user     = lookup('vault_smtp_user', { 'default_value' => '' })
   $smtp_password = Sensitive(lookup('vault_smtp_password', { 'default_value' => '' }))
   $smtp_from     = lookup('vault_smtp_from', { 'default_value' => "canarytokens@${domain}" })
-  # Reuses healthreport's own alert destination - same "one admin inbox
-  # for infra alerts" precedent as dmarc-monitor/grafana reusing other
-  # roles' secrets rather than minting a new vault_ key per consumer.
-  $alert_email = lookup('vault_healthreport_email_to', { 'default_value' => '' })
 
   file { $config_path:
     ensure => directory,
