@@ -103,7 +103,7 @@ class roles::canarytokens (
     CANARY_SMTP_USERNAME=${smtp_user}
     CANARY_SMTP_PASSWORD=${smtp_password.unwrap}
     CANARY_ALERT_EMAIL_FROM_ADDRESS=${smtp_from}
-    CANARY_ALERT_EMAIL_FROM_DISPLAY="Homelab Canarytokens"
+    CANARY_ALERT_EMAIL_FROM_DISPLAY="Homelab Canarytokens <${smtp_from}>"
     CANARY_ALERT_EMAIL_SUBJECT="Canarytoken triggered"
     | SWITCHBOARDENV
 
