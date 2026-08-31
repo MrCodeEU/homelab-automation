@@ -14,6 +14,7 @@ class role::ugreen (
     include roles::backup_remote_target
   }
   include roles::ugreen_tailscale
+  include roles::canary_decoys
   include roles::services
   include roles::host_facts_endpoint
   include roles::grafana_alloy

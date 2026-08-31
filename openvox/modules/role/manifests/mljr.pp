@@ -11,6 +11,7 @@ class role::mljr {
   include roles::caddy
   include roles::authelia
   include roles::canarytokens
+  include roles::canary_decoys
   include roles::glance
   include roles::mailcow
   include roles::backup
