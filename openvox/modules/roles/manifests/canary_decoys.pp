@@ -25,9 +25,17 @@
 #           (roles::backup_remote_target's $chroot,
 #           /volume1/homelab-backups) - anyone poking at that share is
 #           already past a trust boundary.
-class roles::canary_decoys {
-  $hostname = $facts['networking']['hostname']
-
+class roles::canary_decoys (
+  # Must match the logical name ('mljr', 'nuc', 'ugreen'), NOT this
+  # box's real OS hostname - same trap roles::services/roles::backup's
+  # own $hostname param docs already warn about, bound per-node via
+  # roles::canary_decoys::hostname in data/nodes/*.yaml. Defaulting to
+  # $facts['networking']['hostname'] directly (this class's original,
+  # wrong version) silently hit the case's default:{} branch on mljr and
+  # ugreen - their real OS hostnames don't match - and only looked like
+  # it worked on nuc because nuc's real OS hostname happens to be "nuc".
+  String $hostname = $facts['networking']['hostname'],
+) {
   case $hostname {
     'mljr': {
       file { '/root/authelia-recovery-codes.pdf':
