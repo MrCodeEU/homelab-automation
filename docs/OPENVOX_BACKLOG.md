@@ -225,15 +225,17 @@ DISASTER_RECOVERY.md backlog section.
 - [ ] **rspec-puppet coverage expansion** — `roles::services`,
       `roles::backup_remote_target`, `roles::caddy`, and
       `roles::crowdsec_firewall_bouncer`, `roles::authelia`, and
-      `roles::mailcow` DONE 2026-08-30/31: catalog fixtures cover
+      `roles::mailcow`, and appliance proxy roles DONE 2026-08-30/31:
+      catalog fixtures cover
       service deployment filtering, critical hooks, safe orphan cleanup,
       appliance cleanup opt-out, staging selection/rejection, secret `.env`
       no-diff handling, Ugreen SFTP account/chroot/key/snapshot containment,
       Caddy firewall/stage-validate-promote ordering, CrowdSec bouncer
       credential protection/local-LAPI/nftables/service ordering, Authelia
       secret protection/deny-by-default/restart guard, and Mailcow
-      localhost binding/certificate-key/timer/startup-chain safeguards. Next
-      target: appliance proxy roles.
+      localhost binding/certificate-key/timer/startup-chain safeguards, plus
+      Unraid/WD check-apply guard, precondition, ordering, and timeout
+      contracts. Next target: remaining monitoring and dashboard roles.
 
 ## Notes
 
