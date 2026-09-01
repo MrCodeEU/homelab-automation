@@ -1,0 +1,10 @@
+---
+vault_authelia_jwt_secret: test-jwt-secret
+vault_authelia_session_secret: test-session-secret
+vault_authelia_storage_encryption_key: test-storage-key
+vault_authelia_admin_password: test-admin-password
+vault_smtp_host: smtp.example.test
+vault_smtp_port: '587'
+vault_smtp_user: authelia@example.test
+vault_smtp_password: test-smtp-password
+vault_smtp_from: notifications@example.test

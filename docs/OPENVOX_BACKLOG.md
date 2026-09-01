@@ -222,13 +222,15 @@ DISASTER_RECOVERY.md backlog section.
 - [x] **Profile layer** — DONE 2026-08-29 under P2. The existing
       technology-specific `roles::*` classes deliberately serve as profiles;
       `role::*` supplies node-archetype composition.
-- [ ] **rspec-puppet coverage expansion** — `roles::services` and
-      `roles::backup_remote_target` DONE 2026-08-30: catalog fixtures cover
+- [ ] **rspec-puppet coverage expansion** — `roles::services`,
+      `roles::backup_remote_target`, `roles::caddy`, and
+      `roles::crowdsec_firewall_bouncer` DONE 2026-08-30/31: catalog fixtures cover
       service deployment filtering, critical hooks, safe orphan cleanup,
       appliance cleanup opt-out, staging selection/rejection, secret `.env`
-      no-diff handling, plus the Ugreen SFTP account/chroot/key/snapshot
-      containment contract. Next targets: `caddy`, then
-      `crowdsec_firewall_bouncer`.
+      no-diff handling, Ugreen SFTP account/chroot/key/snapshot containment,
+      Caddy firewall/stage-validate-promote ordering, and CrowdSec bouncer
+      credential protection/local-LAPI/nftables/service ordering. Next target:
+      `authelia`.
 
 ## Notes
 
