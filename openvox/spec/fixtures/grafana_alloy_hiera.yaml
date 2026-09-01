@@ -1,0 +1,10 @@
+---
+version: 5
+
+defaults:
+  datadir: data
+
+hierarchy:
+  - name: Grafana Alloy unit-test fixture
+    data_hash: yaml_data
+    path: grafana_alloy.yaml
