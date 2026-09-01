@@ -240,7 +240,10 @@ DISASTER_RECOVERY.md backlog section.
       forced-command facts endpoint containment, plus Grafana Alloy secret
       redaction, remote-write, host-specific scrape, and socket-remount
       contracts, plus Backup Dashboard state/catalog/destination/schedule
-      contracts. Next target: remaining base and monitoring support roles.
+      contracts, plus base-role conservative defaults, maintenance gates,
+      check/apply guards, trusted-zone containment, persistent journald, and
+      opt-in break-glass/Cockpit boundaries. Next target: remaining monitoring
+      support roles.
 
 ## Notes
 
