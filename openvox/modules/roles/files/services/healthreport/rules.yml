@@ -244,8 +244,8 @@ rules:
   disk_temperature:
     type: threshold
     direction: above
-    warn: 45
-    crit: 55
+    warn: 50
+    crit: 60
 
   reallocated_sectors:
     type: threshold
