@@ -1,0 +1,10 @@
+---
+version: 5
+
+defaults:
+  datadir: data
+
+hierarchy:
+  - name: Health Report unit-test fixture
+    data_hash: yaml_data
+    path: healthreport.yaml
