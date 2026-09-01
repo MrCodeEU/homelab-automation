@@ -227,7 +227,7 @@ DISASTER_RECOVERY.md backlog section.
       `roles::crowdsec_firewall_bouncer`, `roles::authelia`, and
       `roles::mailcow`, appliance proxy roles, `roles::healthreport`, and
       `roles::host_facts_endpoint`, and `roles::grafana_alloy` DONE
-      2026-08-30/31: catalog fixtures cover
+      2026-08-30/31, plus `roles::backup_dashboard`: catalog fixtures cover
       service deployment filtering, critical hooks, safe orphan cleanup,
       appliance cleanup opt-out, staging selection/rejection, secret `.env`
       no-diff handling, Ugreen SFTP account/chroot/key/snapshot containment,
@@ -239,7 +239,8 @@ DISASTER_RECOVERY.md backlog section.
       contracts, plus Health Report state/private-key preservation and its
       forced-command facts endpoint containment, plus Grafana Alloy secret
       redaction, remote-write, host-specific scrape, and socket-remount
-      contracts. Next target: backup dashboard.
+      contracts, plus Backup Dashboard state/catalog/destination/schedule
+      contracts. Next target: remaining base and monitoring support roles.
 
 ## Notes
 

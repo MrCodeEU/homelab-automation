@@ -1,0 +1,10 @@
+---
+unraid_backup_paths:
+  - name: appdata
+    src: /mnt/user/appdata
+    dest: nas/appdata
+    destinations: [pcloud, ugreen]
+  - name: media
+    src: /mnt/user/media
+    dest: nas/media
+    destinations: [ugreen]
