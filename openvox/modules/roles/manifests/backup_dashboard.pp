@@ -36,6 +36,9 @@ class roles::backup_dashboard (
     'nuc'  => '03:00:00',
     'nas'  => '04:40:00',
   },
+  # Kept injectable so catalog tests can use a deterministic value. Production
+  # retains the established wall-clock timestamp on every apply.
+  String $generated_at = strip(generate('/usr/bin/date', '-u', '+%Y-%m-%dT%H:%M:%SZ')),
 ) {
   $state_dir = "${root}/state"
 
@@ -125,8 +128,6 @@ class roles::backup_dashboard (
   # accepted-quirk shape already documented for authelia's password hash
   # and roles::glance's container recreate. Harmless here: nothing
   # restarts off this file changing, the collector just re-reads it.
-  $generated_at = strip(generate('/usr/bin/date', '-u', '+%Y-%m-%dT%H:%M:%SZ'))
-
   file { "${root}/backup_catalog.json":
     ensure  => file,
     owner   => 'root',
