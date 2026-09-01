@@ -160,11 +160,14 @@ an isolated live noop. Renovate PRs never receive the production-check secrets.
 
 ## Catalog unit tests
 
-`make test-openvox-unit` compiles the seed `rspec-puppet` catalog tests in a
+`make test-openvox-unit` compiles the `rspec-puppet` catalog tests in a
 pinned VoxBox image containing OpenVox 8.28.1. It has no host, Tailscale, or
 secret access. The test fixture downloads the same pinned `puppetlabs/stdlib`
 version as `Puppetfile` into ignored `openvox/spec/fixtures/`; CI runs this
-target for every OpenVox PR before the owner-only live noop.
+target for every OpenVox PR before the owner-only live noop. Small test-only
+module doubles under `spec/fixtures/modules/` model the narrow resource
+surfaces used from Forge modules (Docker Compose and apt); production still
+uses the exact versions pinned in `Puppetfile`.
 
 `make test-openvox-caddy-render` is the integration-level complement: it
 compiles a small fixture service catalog spanning local/remote backends,

@@ -222,7 +222,7 @@ DISASTER_RECOVERY.md backlog section.
 - [x] **Profile layer** — DONE 2026-08-29 under P2. The existing
       technology-specific `roles::*` classes deliberately serve as profiles;
       `role::*` supplies node-archetype composition.
-- [ ] **rspec-puppet coverage expansion** — `roles::services`,
+- [x] **rspec-puppet coverage expansion** — DONE 2026-09-01. `roles::services`,
       `roles::backup_remote_target`, `roles::caddy`, and
       `roles::crowdsec_firewall_bouncer`, `roles::authelia`, and
       `roles::mailcow`, appliance proxy roles, `roles::healthreport`, and
@@ -242,8 +242,12 @@ DISASTER_RECOVERY.md backlog section.
       contracts, plus Backup Dashboard state/catalog/destination/schedule
       contracts, plus base-role conservative defaults, maintenance gates,
       check/apply guards, trusted-zone containment, persistent journald, and
-      opt-in break-glass/Cockpit boundaries. Next target: remaining monitoring
-      support roles.
+      opt-in break-glass/Cockpit boundaries. The final pass adds all remaining
+      support roles: backup transport key, Canarytokens/decoys, Glance,
+      container reconciliation, Hawser, HetrixTools, homepage sync, iperf3,
+      Netronome, TutaBridge, Ugreen Tailscale, NAS service proxy, and remaining
+      Unraid/WD facts/exporter proxies. The suite now directly compiles every
+      `roles::*` manifest and asserts its meaningful safety boundaries.
 
 ## Notes
 
