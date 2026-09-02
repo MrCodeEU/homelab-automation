@@ -1,0 +1,4 @@
+---
+vault_tutabridge_keyring_password: test-keyring-password
+vault_tuta_email: test@example.invalid
+vault_tuta_password: test-tuta-password

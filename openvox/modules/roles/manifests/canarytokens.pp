@@ -61,11 +61,11 @@ class roles::canarytokens (
   # roles::base::public_ip) - only used by a handful of raw-IP token
   # types, not the DNS-domain-based ones this HTTP-only v1 deploys.
   String $public_ip         = '157.173.97.107',
+  # Kept injectable for catalog tests. Production retains the same
+  # host-local persistent seed generation; tests use a fixed harmless value.
+  String $wg_key_seed       = generate('/bin/bash', '-c', "mkdir -p ${config_path} && (test -s ${config_path}/.wg_seed && cat ${config_path}/.wg_seed || (openssl rand -base64 32 | tee ${config_path}/.wg_seed))").strip,
 ) {
   $canary_domain = "${canary_subdomain}.${domain}"
-
-  $wg_seed_file = "${config_path}/.wg_seed"
-  $wg_key_seed = generate('/bin/bash', '-c', "mkdir -p ${config_path} && (test -s ${wg_seed_file} && cat ${wg_seed_file} || (openssl rand -base64 32 | tee ${wg_seed_file}))").strip
 
   $smtp_host     = lookup('vault_smtp_host', { 'default_value' => '' })
   $smtp_port     = lookup('vault_smtp_port', { 'default_value' => '587' })

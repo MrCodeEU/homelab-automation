@@ -1,0 +1,23 @@
+---
+services_catalog:
+  - name: ollama
+    enabled: true
+    managed: true
+    host: nas
+    port: 11434
+  - name: manual-nas-service
+    enabled: true
+    managed: false
+    host: nas
+    port: 8080
+  - name: skipped-nas-service
+    enabled: true
+    managed: true
+    skip_deploy: true
+    host: nas
+    port: 8081
+  - name: disabled-nas-service
+    enabled: false
+    managed: true
+    host: nas
+    port: 8082

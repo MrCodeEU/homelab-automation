@@ -1,2 +1,3 @@
 ---
 healthreport_pubkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestHealthreportKey homelab-healthreport
+unraid_backup_watch_dirs: ['/mnt/user/backup']

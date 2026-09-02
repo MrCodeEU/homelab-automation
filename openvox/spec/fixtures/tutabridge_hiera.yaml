@@ -1,0 +1,10 @@
+---
+version: 5
+
+defaults:
+  datadir: data
+
+hierarchy:
+  - name: TutaBridge unit-test fixture
+    data_hash: yaml_data
+    path: tutabridge.yaml

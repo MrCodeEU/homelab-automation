@@ -1,0 +1,10 @@
+---
+version: 5
+
+defaults:
+  datadir: data
+
+hierarchy:
+  - name: NAS services unit-test fixture
+    data_hash: yaml_data
+    path: services_nas.yaml
