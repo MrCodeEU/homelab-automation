@@ -23,6 +23,7 @@ roles::backup::services:
   - goaccess
   - crowdsec
   - newsletter
+  - canarytokens
 roles::backup::hostname: 'mljr'
 # This 4vCPU/7.5GB VPS also runs every service it backs up - the default
 # 8/16 pCloud concurrency saturated it enough that Kuma's 48s timeout
