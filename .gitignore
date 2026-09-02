@@ -80,12 +80,8 @@ check.run
 __pycache__/
 *.pyc
 
-# openvox migration - eyaml private key decrypts openvox/data/*.eyaml,
-# must never be committed. Public key is fine to commit (encryption-only)
-# and needs an explicit negation since the repo's blanket *.pem rule above
-# would otherwise also ignore it.
-openvox/keys/private_key.pkcs7.pem
-!openvox/keys/public_key.pkcs7.pem
+# Per-host eyaml private keys must never be committed. Public keys are safe to
+# commit (encryption-only) and need explicit negations because of *.pem above.
 !openvox/keys/*/
 !openvox/keys/*/public_key.pkcs7.pem
 
