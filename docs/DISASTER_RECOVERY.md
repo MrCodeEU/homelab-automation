@@ -415,8 +415,9 @@ correction), and Syncthing content has multi-peer replication plus
 - Verify Unraid's flash-drive restore actually recreates the 11
   `managed: false` Docker containers cleanly - or write down manual
   recreation steps for each if it doesn't.
-- Write up ugreen's 2026-07-31 rebuild as a real procedure instead of
-  leaving it as inventory comments only, in case it happens again.
+- FIXED (2026-09-02): the `ugreen` section above now records the 2026-07-31
+  rebuild as a real procedure: vendor storage boundary, Tailscale/OpenVox
+  bootstrap, backup-target repopulation, and validation checks.
 - Actually test this runbook against a throwaway VM once resources allow
   - everything above is verified-by-reading-code, not verified-by-doing.
 - Revisit the accepted shared-eyaml-key risk after the higher-priority audit
