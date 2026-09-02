@@ -248,6 +248,16 @@ class roles::backup (
       'volumes'  => ['crowdsec-config', 'crowdsec-data', 'crowdsec-web-ui-data'],
       'critical' => false,
     },
+    # Found missing during the ansible/-vs-openvox parity audit
+    # (2026-09-02) - every comparable service already had backup coverage,
+    # this one didn't, so a host rebuild would silently lose every
+    # deployed canary token with no warning. redis-data holds token
+    # definitions/trigger history; canarytokens-uploads holds any
+    # file-based canaries (Word docs etc).
+    'canarytokens' => {
+      'volumes'  => ['canarytokens_redis-data', 'canarytokens_canarytokens-uploads'],
+      'critical' => false,
+    },
   }
 
   $host_configs = $backup_service_configs.filter |$k, $v| { $k in $services }

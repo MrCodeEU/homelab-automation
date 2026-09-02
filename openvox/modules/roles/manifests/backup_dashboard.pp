@@ -83,6 +83,7 @@ class roles::backup_dashboard (
     { 'name' => 'goaccess', 'host' => 'mljr', 'source' => ['goaccess_goaccess-data', 'goaccess_goaccess-report'] },
     { 'name' => 'crowdsec', 'host' => 'mljr', 'source' => ['crowdsec-config', 'crowdsec-data', 'crowdsec-web-ui-data'] },
     { 'name' => 'newsletter', 'host' => 'mljr', 'source' => ['newsletter_newsletter-data'] },
+    { 'name' => 'canarytokens', 'host' => 'mljr', 'source' => ['canarytokens_redis-data', 'canarytokens_canarytokens-uploads'] },
     { 'name' => 'kuma', 'host' => 'nuc', 'source' => ['kuma_uptime-kuma-data'] },
     { 'name' => 'forgejo', 'host' => 'nuc', 'source' => ['forgejo-data', 'forgejo-db-data', '/opt/backups/forgejo-dumps'] },
     { 'name' => 'mail-archiver', 'host' => 'nuc', 'source' => ['mail-archiver_mail-archiver-dp-keys', '/opt/backups/mail-archiver-dumps'] },
