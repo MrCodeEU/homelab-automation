@@ -159,42 +159,39 @@ on `$host_active_names` in `openvox/modules/roles/manifests/services.pp`).
 
 ## Secrets Management
 
-Secrets are stored in `openvox/data/common.eyaml`, encrypted with
-[hiera-eyaml](https://github.com/voxpupuli/hiera-eyaml) (PKCS7). The file is
-committed to git — only the encrypted ciphertext is ever stored. Each
-`vault_*` key is looked up in a role's manifest via `lookup('vault_...')`,
-exactly like any other hiera value.
+Secrets are stored per agent in `openvox/data/secrets/<certname>.eyaml`,
+encrypted with [hiera-eyaml](https://github.com/voxpupuli/hiera-eyaml)
+(PKCS7). Only ciphertext is committed. Each host has a distinct private key
+under `/etc/puppetlabs/puppet/eyaml/hosts/<certname>/`; a compromised agent
+therefore cannot decrypt another agent's file. Shared credentials are
+intentionally re-encrypted separately for every host that needs them.
 
 There's no `eyaml` binary on a plain dev machine — it only exists inside
-Puppet's bundled Ruby (`/opt/puppetlabs/puppet/bin/eyaml`), installed by
-`scripts/install-openvox-eyaml.sh`. Edit/view secrets via a host that
-already has the gem + key pair installed (any agent-managed host works,
-the key pair is identical everywhere):
+Puppet's bundled Ruby (`/opt/puppetlabs/puppet/bin/eyaml`). Bootstrap a new
+host key with `scripts/bootstrap-openvox-eyaml-host-key.sh <host>`; it creates
+the private key on that host and retrieves only its public key. Edit a host's
+file through that same host:
 
 ```bash
-scp openvox/data/common.eyaml root@nuc.tail33930.ts.net:/tmp/common.eyaml
-ssh root@nuc.tail33930.ts.net "/opt/puppetlabs/puppet/bin/eyaml edit /tmp/common.eyaml \
-  --pkcs7-public-key=/etc/puppetlabs/puppet/eyaml/public_key.pkcs7.pem \
-  --pkcs7-private-key=/etc/puppetlabs/puppet/eyaml/private_key.pkcs7.pem"
-scp root@nuc.tail33930.ts.net:/tmp/common.eyaml openvox/data/common.eyaml
-ssh root@nuc.tail33930.ts.net "shred -u /tmp/common.eyaml"
+scp openvox/data/secrets/nuc.tail33930.ts.net.eyaml root@nuc.tail33930.ts.net:/tmp/nuc.eyaml
+ssh root@nuc.tail33930.ts.net "/opt/puppetlabs/puppet/bin/eyaml edit /tmp/nuc.eyaml \
+  --pkcs7-public-key=/etc/puppetlabs/puppet/eyaml/hosts/nuc.tail33930.ts.net/public_key.pkcs7.pem \
+  --pkcs7-private-key=/etc/puppetlabs/puppet/eyaml/hosts/nuc.tail33930.ts.net/private_key.pkcs7.pem"
+scp root@nuc.tail33930.ts.net:/tmp/nuc.eyaml openvox/data/secrets/nuc.tail33930.ts.net.eyaml
+ssh root@nuc.tail33930.ts.net "shred -u /tmp/nuc.eyaml"
 ```
 
-**Decryption happens host-side**, not on the controller/CI runner: every
-host that needs to resolve a `vault_*` value has its own copy of the PKCS7
-key pair under `/etc/puppetlabs/puppet/eyaml/`, deployed once via
-`scripts/install-openvox-eyaml.sh <host>` (separate from the general
-`openvox-sync.sh` environment sync, since not every host needs every
-secret). This is why **CI needs no vault-password secret at all** — unlike
-the old Ansible pipeline's `ANSIBLE_VAULT_PASSWORD`, there is nothing for
-GitHub Actions to hold. `openvox/keys/private_key.pkcs7.pem` is gitignored
-(see `.gitignore`); only the public key is ever committed.
+**Decryption happens host-side**, never in CI. The per-host private keys are
+gitignored; only public keys and ciphertext are committed. This is why **CI
+needs no vault-password secret at all**. `common.eyaml` and its legacy key
+remain temporarily as a tested rollback fallback and must be removed only in
+the explicit cleanup phase after a production apply.
 
 Tailscale OAuth secrets (`TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`) still stay
 as GitHub secrets, since they're used by the Tailscale GitHub Action
 directly, unrelated to hiera-eyaml.
 
-The pre-commit hook rejects any commit where `common.eyaml` is not encrypted.
+The pre-commit hook rejects any staged eyaml file containing plaintext.
 
 ## Security
 

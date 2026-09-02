@@ -1,9 +1,6 @@
-# Hiera 5 config for secret lookups. Every host that consumes a
-# roles::* class doing lookup('vault_...') must have the hiera-eyaml gem
-# installed AND its own copy of the private key at the paths below - see
-# scripts/install-openvox-eyaml.sh. Masterless setup, no puppetserver:
-# each host compiles its own catalog locally, so there is no single
-# fleet-wide unlock point the way ansible-vault's shared key had.
+# Hiera 5 config for host-scoped secret lookups. Every agent resolves only
+# its own encrypted file with its own private key. The temporary legacy layer
+# below provides rollback while the new hierarchy is validated on all hosts.
 version: 5
 
 defaults:
@@ -18,7 +15,16 @@ hierarchy:
     data_hash: yaml_data
     path: "common.yaml"
 
-  - name: "Common eyaml secrets"
+  - name: "Host eyaml secrets"
+    lookup_key: eyaml_lookup_key
+    path: "secrets/%{trusted.certname}.eyaml"
+    options:
+      pkcs7_private_key: "/etc/puppetlabs/puppet/eyaml/hosts/%{trusted.certname}/private_key.pkcs7.pem"
+      pkcs7_public_key: "/etc/puppetlabs/puppet/eyaml/hosts/%{trusted.certname}/public_key.pkcs7.pem"
+
+  # Temporary fallback. Remove this and the legacy key pair only after the
+  # all-host noop/apply validation of the host-scoped transition succeeds.
+  - name: "Legacy common eyaml secrets (temporary fallback)"
     lookup_key: eyaml_lookup_key
     path: "common.eyaml"
     options:

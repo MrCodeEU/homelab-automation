@@ -42,21 +42,23 @@ class roles::grafana_alloy (
     }
   }
 
-  # The EPP template's own $hostname == 'nuc' gate means this is a
-  # harmless no-op lookup on mljr/ugreen - simpler to always resolve it
-  # here (same self-lookup convention as
-  # roles::hetrixtools_agent/roles::crowdsec_firewall_bouncer) than to
-  # thread a per-host override through site.pp. Empty string (the
-  # secret not being set) becomes undef, not Sensitive(''), matching
-  # the Ansible template's own truthy check
+  # Only nuc can render the Home Assistant scrape. Do not look up this
+  # credential on mljr or ugreen: per-host eyaml files are intended to
+  # constrain which host can decrypt which secret. Empty string (the secret
+  # not being set) becomes undef, not Sensitive(''), matching the Ansible
+  # template's own truthy check
   # (`secrets.homeassistant.token is defined and secrets.homeassistant.token`) -
   # an empty Sensitive value would still satisfy the EPP's NotUndef
   # gate and wrongly emit the homeassistant scrape block with a blank
   # bearer_token.
-  $homeassistant_token_raw = lookup('vault_homeassistant_token', { 'default_value' => '' })
-  $homeassistant_token = $homeassistant_token_raw ? {
-    ''      => undef,
-    default => Sensitive($homeassistant_token_raw),
+  if $hostname == 'nuc' {
+    $homeassistant_token_raw = lookup('vault_homeassistant_token', { 'default_value' => '' })
+    $homeassistant_token = $homeassistant_token_raw ? {
+      ''      => undef,
+      default => Sensitive($homeassistant_token_raw),
+    }
+  } else {
+    $homeassistant_token = undef
   }
 
   $work_dir = '/usr/local/libexec/openvox-grafana-alloy'
