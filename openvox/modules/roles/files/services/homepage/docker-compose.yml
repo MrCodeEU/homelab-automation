@@ -26,11 +26,12 @@ services:
       - HOMELAB_KUMA_URL=https://uptime.mljr.eu
       - HOMELAB_PROM_URL=http://nuc.tail33930.ts.net:19090
       # Tailscale mesh panel: API key is the only secret, rest is public data
-      # (devices filtered against the inventory below, services from all.yml).
+      # (devices filtered against tailscale_hosts, services from
+      # services_catalog - both keys in the one common.yaml below).
       - TAILSCALE_API_KEY=${TAILSCALE_API_KEY}
       - TAILSCALE_TAILNET=tail33930.ts.net
-      - HOMELAB_INVENTORY_URL=https://raw.githubusercontent.com/MrCodeEU/homelab-automation/main/ansible/inventory/hosts.yml
-      - HOMELAB_SERVICES_URL=https://raw.githubusercontent.com/MrCodeEU/homelab-automation/main/ansible/inventory/group_vars/all/all.yml
+      - HOMELAB_INVENTORY_URL=https://raw.githubusercontent.com/MrCodeEU/homelab-automation/main/openvox/data/common.yaml
+      - HOMELAB_SERVICES_URL=https://raw.githubusercontent.com/MrCodeEU/homelab-automation/main/openvox/data/common.yaml
       - NTFY_URL=https://ntfy.mljr.eu
       - NTFY_TOPIC=homepage
       # Live project/GitHub/content data + assets (images, thesis PDFs)

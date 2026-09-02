@@ -5,6 +5,24 @@
 # roles::services) reads from, so the catalog only needs updating in one
 # place instead of once per role's own copy of it.
 ---
+# Agent-managed + proxy-only hosts' tailscale IPs. Not secret (tailnet IPs
+# only meaningful to devices already on the tailnet), and deliberately
+# duplicated from each openvox/data/nodes/<certname>.yaml's own
+# roles::base::tailscale_ip / roles::services::tailscale_ip rather than
+# looked up - same "hardcode a small derived dataset, document the
+# maintenance shift" call already made for roles::backup_dashboard's
+# $catalog_services. Public consumer: the mljr-web homepage's Tailscale
+# mesh panel fetches this raw file to filter the tailnet device list down
+# to infra hosts (see openvox/README.md or mljr-web's homelab/tailscale.go).
+# Keep in sync with the node files and with services.pp's $all_secrets
+# *_ip entries whenever a host's tailscale IP changes.
+tailscale_hosts:
+  mljr: '100.100.20.1'
+  nuc: '100.100.10.1'
+  nas: '100.100.10.2'
+  ugreen: '100.100.10.4'
+  homeassistant: '100.100.10.200'
+
 # Public half of the backup-to-ugreen keypair (roles::backup_remote_key
 # generates it on nuc, regenerate: never; roles::backup_remote_target
 # authorizes it on ugreen). Not secret - a public key - so it lives here
