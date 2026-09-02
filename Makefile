@@ -14,9 +14,10 @@
 #   make openvox-recovery HOST=<mljr|nuc> SERVICE=<name>[,<name>...]
 #   make openvox-rollback HOST=<host> [STEPS=1]
 #
-# `ansible/` is retained as a migration reference only - see the top-level
-# README.md's "Migrating from Ansible" section. It is not wired into any
-# target below and has no deployment path of its own anymore.
+# `ansible/` (the pre-OpenVox implementation) was removed 2026-09-02 after
+# a full parity audit confirmed every role had a real OpenVox equivalent -
+# see the top-level README.md's "Migrating from Ansible" section, or
+# `git log` before that date for the original tree.
 ################################################################################
 
 .PHONY: test test-quick test-services test-services-verbose test-healthreport test-openvox-unit test-openvox-caddy-render \

@@ -3,6 +3,8 @@ quiet: true
 skip-path:
   - .git
   - .githooks/.venv
-  # Retained only as the OpenVox migration reference; it is no longer a
-  # deployment path. Active infrastructure remains fully scanned.
-  - ansible
+  # Puppet spec fixtures ship deliberately fake test secrets (e.g.
+  # "test-jwt-secret") that Checkov's entropy-based secrets scanner
+  # misflags as CKV_SECRET_6 "Base64 High Entropy String". Not real
+  # infrastructure data - test-only, never deployed.
+  - openvox/spec/fixtures

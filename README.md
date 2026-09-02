@@ -5,11 +5,11 @@ services across the `mljr.eu` homelab over Tailscale. Masterless: every host
 runs `puppet apply` against its own locally-synced copy of the manifests —
 there is no puppetserver/PuppetDB anywhere in this fleet.
 
-`ansible/` is the previous implementation of this exact same automation,
-fully superseded 2026-08-23 and kept only as a short-lived reference while
-the OpenVox port settles — it is no longer deployed by CI or documented
-below. See [Migrating from Ansible](#migrating-from-ansible) if you're
-looking for the old workflow.
+`ansible/`, the previous implementation of this exact same automation
+(superseded 2026-08-23), was removed 2026-09-02 after a full parity audit
+confirmed every role had a real OpenVox equivalent. See
+[Migrating from Ansible](#migrating-from-ansible) if you're looking for
+what changed, or check out a commit before that date for the old tree.
 
 ## Quick Start
 
@@ -98,8 +98,6 @@ homelab-automation/
 │       │                             # host_facts_endpoint, unraid_proxy, wd_mycloud_proxy, ...
 │       ├── templates/                # EPP templates (Puppet's native templating)
 │       └── files/                    # Vendored per-service content + check/apply script pairs
-├── ansible/                          # Superseded 2026-08-23, kept as reference only
-│   └── ...                           # (was the primary implementation until this date)
 ├── services/
 │   ├── crowdsec/
 │   ├── grafana/
@@ -273,13 +271,13 @@ with `make sync-openvox-services`; the pre-commit hook and CI reject drift.
 
 Runs service-catalog validation (`.githooks/pre-commit`) and Caddy
 template rendering — both engine-independent, since they validate
-`services/` and the shared `services_catalog` data, not Ansible or Puppet
-machinery. `_check-syntax`/`_check-compose` still check the legacy
-`ansible/` playbooks specifically; there's no `puppet parser validate`
-equivalent wired in yet since no `puppet`/`openvox` binary exists on a
-plain dev machine or CI runner today — a manifest syntax error is
-currently only ever caught live, on the first `openvox-sync.sh noop`
-against a real host.
+`services/` and the shared `services_catalog` data, not Puppet machinery.
+`_check-syntax` runs `puppet parser validate` against every OpenVox
+manifest when a `puppet`/`openvox` binary is available locally (it isn't
+on a plain dev machine, so this step is a SKIP there); CI's
+`openvox-pr-check.yml` runs it for real, plus a live noop apply against
+production, on every PR. `_check-compose` validates every service's
+`docker-compose.yml`.
 
 ## Common Commands
 
@@ -361,15 +359,19 @@ External repos can trigger a specific service deployment with `repository_dispat
 `ansible/` was the primary implementation of this automation until
 2026-08-23, when it was fully superseded by the OpenVox port above (all 26
 roles ported 1:1, verified live against real production infrastructure
-role-by-role before the CI cutover). It's kept as a short-lived reference
-only — not deployed by CI, not documented as a supported path — while the
-OpenVox port settles. If you're looking for the old `ansible-playbook`/
-`ansible-vault`/`make deploy-*` workflow, the roles/playbooks are still
-there (the encrypted vault itself was deleted, git-history-recoverable,
-once the host-scoped OpenVox eyaml files took over — see
-`ansible/inventory/group_vars/all/vault.yml.example` for the key names);
-`git log` on any `ansible/roles/<name>/` directory is the most reliable
-way to see what a given role used to do before its Puppet port.
+role-by-role before the CI cutover). It was kept as a short-lived
+reference afterward, then removed 2026-09-02 following a full parity
+audit that confirmed every role had a real OpenVox equivalent - one gap
+was found (`mailcow_auto_update`'s default; kept intentionally on rather
+than restored) and one unrelated gap the audit surfaced along the way
+(canarytokens missing backup coverage) was fixed separately.
+
+If you're looking for the old `ansible-playbook`/`ansible-vault`/
+`make deploy-*` workflow: check out any commit before 2026-09-02 and the
+whole `ansible/` tree is there. `git log --diff-filter=D -- ansible/` (or
+`git log --oneline -- ansible/roles/<name>/`) is the most reliable way to
+find when a given role was removed and see what it used to do before its
+Puppet port.
 
 ## License
 

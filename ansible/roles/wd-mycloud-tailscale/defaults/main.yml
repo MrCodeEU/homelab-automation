@@ -1,5 +1,0 @@
----
-# Persistent partition on the WD My Cloud EX2 Ultra - the only path that
-# survives a firmware update (see roles/wd-mycloud-tailscale/tasks/main.yml
-# for the busybox/no-package-manager constraints this works around).
-wd_tailscale_base: /mnt/HD/HD_a2/tailscale
