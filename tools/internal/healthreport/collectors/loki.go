@@ -32,12 +32,22 @@ const notErrorPattern = `(?i)(error=<nil>|error=null|"error":null|"error":""|err
 // that grows without bound. Exclude the query engine's own chatter.
 const selfLogPattern = `(component=querier|component=ingester|caller=(metrics|engine)\.go)`
 
+// Syncthing's UPnP port-mapping renewal races the FritzBox's ~50min lease
+// expiry and occasionally loses (ConflictInMappingEntry), and the mesh
+// FRITZ!Repeater's advertised WANDevice/UPnP IGD services are permanently
+// non-functional stubs (a repeater doesn't own the WAN interface). Both are
+// confirmed harmless - the working port mapping/pinhole never actually
+// drops - but the connection UUID in the log line changes each time,
+// rotating the signature hash and flaring to warn on every Syncthing
+// restart. See backlog-2026-08-07.md's 2026-08-21 UPnP triage note.
+const knownNoisePattern = `(?i)(ConflictInMappingEntry|Failed to acquire open port|Couldn't add pinhole)`
+
 // A signature must recur this often within the sample before it becomes an
 // observation, and only this many are reported per run.
 const minSignatureCount = 10
 const maxSignatures = 15
 
-var dockerErrors = fmt.Sprintf(`{job="docker"} |~ `+"`%s`"+` !~ `+"`%s`"+` !~ `+"`%s`", errorPattern, notErrorPattern, selfLogPattern)
+var dockerErrors = fmt.Sprintf(`{job="docker"} |~ `+"`%s`"+` !~ `+"`%s`"+` !~ `+"`%s`"+` !~ `+"`%s`", errorPattern, notErrorPattern, selfLogPattern, knownNoisePattern)
 
 // Order matters: mask the most specific shapes first.
 var normalizers = []struct {

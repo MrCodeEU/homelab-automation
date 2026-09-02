@@ -1,6 +1,7 @@
 package collectors
 
 import (
+	"regexp"
 	"testing"
 	"time"
 )
@@ -184,6 +185,23 @@ func TestUncolouredAndColouredCollapseTogether(t *testing.T) {
 	plain := "2026-07-29T08:05:31.371+00:00 ERROR bichon_server: Documentation: https://github.com/rustmailer/bichon/wiki"
 	if normalize(bichonLine) != normalize(plain) {
 		t.Fatalf("normalize(bichon)=%q normalize(plain)=%q", normalize(bichonLine), normalize(plain))
+	}
+}
+
+func TestKnownNoiseMatchesSyncthingUPnPChatter(t *testing.T) {
+	re := regexp.MustCompile(knownNoisePattern)
+	noisy := []string{
+		`syncthing[1]: WARNING: Service: broadcast: ConflictInMappingEntry (718)`,
+		`syncthing[1]: WARNING: Universal PnP: Failed to acquire open port`,
+		`syncthing[1]: WARNING: Couldn't add pinhole: 403 Not Available`,
+	}
+	for _, line := range noisy {
+		if !re.MatchString(line) {
+			t.Fatalf("expected knownNoisePattern to match %q", line)
+		}
+	}
+	if re.MatchString(`postgres[1]: ERROR could not write block N of base/16384/12345`) {
+		t.Fatal("knownNoisePattern must not swallow real errors")
 	}
 }
 
