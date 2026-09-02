@@ -3,9 +3,10 @@
 What it actually takes to get this homelab back from a dead/corrupted/
 reinstalled host, host-by-host, and an honest list of what is **not**
 covered today. Originally written from a real audit (2026-08-13);
-updated 2026-08-29 to reflect OpenVox as the real production deploy
-mechanism since 2026-08-23 (see `openvox/README.md`) - every gap below
-was verified against the actual role/catalog code, not assumed.
+updated 2026-09-02 to reflect OpenVox as the real production deploy
+mechanism since 2026-08-23 and its host-scoped EYaml keys (see
+`openvox/README.md`) - every gap below was verified against the actual
+role/catalog code, not assumed.
 
 `ansible/` is still kept in the repo as reference for a few weeks (per
 standing instruction). Every recovery step below goes entirely through
@@ -42,13 +43,11 @@ prerequisites:
    in its host section below). See `openvox/README.md` for the masterless
    model this repo relies on - no puppetserver, no PuppetDB, every host
    applies its own copy of `manifests/site.pp` locally.
-4. **Deploy the eyaml decrypt key pair to the host**:
-   `./scripts/install-openvox-eyaml.sh <host>`. This scp's
-   `openvox/keys/private_key.pkcs7.pem` (gitignored, **not** a GitHub
-   Actions secret - see below) to `/etc/puppetlabs/puppet/eyaml/` on the
-   target and installs the `hiera-eyaml` gem. Without this step, any
-   class that does `lookup('vault_...')` fails outright - there's no
-   puppetserver to fall back on for decryption.
+4. **Restore that host's existing EYaml key pair.** This is required only
+   for an existing recovered host; see [EYaml key recovery](#eyaml-key-recovery)
+   below. Without its original private key, any class that does
+   `lookup('vault_...')` fails outright - there is no puppetserver to
+   fall back on for decryption.
 5. **Sync the environment and apply**: `make openvox-deploy-<host>` (or
    `make openvox-check-<host>` first, to noop it) runs
    `scripts/openvox-sync.sh`, which rsyncs (scp for `ugreen`) the whole
@@ -57,17 +56,13 @@ prerequisites:
 6. **`git config core.hooksPath .githooks`** - repo-standard pre-commit
    hooks, unrelated to any specific host.
 
-**The eyaml private key is the single point of failure for every
-`vault_*` secret in this repo, and it lives nowhere in Git.** If
-`openvox/keys/private_key.pkcs7.pem` is lost and no host still has a
-copy under `/etc/puppetlabs/puppet/eyaml/`, `data/common.eyaml` becomes
-permanently undecryptable - not merely inconvenient, actually
-unrecoverable, since PKCS7 has no backdoor. **Confirm today that this
-key file has an outside-Git backup** (password manager, offline copy -
-this doc can't verify that for you) before treating anything else in
-this runbook as trustworthy. This replaces the old Ansible-vault-password
-requirement; there is no equivalent single CI secret for it, deliberately
-(masterless design, no single unlock point - see `openvox/README.md`).
+**Each agent host has its own EYaml private key and encrypted secret file.**
+The private keys are outside Git and are backed up in Bitwarden, labelled by
+certificate name. If a host's original key is lost, that host's
+`openvox/data/secrets/<certname>.eyaml` is permanently undecryptable - PKCS7
+has no backdoor - but the other hosts remain unaffected. This replaces the
+old shared-key design and the earlier Ansible-vault-password requirement;
+there is deliberately no CI unlock secret.
 
 **GitHub Actions secrets** (only 2 now - the eyaml key is never a CI
 secret, it's deployed straight to hosts): `TS_OAUTH_CLIENT_ID`,
@@ -79,9 +74,41 @@ Tailscale admin console configuration itself - ACLs, device tags, the
 If that's gone, every host needs re-enrolling and re-approving by hand
 before OpenVox can reach any of them.
 
+### EYaml key recovery
+
+For an **existing** recovered agent host, restore the exact private key from
+its Bitwarden entry, not a newly generated replacement. The certificate name
+and active key directory are:
+
+| Host | Certificate name | Active directory |
+|------|------------------|------------------|
+| `mljr` | `mljr.tail33930.ts.net` | `/etc/puppetlabs/puppet/eyaml/hosts/mljr.tail33930.ts.net/` |
+| `nuc` | `nuc.tail33930.ts.net` | `/etc/puppetlabs/puppet/eyaml/hosts/nuc.tail33930.ts.net/` |
+| `ugreen` | `ugreen.tail33930.ts.net` | `/etc/puppetlabs/puppet/eyaml/hosts/ugreen.tail33930.ts.net/` |
+
+After OpenVox itself is installed, restore the private key to that directory
+as `private_key.pkcs7.pem`, restore the matching public key from
+`openvox/keys/<host>/public_key.pkcs7.pem` as `public_key.pkcs7.pem`, then
+apply the required ownership and modes:
+
+```bash
+install -d -m 0700 /etc/puppetlabs/puppet/eyaml/hosts/<certname>
+install -o root -g root -m 0400 private_key.pkcs7.pem \
+  /etc/puppetlabs/puppet/eyaml/hosts/<certname>/private_key.pkcs7.pem
+install -o root -g root -m 0444 public_key.pkcs7.pem \
+  /etc/puppetlabs/puppet/eyaml/hosts/<certname>/public_key.pkcs7.pem
+/opt/puppetlabs/puppet/bin/gem install hiera-eyaml --no-document
+```
+
+Then run `make openvox-check-<host>` before deployment. Do **not** run
+`scripts/bootstrap-openvox-eyaml-host-key.sh` for recovery: it creates a new
+key pair and therefore cannot decrypt the already committed ciphertext. That
+script is only for a genuinely new host, after which its public key and a new
+host secret file must be committed.
+
 ## mljr (Rocky, production ingress)
 
-Once Tailscale-enrolled, OpenVox-installed, and the eyaml key deployed
+Once Tailscale-enrolled, OpenVox-installed, and its EYaml key restored
 (steps above), `make openvox-deploy-mljr` (or the normal CI deploy path
 via `.github/workflows/deploy.yml`) brings up: base packages/Docker/
 firewalld, CrowdSec + nftables bouncer, Caddy (reverse proxy/ingress +
@@ -300,10 +327,10 @@ hardware. The repeatable boundary is deliberately clear:
    (`https://apt.voxpupuli.org`, suite `debian12 openvox8`) and install the
    OpenVox agent. Set its certname to `ugreen.tail33930.ts.net`. The
    generic `scripts/install-openvox.sh` is Rocky-only; do not run it here.
-4. **Install the eyaml key pair**, then sync and apply:
+4. **Restore Ugreen's existing EYaml key pair** as described in
+   [EYaml key recovery](#eyaml-key-recovery), then sync and apply:
 
    ```bash
-   ./scripts/install-openvox-eyaml.sh ugreen.tail33930.ts.net
    make openvox-check-ugreen
    make openvox-deploy-ugreen
    ```
@@ -355,9 +382,9 @@ not this repo.
 
 ## Credentials checklist
 
-Every `vault_*` value needs to exist somewhere outside Git if
-`data/common.eyaml` and the eyaml private key are both lost - the key
-names are unchanged from the Ansible-era vault, so
+Every `vault_*` value needs to exist somewhere outside Git if its
+host-specific EYaml ciphertext and the matching private key are both lost -
+the key names are unchanged from the Ansible-era vault, so
 `ansible/inventory/group_vars/all/vault.yml.example` (kept as reference,
 not consumed by OpenVox) still lists the full set accurately (65 entries
 as of this update). The ones that are genuinely painful or impossible to
@@ -420,16 +447,17 @@ correction), and Syncthing content has multi-peer replication plus
   bootstrap, backup-target repopulation, and validation checks.
 - Actually test this runbook against a throwaway VM once resources allow
   - everything above is verified-by-reading-code, not verified-by-doing.
-- Revisit the accepted shared-eyaml-key risk after the higher-priority audit
-  items are complete. If implemented, use one eyaml file and key pair per host;
-  duplicate secrets needed by multiple hosts so each copy has independently
-  encrypted ciphertext. This limits a host compromise to that host's secrets,
-  at the cost of additional bootstrap, backup, rotation, and CI complexity.
+- FIXED (2026-09-02): host-scoped EYaml keys and ciphertext. Each agent has
+  `data/secrets/<certname>.eyaml`, a distinct private key at
+  `/etc/puppetlabs/puppet/eyaml/hosts/<certname>/`, and only its own required
+  lookups. Shared values are separately encrypted for every recipient host.
+  The old shared key pairs were removed only after all three active keys were
+  saved in Bitwarden; the former shared key is retained there only for
+  historical Git ciphertext recovery.
 - FIXED (2026-08-29): this doc was still Ansible-vault-framed after the
   2026-08-23 OpenVox cutover - rewritten for the eyaml PKCS7 bootstrap flow.
-- Confirm and document, outside this repo, that
-  `openvox/keys/private_key.pkcs7.pem` actually has a real backup
-  (password manager or equivalent) - it is the single point of failure
-  for every `vault_*` secret and this doc cannot verify that for you.
-  See `docs/OPENVOX_BACKLOG.md` for the broader OpenVox review backlog
-  this DR-doc fix came out of.
+- FIXED (2026-09-02): the exact active private key for each agent is stored
+  in Bitwarden under its certificate name. The root-level local copies under
+  `openvox/keys/<host>/` are gitignored operator conveniences, not the
+  authoritative backup. See `docs/OPENVOX_BACKLOG.md` for the broader
+  OpenVox review backlog this DR-doc fix came out of.
