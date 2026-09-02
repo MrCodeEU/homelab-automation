@@ -34,3 +34,14 @@ behind-proxy: true
 
 # Log level (info, debug, warn, error)
 log-level: "info"
+
+# Access control: deny everything by default, then hooks/post-deploy.sh
+# grants `everyone <topic> read-write` per topic in ntfy_topic_whitelist
+# (openvox/data/common.yaml) via `ntfy access`. Closes the server to
+# arbitrary internet clients using it as a free relay for their own topics
+# - the actual concern this was built for, not message confidentiality.
+# auth.db lives on the existing ntfy-data volume, survives restarts.
+# New topic workflow: add the name to ntfy_topic_whitelist, deploy - the
+# hook re-grants idempotently on every apply.
+auth-file: "/var/lib/ntfy/auth.db"
+auth-default-access: "deny-all"

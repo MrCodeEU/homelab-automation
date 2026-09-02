@@ -288,6 +288,23 @@ rules:
     type: new_only
     level: warn
 
+  # ntfy's auth-default-access: deny-all only lets ntfy_topic_whitelist
+  # (openvox/data/common.yaml) through - a topic missing from that list
+  # gets silently dropped for whoever publishes/subscribes to it otherwise.
+  # new_only: surface it once, self-clears once the topic is whitelisted
+  # and stops getting denied.
+  ntfy_denied_topic:
+    type: new_only
+    level: warn
+
+  # Denials where the topic couldn't be read from the URL (JSON-body
+  # publish, e.g. Uptime-Kuma/diun) - not new_only, since the same
+  # unresolved gap should keep showing up daily until someone checks
+  # `docker logs ntfy` for the actual topic and whitelists it.
+  ntfy_denied_unknown:
+    type: present
+    level: warn
+
   log_error_rate:
     type: threshold_or_spike
     direction: above
