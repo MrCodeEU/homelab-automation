@@ -18,9 +18,8 @@ git clone https://github.com/MrCodeEU/homelab-automation.git
 cd homelab-automation
 git config core.hooksPath .githooks
 
-# Puppet/eyaml decrypt keys are deployed to each host separately, once -
-# see scripts/install-openvox-eyaml.sh. Nothing to install locally: the
-# only local dependencies are ssh/rsync/scp, already on any dev machine.
+# Puppet/eyaml decrypt keys are unique per host. See Secrets Management for
+# bootstrap and disaster recovery; local dependencies are ssh/rsync/scp.
 
 # Dry run — syncs manifests to every agent-managed host and runs
 # `puppet apply --noop`, no changes made
@@ -91,7 +90,7 @@ homelab-automation/
 │   ├── data/
 │   │   ├── common.yaml               # Service catalog (services_catalog) + global config
 │   │   └── secrets/                  # per-host hiera-eyaml encrypted vault_* values
-│   ├── keys/                         # eyaml PKCS7 public key (private key lives host-side only)
+│   ├── keys/                         # per-host public keys; private keys are gitignored
 │   └── modules/roles/
 │       ├── manifests/                # One class per role: base, caddy, services,
 │       │                             # services_nas, backup, authelia, mailcow, glance,
@@ -190,6 +189,33 @@ as GitHub secrets, since they're used by the Tailscale GitHub Action
 directly, unrelated to hiera-eyaml.
 
 The pre-commit hook rejects any staged eyaml file containing plaintext.
+
+### Adding or changing a secret
+
+1. Identify every host that needs the value. A shared value is duplicated as
+   distinct ciphertext in each recipient file; a service selectable for NUC
+   staging also makes NUC a recipient.
+2. Add the `vault_*` lookup to the owning role or the appropriate host branch
+   of `roles::services`; an encrypted value alone is not injected into a
+   service.
+3. Edit each recipient's file using that same host's keypair as shown above.
+   Never transfer a private key between hosts or print plaintext in a shell
+   command/log.
+4. Commit only ciphertext, open a PR, and let its live noops validate every
+   recipient before deployment.
+
+### Key backup and host recovery
+
+Keep one offline/Bitwarden backup of every host-specific private key, labelled
+with its certificate name. On recovery, restore the **exact existing** key to
+`/etc/puppetlabs/puppet/eyaml/hosts/<certname>/private_key.pkcs7.pem` with
+mode `0400` and ownership `root:root`, restore the matching public key with
+mode `0444`, install `hiera-eyaml` if necessary, then run the normal noop.
+
+`scripts/bootstrap-openvox-eyaml-host-key.sh` is only for a genuinely new host:
+it generates a new keypair and therefore cannot decrypt existing ciphertext.
+Do not use it to recover a lost key; recover the original key from the backup
+instead.
 
 ## Security
 

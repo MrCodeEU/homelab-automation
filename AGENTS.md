@@ -71,14 +71,28 @@ reachable via the exec's `command`). See
 `cleanup-apply.sh` for the canonical example. Follow this pattern for any
 new guarded exec.
 
-**Secrets decrypt host-side, never centrally.** Every `vault_*` key in
-`openvox/data/common.eyaml` is hiera-eyaml/PKCS7, resolved via
-`lookup('vault_...')` on the host itself at apply time — there is no
-central unlock point and CI needs no vault-password secret. Edit secrets
-through a host that already has the key pair (see README's Secrets
-Management section for the scp/eyaml-edit/scp-back flow); never attempt to
-decrypt `common.eyaml` locally, there's no `eyaml` binary outside Puppet's
-bundled Ruby.
+**Secrets are host-scoped and decrypt host-side.** Every `vault_*` key is
+hiera-eyaml/PKCS7 ciphertext in
+`openvox/data/secrets/<certname>.eyaml`, resolved through `lookup('vault_...')`
+on that host only. The matching private key lives at
+`/etc/puppetlabs/puppet/eyaml/hosts/<certname>/private_key.pkcs7.pem`; only
+the public key is committed. There is no central unlock point and CI needs no
+vault-password secret.
+
+When adding a secret, identify every recipient first. Put separately
+encrypted copies in every recipient host file; include `nuc` when it can run
+the service as an explicit staging deployment. Add the `lookup()` mapping in
+the relevant role as well—an eyaml entry alone never reaches a container.
+Edit a recipient file only through that recipient host's bundled `eyaml`
+binary, copy back ciphertext only, and submit it through the normal PR/noop
+path. Never print plaintext, commit a private key, or decrypt a host file on
+another host.
+
+`bootstrap-openvox-eyaml-host-key.sh` creates a *new* keypair and is for a
+new host only. It cannot recover existing ciphertext. Disaster recovery must
+restore that host's exact private key from the owner's offline backup before
+the first apply. Do not delete or rotate a key without a verified backup and
+a re-encryption plan.
 
 **Staging is opt-in and explicit.** `staging: true` on a catalog entry plus
 `services/<name>/dev/docker-compose.yml` is required; production applies
@@ -91,7 +105,7 @@ production `post-deploy.sh`.
 |------|---------|
 | `openvox/manifests/site.pp` | Entrypoint — one node block per agent-managed host |
 | `openvox/data/common.yaml` | `services_catalog` + global config |
-| `openvox/data/common.eyaml` | Encrypted `vault_*` secrets |
+| `openvox/data/secrets/<certname>.eyaml` | Per-host encrypted `vault_*` secrets |
 | `openvox/modules/roles/manifests/*.pp` | One class per role |
 | `services/<name>/docker-compose.yml` | Canonical service Compose definitions |
 | `scripts/openvox-sync.sh` | rsync manifests to a host + run `puppet apply` |
@@ -101,9 +115,11 @@ production `post-deploy.sh`.
 
 1. Add to `services_catalog` in `openvox/data/common.yaml`.
 2. Create `services/<name>/docker-compose.yml`.
-3. Secrets needed? Add `vault_*` keys to `common.eyaml`, then map them into
-   the service's `.env` in `roles::services`' `$all_secrets` hash
-   (`services_nas.pp` instead, for a `nas`-hosted service).
+3. Secrets needed? Add each `vault_*` key to every required host's
+   `data/secrets/<certname>.eyaml`, encrypted with that host's public key;
+   then map it into the service's `.env` in `roles::services`' host branch
+   (`services_nas.pp` instead, for a `nas`-hosted service). Include `nuc`
+   for any service selectable as staging there.
 4. Staging needed? Add `services/<name>/dev/docker-compose.yml` and set
    `staging: true`.
 5. `make test`, then `make openvox-check-<host>` before a real deploy.
