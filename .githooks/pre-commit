@@ -16,9 +16,8 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 echo -e "${YELLOW}Running pre-commit validations...${NC}"
 
 # Guard: every staged eyaml secret file must contain ciphertext only.
-# common.eyaml remains checked during the temporary rollback phase; final
-# host-specific files live under data/secrets/.
-mapfile -t EYAML_FILES < <(git diff --cached --name-only -- 'openvox/data/common.eyaml' 'openvox/data/secrets/*.eyaml')
+# Host-specific ciphertext files live under data/secrets/.
+mapfile -t EYAML_FILES < <(git diff --cached --name-only -- 'openvox/data/secrets/*.eyaml')
 for EYAML_FILE in "${EYAML_FILES[@]}"; do
     EYAML_CONTENT=$(git show ":$EYAML_FILE" 2>/dev/null)
     if [ -z "$EYAML_CONTENT" ]; then

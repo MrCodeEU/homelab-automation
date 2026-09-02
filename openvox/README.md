@@ -64,8 +64,7 @@ created once via `scripts/bootstrap-openvox-eyaml-host-key.sh <host>` — a deli
 separate step from the general environment sync, since not every host needs
 every secret and there's no puppetserver to act as a single unlock point.
 Private keys are gitignored and never leave their host; the corresponding
-public keys are committed under `keys/<host>/`. The temporary legacy
-`common.eyaml` hierarchy remains only until the staged migration cleanup.
+public keys are committed under `keys/<host>/`.
 
 ## Templates
 
