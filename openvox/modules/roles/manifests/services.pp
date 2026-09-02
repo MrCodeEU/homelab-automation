@@ -56,7 +56,7 @@ class roles::services (
   Array[String] $post_deploy_hook_services = [
     'crowdsec', 'forgejo', 'grafana', 'speedtest', 'godrive-demo',
     'healthreport', 'backup-dashboard', 'mail-archiver', 'umami', 'nocturne',
-    'syncthing-ugreen',
+    'syncthing-ugreen', 'ntfy',
   ],
   Array[String] $critical_hook_services = ['crowdsec', 'forgejo', 'grafana', 'speedtest'],
   # Matches Ansible's own `cleanup_enabled | default(true)` - ugreen's own
@@ -252,6 +252,9 @@ class roles::services (
         'smtp_port'     => lookup('vault_smtp_port', { 'default_value' => '587' }),
         'smtp_user'     => lookup('vault_smtp_user', { 'default_value' => '' }),
         'smtp_password' => lookup('vault_smtp_password', { 'default_value' => '' }),
+      },
+      'ntfy' => {
+        'topic_whitelist' => lookup('ntfy_topic_whitelist', { 'default_value' => [] }).join(','),
       },
     },
     'ugreen' => {

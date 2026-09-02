@@ -156,6 +156,36 @@ unraid_backup_excluded:
 # rest need a per-cluster call only the device owner can make.
 ha_excluded_clusters: []
 
+# ntfy topic allowlist (roles::services' ntfy hook grants `everyone <topic>
+# read-write` for each, server.yml sets auth-default-access: deny-all so
+# anything not listed here is unreachable). Ground truth pulled from 29 days
+# of live Caddy access logs on 2026-09-02 (Loki job="caddy", filtered to
+# host="ntfy.mljr.eu") rather than memory - one log line was the ntfy
+# client's own combined multi-topic subscribe request, which enumerated
+# every topic actually in use: home, image-sort, deployment, docker-updates,
+# homepage, speed, Unraid, monitor, email-test, crowdsec, homelab-security,
+# uptime, ntfy-test. homelab-health/backup (healthreport, unraid_backup) are
+# kept even though they had zero hits in that window - Puppet-managed,
+# should exist regardless of whether delivery is currently working (that's
+# a separate open question, not scoped here). New topic workflow: add the
+# name here, deploy - hooks/post-deploy.sh re-grants idempotently every run.
+ntfy_topic_whitelist:
+  - home
+  - image-sort
+  - deployment
+  - docker-updates
+  - homepage
+  - speed
+  - Unraid
+  - monitor
+  - email-test
+  - crowdsec
+  - homelab-security
+  - uptime
+  - ntfy-test
+  - homelab-health
+  - backup
+
 services_catalog:
   - name: authelia
     enabled: true
