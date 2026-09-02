@@ -1,6 +1,0 @@
----
-- name: Restart Glance
-  community.docker.docker_container:
-    name: glance
-    state: started
-    restart: true

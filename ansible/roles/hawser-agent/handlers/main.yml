@@ -1,7 +1,0 @@
----
-- name: restart hawser
-  ansible.builtin.systemd:
-    name: hawser
-    state: restarted
-    daemon_reload: true
-  when: not ansible_check_mode

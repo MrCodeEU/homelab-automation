@@ -8,9 +8,10 @@ mechanism since 2026-08-23 and its host-scoped EYaml keys (see
 `openvox/README.md`) - every gap below was verified against the actual
 role/catalog code, not assumed.
 
-`ansible/` is still kept in the repo as reference for a few weeks (per
-standing instruction). Every recovery step below goes entirely through
-OpenVox now - the three roles that looked unported by name
+`ansible/` was removed 2026-09-02 after a full parity audit confirmed
+every role had a real OpenVox equivalent - see `git log` before that date
+if the old tree is ever needed. Every recovery step below goes entirely
+through OpenVox now - the three roles that looked unported by name
 (`syncthing-nas-key`, `unraid-bootstrap`, `wd-mycloud-tailscale`) turned
 out to already be covered under different class names
 (`roles::unraid_proxy`, `roles::wd_mycloud_proxy`, a static vault
@@ -383,11 +384,12 @@ not this repo.
 ## Credentials checklist
 
 Every `vault_*` value needs to exist somewhere outside Git if its
-host-specific EYaml ciphertext and the matching private key are both lost -
-the key names are unchanged from the Ansible-era vault, so
-`ansible/inventory/group_vars/all/vault.yml.example` (kept as reference,
-not consumed by OpenVox) still lists the full set accurately (65 entries
-as of this update). The ones that are genuinely painful or impossible to
+host-specific EYaml ciphertext and the matching private key are both lost.
+eyaml only encrypts values, not keys, so `openvox/data/secrets/<host>.eyaml`
+already lists every `vault_*` name in plaintext per host (the union across
+`mljr`/`nuc`/`ugreen` is the full set) - a more current source than the
+old Ansible vault example ever was, since it can't drift from what's
+actually deployed. The ones that are genuinely painful or impossible to
 regenerate identically, not just "annoying":
 
 - **`vault_authelia_storage_encryption_key` / `jwt_secret` /

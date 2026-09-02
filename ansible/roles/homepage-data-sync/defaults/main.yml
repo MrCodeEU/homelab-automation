@@ -1,5 +1,0 @@
----
-homepage_data_sync_path: /opt/mljr-data
-homepage_data_sync_repo: https://github.com/MrCodeEU/mljr-data.git
-homepage_data_sync_branch: master
-homepage_data_sync_schedule: "*:0/15"  # every 15 minutes

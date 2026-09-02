@@ -15,11 +15,13 @@ no PuppetDB, no cross-host catalog sharing. `nas` (Unraid, tmpfs root) and
 them is a proxy `exec` declared on **nuc's own node block**, reached over
 SSH from nuc at apply time.
 
-`ansible/` is the fully-superseded previous implementation (cut over
-2026-08-23). It is not deployed by CI, not documented as a supported path,
-and should not be edited except to consult `git log` on a role directory
-when porting behavior that isn't yet reflected in `openvox/`. Do not "fix"
-anything in `ansible/` — treat it as a frozen reference.
+`ansible/`, the previous implementation (cut over to OpenVox 2026-08-23),
+was removed 2026-09-02 after a full parity audit confirmed every role had
+a real OpenVox equivalent. If you need to see the original behavior of a
+role while porting something that isn't yet reflected in `openvox/`, check
+out a commit before that date and read `ansible/roles/<name>/` there, or
+`git log --diff-filter=D -- ansible/roles/<name>/` to find when it was
+removed.
 
 ## Before making a change
 

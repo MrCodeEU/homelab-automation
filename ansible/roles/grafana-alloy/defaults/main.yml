@@ -1,6 +1,0 @@
----
-# Where the target's actual Docker data lives. cadvisor (bundled in the Alloy
-# image) reads container/image metadata from here. Almost always the real
-# default - overridden for ugreen, whose Docker root is on its storage pool
-# rather than the OS disk (see group_vars/ugreen.yml).
-grafana_alloy_docker_root: /var/lib/docker
