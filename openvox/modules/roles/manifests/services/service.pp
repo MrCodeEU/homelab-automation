@@ -159,10 +159,18 @@ define roles::services::service (
     # post-deploy-hook.sh itself; only critical => true propagates a
     # non-zero exit here and fails the catalog run.
     if $run_post_deploy_hook {
+      # LANG/LC_ALL: without an explicit locale, Puppet's own Ruby process
+      # decodes this exec's captured output as US-ASCII (the environment it
+      # inherits over CI's Tailscale SSH session has none set) and raises
+      # "invalid byte sequence in US-ASCII" the first time a hook's output
+      # contains a non-ASCII byte - hit live 2026-09-02 via crowdsec's hook
+      # (`cscli hub update`/`upgrade` output). C.UTF-8 needs no langpack on
+      # Rocky 9's glibc, unlike en_US.UTF-8.
       exec { "services-${svc_name}-post-deploy-hook":
-        command => "${work_dir}/post-deploy-hook.sh ${svc_name} ${deploy_path} ${critical}",
-        timeout => 600,
-        require => Exec["services-${svc_name}-deploy"],
+        command     => "${work_dir}/post-deploy-hook.sh ${svc_name} ${deploy_path} ${critical}",
+        environment => ['LANG=C.UTF-8', 'LC_ALL=C.UTF-8'],
+        timeout     => 600,
+        require     => Exec["services-${svc_name}-deploy"],
       }
     }
   }
