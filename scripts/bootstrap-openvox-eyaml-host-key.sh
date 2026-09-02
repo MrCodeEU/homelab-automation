@@ -24,6 +24,7 @@ local_public_key="openvox/keys/${key_name}/public_key.pkcs7.pem"
 tmp_public_key="$(mktemp)"
 trap 'rm -f "$tmp_public_key"' EXIT
 
+# shellcheck disable=SC2029 # Validated local paths are intentionally embedded in this fixed remote command.
 ssh "root@${canonical_host}" "
   set -euo pipefail
   eyaml=/opt/puppetlabs/puppet/bin/eyaml
