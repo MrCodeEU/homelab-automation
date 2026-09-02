@@ -15,24 +15,25 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 echo -e "${YELLOW}Running pre-commit validations...${NC}"
 
-# Guard: common.eyaml's secret values must never be committed unencrypted.
-# Every non-blank, non-comment line must carry an ENC[PKCS7,...] value.
-EYAML_FILE="openvox/data/common.eyaml"
-if git diff --cached --name-only | grep -qx "$EYAML_FILE"; then
+# Guard: every staged eyaml secret file must contain ciphertext only.
+# common.eyaml remains checked during the temporary rollback phase; final
+# host-specific files live under data/secrets/.
+mapfile -t EYAML_FILES < <(git diff --cached --name-only -- 'openvox/data/common.eyaml' 'openvox/data/secrets/*.eyaml')
+for EYAML_FILE in "${EYAML_FILES[@]}"; do
     EYAML_CONTENT=$(git show ":$EYAML_FILE" 2>/dev/null)
     if [ -z "$EYAML_CONTENT" ]; then
-        echo -e "${RED}✗ common.eyaml is staged but empty or unreadable!${NC}"
+        echo -e "${RED}✗ $EYAML_FILE is staged but empty or unreadable!${NC}"
         exit 1
     fi
     PLAINTEXT_LINES=$(echo "$EYAML_CONTENT" | grep -vE '^\s*(#.*)?$' | grep -vF 'ENC[PKCS7' || true)
     if [ -n "$PLAINTEXT_LINES" ]; then
-        echo -e "${RED}✗ common.eyaml has unencrypted value(s)! Aborting commit.${NC}"
+        echo -e "${RED}✗ $EYAML_FILE has unencrypted value(s)! Aborting commit.${NC}"
         echo -e "${RED}  Encrypt with: eyaml encrypt -l <label> -s '<value>' --pkcs7-public-key=...${NC}"
         echo "$PLAINTEXT_LINES"
         exit 1
     fi
-    echo -e "${GREEN}✓ common.eyaml is encrypted${NC}"
-fi
+    echo -e "${GREEN}✓ $EYAML_FILE is encrypted${NC}"
+done
 
 # Run service definition validation (ports, domains, uniqueness, etc.)
 if ! (cd "$REPO_ROOT/tools" && go run ./cmd/validate-services); then

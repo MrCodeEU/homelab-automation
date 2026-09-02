@@ -52,18 +52,20 @@ actually reaches `nas` — there's nothing to sync to nas itself.
 
 `hiera.yaml` defines a two-level hierarchy: `data/common.yaml` (plain YAML —
 the `services_catalog`, global config like domains/timezones/hostnames) then
-`data/common.eyaml` (hiera-eyaml encrypted, PKCS7 — every `vault_*` secret).
+`data/secrets/<certname>.eyaml` (hiera-eyaml encrypted, PKCS7 — each
+agent's required `vault_*` secrets).
 A class reads either the same way: `lookup('some_key')` or
 `lookup('vault_some_key')`.
 
 **Decryption happens host-side**, not on the machine running
 `openvox-sync.sh`. Every host that needs to resolve a `vault_*` value has
-its own copy of the PKCS7 key pair under `/etc/puppetlabs/puppet/eyaml/`,
-deployed once via `scripts/install-openvox-eyaml.sh <host>` — a deliberately
+its own PKCS7 key pair under `/etc/puppetlabs/puppet/eyaml/hosts/<certname>/`,
+created once via `scripts/bootstrap-openvox-eyaml-host-key.sh <host>` — a deliberately
 separate step from the general environment sync, since not every host needs
 every secret and there's no puppetserver to act as a single unlock point.
-`keys/private_key.pkcs7.pem` is gitignored; only the public key is ever
-committed.
+Private keys are gitignored and never leave their host; the corresponding
+public keys are committed under `keys/<host>/`. The temporary legacy
+`common.eyaml` hierarchy remains only until the staged migration cleanup.
 
 ## Templates
 

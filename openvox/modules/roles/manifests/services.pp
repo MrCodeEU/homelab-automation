@@ -108,11 +108,16 @@ class roles::services (
     default => $tailscale_ip,
   }
 
-  # Per-service secret mappings - ported 1:1 from env.j2's
-  # `{% if service_name == 'X' %}` blocks. Only services with a real
-  # secrets block are listed; everything else gets {} (env.epp then
-  # only emits the common TZ/DOMAIN/EMAIL/BIND_ADDR/IMAGE_TAG section).
-  $all_secrets = {
+  # Resolve only secrets that can be rendered on this host.  This is
+  # intentionally a host selector rather than one fleet-wide Hash: Puppet
+  # evaluates Hash values eagerly, so a single map would make every agent
+  # decrypt every service credential merely to compile its catalog.
+  #
+  # The nuc branch also contains staging-capable mljr services because nuc
+  # is the explicit staging host.  Values in an unselected selector branch
+  # are not evaluated.
+  $all_secrets = $hostname ? {
+    'nuc' => {
     'nocturne' => {
       'instance_key'               => lookup('vault_nocturne_instance_key', { 'default_value' => '' }),
       'base_domain'                => lookup('vault_nocturne_base_domain', { 'default_value' => 'nc.mljr.eu' }),
@@ -157,9 +162,6 @@ class roles::services (
       'app_secret'        => lookup('vault_umami_app_secret', { 'default_value' => '' }),
       'postgres_password' => lookup('vault_umami_postgres_password', { 'default_value' => '' }),
     },
-    'oxicloud' => {
-      'postgres_password' => lookup('vault_oxicloud_postgres_password', { 'default_value' => '' }),
-    },
     'forgejo' => {
       'postgres_password' => lookup('vault_forgejo_postgres_password', { 'default_value' => '' }),
       'runner_secret'     => lookup('vault_forgejo_runner_secret', { 'default_value' => '' }),
@@ -175,17 +177,6 @@ class roles::services (
       # read access to that one Postgres instance for the DMARC dashboard,
       # not a separate credential.
       'dmarc_postgres_password' => lookup('vault_dmarcmonitor_db_password', { 'default_value' => '' }),
-    },
-    'crowdsec' => {
-      'firewall_bouncer_key'       => lookup('vault_crowdsec_firewall_bouncer_key', { 'default_value' => '' }),
-      'web_ui_password'            => lookup('vault_crowdsec_web_ui_password', { 'default_value' => '' }),
-      'web_ui_notification_secret' => lookup('vault_crowdsec_web_ui_notification_secret', { 'default_value' => '' }),
-    },
-    'newsletter' => {
-      'smtp_host'     => lookup('vault_smtp_host', { 'default_value' => '' }),
-      'smtp_port'     => lookup('vault_smtp_port', { 'default_value' => '587' }),
-      'smtp_user'     => lookup('vault_smtp_user', { 'default_value' => '' }),
-      'smtp_password' => lookup('vault_smtp_password', { 'default_value' => '' }),
     },
     'speedtest' => {
       'admin_password' => lookup('vault_netronome_admin_password', { 'default_value' => '' }),
@@ -226,16 +217,53 @@ class roles::services (
       'smtp_from'              => 'notifications@mljr.eu',
       'email_to'               => lookup('vault_healthreport_email_to', { 'default_value' => '' }),
     },
-    'syncthing-ugreen' => {
-      'nas_ip'                  => '100.100.10.2',
-      'nas_syncthing_api_key'   => lookup('vault_syncthing_nas_api_key', { 'default_value' => '' }),
-    },
     'backup-dashboard' => {
       'nuc_ip'           => '100.100.10.1',
       'mljr_ip'          => '100.100.20.1',
       'nas_ip'           => '100.100.10.2',
       'refresh_interval' => '*:0/15',
     },
+    },
+    'mljr' => {
+      # Homepage can be selected for staging on nuc, hence its mapping is
+      # duplicated there. Its credentials are deliberately encrypted to
+      # both hosts in the later per-host-eyaml migration.
+      'homepage' => {
+        'gh_token'             => lookup('vault_github_token', { 'default_value' => '' }),
+        'strava_client_id'     => lookup('vault_strava_client_id', { 'default_value' => '' }),
+        'strava_client_secret' => lookup('vault_strava_client_secret', { 'default_value' => '' }),
+        'strava_refresh_token' => lookup('vault_strava_refresh_token', { 'default_value' => '' }),
+        'umami_website_id'     => lookup('vault_homepage_umami_website_id', { 'default_value' => '' }),
+        'tailscale_api_key'    => lookup('vault_homepage_tailscale_api_key', { 'default_value' => '' }),
+        'smtp_host'            => lookup('vault_smtp_host', { 'default_value' => '' }),
+        'smtp_port'            => lookup('vault_smtp_port', { 'default_value' => '587' }),
+        'smtp_user'            => lookup('vault_smtp_user', { 'default_value' => '' }),
+        'smtp_password'        => lookup('vault_smtp_password', { 'default_value' => '' }),
+        'smtp_from'            => lookup('vault_smtp_from', { 'default_value' => "admin@${domain}" }),
+        'contact_to'           => lookup('vault_homepage_contact_to', { 'default_value' => '' }),
+      },
+      'crowdsec' => {
+        'firewall_bouncer_key'       => lookup('vault_crowdsec_firewall_bouncer_key', { 'default_value' => '' }),
+        'web_ui_password'            => lookup('vault_crowdsec_web_ui_password', { 'default_value' => '' }),
+        'web_ui_notification_secret' => lookup('vault_crowdsec_web_ui_notification_secret', { 'default_value' => '' }),
+      },
+      'newsletter' => {
+        'smtp_host'     => lookup('vault_smtp_host', { 'default_value' => '' }),
+        'smtp_port'     => lookup('vault_smtp_port', { 'default_value' => '587' }),
+        'smtp_user'     => lookup('vault_smtp_user', { 'default_value' => '' }),
+        'smtp_password' => lookup('vault_smtp_password', { 'default_value' => '' }),
+      },
+    },
+    'ugreen' => {
+      'oxicloud' => {
+        'postgres_password' => lookup('vault_oxicloud_postgres_password', { 'default_value' => '' }),
+      },
+      'syncthing-ugreen' => {
+        'nas_ip'                => '100.100.10.2',
+        'nas_syncthing_api_key' => lookup('vault_syncthing_nas_api_key', { 'default_value' => '' }),
+      },
+    },
+    default => {},
   }
 
   # Vendored files that need +x - e.g. a static Go binary bind-mounted

@@ -86,6 +86,14 @@ __pycache__/
 # would otherwise also ignore it.
 openvox/keys/private_key.pkcs7.pem
 !openvox/keys/public_key.pkcs7.pem
+!openvox/keys/*/
+!openvox/keys/*/public_key.pkcs7.pem
+
+# Host-specific eyaml ciphertext is public-by-design, while generated
+# private keys stay ignored by the blanket *.pem rule above.
+!openvox/data/secrets/
+!openvox/data/secrets/.gitkeep
+!openvox/data/secrets/*.eyaml
 
 # Downloaded only by the pinned VoxBox catalog-test container. Keep the empty
 # mountpoint tracked so the read-only integration runner can overlay it.
