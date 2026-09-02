@@ -87,10 +87,10 @@ homelab-automation/
 ├── AGENTS.md                         # Agent/operator guidance
 ├── openvox/
 │   ├── manifests/site.pp             # Entrypoint - one node block per agent-managed host
-│   ├── hiera.yaml                    # Hiera hierarchy (common.yaml -> common.eyaml)
+│   ├── hiera.yaml                    # Hiera hierarchy (node/common data -> host secrets)
 │   ├── data/
 │   │   ├── common.yaml               # Service catalog (services_catalog) + global config
-│   │   └── common.eyaml              # hiera-eyaml encrypted secrets (vault_* keys)
+│   │   └── secrets/                  # per-host hiera-eyaml encrypted vault_* values
 │   ├── keys/                         # eyaml PKCS7 public key (private key lives host-side only)
 │   └── modules/roles/
 │       ├── manifests/                # One class per role: base, caddy, services,
@@ -183,9 +183,7 @@ ssh root@nuc.tail33930.ts.net "shred -u /tmp/nuc.eyaml"
 
 **Decryption happens host-side**, never in CI. The per-host private keys are
 gitignored; only public keys and ciphertext are committed. This is why **CI
-needs no vault-password secret at all**. `common.eyaml` and its legacy key
-remain temporarily as a tested rollback fallback and must be removed only in
-the explicit cleanup phase after a production apply.
+needs no vault-password secret at all**.
 
 Tailscale OAuth secrets (`TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`) still stay
 as GitHub secrets, since they're used by the Tailscale GitHub Action
@@ -321,7 +319,8 @@ External repos can trigger a specific service deployment with `repository_dispat
 
 1. Add the service to `services_catalog` in `openvox/data/common.yaml`.
 2. Create `services/<name>/docker-compose.yml`.
-3. If the service needs secrets: add `vault_*` keys to `openvox/data/common.eyaml`
+3. If the service needs secrets: add `vault_*` keys to the encrypted file for
+   every host that needs the service under `openvox/data/secrets/`
    (see Secrets Management above), then add a per-service block to
    `roles::services`' own `$all_secrets` hash in
    `openvox/modules/roles/manifests/services.pp` (or `services_nas.pp` for
@@ -341,7 +340,7 @@ only — not deployed by CI, not documented as a supported path — while the
 OpenVox port settles. If you're looking for the old `ansible-playbook`/
 `ansible-vault`/`make deploy-*` workflow, the roles/playbooks are still
 there (the encrypted vault itself was deleted, git-history-recoverable,
-once `openvox/data/common.eyaml` took over — see
+once the host-scoped OpenVox eyaml files took over — see
 `ansible/inventory/group_vars/all/vault.yml.example` for the key names);
 `git log` on any `ansible/roles/<name>/` directory is the most reliable
 way to see what a given role used to do before its Puppet port.

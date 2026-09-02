@@ -21,12 +21,3 @@ hierarchy:
     options:
       pkcs7_private_key: "/etc/puppetlabs/puppet/eyaml/hosts/%{trusted.certname}/private_key.pkcs7.pem"
       pkcs7_public_key: "/etc/puppetlabs/puppet/eyaml/hosts/%{trusted.certname}/public_key.pkcs7.pem"
-
-  # Temporary fallback. Remove this and the legacy key pair only after the
-  # all-host noop/apply validation of the host-scoped transition succeeds.
-  - name: "Legacy common eyaml secrets (temporary fallback)"
-    lookup_key: eyaml_lookup_key
-    path: "common.eyaml"
-    options:
-      pkcs7_private_key: /etc/puppetlabs/puppet/eyaml/private_key.pkcs7.pem
-      pkcs7_public_key: /etc/puppetlabs/puppet/eyaml/public_key.pkcs7.pem
