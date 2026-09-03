@@ -4,6 +4,15 @@ services:
     image: local/csp-reports:latest
     container_name: csp-reports
     restart: unless-stopped
+    # network_mode: bridge (the raw driver, not Compose's default) joins
+    # docker0 directly instead of Compose allocating a fresh per-project
+    # subnet - nuc's default address pools are fully subnetted (56 services
+    # deep, most with their own network), so a normal `networks:` here
+    # failed live on first deploy: "all predefined address pools have been
+    # fully subnetted". No inter-container DNS is needed (single container,
+    # reached only via its published port), so losing project-network
+    # isolation costs nothing here.
+    network_mode: bridge
     ports:
       - "${BIND_ADDR:-127.0.0.1}:8094:8080"
     mem_limit: 32m
