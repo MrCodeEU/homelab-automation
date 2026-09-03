@@ -1,0 +1,15 @@
+services:
+  csp-reports:
+    build: .
+    image: local/csp-reports:latest
+    container_name: csp-reports
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8094:8080"
+    mem_limit: 32m
+    cpus: 0.1
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -355,6 +355,15 @@ services_catalog:
     icon: "mdi:shield-search"
     caddy_auth: "authelia"
 
+  - name: csp-reports
+    enabled: true
+    domain: "csp.mljr.eu"
+    port: 8094
+    host: nuc
+    build_from_source: true
+    description: "CSP violation report collector (fleet-wide, fed by Caddy's security_headers snippet)"
+    icon: "mdi:shield-alert-outline"
+
   - name: cockpit
     enabled: true
     managed: false
