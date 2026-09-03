@@ -38,3 +38,17 @@ roles::host_facts_endpoint::dest: '/usr/local/bin/homelab-facts'
 roles::grafana_alloy::hostname: 'nuc'
 
 roles::canary_decoys::hostname: 'nuc'
+
+# Docker's default address pools (172.17-172.31.0.0/16, ~30 possible
+# per-project networks) ran out live on 2026-09-03: csp-reports' first
+# deploy failed with "all predefined address pools have been fully
+# subnetted" - nuc runs 56 services deep, most with their own
+# Compose-allocated bridge network. base=172.16.0.0/12,size=24 gives 4096
+# possible /24 networks instead, well clear of nuc's own LAN
+# (192.168.50.0/24) and Tailscale's CGNAT range (100.64.0.0/10). Applying
+# this restarts the docker service (via puppetlabs-docker's own systemd
+# override management), which briefly stops every running container on
+# nuc - scoped to nuc only, not the whole fleet, since mljr/ugreen aren't
+# anywhere near this limit yet.
+docker::extra_parameters:
+  - '--default-address-pool base=172.16.0.0/12,size=24'
