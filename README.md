@@ -306,6 +306,12 @@ output is also prefixed with the host's short label (`[mljr]`, `[nuc]`,
 saved under `logs/openvox/<host>-<mode>-<timestamp>.log` for later
 inspection.
 
+For manual SSH, `nuc` and `ugreen` accept your own username
+(`ssh nuc`/`ugreen`). `mljr` (a bare Contabo VPS) and `nas` (Unraid, no
+per-user accounts) both reject any other username via the Tailscale ACL
+(`tailnet policy does not permit you to SSH as user "<name>"`) — use
+`ssh root@mljr` / `ssh root@nas`.
+
 ## GitHub Actions
 
 Pull requests are handled by `.github/workflows/openvox-pr-check.yml`.

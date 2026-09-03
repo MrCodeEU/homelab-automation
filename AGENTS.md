@@ -101,6 +101,13 @@ a re-encryption plan.
 never start or recreate staging containers, and staging never runs a
 production `post-deploy.sh`.
 
+**SSH access is per-host, not uniform.** `nuc`/`ugreen` accept your own
+username. `mljr` (bare Contabo VPS) and `nas` (Unraid, no per-user accounts
+at all) both reject any other username via the Tailscale ACL
+(`tailnet policy does not permit you to SSH as user "<name>"`) — use
+`ssh root@mljr` / `ssh root@nas` (or the `.tail33930.ts.net` FQDN form) for
+those two.
+
 ## Key files
 
 | File | Purpose |
