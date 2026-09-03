@@ -50,15 +50,53 @@ on:
   repository_dispatch:
     types: [service-update]
 
-# Prevent concurrent deployments
-concurrency:
-  group: ${{ github.event_name == 'repository_dispatch' && format('deploy-svc-{0}', github.event.client_payload.service) || format('deploy-{0}', github.ref) }}
-  cancel-in-progress: false
-
 permissions:
   contents: read
 
 jobs:
+  # Resolves which host a repository_dispatch service-update targets, purely
+  # so `deploy`'s job-level concurrency group (below) can be keyed by host
+  # instead of service name. Two different services (e.g. mljr-web's
+  # per-project rebuilds - homepage, codec, cron, ...) commonly resolve to
+  # the SAME host, and the old service-keyed group let their applies run
+  # concurrently against it - hit live 2026-09-02: two `puppet apply` runs
+  # against mljr at once raced on the same docker container (glance
+  # "Conflict... container name already in use", exit 125) and failed both
+  # deploys. Runs unconditionally (not gated on event type) so `needs:`
+  # below never resolves to "skipped" for workflow_dispatch/schedule
+  # triggers, which would skip `deploy` entirely.
+  resolve-host:
+    runs-on: ubuntu-latest
+    outputs:
+      host: ${{ steps.resolve.outputs.host }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: openvox/data/common.yaml
+
+      - name: Resolve dispatch service's host
+        id: resolve
+        env:
+          RAW_DISPATCH_SERVICE: ${{ github.event.client_payload.service }}
+        run: |
+          if [ "${{ github.event_name }}" != "repository_dispatch" ]; then
+            echo "host=n/a" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Same validation as the deploy job's own "Set environment" step -
+          # an invalid service name here just falls through to python below,
+          # which already defaults to 'nuc' for an unmatched name.
+          case "$RAW_DISPATCH_SERVICE" in
+            "" | *[!A-Za-z0-9._-]* )
+              echo "host=nuc" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          pip install --quiet pyyaml
+          HOST=$(DISPATCH_SERVICE="$RAW_DISPATCH_SERVICE" python3 -c "import os, yaml; d = yaml.safe_load(open('openvox/data/common.yaml')); m = next((s for s in d['services_catalog'] if s['name'] == os.environ['DISPATCH_SERVICE']), None); print(m.get('host', 'nuc') if m else 'nuc', end='')")
+          echo "host=$HOST" >> "$GITHUB_OUTPUT"
+
   # Validate service configurations before deployment
   validate:
     runs-on: ubuntu-latest
@@ -85,7 +123,14 @@ jobs:
   # Deploy
   deploy:
     runs-on: ubuntu-latest
-    needs: validate
+    needs: [validate, resolve-host]
+    # Host-keyed, not service-keyed - see resolve-host's header comment.
+    # workflow_dispatch/schedule runs (resolve-host's host output is "n/a"
+    # for those) still serialize against each other and against any
+    # in-flight dispatch on the same ref via the ref-keyed fallback group.
+    concurrency:
+      group: ${{ github.event_name == 'repository_dispatch' && format('deploy-host-{0}', needs.resolve-host.outputs.host) || format('deploy-{0}', github.ref) }}
+      cancel-in-progress: false
     env:
       # Keep in sync with Makefile's OPENVOX_HOSTS.
       MLJR_HOST: mljr.tail33930.ts.net
