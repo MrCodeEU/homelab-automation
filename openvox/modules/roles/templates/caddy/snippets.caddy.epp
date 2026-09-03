@@ -18,4 +18,13 @@
 
 (security_headers) {
     header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    # Fleet-wide CSP violation reporting, appended (+) not replaced - each
+    # app keeps its own Content-Security-Policy header (script-src hashes
+    # etc, e.g. homepage's), and per the CSP spec multiple
+    # Content-Security-Policy header instances are each enforced
+    # independently, so a second instance carrying only report-uri/report-to
+    # cannot loosen or override an app's real policy. csp-reports (nuc,
+    # csp.mljr.eu) is the collector; see tools/cmd/csp-reports.
+    header +Content-Security-Policy "report-uri https://csp.mljr.eu/csp-report; report-to csp-endpoint"
+    header Reporting-Endpoints "csp-endpoint=\"https://csp.mljr.eu/csp-report\""
 }

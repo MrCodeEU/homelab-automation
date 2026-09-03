@@ -305,6 +305,14 @@ rules:
     type: present
     level: warn
 
+  # CSP violations (csp-reports, fed by Caddy's security_headers snippet)
+  # are normal noise right after an app's policy changes and settle down -
+  # new_only surfaces a distinct (directive, document) pair once, not every
+  # day it keeps recurring.
+  csp_violation:
+    type: new_only
+    level: warn
+
   log_error_rate:
     type: threshold_or_spike
     direction: above
