@@ -152,7 +152,7 @@ unraid_backup_excluded:
   - path: /mnt/user/borgbackup
     reason: "covered via unraid_backup_paths' nextcloud-borg entry (the repo inside it), not the share itself"
   - path: /mnt/user/cloud
-    reason: "not yet assessed - flagged during drift-detection rollout, needs its own look"
+    reason: "live Nextcloud AIO data volume (confirmed 2026-09-03: cloud/data holds user homes, appdata_* instance dirs, nextcloud.log/audit.log) - covered indirectly via nextcloud-aio-borgbackup's own repo output, not this pipeline directly. Same shape as /mnt/user/appdata's exclusion above. See unraid_backup_paths' nextcloud-borg entry (src /mnt/user/borgbackup/borg) for the actual backed-up artifact."
   - path: /mnt/user/docker
     reason: "Docker's own internal storage, not user data"
   - path: /mnt/user/domains
