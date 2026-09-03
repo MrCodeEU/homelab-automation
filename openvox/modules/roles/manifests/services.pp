@@ -278,6 +278,7 @@ class roles::services (
     'syncthing-ugreen'  => ['hooks/provision-syncthing'],
     'healthreport'      => ['healthreport'],
     'backup-dashboard'  => ['backup-dashboard-collect'],
+    'csp-reports'       => ['csp-reports'],
   }
 
   # Explicit, one-shot major-version migrations. The persistent marker is
