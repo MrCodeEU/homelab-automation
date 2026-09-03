@@ -137,6 +137,10 @@ unraid_backup_paths:
 # HEALTHREPORT_BACKUP_EXCLUDED_PATHS empty and made healthreport flag every
 # one of these as backup_drift.
 unraid_backup_excluded:
+  - path: /mnt/user/Fotos/Passwords-Backup.docx
+    reason: "canary token decoy file, not real data - deliberately not backed up"
+  - path: /mnt/user/backup/09092e26.tar
+    reason: "Home Assistant Supervisor backup export - already covered independently via HA's own pCloud integration, not this pipeline. NOTE: filename is a rotating random slug (HA's own naming), so this exact exclusion will go stale and need re-adding under the new filename the next time HA rotates it - backup_drift's exclusion match is exact-path, not a prefix/glob."
   - path: /mnt/user/Fotos/Backup
     reason: "mover's pre-consolidation staging area for Fotos/Fotos, not independent data"
   - path: /mnt/user/Fotos/Manuell
