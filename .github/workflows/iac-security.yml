@@ -1,28 +1,18 @@
 name: IaC Security Scan
 
 on:
+  # Deliberately no `paths:` filter - Checkov scans `--directory .` (the
+  # whole repo) regardless of what changed, and it's a required status
+  # check on main's ruleset. A path-filtered required check that doesn't
+  # run on a given PR (e.g. a docs-only change) sits "expected" forever -
+  # GitHub rulesets have no "skip if not triggered" logic - which blocked
+  # PR #290 outright, even with --admin (this ruleset has no admin bypass
+  # by design). Always running is the only way a full-repo scan can be a
+  # required check without occasionally blocking unrelated PRs.
   pull_request:
-    paths:
-      - ".github/workflows/**"
-      - "services/**/docker-compose*.yml"
-      - "services/**/Dockerfile"
-      - "services/**/Dockerfile.*"
-      - "openvox/**/docker-compose*.yml"
-      - "openvox/**/Dockerfile"
-      - "openvox/**/Dockerfile.*"
-      - ".checkov.yml"
   push:
     branches:
       - main
-    paths:
-      - ".github/workflows/**"
-      - "services/**/docker-compose*.yml"
-      - "services/**/Dockerfile"
-      - "services/**/Dockerfile.*"
-      - "openvox/**/docker-compose*.yml"
-      - "openvox/**/Dockerfile"
-      - "openvox/**/Dockerfile.*"
-      - ".checkov.yml"
   workflow_dispatch:
 
 permissions:
