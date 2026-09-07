@@ -182,6 +182,13 @@ unraid_backup_excluded:
 ha_excluded_clusters:
   - desktop_v0mrcri
   - prusa_mk4
+  # 2026-09-07: chronic since first_seen 2026-08-02, already triaged and
+  # handed off separately - these are real dead integrations, not a
+  # healthreport bug, but repeating the same known finding every day isn't
+  # useful. Re-add to a report (or drop from here) once actually fixed.
+  - ugreen_usb
+  - pc_192
+  - fritz_repeater
 
 # ntfy topic allowlist (roles::services' ntfy hook grants `everyone <topic>
 # read-write` for each, server.yml sets auth-default-access: deny-all so

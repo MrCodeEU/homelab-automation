@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -678,9 +679,16 @@ func unraidObservations(result *hr.CollectorResult, host string, sections map[st
 				count       int
 				subject     string
 				description string
+				maxTS       float64
 			}
 			grouped := map[groupKey]*groupEntry{}
 			var order []groupKey
+			// A plugin often follows up a warning with its own resolution
+			// (e.g. "Warning! Check the log" then "Backup done [0h, 12m]!"
+			// two minutes later) - both land as separate unread files. If
+			// the later one is a normal-importance note for the same event,
+			// the warning is stale/superseded, not an open problem.
+			normalMaxTS := map[string]float64{}
 			for _, raw := range list {
 				note, _ := raw.(map[string]any)
 				if note == nil {
@@ -694,6 +702,7 @@ func unraidObservations(result *hr.CollectorResult, host string, sections map[st
 				if importance == "" {
 					importance = "normal"
 				}
+				ts, _ := strconv.ParseFloat(fmt.Sprint(note["timestamp"]), 64)
 				key := groupKey{event, importance}
 				entry, ok := grouped[key]
 				if !ok {
@@ -707,6 +716,12 @@ func unraidObservations(result *hr.CollectorResult, host string, sections map[st
 					order = append(order, key)
 				}
 				entry.count++
+				if ts > entry.maxTS {
+					entry.maxTS = ts
+				}
+				if importance == "normal" && ts > normalMaxTS[event] {
+					normalMaxTS[event] = ts
+				}
 			}
 			sort.Slice(order, func(i, j int) bool {
 				if order[i].event != order[j].event {
@@ -716,6 +731,11 @@ func unraidObservations(result *hr.CollectorResult, host string, sections map[st
 			})
 			for _, key := range order {
 				entry := grouped[key]
+				if key.importance != "normal" && normalMaxTS[key.event] >= entry.maxTS {
+					// The plugin itself reported success after this - stop
+					// treating it as live.
+					continue
+				}
 				suffix := ""
 				if entry.count != 1 {
 					suffix = fmt.Sprintf(" (x%d unread)", entry.count)
