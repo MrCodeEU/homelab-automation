@@ -8,7 +8,7 @@ services:
       - "127.0.0.1:6060:6060"
     environment:
       - TZ=${TZ}
-      - COLLECTIONS=crowdsecurity/linux crowdsecurity/sshd crowdsecurity/caddy crowdsecurity/http-cve crowdsecurity/base-http-scenarios crowdsecurity/whitelist-good-actors
+      - COLLECTIONS=crowdsecurity/linux crowdsecurity/sshd crowdsecurity/caddy crowdsecurity/http-cve crowdsecurity/base-http-scenarios crowdsecurity/whitelist-good-actors Guezli/mailcow LePresidente/authelia
       - BOUNCER_KEY_firewall=${CROWDSEC_FIREWALL_BOUNCER_KEY}
       - TRUSTED_IPS=127.0.0.1,::1,172.16.0.0/12
     volumes:
@@ -18,6 +18,13 @@ services:
       - ./profiles.yaml:/etc/crowdsec/profiles.yaml:ro
       - ./parsers/s02-enrich/mljr-local-allowlist.yaml:/etc/crowdsec/parsers/s02-enrich/mljr-local-allowlist.yaml:ro
       - /var/log:/var/log:ro
+      # Read-only, for the docker-source acquisitions in acquis.yaml below
+      # (netfilter-mailcow's F2B bans, Authelia's own auth log) - neither
+      # writes to a file under /var/log, both are stdout-only. This is a
+      # real privilege grant (docker.sock read access is close to
+      # host-root), scoped ro and to exactly the two containers acquis.yaml
+      # names, not a blanket "watch everything" configuration.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   crowdsec-web-ui:
     image: ghcr.io/theduffman85/crowdsec-web-ui:latest
