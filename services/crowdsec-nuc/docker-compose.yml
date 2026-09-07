@@ -1,0 +1,30 @@
+services:
+  crowdsec-nuc:
+    image: crowdsecurity/crowdsec:latest
+    container_name: crowdsec-nuc
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - COLLECTIONS=LePresidente/gitea
+      # Agent-only: no local API, no bouncer, no web UI on nuc. Detections
+      # push to mljr's LAPI (the actual enforcement point - firewall
+      # bouncer runs there) via these agent credentials, registered as
+      # machine "nuc" by mljr's own crowdsec post-deploy.sh.
+      - DISABLE_LOCAL_API=true
+      - LOCAL_API_URL=${CROWDSEC_LOCAL_API_URL}
+      - AGENT_USERNAME=${CROWDSEC_AGENT_USERNAME}
+      - AGENT_PASSWORD=${CROWDSEC_AGENT_PASSWORD}
+    volumes:
+      - crowdsec-nuc-config:/etc/crowdsec
+      - crowdsec-nuc-data:/var/lib/crowdsec/data
+      - ./acquis.yaml:/etc/crowdsec/acquis.yaml:ro
+      # Read-only, scoped to exactly the container acquis.yaml names
+      # (forgejo-app) - same precedent as mljr's crowdsec docker.sock
+      # grant for mailcow/authelia.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+volumes:
+  crowdsec-nuc-config:
+    name: crowdsec-nuc-config
+  crowdsec-nuc-data:
+    name: crowdsec-nuc-data

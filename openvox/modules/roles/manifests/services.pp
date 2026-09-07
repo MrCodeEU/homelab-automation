@@ -56,7 +56,7 @@ class roles::services (
   Array[String] $post_deploy_hook_services = [
     'crowdsec', 'forgejo', 'grafana', 'speedtest', 'godrive-demo',
     'healthreport', 'backup-dashboard', 'mail-archiver', 'umami', 'nocturne',
-    'syncthing-ugreen', 'ntfy',
+    'syncthing-ugreen', 'ntfy', 'crowdsec-nuc',
   ],
   Array[String] $critical_hook_services = ['crowdsec', 'forgejo', 'grafana', 'speedtest'],
   # Matches Ansible's own `cleanup_enabled | default(true)` - ugreen's own
@@ -166,6 +166,13 @@ class roles::services (
       'postgres_password' => lookup('vault_forgejo_postgres_password', { 'default_value' => '' }),
       'runner_secret'     => lookup('vault_forgejo_runner_secret', { 'default_value' => '' }),
     },
+    'crowdsec-nuc' => {
+      # Machine credential registered on mljr's LAPI via
+      # `cscli machines add nuc --auto` (or --password to set explicitly) -
+      # not a generated-here secret, must match whatever mljr actually has
+      # registered for the "nuc" machine.
+      'crowdsec_agent_password' => lookup('vault_crowdsec_nuc_agent_password', { 'default_value' => '' }),
+    },
     'kuma' => {
       'username' => lookup('vault_kuma_username', { 'default_value' => '' }),
       'password' => lookup('vault_kuma_password', { 'default_value' => '' }),
@@ -246,6 +253,10 @@ class roles::services (
         'firewall_bouncer_key'       => lookup('vault_crowdsec_firewall_bouncer_key', { 'default_value' => '' }),
         'web_ui_password'            => lookup('vault_crowdsec_web_ui_password', { 'default_value' => '' }),
         'web_ui_notification_secret' => lookup('vault_crowdsec_web_ui_notification_secret', { 'default_value' => '' }),
+        # Same plaintext as nuc's vault_crowdsec_nuc_agent_password, encrypted
+        # separately per-host - mljr's post-deploy.sh registers this as the
+        # "nuc" machine credential on the LAPI.
+        'nuc_agent_password'         => lookup('vault_crowdsec_nuc_agent_password', { 'default_value' => '' }),
       },
       'newsletter' => {
         'smtp_host'     => lookup('vault_smtp_host', { 'default_value' => '' }),
