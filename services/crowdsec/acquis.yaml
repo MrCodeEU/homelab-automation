@@ -14,17 +14,29 @@ labels:
 # file under /var/log - it only logs bans to its container's stdout. This
 # is the only way to see them: docker.sock read access, scoped to exactly
 # this one container name.
+# type: docker is required (not just a free-text label) - it's what
+# crowdsecurity/docker-logs.yaml's s00 filter matches on to JSON-decode
+# the container's log line into evt.Parsed.message; program: is then what
+# sets evt.Parsed.program for the s01 parser below to filter on. Labels
+# named after the app instead (e.g. type: mailcow-f2b) skip the JSON
+# decode entirely - found live 2026-09-07: 0 buckets ever poured despite
+# "lines parsed" looking healthy, because s01 was grokking the raw
+# {"log":...,"stream":...} wrapper instead of the actual log line.
 source: docker
 container_name:
   - mailcowdockerized-netfilter-mailcow-1
 labels:
-  type: mailcow-f2b
+  type: docker
+  program: mailcow-f2b
 
 ---
 # Authelia logs auth attempts (including failures/brute-force) to stdout
 # only - no log_file_path configured, nothing under /var/log to tail.
+# See the mailcow block above for why labels need type: docker + program:
+# rather than a single app-named type.
 source: docker
 container_name:
   - authelia
 labels:
-  type: authelia
+  type: docker
+  program: authelia

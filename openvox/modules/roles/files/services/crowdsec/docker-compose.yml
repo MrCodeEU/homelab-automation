@@ -4,12 +4,27 @@ services:
     container_name: crowdsec
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8088:8080"
+      # 8080 (LAPI) is intentionally NOT ${BIND_ADDR} - that shared var
+      # also drives crowdsec-web-ui's port below, and mljr's other
+      # services stay loopback-only by design (Caddy+Authelia is the
+      # only gate meant to reach them). The LAPI needs to be tailnet-
+      # reachable specifically so remote agents (nuc's forgejo agent,
+      # see services/crowdsec-nuc/) can register and push detections -
+      # a narrower, deliberate exception, not a blanket exposure.
+      # 100.100.20.1 is mljr's own tailscale IP - already a hardcoded
+      # non-secret literal elsewhere in this repo (see
+      # openvox/data/common.yaml's tailscale_hosts and
+      # openvox/data/nodes/mljr.tail33930.ts.net.yaml).
+      - "100.100.20.1:8088:8080"
       - "127.0.0.1:6060:6060"
     environment:
       - TZ=${TZ}
       - COLLECTIONS=crowdsecurity/linux crowdsecurity/sshd crowdsecurity/caddy crowdsecurity/http-cve crowdsecurity/base-http-scenarios crowdsecurity/whitelist-good-actors Guezli/mailcow LePresidente/authelia
       - BOUNCER_KEY_firewall=${CROWDSEC_FIREWALL_BOUNCER_KEY}
+      # NOT extended for the LAPI's new tailnet exposure below:
+      # TRUSTED_IPS grants admin API access, which a remote agent must
+      # not have - machine username/password auth (scoped, revocable
+      # per-host) is the correct mechanism for that, not IP trust.
       - TRUSTED_IPS=127.0.0.1,::1,172.16.0.0/12
     volumes:
       - crowdsec-config:/etc/crowdsec

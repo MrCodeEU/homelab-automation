@@ -1,0 +1,12 @@
+---
+# type: docker + program: (not a single app-named type) - required for
+# crowdsecurity/docker-logs.yaml's s00 parser to JSON-decode the
+# container's stdout into evt.Parsed.message before LePresidente/gitea-logs
+# (s01, filters on evt.Parsed.program=='gitea') runs. See mljr's
+# services/crowdsec/acquis.yaml for the same fix applied to mailcow/authelia.
+source: docker
+container_name:
+  - forgejo-app
+labels:
+  type: docker
+  program: gitea

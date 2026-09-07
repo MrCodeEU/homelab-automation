@@ -277,6 +277,13 @@ services_catalog:
     description: "Daily homelab health report (collect, triage, ntfy + email)"
     icon: "mdi:clipboard-pulse"
 
+  - name: crowdsec-nuc
+    enabled: true
+    port: 0
+    host: nuc
+    description: "CrowdSec agent (forgejo brute-force detection, reports to mljr's LAPI)"
+    icon: "mdi:shield-search"
+
   - name: backup-dashboard
     enabled: true
     managed: true
