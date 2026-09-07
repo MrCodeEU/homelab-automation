@@ -580,6 +580,14 @@ services_catalog:
     description: "Ollama LLM runtime (health report triage). Tailscale-only, no Caddy route."
     icon: "mdi:robot"
 
+  - name: crowdsec-nas
+    enabled: true
+    managed: true
+    port: 0
+    host: nas
+    description: "CrowdSec agent (Vaultwarden/Nextcloud/Immich/SFTPGo brute-force detection, reports to mljr's LAPI)"
+    icon: "mdi:shield-search"
+
   - name: syncthing-ugreen
     enabled: true
     managed: true

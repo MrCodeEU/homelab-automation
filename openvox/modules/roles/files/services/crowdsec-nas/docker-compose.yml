@@ -1,0 +1,38 @@
+services:
+  crowdsec-nas:
+    image: crowdsecurity/crowdsec:latest
+    container_name: crowdsec-nas
+    restart: unless-stopped
+    environment:
+      - TZ=${TZ}
+      - COLLECTIONS=Dominic-Wagner/vaultwarden crowdsecurity/nextcloud gauth-fr/immich Azlaroc/sftpgo
+      # Agent-only: no local API, no bouncer, no web UI on nas. Detections
+      # push to mljr's LAPI (the actual enforcement point - firewall
+      # bouncer runs there) via these agent credentials, registered as
+      # machine "nas" by mljr's own crowdsec post-deploy.sh.
+      - DISABLE_LOCAL_API=true
+      - LOCAL_API_URL=${CROWDSEC_LOCAL_API_URL}
+      - AGENT_USERNAME=${CROWDSEC_AGENT_USERNAME}
+      - AGENT_PASSWORD=${CROWDSEC_AGENT_PASSWORD}
+    volumes:
+      - crowdsec-nas-config:/etc/crowdsec
+      - crowdsec-nas-data:/var/lib/crowdsec/data
+      - ./acquis.yaml:/etc/crowdsec/acquis.yaml:ro
+      # Vaultwarden and Nextcloud (AIO, both Unraid-UI-managed, not this
+      # repo's business otherwise) both log to a real file inside their
+      # own named docker volume on nas - read directly, no docker-source
+      # involved, so none of the JSON-wrapper pitfall from services/crowdsec/
+      # applies here. Paths are nas's own live Docker volume mounts,
+      # verified live 2026-09-07 via `docker inspect`.
+      - /var/lib/docker/volumes/nextcloud_aio_vaultwarden_logs/_data/vaultwarden.log:/var/log/vaultwarden.log:ro
+      - /var/lib/docker/volumes/nextcloud_aio_nextcloud/_data/data/nextcloud.log:/var/log/nextcloud.log:ro
+      # Immich and SFTPGo log to their own container's stdout only - this
+      # is the only way to see them. Read-only, and acquis.yaml scopes
+      # the docker source to exactly these two container names.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+volumes:
+  crowdsec-nas-config:
+    name: crowdsec-nas-config
+  crowdsec-nas-data:
+    name: crowdsec-nas-data

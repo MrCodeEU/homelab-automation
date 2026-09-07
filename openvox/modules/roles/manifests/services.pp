@@ -257,6 +257,11 @@ class roles::services (
         # separately per-host - mljr's post-deploy.sh registers this as the
         # "nuc" machine credential on the LAPI.
         'nuc_agent_password'         => lookup('vault_crowdsec_nuc_agent_password', { 'default_value' => '' }),
+        # Same idea for nas - plaintext shared with nuc's own
+        # vault_crowdsec_nas_agent_password (nas has no eyaml keypair of
+        # its own; nuc's Puppet agent renders and ships nas's .env, see
+        # roles::services_nas's own $all_secrets).
+        'nas_agent_password'         => lookup('vault_crowdsec_nas_agent_password', { 'default_value' => '' }),
       },
       'newsletter' => {
         'smtp_host'     => lookup('vault_smtp_host', { 'default_value' => '' }),

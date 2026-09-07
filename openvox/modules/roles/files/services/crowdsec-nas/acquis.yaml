@@ -1,0 +1,24 @@
+filenames:
+  - /var/log/vaultwarden.log
+labels:
+  type: vaultwarden
+
+---
+filenames:
+  - /var/log/nextcloud.log
+labels:
+  type: nextcloud
+
+---
+source: docker
+container_name:
+  - immich
+labels:
+  type: immich
+
+---
+source: docker
+container_name:
+  - SFTPGo
+labels:
+  type: sftpgo
