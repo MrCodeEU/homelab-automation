@@ -126,6 +126,13 @@ rules:
     type: present
     level: crit
 
+  # Log has no summary yet but was written to in the last 15 minutes - the
+  # backup is still running (long rclone legs routinely take hours), not
+  # failed. Explicit info entry so this doesn't read as an oversight.
+  backup_in_progress:
+    type: present
+    level: info
+
   backup_missing:
     type: present
     level: crit

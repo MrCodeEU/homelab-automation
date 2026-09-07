@@ -429,6 +429,13 @@ func rockyObservations(result *hr.CollectorResult, host string, sections map[str
 						Evidence: map[string]any{}, Severity: "info",
 					})
 				}
+			} else if boolOr(data["still_running"]) {
+				result.Observations = append(result.Observations, &hr.Observation{
+					ID: "backup_in_progress." + host + ".", Collector: "ssh_facts", Subject: host,
+					Kind: "backup_in_progress", Value: true,
+					Message:  fmt.Sprintf("%s: backup log has no summary yet but was updated in the last 15 minutes - still running", host),
+					Evidence: map[string]any{"file": data["file"]}, Severity: "info",
+				})
 			} else {
 				result.Observations = append(result.Observations, &hr.Observation{
 					ID: "backup_incomplete." + host + ".", Collector: "ssh_facts", Subject: host,
