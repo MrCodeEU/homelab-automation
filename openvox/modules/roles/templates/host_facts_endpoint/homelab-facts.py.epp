@@ -672,16 +672,24 @@ def collect_backup_log():
 
     critical = summary.get("critical_failures")
     noncritical = summary.get("non_critical_failures")
+    age_seconds = time.time() - os.path.getmtime(newest)
     return {
         "available": True,
         "file": newest,
-        "age_seconds": time.time() - os.path.getmtime(newest),
+        "age_seconds": age_seconds,
         "summary": summary,
         "failed_services": failed_services,
         "critical_failures": critical,
         "non_critical_failures": noncritical,
         # Only true when the run actually reported a complete summary.
         "completed": critical is not None,
+        # A backup with no summary yet is either still running (long rclone
+        # sync legs routinely take hours - the log keeps growing) or dead
+        # mid-run. Can't attach to the process cross-host (systemd here,
+        # Unraid User Scripts there), so use "was this log touched very
+        # recently" as the liveness proxy instead of flagging every
+        # in-progress run as a failure.
+        "still_running": critical is None and age_seconds < 900,
         "stats": stats,
         "tail": clean[-40:],
     }

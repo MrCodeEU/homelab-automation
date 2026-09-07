@@ -74,7 +74,15 @@ jobs:
             fi
             ended=$(date +%s)
             duration=$((ended - started))
-            changes=$(grep -cE '/(ensure|content|returns|mode|owner|group):' "$host_log" || true)
+            # Exec resources without an idempotency guard (unless/onlyif/creates)
+            # always report "executed successfully (noop)" on every run, even
+            # with zero real drift - most of this catalog's Execs are exactly
+            # that (docker compose up -d, healthchecks, ...). Counting
+            # "returns:" lines therefore counted routine noise, not drift, and
+            # made every daily run report dozens of false "changes". Only File/
+            # Package/Service attributes report a genuine before/after value
+            # change, so count those.
+            changes=$(grep -cE '/(ensure|content|mode|owner|group): .* changed ' "$host_log" || true)
             errors=$(grep -cE '^\[[^]]+\] Error:' "$host_log" || true)
             timestamp_ms=$((ended * 1000))
             printf '%s\t%s\t%s\t%s\n' "$label" "$success" "$changes" "$errors" >> /tmp/openvox-drift-current.tsv
