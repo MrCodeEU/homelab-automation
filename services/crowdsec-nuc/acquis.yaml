@@ -1,12 +1,15 @@
 ---
-# type: docker + program: (not a single app-named type) - required for
-# crowdsecurity/docker-logs.yaml's s00 parser to JSON-decode the
-# container's stdout into evt.Parsed.message before LePresidente/gitea-logs
-# (s01, filters on evt.Parsed.program=='gitea') runs. See mljr's
-# services/crowdsec/acquis.yaml for the same fix applied to mailcow/authelia.
+# type: gitea (not type: docker + program:) - crowdsec's docker source
+# reads via the Docker Engine API log stream, which is already
+# demultiplexed plain text, not the raw json-file {"log":...} wrapper.
+# type: docker routes through crowdsecurity/docker-logs.yaml expecting to
+# JSON-decode that wrapper, silently breaking on already-plain-text input.
+# type: gitea instead hits crowdsecurity/non-syslog's fallback, which
+# copies Line.Raw straight into Parsed.message - correct for this source.
+# See mljr's services/crowdsec/acquis.yaml for the full writeup (this same
+# mistake was made and reverted there first).
 source: docker
 container_name:
   - forgejo-app
 labels:
-  type: docker
-  program: gitea
+  type: gitea

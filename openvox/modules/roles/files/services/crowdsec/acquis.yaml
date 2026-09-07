@@ -14,29 +14,33 @@ labels:
 # file under /var/log - it only logs bans to its container's stdout. This
 # is the only way to see them: docker.sock read access, scoped to exactly
 # this one container name.
-# type: docker is required (not just a free-text label) - it's what
-# crowdsecurity/docker-logs.yaml's s00 filter matches on to JSON-decode
-# the container's log line into evt.Parsed.message; program: is then what
-# sets evt.Parsed.program for the s01 parser below to filter on. Labels
-# named after the app instead (e.g. type: mailcow-f2b) skip the JSON
-# decode entirely - found live 2026-09-07: 0 buckets ever poured despite
-# "lines parsed" looking healthy, because s01 was grokking the raw
-# {"log":...,"stream":...} wrapper instead of the actual log line.
+#
+# type: <app-name> (not type: docker + program:) is deliberate - crowdsec's
+# docker source reads via the Docker Engine API log stream (dlog.Reader +
+# bufio.Scanner in cmd/crowdsec/acquisition/docker), which is already
+# demultiplexed plain text, NOT the raw json-file {"log":...,"stream":...}
+# wrapper. type: docker routes the line through crowdsecurity/docker-logs.yaml
+# expecting to JSON-decode that wrapper - on already-plain-text input this
+# silently produces an empty Parsed.message, breaking every downstream s01
+# parser. type: mailcow-f2b instead hits crowdsecurity/non-syslog's fallback
+# (any type not in [syslog, unifi]), which copies Line.Raw straight into
+# Parsed.message - correct for this source. Verified live 2026-09-07 via
+# `cscli explain --log "<real plain-text line>" --type docker --labels
+# program:authelia` (fails) vs `--type authelia` (succeeds, matching
+# LePresidente/authelia-logs' own filter on Parsed.program).
 source: docker
 container_name:
   - mailcowdockerized-netfilter-mailcow-1
 labels:
-  type: docker
-  program: mailcow-f2b
+  type: mailcow-f2b
 
 ---
 # Authelia logs auth attempts (including failures/brute-force) to stdout
 # only - no log_file_path configured, nothing under /var/log to tail.
-# See the mailcow block above for why labels need type: docker + program:
-# rather than a single app-named type.
+# See the mailcow block above for why this is type: authelia, not
+# type: docker + program: authelia.
 source: docker
 container_name:
   - authelia
 labels:
-  type: docker
-  program: authelia
+  type: authelia
