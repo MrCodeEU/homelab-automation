@@ -8,3 +8,23 @@ filenames:
   - /var/log/caddy/*.log
 labels:
   type: caddy
+
+---
+# netfilter-mailcow (mailcow's own internal fail2ban) never writes to a
+# file under /var/log - it only logs bans to its container's stdout. This
+# is the only way to see them: docker.sock read access, scoped to exactly
+# this one container name.
+source: docker
+container_name:
+  - mailcowdockerized-netfilter-mailcow-1
+labels:
+  type: mailcow-f2b
+
+---
+# Authelia logs auth attempts (including failures/brute-force) to stdout
+# only - no log_file_path configured, nothing under /var/log to tail.
+source: docker
+container_name:
+  - authelia
+labels:
+  type: authelia
