@@ -15,7 +15,19 @@ services:
       # non-secret literal elsewhere in this repo (see
       # openvox/data/common.yaml's tailscale_hosts and
       # openvox/data/nodes/mljr.tail33930.ts.net.yaml).
+      #
+      # 127.0.0.1:8088 is ALSO still required alongside the tailnet one -
+      # docker's -p/ports binds only the given IP, it does not also imply
+      # loopback. crowdsec-firewall-bouncer-nftables' own config
+      # (/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml, outside
+      # this repo) talks to api_url: http://127.0.0.1:8088/ - dropping
+      # this binding silently breaks the bouncer's LAPI polling. Found
+      # live 2026-09-07: right after this port moved to a single
+      # tailnet-only mapping, the bouncer stopped pulling new decisions
+      # (existing nftables sets stayed enforced, but nothing new was
+      # added) until this second binding was restored.
       - "100.100.20.1:8088:8080"
+      - "127.0.0.1:8088:8080"
       - "127.0.0.1:6060:6060"
     environment:
       - TZ=${TZ}
