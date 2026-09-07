@@ -16,6 +16,11 @@ if [ -z "${CROWDSEC_NUC_AGENT_PASSWORD:-}" ]; then
   exit 1
 fi
 
+if [ -z "${CROWDSEC_NAS_AGENT_PASSWORD:-}" ]; then
+  echo "FAILED: CROWDSEC_NAS_AGENT_PASSWORD is empty. Set secrets.crowdsec.nas_agent_password."
+  exit 1
+fi
+
 for attempt in $(seq 1 30); do
   if docker exec crowdsec cscli lapi status >/dev/null 2>&1; then
     break
@@ -89,6 +94,15 @@ else
     --password "${CROWDSEC_NUC_AGENT_PASSWORD}" \
     -f /dev/null
   echo "SUCCESS: CrowdSec nuc agent machine created."
+fi
+
+if docker exec crowdsec cscli machines inspect nas >/dev/null 2>&1; then
+  echo "SUCCESS: CrowdSec nas agent machine already exists."
+else
+  docker exec crowdsec cscli machines add nas \
+    --password "${CROWDSEC_NAS_AGENT_PASSWORD}" \
+    -f /dev/null
+  echo "SUCCESS: CrowdSec nas agent machine created."
 fi
 
 docker restart crowdsec-web-ui >/dev/null

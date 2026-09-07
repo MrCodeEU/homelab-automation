@@ -40,7 +40,7 @@ class roles::services_nas (
   String $bind_addr = '100.100.10.2',
   # Ported 1:1 from ansible/inventory/group_vars/all/all.yml's
   # post_deploy_hook_services, filtered to nas-managed entries only.
-  Array[String] $post_deploy_hook_services = ['ollama'],
+  Array[String] $post_deploy_hook_services = ['ollama', 'crowdsec-nas'],
 ) {
   $work_dir = '/usr/local/libexec/openvox-services-nas'
   $staging_dir = '/var/lib/openvox-services-nas-staging'
@@ -86,6 +86,16 @@ class roles::services_nas (
   $all_secrets = {
     'ollama' => {
       'healthreport_model' => 'qwen3:8b',
+    },
+    'crowdsec-nas' => {
+      # Machine credential registered on mljr's LAPI via
+      # `cscli machines add nas --password ...` (see services/crowdsec/
+      # hooks/post-deploy.sh) - not generated here, must match whatever
+      # mljr actually has registered for the "nas" machine. Decrypted by
+      # nuc's own eyaml keypair (this whole class runs on nuc, not nas -
+      # nas has no Puppet agent to decrypt anything itself), same
+      # transit precedent as the rest of this class's .env content.
+      'crowdsec_agent_password' => lookup('vault_crowdsec_nas_agent_password', { 'default_value' => '' }),
     },
   }
 

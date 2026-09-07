@@ -25,7 +25,7 @@ import yaml
 
 for service in yaml.safe_load(open('openvox/data/common.yaml'))['services_catalog']:
     if (service.get('managed', True) and not service.get('skip_deploy', False)
-            and service.get('host') in {'mljr', 'nuc', 'ugreen'}):
+            and service.get('host') in {'mljr', 'nuc', 'ugreen', 'nas'}):
         name = service['name']
         if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*', name):
             raise SystemExit(f'unsafe service name in catalog: {name!r}')
