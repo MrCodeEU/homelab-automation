@@ -223,6 +223,11 @@ class roles::services (
       'smtp_password'          => lookup('vault_smtp_password', { 'default_value' => '' }),
       'smtp_from'              => 'notifications@mljr.eu',
       'email_to'               => lookup('vault_healthreport_email_to', { 'default_value' => '' }),
+      # Reuses dmarc-monitor's own db_password for read access to its
+      # Postgres, not a separate credential - same precedent as Grafana's
+      # read access to the same instance, see the 'grafana' entry below.
+      'dmarc_db_password'      => lookup('vault_dmarcmonitor_db_password', { 'default_value' => '' }),
+      'dmarc_domains'          => $domain,
     },
     'backup-dashboard' => {
       'nuc_ip'           => '100.100.10.1',

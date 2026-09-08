@@ -96,6 +96,27 @@ func TestRenderHTMLProducesWellFormedPage(t *testing.T) {
 	}
 }
 
+func TestRenderHTMLLinksObservationsWithEvidenceURL(t *testing.T) {
+	facts := sampleFacts()
+	facts.Observations[0].Evidence = map[string]any{"url": "https://github.com/MrCodeEU/goDrive/actions/runs/1"}
+	narrative := &Narrative{
+		TopIssues: []TopIssue{{ObservationID: facts.Observations[0].ID, WhyItMatters: "workflow failing"}},
+	}
+	html, err := RenderHTML(facts, narrative, "x", "/nonexistent-state-dir")
+	if err != nil {
+		t.Fatalf("RenderHTML: %v", err)
+	}
+	want := `href="https://github.com/MrCodeEU/goDrive/actions/runs/1"`
+	if strings.Count(html, want) != 2 {
+		t.Errorf("expected the linked observation's URL to appear twice (top issue card + section row), got html:\n%s", html)
+	}
+	// The other sample observation has no evidence URL and must render as
+	// plain text, not an empty/broken link.
+	if strings.Contains(html, `href=""`) {
+		t.Error("observation without an evidence URL rendered an empty href")
+	}
+}
+
 func TestRenderHTMLEscapesObservationMessages(t *testing.T) {
 	// Normalized log signatures contain literal <ts>/<path>/<n> placeholders,
 	// which must render as text, not be swallowed as unknown HTML tags.

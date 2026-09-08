@@ -43,11 +43,15 @@ Most facts are HTTP calls to services already running on nuc:
 - **GitHub API** — workflow conclusions, Dependabot and code scanning alerts
   across every repo the account owns
 - **ntfy** — replays Diun's `docker-updates` topic instead of polling registries
+- **dmarc-monitor's Postgres** (`127.0.0.1:5432`, reachable directly since
+  this container also runs `network_mode: host`) — DMARC aggregate report
+  freshness and per-domain pass/fail counts, `HEALTHREPORT_DMARC_DB_URL`
 
 Anything not reachable over the network — CrowdSec's loopback-bound LAPI, the
 nftables ruleset, Unraid array/SMART state — comes from a read-only script
 behind an SSH key restricted to that one command
-(`ansible/roles/host-facts-endpoint`). No new listening ports.
+(`openvox/modules/roles/manifests/host_facts_endpoint.pp`). No new listening
+ports.
 
 ## Running it
 

@@ -68,6 +68,7 @@ type htmlObsRow struct {
 	ID            string
 	ShowAge       bool
 	FirstSeenDate string
+	URL           string
 }
 
 type htmlSection struct {
@@ -83,6 +84,18 @@ type htmlCollectorFailure struct {
 type htmlTopIssue struct {
 	ObservationID string
 	WhyItMatters  string
+	URL           string
+}
+
+// evidenceURL reads Evidence["url"], the convention a collector uses when it
+// can point directly at the thing that produced a finding (a GitHub Actions
+// run, a Grafana Explore query) instead of leaving the reader to go find it.
+func evidenceURL(o *Observation) string {
+	if o == nil {
+		return ""
+	}
+	u, _ := o.Evidence["url"].(string)
+	return u
 }
 
 type htmlPageData struct {
@@ -168,7 +181,7 @@ func buildHTMLPageData(facts *Facts, narrative *Narrative, headline, stateDir st
 			}
 			out = append(out, htmlObsRow{
 				Severity: o.Severity, SeverityColor: severityColor(o.Severity), Message: o.Message,
-				ID: o.ID, ShowAge: showAge, FirstSeenDate: date,
+				ID: o.ID, ShowAge: showAge, FirstSeenDate: date, URL: evidenceURL(o),
 			})
 		}
 		return out
@@ -288,7 +301,10 @@ func buildHTMLPageData(facts *Facts, narrative *Narrative, headline, stateDir st
 		assessment = narrative.Assessment
 		suggestedActions = narrative.SuggestedActions
 		for _, issue := range narrative.TopIssues {
-			topIssues = append(topIssues, htmlTopIssue{ObservationID: issue.ObservationID, WhyItMatters: issue.WhyItMatters})
+			topIssues = append(topIssues, htmlTopIssue{
+				ObservationID: issue.ObservationID, WhyItMatters: issue.WhyItMatters,
+				URL: evidenceURL(byID[issue.ObservationID]),
+			})
 		}
 	}
 

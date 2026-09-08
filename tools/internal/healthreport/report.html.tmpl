@@ -93,7 +93,9 @@
     <div class="hr-ink" style="color:#0b0b0b;font-size:14px;font-weight:600;margin-bottom:8px;">What to look at first</div>
     {{ range .TopIssues }}
     <div class="hr-card" style="background:#ffffff;border:1px solid #e6e5e1;border-radius:8px;padding:10px 12px;margin-bottom:6px;">
-      <div class="hr-ink" style="color:#0b0b0b;font-size:13px;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">{{ .ObservationID }}</div>
+      <div class="hr-ink" style="color:#0b0b0b;font-size:13px;font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">
+        {{ if .URL }}<a href="{{ .URL }}" style="color:#0b0b0b;text-decoration:underline;">{{ .ObservationID }}</a>{{ else }}{{ .ObservationID }}{{ end }}
+      </div>
       <div class="hr-ink-2" style="color:#52514e;font-size:13px;line-height:1.5;margin-top:3px;">{{ .WhyItMatters }}</div>
     </div>
     {{ end }}
@@ -194,7 +196,7 @@
         <td class="hr-rule" style="border-top:1px solid #e6e5e1;padding:7px 0;vertical-align:top;">
           <div class="hr-ink" style="color:#0b0b0b;font-size:13px;line-height:1.45;">{{ .Message }}</div>
           <div class="hr-ink-2" style="color:#52514e;font-size:11px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:2px;">
-            {{ .ID }}{{ if and .FirstSeenDate .ShowAge }} · since {{ .FirstSeenDate }}{{ end }}
+            {{ if .URL }}<a href="{{ .URL }}" style="color:#52514e;">{{ .ID }}</a>{{ else }}{{ .ID }}{{ end }}{{ if and .FirstSeenDate .ShowAge }} · since {{ .FirstSeenDate }}{{ end }}
           </div>
         </td>
       </tr>

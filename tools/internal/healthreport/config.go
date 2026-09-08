@@ -145,6 +145,17 @@ type Config struct {
 	// ha_unavailable_entities and drown out clusters that are an actual
 	// broken integration.
 	HAExcludedClusters []string
+
+	// parsedmarc's own Postgres (services/dmarc-monitor), a full DSN
+	// ("postgres://user:pass@host:port/db?sslmode=disable"). Empty disables
+	// the collector, same skip pattern as SMTP/Kuma. Reuses dmarc-monitor's
+	// own db_password rather than a separate credential - same precedent as
+	// Grafana's read access to the same instance (services.pp comment).
+	DMARCDBURL string
+	// header_from suffixes actually owned (e.g. "mljr.eu") - aggregate
+	// reports name any domain a sender claims to be, not just this fleet's
+	// own, and a third party's failures are not this fleet's problem.
+	DMARCDomains []string
 }
 
 func defaultConfig() Config {
@@ -216,6 +227,10 @@ func ConfigFromEnv() Config {
 	}
 	if raw, ok := os.LookupEnv("HEALTHREPORT_HA_EXCLUDED_CLUSTERS"); ok {
 		c.HAExcludedClusters = parseWindows(&raw, nil)
+	}
+	c.DMARCDBURL = os.Getenv("HEALTHREPORT_DMARC_DB_URL")
+	if raw, ok := os.LookupEnv("HEALTHREPORT_DMARC_DOMAINS"); ok {
+		c.DMARCDomains = parseWindows(&raw, nil)
 	}
 	return c
 }

@@ -203,6 +203,15 @@ rules:
     level: crit
     subjects: [mljr]
 
+  # nuc/nas run agent-only CrowdSec instances with no local API of their own
+  # (services/crowdsec-nuc, services/crowdsec-nas) - a silent crashloop there
+  # (e.g. the wrong LOCAL_API_URL, found live 2026-09-07) previously had no
+  # symptom here at all, only empty bouncer metrics someone had to notice in
+  # the web UI.
+  crowdsec_agent_stale:
+    type: present
+    level: crit
+
   crowdsec_bouncer:
     type: falsy
     level: crit
@@ -217,6 +226,22 @@ rules:
     type: threshold
     direction: above
     warn: 100
+
+  # --- Mail / DMARC ----------------------------------------------------------
+  # services/dmarc-monitor's own Postgres, read directly (network_mode: host
+  # on nuc reaches it on 127.0.0.1). Re-emitted every run while the condition
+  # holds, same as crowdsec_absent - "still open" until it clears.
+  dmarc_report_stale:
+    type: present
+    level: warn
+
+  # At this fleet's mail volume a handful of real DMARC failures for an
+  # owned domain (HEALTHREPORT_DMARC_DOMAINS) is worth a look; a single
+  # message is noise (auto-forward, one-off misdelivery).
+  dmarc_fail_count:
+    type: threshold
+    direction: above
+    warn: 3
 
   firewall_rules:
     type: threshold

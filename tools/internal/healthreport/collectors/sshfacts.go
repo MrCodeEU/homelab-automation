@@ -30,7 +30,20 @@ var sshOptions = []string{
 const (
 	backupIntegrityMaxAge = 8 * 24 * time.Hour
 	backupRestoreMaxAge   = 35 * 24 * time.Hour
+	// Observed live heartbeat cadence is well under a minute; 10 minutes
+	// gives room for a deploy-triggered restart without false-positiving,
+	// while still catching a silently crashlooping agent (e.g. the wrong
+	// LOCAL_API_URL, found live 2026-09-07) same-day instead of only when
+	// someone happens to notice empty bouncer metrics in the web UI.
+	crowdsecAgentHeartbeatMaxAge = 10 * time.Minute
 )
+
+// crowdsecWatchedMachines are the remote agent-only crowdsec instances that
+// have no local API of their own to self-report against (see
+// services/crowdsec-nuc, services/crowdsec-nas) - "localhost" and
+// "crowdsec-web-ui" are local to the host running this collector and covered
+// by crowdsec_absent/crowdsec_bouncer already.
+var crowdsecWatchedMachines = map[string]bool{"nuc": true, "nas": true}
 
 func verificationStale(updatedAt any, maxAge time.Duration) (bool, string) {
 	stamp := fmt.Sprint(updatedAt)
@@ -296,6 +309,25 @@ func rockyObservations(result *hr.CollectorResult, host string, sections map[str
 					Message:  fmt.Sprintf("%s: CrowdSec bouncer %s last seen %v", host, name, orDefault(bouncer["last_pull"], "never")),
 					Evidence: map[string]any{"last_pull": bouncer["last_pull"]}, Severity: "info",
 				})
+			}
+			machines, _ := data["machines"].([]any)
+			for _, m := range machines {
+				machine, ok := m.(map[string]any)
+				if !ok {
+					continue
+				}
+				id, _ := machine["machineId"].(string)
+				if !crowdsecWatchedMachines[id] {
+					continue
+				}
+				if stale, lastHeartbeat := verificationStale(machine["last_heartbeat"], crowdsecAgentHeartbeatMaxAge); stale {
+					result.Observations = append(result.Observations, &hr.Observation{
+						ID: "crowdsec_agent_stale." + host + "." + id, Collector: "ssh_facts",
+						Subject: id, Kind: "crowdsec_agent_stale", Value: lastHeartbeat,
+						Message:  fmt.Sprintf("CrowdSec agent %s hasn't heartbeated to %s's LAPI in over %s (last: %v)", id, host, crowdsecAgentHeartbeatMaxAge, lastHeartbeat),
+						Evidence: map[string]any{"last_heartbeat": machine["last_heartbeat"]}, Severity: "crit",
+					})
+				}
 			}
 		} else if status == "ok" && data != nil {
 			result.Observations = append(result.Observations, &hr.Observation{

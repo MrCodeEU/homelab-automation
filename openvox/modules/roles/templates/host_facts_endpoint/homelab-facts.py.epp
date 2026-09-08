@@ -254,6 +254,16 @@ def collect_crowdsec():
     out["bouncers"] = bouncers or []
     out["bouncers_error"] = err
 
+    # Remote agents (nuc, nas - see services/crowdsec-nuc, services/crowdsec-nas)
+    # push detections here but have no local API of their own to self-report
+    # against. A silently crashlooping or misconfigured agent (e.g. the wrong
+    # LOCAL_API_URL, found live 2026-09-07) stops protecting its host with no
+    # symptom here beyond a stale last_heartbeat on its machine entry.
+    machines, err = run_json(
+        ["docker", "exec", "crowdsec", "cscli", "machines", "list", "-o", "json"], timeout=30)
+    out["machines"] = machines or []
+    out["machines_error"] = err
+
     # Informational throughput. `cscli metrics` is verbose and mostly
     # per-scenario detail; only the totals are worth carrying across the wire.
     metrics, err = run_json(
