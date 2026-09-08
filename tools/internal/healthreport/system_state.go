@@ -240,7 +240,36 @@ func StateBackupTargets(facts *Facts) []BackupTargetState {
 			out = append(out, entry)
 		}
 	}
+	applyWdCloudDerivedUsage(out, facts.Observations)
 	return out
+}
+
+// applyWdCloudDerivedUsage fills in wd-cloud's percent from
+// WdCloudBackupTargetUsage's cross-collector correlation (run.go) - rclone
+// has no quota API over SFTP, so the raw facts payload alone always says
+// "no quota API" even though the same physical disk's usage is already
+// known from wd-mycloud's own node-exporter-sourced disk_usage.
+func applyWdCloudDerivedUsage(targets []BackupTargetState, observations []*Observation) {
+	var derived *Observation
+	for _, obs := range observations {
+		if obs.ID == "backup_target_usage.nas.wd-cloud" {
+			derived = obs
+			break
+		}
+	}
+	if derived == nil {
+		return
+	}
+	v, ok := numeric(derived.Value)
+	if !ok {
+		return
+	}
+	for i := range targets {
+		if targets[i].Name == "wd-cloud" && targets[i].UsedPercent == nil {
+			targets[i].UsedPercent = &v
+			targets[i].Note = ""
+		}
+	}
 }
 
 // StateNotes returns short informational lines that have no home in the
