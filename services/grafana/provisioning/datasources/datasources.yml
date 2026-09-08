@@ -39,7 +39,13 @@ datasources:
     database: parsedmarc
     user: parsedmarc
     secureJsonData:
-      password: ${DMARC_POSTGRES_PASSWORD}
+      # Grafana's own provisioning-file expansion syntax is $__env{VAR},
+      # not shell-style ${VAR} - docker-compose only substitutes vars in
+      # the compose YAML itself, never in files it mounts, so ${VAR} here
+      # was being sent to Postgres as the literal password (confirmed
+      # live 2026-09-08: dashboard panels all "No data", grafana still
+      # had the unexpanded string in its mounted copy of this file).
+      password: $__env{DMARC_POSTGRES_PASSWORD}
     jsonData:
       sslmode: disable
       postgresVersion: 1600
