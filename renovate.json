@@ -11,6 +11,11 @@
       "matchManagers": ["puppet"],
       "groupName": "OpenVox Forge modules",
       "automerge": false
+    },
+    {
+      "description": "Don't let Renovate bump go.mod's own `go` directive - it's pinned to match CI's toolchain (see .github/workflows), and Renovate bumping it alongside an unrelated dependency update breaks the build (seen live 2026-09-08, PR #311: x/sync bump silently carried go 1.25.2 -> 1.26.0)",
+      "matchManagers": ["golang-version"],
+      "enabled": false
     }
   ]
 }
