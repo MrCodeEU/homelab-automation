@@ -72,8 +72,9 @@ type htmlObsRow struct {
 }
 
 type htmlSection struct {
-	Title string
-	Rows  []htmlObsRow
+	Title      string
+	Rows       []htmlObsRow
+	BadgeColor string
 }
 
 type htmlCollectorFailure struct {
@@ -132,6 +133,22 @@ func severityColor(severity string) string {
 	default:
 		return "#0ca30c"
 	}
+}
+
+// worstSeverityColor picks the color for a section's title badge: crit
+// beats warn beats anything else, so "Still open" reads red at a glance
+// when even one of its rows is crit.
+func worstSeverityColor(rows []htmlObsRow) string {
+	worst := ""
+	for _, r := range rows {
+		if r.Severity == "crit" {
+			return severityColor("crit")
+		}
+		if r.Severity == "warn" {
+			worst = "warn"
+		}
+	}
+	return severityColor(worst)
 }
 
 func mountBarColor(percent float64) string {
@@ -195,6 +212,7 @@ func buildHTMLPageData(facts *Facts, narrative *Narrative, headline, stateDir st
 	var nonEmptySections []htmlSection
 	for _, s := range sections {
 		if len(s.Rows) > 0 {
+			s.BadgeColor = worstSeverityColor(s.Rows)
 			nonEmptySections = append(nonEmptySections, s)
 		}
 	}
