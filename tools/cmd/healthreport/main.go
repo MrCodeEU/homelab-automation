@@ -28,7 +28,7 @@ import (
 
 var defaultCollectors = []string{
 	"host_metrics", "containers", "logs", "uptime_kuma",
-	"ssh_facts", "github", "updates", "homeassistant",
+	"ssh_facts", "github", "updates", "homeassistant", "dmarc",
 }
 
 type stringList []string
