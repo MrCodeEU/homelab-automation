@@ -278,11 +278,14 @@ func buildHTMLPageData(facts *Facts, narrative *Narrative, headline, stateDir st
 			bt.HasPercent = true
 			bt.UsedPercent = round1f(*t.UsedPercent)
 			bt.BarColor = targetBarColor(*t.UsedPercent)
-			free := "?"
 			if t.FreeGiB != nil {
-				free = fmt.Sprint(*t.FreeGiB)
+				bt.Detail = fmt.Sprintf("%.1f%% · %d GiB free", bt.UsedPercent, *t.FreeGiB)
+			} else {
+				// No free/total bytes available on this path (e.g.
+				// wd-cloud's percent is derived from wd-mycloud's own
+				// disk_usage, which only carries a percentage).
+				bt.Detail = fmt.Sprintf("%.1f%%", bt.UsedPercent)
 			}
-			bt.Detail = fmt.Sprintf("%.1f%% · %s GiB free", bt.UsedPercent, free)
 		} else {
 			note := t.Note
 			if note == "" {
