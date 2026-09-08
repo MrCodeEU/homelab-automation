@@ -36,7 +36,6 @@ datasources:
     type: postgres
     access: proxy
     url: 100.100.10.1:5432
-    database: parsedmarc
     user: parsedmarc
     secureJsonData:
       # Grafana's own provisioning-file expansion syntax is $__env{VAR},
@@ -47,6 +46,14 @@ datasources:
       # had the unexpanded string in its mounted copy of this file).
       password: $__env{DMARC_POSTGRES_PASSWORD}
     jsonData:
+      # Grafana 13 dropped the legacy top-level `database:` field for the
+      # Postgres provider - it now requires the database name here, in
+      # jsonData, or every panel fails with "You do not currently have a
+      # default database configured for this data source" even though
+      # the connection itself (auth, host, port) is fine (confirmed live
+      # 2026-09-08: every panel query worked fine through Grafana's own
+      # /api/ds/query when called directly, only the dashboard UI failed).
+      database: parsedmarc
       sslmode: disable
       postgresVersion: 1600
     editable: true
