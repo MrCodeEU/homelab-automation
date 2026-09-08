@@ -481,7 +481,7 @@ func collectLogs(cfg hr.Config, rules hr.RulesFile) *hr.CollectorResult {
 			ID: fmt.Sprintf("log_signature.%s.%s", e.container, sigKey(e.signature)), Collector: "logs",
 			Subject: e.host, Kind: "log_signature", Value: e.count, Unit: "occurrences_in_sample",
 			Message:  fmt.Sprintf("%s: %s (x%d in sample)", e.container, msg, e.count),
-			Evidence: map[string]any{"example": e.example, "logql": logql}, Severity: "info",
+			Evidence: map[string]any{"example": e.example, "logql": logql, "url": grafanaExploreURL(cfg.GrafanaURL, logql)}, Severity: "info",
 		})
 	}
 
@@ -491,7 +491,7 @@ func collectLogs(cfg hr.Config, rules hr.RulesFile) *hr.CollectorResult {
 			ID: fmt.Sprintf("log_error_rate.%s.%s", k.host, k.container), Collector: "logs",
 			Subject: k.host, Kind: "log_error_rate", Value: count, Unit: "lines",
 			Message:  fmt.Sprintf("%s/%s logged %s error lines in %dh", k.host, k.container, formatThousands(float64(count)), hours),
-			Evidence: map[string]any{"logql": logql}, Severity: "info",
+			Evidence: map[string]any{"logql": logql, "url": grafanaExploreURL(cfg.GrafanaURL, logql)}, Severity: "info",
 		})
 	}
 
