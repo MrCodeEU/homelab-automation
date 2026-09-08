@@ -313,6 +313,23 @@ func StateNotes(facts *Facts) []string {
 		))
 	}
 
+	// DMARC, purely informational at low counts: crit/warn observations
+	// already surface in the severity table above, this just keeps a
+	// below-threshold failure (e.g. "1 of N failed") visible instead of
+	// silently vanishing until it crosses the rules.yml warn threshold.
+	for _, obs := range facts.Observations {
+		if obs == nil {
+			continue
+		}
+		if obs.Kind != "dmarc_fail_count" && obs.Kind != "dmarc_report_stale" {
+			continue
+		}
+		if obs.Severity == "warn" || obs.Severity == "crit" {
+			continue
+		}
+		out = append(out, obs.Message)
+	}
+
 	if r := collectorData(facts, "homeassistant"); r != nil {
 		if d, ok := r.Data.(*HomeAssistantData); ok {
 			if d.Version != "" {
