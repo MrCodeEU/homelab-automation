@@ -5,20 +5,27 @@
 # device paths, same kill/swap/restart sequence, same best-effort
 # reconnect if the update itself fails partway through.
 #
-# Real bug found and fixed live (2026-08-22): the update kills tailscaled,
-# which is what provides Tailscale SSH on this device in the first place -
-# so a naive `ssh ... bash -s <<REMOTE ... REMOTE` running the whole
-# sequence in one foreground session gets its own transport torn down
-# mid-script the instant `pkill tailscaled` runs. The remote script
-# actually keeps running to completion in that case (confirmed live: the
-# device ended up correctly updated and healthy), but the local ssh
-# client sees "Connection closed by remote host" / exit 255 and reports a
-# false failure. Fixed by having the remote side background its own
-# entire body with nohup+disown and return immediately (one short-lived
-# connection that completes before pkill runs), then polling with fresh
-# connections afterward - exactly the shape Ansible's own per-task
-# separate-connection model got "for free" and a single persistent
-# session does not.
+# Real bug found live (2026-08-22, thought fixed; recurred and actually
+# diagnosed 2026-09-17): the update kills tailscaled, which is what
+# provides Tailscale SSH on this device in the first place. The first fix
+# attempt backgrounded the remote payload with nohup+disown so the *shell
+# session* tearing down wouldn't take it with it - that part works. What
+# doesn't survive is the payload's *process ancestry*: it was spawned by
+# `tailscaled be-child ssh ...`, i.e. tailscaled is its literal parent, not
+# just its terminal. nohup/disown only protect against SIGHUP from a
+# departing shell; they do nothing when the parent process itself is the
+# one being killed and tears down its own child tree on shutdown - which
+# is exactly what happened live on 2026-09-17 (confirmed via
+# tailscaled.log: pkill logged, "shutting down" logged, then nothing -
+# current symlink never swapped, tailscaled never restarted, device
+# stayed dark until manually recovered over the device's own LAN sshd).
+#
+# Fix: don't background the restart under this SSH session's process tree
+# at all. Write it to a script on the persistent data partition and have
+# BusyBox `crond` (a real system daemon, not a tailscaled child - `at`
+# isn't available on this device) fire it within the next minute via a
+# self-removing crontab entry. crond's process tree is completely
+# independent of tailscaled, so killing tailscaled can't touch it.
 set -euo pipefail
 TARGET="root@wd-mycloud.tail33930.ts.net"
 BASE="/mnt/HD/HD_a2/tailscale"
@@ -31,9 +38,6 @@ ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" bash -s -- "$
 export LATEST_VERSION="$1"
 export LATEST_TARBALL="$2"
 export BASE=/mnt/HD/HD_a2/tailscale
-
-nohup bash -c '
-set -e
 NEWDIR="$BASE/releases/tailscale_${LATEST_VERSION}_arm"
 
 mkdir -p "$BASE/releases"
@@ -43,31 +47,38 @@ if [ ! -d "$NEWDIR" ]; then
   rm -f "$BASE/$LATEST_TARBALL"
 fi
 
+# The swap+restart itself must NOT run as a child of this SSH session -
+# this session IS tailscaled (Tailscale SSH), and it's about to kill
+# tailscaled. A cron one-shot runs under crond instead, which has no
+# relation to tailscaled and survives it being killed. Self-removes from
+# crontab as its last step so it fires exactly once.
+cat > "$BASE/restart-oneshot.sh" <<EOF
+#!/bin/sh
+set -e
 pkill -f "tailscaled --statedir" || true
 sleep 3
 ln -sfn "$NEWDIR" "$BASE/current"
 cd "$BASE/current"
 nohup ./tailscaled --statedir="$BASE/tailscale_lib" >>"$BASE/tailscaled.log" 2>&1 &
-disown
 sleep 4
-
 if ! ./tailscale up --hostname=wd-mycloud --accept-dns=false --ssh; then
   sleep 2
   ./tailscale up --hostname=wd-mycloud --accept-dns=false --ssh || true
 fi
-
 for d in "$BASE"/releases/*/; do
-  d="${d%/}"
-  [ "$d" = "$NEWDIR" ] || rm -rf "$d"
+  d="\${d%/}"
+  [ "\$d" = "$NEWDIR" ] || rm -rf "\$d"
 done
-' >>"$BASE/update.log" 2>&1 &
-disown
-echo "update backgrounded, will reconnect once tailscaled restarts"
+crontab -l 2>/dev/null | grep -v restart-oneshot.sh | crontab -
+EOF
+chmod +x "$BASE/restart-oneshot.sh"
+(crontab -l 2>/dev/null; echo "* * * * * $BASE/restart-oneshot.sh >>$BASE/update.log 2>&1") | crontab -
+echo "restart scheduled via crond, will reconnect once tailscaled restarts"
 REMOTE
 
-# The command above returns as soon as the remote background job is
-# launched, before pkill runs - now poll fresh connections until the
-# device is back and confirmed on the target version.
+# The command above returns as soon as the cron job is scheduled, before
+# it fires - now poll fresh connections until the device is back and
+# confirmed on the target version.
 for _ in $(seq 1 24); do
   sleep 5
   CURRENT=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 "$TARGET" \
