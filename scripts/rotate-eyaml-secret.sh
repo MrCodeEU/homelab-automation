@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Remote eyaml command below is deliberately constructed from a validated
+# client-side path, same pattern as scripts/openvox-sync.sh.
+# shellcheck disable=SC2029
 # Interactive secret rotation: pick a vault_* key, paste its new value, and
 # this walks the whole flow documented in AGENTS.md ("Secrets are
 # host-scoped and decrypt host-side") end to end:
@@ -24,7 +27,7 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "not inside a git repo" >&2
   exit 1
 }
-cd "$repo_root"
+cd "$repo_root" || exit 1
 
 secrets_dir="openvox/data/secrets"
 declare -A HOST_CERTNAME=(
@@ -94,7 +97,7 @@ done
 
 [ "${#KEY_ORDER[@]}" -gt 0 ] || die "no vault_* keys found under $secrets_dir"
 
-IFS=$'\n' KEY_ORDER=($(sort <<<"${KEY_ORDER[*]}")); unset IFS
+mapfile -t KEY_ORDER < <(printf '%s\n' "${KEY_ORDER[@]}" | sort)
 
 # ---------------------------------------------------------------------------
 # 2. Pick the key (CLI arg or menu)
