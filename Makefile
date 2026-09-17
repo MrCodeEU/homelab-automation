@@ -14,6 +14,10 @@
 #   make openvox-recovery HOST=<mljr|nuc> SERVICE=<name>[,<name>...]
 #   make openvox-rollback HOST=<host> [STEPS=1]
 #
+# Secret rotation (see scripts/rotate-eyaml-secret.sh):
+#   make rotate-secret-dry-run [KEY=vault_x]   Preview only, nothing written
+#   make rotate-secret [KEY=vault_x]           Full flow, confirmed at each step
+#
 # `ansible/` (the pre-OpenVox implementation) was removed 2026-09-02 after
 # a full parity audit confirmed every role had a real OpenVox equivalent -
 # see the top-level README.md's "Migrating from Ansible" section, or
@@ -23,7 +27,8 @@
 .PHONY: test test-quick test-services test-services-verbose test-healthreport test-openvox-unit test-openvox-caddy-render \
         help \
         _check-validate _check-syntax _check-compose \
-        openvox-check openvox-deploy openvox-recovery openvox-rollback
+        openvox-check openvox-deploy openvox-recovery openvox-rollback \
+        rotate-secret rotate-secret-dry-run
 
 ################################################################################
 # DEFAULT: fast local tests (no Docker)
@@ -173,6 +178,16 @@ openvox-staging:
 sync-openvox-services:
 	@./scripts/sync-openvox-service-files.sh sync
 
+# Interactive vault_* secret rotation - see scripts/rotate-eyaml-secret.sh.
+# Usage: make rotate-secret [KEY=vault_some_key]
+#        make rotate-secret-dry-run [KEY=vault_some_key]  — stop after the
+#        ciphertext diff, no commit/push/PR/deploy.
+rotate-secret:
+	@./scripts/rotate-eyaml-secret.sh $(KEY)
+
+rotate-secret-dry-run:
+	@./scripts/rotate-eyaml-secret.sh --dry-run $(KEY)
+
 ################################################################################
 # Housekeeping
 ################################################################################
@@ -194,3 +209,7 @@ help:
 	@echo "  make openvox-rollback HOST=<host> [STEPS=1]"
 	@echo "  make openvox-staging SERVICE=<name>[,<name>...]  — nuc only"
 	@echo "  make sync-openvox-services   — sync openvox/ tree with services/"
+	@echo ""
+	@echo "Secret rotation:"
+	@echo "  make rotate-secret-dry-run [KEY=vault_x]  — preview ciphertext diff only, nothing written"
+	@echo "  make rotate-secret [KEY=vault_x]          — full flow: encrypt, PR, confirmed merge + deploy"
