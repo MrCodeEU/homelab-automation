@@ -52,6 +52,11 @@ fi
 # tailscaled. A cron one-shot runs under crond instead, which has no
 # relation to tailscaled and survives it being killed. Self-removes from
 # crontab as its last step so it fires exactly once.
+# Keep the release current is about to move away from too - a one-step
+# rollback (swap $BASE/current back to it by hand) if the new one turns
+# out bad, without keeping every old release around forever.
+OLDDIR="$(readlink -f "$BASE/current" 2>/dev/null || true)"
+
 cat > "$BASE/restart-oneshot.sh" <<EOF
 #!/bin/sh
 set -e
@@ -67,7 +72,7 @@ if ! ./tailscale up --hostname=wd-mycloud --accept-dns=false --ssh; then
 fi
 for d in "$BASE"/releases/*/; do
   d="\${d%/}"
-  [ "\$d" = "$NEWDIR" ] || rm -rf "\$d"
+  [ "\$d" = "$NEWDIR" ] || [ "\$d" = "$OLDDIR" ] || rm -rf "\$d"
 done
 crontab -l 2>/dev/null | grep -v restart-oneshot.sh | crontab -
 EOF
