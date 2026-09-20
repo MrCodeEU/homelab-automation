@@ -9,6 +9,7 @@ describe 'roles::base' do
     is_expected.not_to contain_file('/etc/systemd/system/cockpit.socket.d/override.conf')
     is_expected.not_to contain_exec('base-docker-prune')
     is_expected.not_to contain_exec('base-reboot-if-needed')
+    is_expected.not_to contain_reboot('base-reboot-after-run')
   end
 
   it 'uses read-only guards for stateful base scripts' do
@@ -56,7 +57,11 @@ describe 'roles::base' do
         require: 'Service[docker]',
       )
       is_expected.to contain_exec('base-reboot-if-needed').with(
-        command: %r{reboot-if-needed-apply\.sh},
+        unless: %r{reboot-needed-check\.sh},
+        notify: 'Reboot[base-reboot-after-run]',
+      )
+      is_expected.to contain_reboot('base-reboot-after-run').with(
+        apply: 'finished',
       )
     end
   end

@@ -4,3 +4,6 @@ fixtures:
     stdlib:
       repo: puppetlabs/stdlib
       ref: 10.0.2
+    reboot:
+      repo: puppetlabs/reboot
+      ref: 6.0.0
