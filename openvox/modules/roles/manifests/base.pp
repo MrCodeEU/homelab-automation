@@ -284,9 +284,24 @@ class roles::base (
   # migration's own verification runs)
   # ==========================================================================
 
+  # apply => 'finished' defers the actual reboot until Puppet's whole
+  # transaction for this host is done, regardless of where in the catalog
+  # this exec sits - a raw `shutdown -r +1` here used to fire mid-catalog
+  # and take the host down before its own later Exec resources (service
+  # deploys) had run, killing them with SIGHUP (2026-09-13, 2026-09-20).
+  # The exec only decides IF a reboot is needed (via needs-restarting) and
+  # notifies; the reboot resource decides WHEN to actually apply it.
   if $reboot_if_needed and $reboot_enabled {
     exec { 'base-reboot-if-needed':
-      command => "${work_dir}/reboot-if-needed-apply.sh",
+      command => '/bin/true',
+      unless  => "${work_dir}/reboot-needed-check.sh",
+      path    => ['/usr/bin', '/bin'],
+      notify  => Reboot['base-reboot-after-run'],
+    }
+
+    reboot { 'base-reboot-after-run':
+      apply   => 'finished',
+      message => 'Rebooting to activate installed kernel/library updates (OpenVox)',
     }
   }
 }
