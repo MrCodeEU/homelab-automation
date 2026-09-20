@@ -10,15 +10,21 @@
 # (bootstrapped 2026-08-13).
 #
 # HIGH-RISK STEP, present but should not fire in normal operation: the
-# "first login" exec below only runs when
-# /opt/tutabridge/.first-login-done is absent - confirmed live the
-# marker already exists, so this is a permanent no-op under normal
-# re-applies. It drives an interactive Tuta login via `expect` (only
-# safe because this account has no TOTP - a 30+ char random password is
-# the only factor; if TOTP is ever added this starts failing at the
-# password prompt and the login needs to go manual again). Do not
-# delete /opt/tutabridge/.first-login-done to "test" this path - it
-# forces a real re-authentication against the live account.
+# "first login" exec below runs whenever session-valid-check.sh doesn't
+# see BOTH the marker present AND an actual saved session in the
+# keyring - not the marker alone. tutabridge-cli itself deletes the
+# keyring item on certain resume failures without touching the marker
+# (hit live 2026-09-15 to 2026-09-20 - Tuta rejected the pinned client
+# version, every retry wiped the session, and the marker sat there
+# claiming login was done while the keyring was empty for 5 days). This
+# makes the class self-heal instead of silently staying broken, at the
+# cost of it no longer being a guaranteed permanent no-op. It drives an
+# interactive Tuta login via `expect` (only safe because this account
+# has no TOTP - a 30+ char random password is the only factor; if TOTP
+# is ever added this starts failing at the password prompt and the
+# login needs to go manual again). Do not delete
+# /opt/tutabridge/.first-login-done to "test" this path - it forces a
+# real re-authentication against the live account.
 #
 # Also present, also should not fire in normal operation: the
 # keyring-selfheal exec (stop daemon, delete keyring files, force
@@ -178,7 +184,7 @@ class roles::tutabridge_cli (
 
   exec { 'tutabridge-first-login':
     command     => "${work_dir}/first-login.sh",
-    unless      => "/usr/bin/test -f ${install_dir}/.first-login-done",
+    unless      => "${work_dir}/session-valid-check.sh",
     path        => ['/usr/bin', '/bin'],
     environment => ["TUTA_EMAIL=${tuta_email.unwrap}", "TUTA_PASSWORD=${tuta_password.unwrap}"],
     timeout     => 3600,

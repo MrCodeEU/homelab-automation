@@ -13,7 +13,7 @@ describe 'roles::tutabridge_cli' do
       require: 'Service[gnome-keyring-daemon]',
     )
     is_expected.to contain_exec('tutabridge-first-login').with(
-      unless: '/usr/bin/test -f /opt/tutabridge/.first-login-done',
+      unless: %r{session-valid-check\.sh},
       timeout: 3600,
       logoutput: 'on_failure',
     )
