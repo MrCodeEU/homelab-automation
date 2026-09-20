@@ -33,6 +33,15 @@ PREV_TAG=""
 
 mv "$TMP" "$DST"
 chmod 755 "$DST"
+# mv preserves the source's SELinux context - $TMP is labeled tmp_t
+# (from /tmp), which systemd refuses to exec (203/EXEC, Permission
+# denied) once moved into /opt/tutabridge. This never showed up before
+# because download-check.sh's old fixed-hash check always matched after
+# the one-time 2026-08-13 bootstrap, so this exec never ran again until
+# the switch to always-check-latest triggered a real redownload for the
+# first time. restorecon relabels it back to the directory's default
+# (usr_t), which is executable.
+restorecon "$DST" 2>/dev/null || true
 echo "$EXPECTED" > "$DIGEST_FILE"
 echo "$TAG" > "$TAG_FILE"
 echo "downloaded $DST ($TAG)"
