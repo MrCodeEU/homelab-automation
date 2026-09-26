@@ -43,7 +43,9 @@ Tailscale sources before decisions are created:
 - `100.64.0.0/10`
 
 It also keeps the Nocturne Caddy access-log exception for `nc.mljr.eu` to avoid
-global bans from repeated app-auth failures.
+global bans from repeated app-auth failures. `budget.mljr.eu` (Actual Budget)
+is allowlisted the same way: its web client loads many `/data/migrations/*.sql`
+files that trip `http-sensitive-files` and `http-crawl-non_statics`.
 
 ## Ban Duration
 
