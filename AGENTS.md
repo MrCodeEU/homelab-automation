@@ -122,6 +122,11 @@ those two.
 
 ## Adding a service
 
+**Never add a DNS record for a new `*.mljr.eu` hostname.** `dns/dnsconfig.js`
+has wildcard `A`/`AAAA` for `*`, so the name already resolves to the ingress
+and Caddy issues the certificate on first request. Only touch `dns/` for a
+name the wildcard doesn't cover (e.g. a `CNAME` to a third party).
+
 1. Add to `services_catalog` in `openvox/data/common.yaml`.
 2. Create `services/<name>/docker-compose.yml`.
 3. Secrets needed? Add each `vault_*` key to every required host's

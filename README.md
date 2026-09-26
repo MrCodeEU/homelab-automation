@@ -347,6 +347,11 @@ External repos can trigger a specific service deployment with `repository_dispat
 
 ## Adding a Service
 
+**No DNS change is needed for a new `*.mljr.eu` hostname.** `dns/dnsconfig.js`
+has wildcard `A`/`AAAA` records for `*`, so any new subdomain already resolves
+to the ingress; Caddy obtains the certificate on first request. Only add a
+record for a name outside the wildcard (e.g. a `CNAME` to a third party).
+
 1. Add the service to `services_catalog` in `openvox/data/common.yaml`.
 2. Create `services/<name>/docker-compose.yml`.
 3. If the service needs secrets: add `vault_*` keys to the encrypted file for
