@@ -158,6 +158,15 @@ class roles::services (
       'smtp_from'            => lookup('vault_smtp_from', { 'default_value' => "admin@${domain}" }),
       'contact_to'           => lookup('vault_homepage_contact_to', { 'default_value' => '' }),
     },
+    'glucava' => {
+      'admin_email'       => lookup('vault_glucava_admin_email', { 'default_value' => '' }),
+      'admin_password'    => lookup('vault_glucava_admin_password', { 'default_value' => '' }),
+      'secret_key'        => lookup('vault_glucava_secret_key', { 'default_value' => '' }),
+      'dexcom_username'   => lookup('vault_glucava_dexcom_username', { 'default_value' => '' }),
+      'dexcom_password'   => lookup('vault_glucava_dexcom_password', { 'default_value' => '' }),
+      'smtp_username'     => lookup('vault_glucava_smtp_username', { 'default_value' => '' }),
+      'smtp_password'     => lookup('vault_glucava_smtp_password', { 'default_value' => '' }),
+    },
     'umami' => {
       'app_secret'        => lookup('vault_umami_app_secret', { 'default_value' => '' }),
       'postgres_password' => lookup('vault_umami_postgres_password', { 'default_value' => '' }),

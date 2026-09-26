@@ -260,6 +260,15 @@ services_catalog:
     description: "Diabetes Management (Next-Gen)"
     icon: "mdi:moon-waning-crescent"
 
+  - name: glucava
+    enabled: true
+    domain: "glucava.mljr.eu"
+    port: 8095
+    host: nuc
+    description: "Glucose stats for Strava activities"
+    icon: "mdi:water-percent"
+    backup_critical: true
+
   - name: kuma
     enabled: true
     domain: "uptime.mljr.eu"

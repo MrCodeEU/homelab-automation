@@ -1,0 +1,59 @@
+# Glucava: appends Dexcom glucose stats to Strava activity descriptions.
+# https://github.com/MrCodeEU/glucava
+#
+# The image tag is pinned on purpose (env.epp forces IMAGE_TAG=latest for
+# every service). To upgrade, change the tag here and run
+# `make sync-openvox-services`.
+#
+# GLUCAVA_ADMIN_* and GLUCAVA_DEXCOM_* / GLUCAVA_SMTP_* only seed settings
+# on the first start; afterwards edit them in the web UI.
+services:
+  glucava:
+    image: ghcr.io/mrcodeeu/glucava:0.1.0
+    container_name: ${COMPOSE_PROJECT_NAME:-glucava}
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8095:8090"
+    volumes:
+      - glucava-data:/data
+    environment:
+      TZ: ${TZ:-Europe/Vienna}
+      HOME: /tmp
+      GLUCAVA_ADMIN_EMAIL: ${GLUCAVA_ADMIN_EMAIL:?}
+      GLUCAVA_ADMIN_PASSWORD: ${GLUCAVA_ADMIN_PASSWORD:?}
+      GLUCAVA_SECRET_KEY: ${GLUCAVA_SECRET_KEY:?}
+      GLUCAVA_PUBLIC_URL: https://glucava.${DOMAIN:-mljr.eu}
+      # Caddy on mljr reaches this container over the tailnet.
+      GLUCAVA_TRUSTED_PROXIES: 100.100.20.1
+      GLUCAVA_DEXCOM_USERNAME: ${GLUCAVA_DEXCOM_USERNAME:-}
+      GLUCAVA_DEXCOM_PASSWORD: ${GLUCAVA_DEXCOM_PASSWORD:-}
+      GLUCAVA_DEXCOM_REGION: ous
+      GLUCAVA_SMTP_HOST: smtp.gmail.com
+      GLUCAVA_SMTP_PORT: "587"
+      GLUCAVA_SMTP_TLS: "0"
+      GLUCAVA_SMTP_USERNAME: ${GLUCAVA_SMTP_USERNAME:-}
+      GLUCAVA_SMTP_PASSWORD: ${GLUCAVA_SMTP_PASSWORD:-}
+      GLUCAVA_SMTP_SENDER_ADDRESS: ${GLUCAVA_SMTP_USERNAME:-}
+      GLUCAVA_SMTP_TO: ${GLUCAVA_SMTP_USERNAME:-}
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "glucava", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  glucava-data:
+    name: glucava-data
