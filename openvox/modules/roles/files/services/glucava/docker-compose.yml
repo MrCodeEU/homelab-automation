@@ -9,7 +9,7 @@
 # on the first start; afterwards edit them in the web UI.
 services:
   glucava:
-    image: ghcr.io/mrcodeeu/glucava:0.1.0
+    image: ghcr.io/mrcodeeu/glucava:0.1.1
     container_name: ${COMPOSE_PROJECT_NAME:-glucava}
     restart: unless-stopped
     ports:
