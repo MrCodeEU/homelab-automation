@@ -16,6 +16,13 @@ Local preview (token never goes in a file; `creds.json` reads the env var):
 cd dns && DESEC_TOKEN=... dnscontrol preview
 ```
 
+## New services need no DNS change
+
+`A("*")` and `AAAA("*")` point every otherwise-unlisted `mljr.eu` name at the
+ingress (mljr). Adding a service to `services_catalog` is enough: Caddy issues
+the certificate on first request. Edit this file only for names the wildcard
+does not cover.
+
 ## Not managed here
 
 - Apex `NS` records: owned by deSEC, handled by the dnscontrol provider.
