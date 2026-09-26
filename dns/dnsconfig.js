@@ -53,8 +53,5 @@ D("mljr.eu", REG_NONE, DnsProvider(DSP_DESEC),
   TXT("_iac", "managed-by=homelab-automation/dnscontrol; rev=1"),
 
   // Site verification
-  TXT("@", "google-site-verification=vHuU3zYh15HV8UQkLzi_KicmWgGshuIXL8CBzvzzwd4"),
-
-  // Present in the live zone; purpose unclear (DS record for "ds.mljr.eu").
-  DS("ds", 28826, 13, 2, "5b1db5474adc74eea5f8e32a6d28e15cd6c920995ceba33fc2797ac2863fd437")
+  TXT("@", "google-site-verification=vHuU3zYh15HV8UQkLzi_KicmWgGshuIXL8CBzvzzwd4")
 );
