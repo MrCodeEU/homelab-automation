@@ -171,6 +171,9 @@ class roles::services (
       'postgres_password'  => lookup('vault_sure_postgres_password', { 'default_value' => '' }),
       'secret_key_base'    => lookup('vault_sure_secret_key_base', { 'default_value' => '' }),
       'oidc_client_secret' => lookup('vault_sure_oidc_client_secret', { 'default_value' => '' }),
+      'ar_primary_key'     => lookup('vault_sure_ar_primary_key', { 'default_value' => '' }),
+      'ar_deterministic_key' => lookup('vault_sure_ar_deterministic_key', { 'default_value' => '' }),
+      'ar_key_derivation_salt' => lookup('vault_sure_ar_key_derivation_salt', { 'default_value' => '' }),
     },
     'actual-budget' => {
       'oidc_client_secret' => lookup('vault_actual_oidc_client_secret', { 'default_value' => '' }),

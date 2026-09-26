@@ -23,6 +23,13 @@ x-sure-env: &sure-env
   DB_PORT: 5432
   REDIS_URL: redis://redis:6379/1
   TZ: ${TZ:-Europe/Vienna}
+  # Explicit Active Record encryption keys (they protect stored provider
+  # credentials such as Enable Banking). Without them Sure derives keys from
+  # SECRET_KEY_BASE, which would then be impossible to rotate. Losing these
+  # keys makes stored credentials unreadable: they live in nuc's eyaml.
+  ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: ${AR_ENCRYPTION_PRIMARY_KEY:?}
+  ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: ${AR_ENCRYPTION_DETERMINISTIC_KEY:?}
+  ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: ${AR_ENCRYPTION_KEY_DERIVATION_SALT:?}
 
 services:
   web:
@@ -41,6 +48,9 @@ services:
       OIDC_REDIRECT_URI: https://sure.${DOMAIN:-mljr.eu}/auth/openid_connect/callback
       OIDC_BUTTON_LABEL: Sign in with Authelia
       ALLOWED_OIDC_DOMAINS: ${DOMAIN:-mljr.eu}
+      # The owner account exists; close open sign-up (SSO logins of linked
+      # users keep working).
+      ONBOARDING_STATE: closed
     depends_on:
       db:
         condition: service_healthy
