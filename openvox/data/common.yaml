@@ -231,6 +231,12 @@ authelia_oidc_clients:
     redirect_uris:
       - https://budget.mljr.eu/openid/callback
     scopes: [openid, profile, email, groups]
+  - id: sure
+    name: Sure
+    secret_digest: '$pbkdf2-sha512$310000$Zu5b8EHw1vN3/.j4Nkjt6w$FXEddbndFdia0mODUA9O1fz.vPkoCWOVGk0F0stV42bA4vknqdl.aYhiz594xuUn97UxyeSsZHcIhTnHCUuXIw'
+    redirect_uris:
+      - https://sure.mljr.eu/auth/openid_connect/callback
+    scopes: [openid, profile, email]
 
 services_catalog:
   - name: authelia
@@ -293,6 +299,15 @@ services_catalog:
     caddy_extra_config: |
       @alias host actual.mljr.eu
       redir @alias https://budget.mljr.eu{uri} permanent
+
+  - name: sure
+    enabled: true
+    domain: "sure.mljr.eu"
+    port: 8097
+    host: nuc
+    description: "Personal finance (trial, alongside actual-budget)"
+    icon: "mdi:finance"
+    backup_critical: true
 
   - name: kuma
     enabled: true

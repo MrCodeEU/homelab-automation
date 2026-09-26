@@ -1,0 +1,125 @@
+# Sure: self-hosted personal finance (community fork of Maybe), trial run.
+# https://github.com/we-promise/sure
+#
+# The image tag is pinned on purpose (env.epp forces IMAGE_TAG=latest for
+# every service, and the upstream `stable` tag moves). Sure is pre-1.0 and
+# ships schema changes often: read the release notes before bumping the tag,
+# and never use the -alpha tags. After a change run
+# `make sync-openvox-services`.
+#
+# Login is OpenID Connect against Authelia (client "sure", see
+# authelia_oidc_clients in common.yaml); local email/password login stays
+# enabled as a fallback until OIDC is proven.
+x-sure-env: &sure-env
+  POSTGRES_USER: sure
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+  POSTGRES_DB: sure
+  SECRET_KEY_BASE: ${SECRET_KEY_BASE:?}
+  SELF_HOSTED: "true"
+  # TLS ends at Caddy on mljr.
+  RAILS_ASSUME_SSL: "true"
+  RAILS_FORCE_SSL: "false"
+  DB_HOST: db
+  DB_PORT: 5432
+  REDIS_URL: redis://redis:6379/1
+  TZ: ${TZ:-Europe/Vienna}
+
+services:
+  web:
+    image: ghcr.io/we-promise/sure:0.7.4
+    container_name: ${COMPOSE_PROJECT_NAME:-sure}
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8097:3000"
+    volumes:
+      - sure-app-storage:/rails/storage
+    environment:
+      <<: *sure-env
+      OIDC_ISSUER: https://auth.${DOMAIN:-mljr.eu}
+      OIDC_CLIENT_ID: sure
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?}
+      OIDC_REDIRECT_URI: https://sure.${DOMAIN:-mljr.eu}/auth/openid_connect/callback
+      OIDC_BUTTON_LABEL: Sign in with Authelia
+      ALLOWED_OIDC_DOMAINS: ${DOMAIN:-mljr.eu}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    networks:
+      - sure-internal
+    logging: &logging
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    image: ghcr.io/we-promise/sure:0.7.4
+    container_name: ${COMPOSE_PROJECT_NAME:-sure}-worker
+    command: bundle exec sidekiq
+    restart: unless-stopped
+    volumes:
+      - sure-app-storage:/rails/storage
+    environment:
+      <<: *sure-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    networks:
+      - sure-internal
+    logging: *logging
+
+  db:
+    image: postgres:16
+    container_name: ${COMPOSE_PROJECT_NAME:-sure}-db
+    restart: unless-stopped
+    volumes:
+      - sure-postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: sure
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: sure
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sure -d sure"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sure-internal
+    logging: *logging
+
+  redis:
+    image: redis:7-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-sure}-redis
+    restart: unless-stopped
+    volumes:
+      - sure-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sure-internal
+    logging: *logging
+
+networks:
+  sure-internal:
+    driver: bridge
+
+volumes:
+  sure-app-storage:
+    name: sure-app-storage
+  sure-postgres-data:
+    name: sure-postgres-data
+  sure-redis-data:
+    name: sure-redis-data

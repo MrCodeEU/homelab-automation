@@ -142,6 +142,21 @@ class roles::backup (
       < /opt/backups/umami-dumps/umami.sql
     | UMAMI_RESTORE
 
+  $sure_pre_hook = @(SURE_PRE)
+    mkdir -p /opt/backups/sure-dumps && \
+    docker exec sure-db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+      > /opt/backups/sure-dumps/sure.sql
+    | SURE_PRE
+
+  $sure_restore_hook = @(SURE_RESTORE)
+    for i in $(seq 1 30); do
+      docker exec sure-db pg_isready > /dev/null 2>&1 && break
+      sleep 2
+    done
+    docker exec -i sure-db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+      < /opt/backups/sure-dumps/sure.sql
+    | SURE_RESTORE
+
   $nocturne_pre_hook = @(NOCTURNE_PRE)
     mkdir -p /opt/backups/nocturne-dumps && \
     docker exec nocturne-postgres sh -c \
@@ -241,6 +256,22 @@ class roles::backup (
       'critical'        => true,
       'history_paths'   => [{'label' => 'service-config', 'path' => '/opt/actual-budget'}],
       'history_volumes' => ['actual-budget-data'],
+    },
+    # Logical pg_dump like umami/nocturne; the postgres volume itself is skipped
+    # on recovery (the dump is imported after the DB starts).
+    'sure' => {
+      'volumes'           => ['sure-app-storage', 'sure-postgres-data'],
+      'pre_hook'          => $sure_pre_hook,
+      'paths'             => ['/opt/backups/sure-dumps'],
+      'post_hook'         => 'rm -rf /opt/backups/sure-dumps',
+      'restore_post_hook' => $sure_restore_hook,
+      'recovery_skip_volumes' => ['sure-postgres-data'],
+      'critical'          => true,
+      'history_paths'     => [
+        {'label' => 'database-dump', 'path' => '/opt/backups/sure-dumps'},
+        {'label' => 'service-config', 'path' => '/opt/sure'},
+      ],
+      'history_volumes'   => ['sure-app-storage'],
     },
     'newsletter' => {
       'volumes'  => ['newsletter_newsletter-data'],

@@ -23,6 +23,7 @@ roles::backup::services:
   - grafana
   - nocturne
   - actual-budget
+  - sure
 roles::backup::hostname: 'nuc'
 roles::backup::verification_integrity_schedule: 'Sun *-*-* 06:30:00'
 roles::backup::verification_restore_schedule: 'Sun *-*-01..07 10:30:00'

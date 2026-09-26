@@ -167,6 +167,11 @@ class roles::services (
       'smtp_username'     => lookup('vault_glucava_smtp_username', { 'default_value' => '' }),
       'smtp_password'     => lookup('vault_glucava_smtp_password', { 'default_value' => '' }),
     },
+    'sure' => {
+      'postgres_password'  => lookup('vault_sure_postgres_password', { 'default_value' => '' }),
+      'secret_key_base'    => lookup('vault_sure_secret_key_base', { 'default_value' => '' }),
+      'oidc_client_secret' => lookup('vault_sure_oidc_client_secret', { 'default_value' => '' }),
+    },
     'actual-budget' => {
       'oidc_client_secret' => lookup('vault_actual_oidc_client_secret', { 'default_value' => '' }),
     },
