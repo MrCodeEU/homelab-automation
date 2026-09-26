@@ -167,6 +167,9 @@ class roles::services (
       'smtp_username'     => lookup('vault_glucava_smtp_username', { 'default_value' => '' }),
       'smtp_password'     => lookup('vault_glucava_smtp_password', { 'default_value' => '' }),
     },
+    'actual-budget' => {
+      'oidc_client_secret' => lookup('vault_actual_oidc_client_secret', { 'default_value' => '' }),
+    },
     'umami' => {
       'app_secret'        => lookup('vault_umami_app_secret', { 'default_value' => '' }),
       'postgres_password' => lookup('vault_umami_postgres_password', { 'default_value' => '' }),
