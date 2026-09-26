@@ -3,7 +3,7 @@ module github.com/MrCodeEU/homelab-automation/tools
 go 1.26.0
 
 require (
-	github.com/breml/go-uptime-kuma-client v0.4.2
+	github.com/breml/go-uptime-kuma-client v0.5.0
 	github.com/lib/pq v1.12.3
 	gopkg.in/yaml.v3 v3.0.1
 )
