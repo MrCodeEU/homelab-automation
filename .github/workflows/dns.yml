@@ -1,0 +1,86 @@
+name: DNS (deSEC)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths: ["dns/**", ".github/workflows/dns.yml"]
+  push:
+    branches: [main]
+    paths: ["dns/**", ".github/workflows/dns.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dns-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DNSCONTROL_VERSION: "5.2.0"
+
+jobs:
+  preview:
+    # Read-only token: shows the diff a merge would apply. Not available to
+    # fork PRs (no secrets), which is intended.
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install dnscontrol
+        run: |
+          base="https://github.com/DNSControl/dnscontrol/releases/download/v${DNSCONTROL_VERSION}"
+          curl -fsSL -o dnscontrol.tgz "$base/dnscontrol_${DNSCONTROL_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o checksums.txt "$base/checksums.txt"
+          grep " dnscontrol_${DNSCONTROL_VERSION}_linux_amd64.tar.gz\$" checksums.txt \
+            | sed 's/ dnscontrol_.*/ dnscontrol.tgz/' | sha256sum -c -
+          tar -xzf dnscontrol.tgz dnscontrol
+          sudo install dnscontrol /usr/local/bin/dnscontrol
+
+      - name: Check config
+        working-directory: dns
+        run: dnscontrol check
+
+      - name: Preview changes
+        working-directory: dns
+        env:
+          DESEC_TOKEN: ${{ secrets.DESEC_READ_TOKEN }}
+        run: dnscontrol preview | tee "$RUNNER_TEMP/preview.txt"
+
+      - name: Summarize
+        if: always()
+        run: |
+          {
+            echo "### dnscontrol preview"
+            echo '```'
+            cat "$RUNNER_TEMP/preview.txt" 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  push:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: dns-production
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Install dnscontrol
+        run: |
+          base="https://github.com/DNSControl/dnscontrol/releases/download/v${DNSCONTROL_VERSION}"
+          curl -fsSL -o dnscontrol.tgz "$base/dnscontrol_${DNSCONTROL_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o checksums.txt "$base/checksums.txt"
+          grep " dnscontrol_${DNSCONTROL_VERSION}_linux_amd64.tar.gz\$" checksums.txt \
+            | sed 's/ dnscontrol_.*/ dnscontrol.tgz/' | sha256sum -c -
+          tar -xzf dnscontrol.tgz dnscontrol
+          sudo install dnscontrol /usr/local/bin/dnscontrol
+
+      - name: Push changes
+        working-directory: dns
+        env:
+          DESEC_TOKEN: ${{ secrets.DESEC_WRITE_TOKEN }}
+        run: dnscontrol push

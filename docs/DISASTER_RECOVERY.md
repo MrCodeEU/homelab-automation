@@ -127,9 +127,11 @@ Non-critical services still get their data back if you run `restore.sh
   reissues automatically once Caddy is back up and DNS resolves, but
   that's a delay and eats into Let's Encrypt's rate limit if it happens
   often.
-- DNS records for `mljr.eu` (SPF/DKIM/DMARC/MX for Mailcow, the A/AAAA
-  records pointing at this host) live at whatever DNS provider is used -
-  entirely outside this repo. Have that provider's access ready.
+- DNS records for `mljr.eu` are defined in `dns/dnsconfig.js` (deSEC,
+  applied by dnscontrol - see `dns/README.md`). Re-apply with `dnscontrol
+  push`. The Mailcow DKIM TXT record is deliberately not in the repo: copy
+  it from the Mailcow admin UI (or recover it from the `vmail-vol-1`/
+  `mysql-vol-1` backup) into deSEC by hand.
 - Mailcow's DKIM keys and mail queue live in Docker volumes covered by
   backup (`vmail-vol-1`, `mysql-vol-1`) - reproducible from backup, but
   slow/tedious per the role's own comments.
