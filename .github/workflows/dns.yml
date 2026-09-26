@@ -18,6 +18,9 @@ concurrency:
 
 env:
   DNSCONTROL_VERSION: "5.2.0"
+  # sha256 of dnscontrol_${VERSION}_linux_amd64.tar.gz, pinned in-repo (not
+  # fetched from the release) - update together with the version.
+  DNSCONTROL_SHA256: "9b82d5734af489013a733de991ccd557dcaeebe1631dcc842e4123bb93acc612"
 
 jobs:
   preview:
@@ -34,9 +37,7 @@ jobs:
         run: |
           base="https://github.com/DNSControl/dnscontrol/releases/download/v${DNSCONTROL_VERSION}"
           curl -fsSL -o dnscontrol.tgz "$base/dnscontrol_${DNSCONTROL_VERSION}_linux_amd64.tar.gz"
-          curl -fsSL -o checksums.txt "$base/checksums.txt"
-          grep " dnscontrol_${DNSCONTROL_VERSION}_linux_amd64.tar.gz\$" checksums.txt \
-            | sed 's/ dnscontrol_.*/ dnscontrol.tgz/' | sha256sum -c -
+          echo "${DNSCONTROL_SHA256}  dnscontrol.tgz" | sha256sum -c -
           tar -xzf dnscontrol.tgz dnscontrol
           sudo install dnscontrol /usr/local/bin/dnscontrol
 
@@ -73,9 +74,7 @@ jobs:
         run: |
           base="https://github.com/DNSControl/dnscontrol/releases/download/v${DNSCONTROL_VERSION}"
           curl -fsSL -o dnscontrol.tgz "$base/dnscontrol_${DNSCONTROL_VERSION}_linux_amd64.tar.gz"
-          curl -fsSL -o checksums.txt "$base/checksums.txt"
-          grep " dnscontrol_${DNSCONTROL_VERSION}_linux_amd64.tar.gz\$" checksums.txt \
-            | sed 's/ dnscontrol_.*/ dnscontrol.tgz/' | sha256sum -c -
+          echo "${DNSCONTROL_SHA256}  dnscontrol.tgz" | sha256sum -c -
           tar -xzf dnscontrol.tgz dnscontrol
           sudo install dnscontrol /usr/local/bin/dnscontrol
 
