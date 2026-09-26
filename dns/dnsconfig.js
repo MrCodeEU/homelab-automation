@@ -48,6 +48,10 @@ D("mljr.eu", REG_NONE, DnsProvider(DSP_DESEC),
   SRV("_submission._tcp", 0, 1, 587, MAIL),
   SRV("_submissions._tcp", 0, 1, 465, MAIL),
 
+  // Marker: proves the dnscontrol pipeline applied this zone. Bump the
+  // revision to check the pipeline end to end.
+  TXT("_iac", "managed-by=homelab-automation/dnscontrol; rev=1"),
+
   // Site verification
   TXT("@", "google-site-verification=vHuU3zYh15HV8UQkLzi_KicmWgGshuIXL8CBzvzzwd4"),
 
