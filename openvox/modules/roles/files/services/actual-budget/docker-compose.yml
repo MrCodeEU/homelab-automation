@@ -14,6 +14,9 @@ services:
     image: actualbudget/actual-server:26.9.0-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-actual-budget}
     restart: unless-stopped
+    # The image's own `actual` user owns /data; root with cap_drop ALL cannot
+    # write there (no DAC_OVERRIDE).
+    user: "1001:1001"
     ports:
       - "${BIND_ADDR:-127.0.0.1}:8096:5006"
     volumes:
