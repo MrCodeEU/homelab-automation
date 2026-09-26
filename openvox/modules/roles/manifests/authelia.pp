@@ -41,6 +41,41 @@ class roles::authelia (
   $smtp_password  = Sensitive(lookup('vault_smtp_password'))
   $smtp_from      = lookup('vault_smtp_from', { 'default_value' => "notifications@${domain}" })
 
+  # OIDC provider. Rendered only when authelia_oidc_clients (common.yaml) is
+  # non-empty, so the HMAC/JWKS secrets are optional until the first client.
+  $oidc_clients = lookup('authelia_oidc_clients', { 'default_value' => [] })
+  $oidc_block = $oidc_clients.empty ? {
+    true    => '',
+    default => join([
+      'identity_providers:',
+      '  oidc:',
+      "    hmac_secret: \"${Sensitive(lookup('vault_authelia_oidc_hmac_secret')).unwrap}\"",
+      '    jwks:',
+      '      - key_id: main',
+      '        algorithm: RS256',
+      '        use: sig',
+      '        key: |',
+      Sensitive(lookup('vault_authelia_oidc_jwks_key')).unwrap.split("\n").map |$l| { "          ${l}" }.join("\n"),
+      '    clients:',
+      $oidc_clients.map |$c| {
+        join([
+          "      - client_id: '${c['id']}'",
+          "        client_name: '${c['name']}'",
+          "        client_secret: '${c['secret_digest']}'",
+          '        public: false',
+          '        authorization_policy: one_factor',
+          '        consent_mode: implicit',
+          '        token_endpoint_auth_method: client_secret_basic',
+          '        redirect_uris:',
+          $c['redirect_uris'].map |$u| { "          - '${u}'" }.join("\n"),
+          '        scopes:',
+          $c['scopes'].map |$sc| { "          - '${sc}'" }.join("\n"),
+        ], "\n")
+      }.join("\n"),
+      '',
+    ], "\n"),
+  }
+
   file { $config_path:
     ensure => directory,
     mode   => '0755',
@@ -114,6 +149,7 @@ class roles::authelia (
         - domain: "*.${domain}"
           policy: one_factor
 
+    ${oidc_block}
     session:
       secret: "${session_secret.unwrap}"
       cookies:
