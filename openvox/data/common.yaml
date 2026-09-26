@@ -220,6 +220,18 @@ ntfy_topic_whitelist:
   - homelab-health
   - backup
 
+# OIDC clients registered in Authelia (roles::authelia renders them into
+# identity_providers.oidc). secret_digest is a pbkdf2 hash of a random
+# high-entropy secret, so it is safe in git; the plaintext secret lives only in
+# the client host's eyaml (see vault_actual_oidc_client_secret on nuc).
+authelia_oidc_clients:
+  - id: actual-budget
+    name: Actual Budget
+    secret_digest: '$pbkdf2-sha512$310000$74Fp11OUInI57u5Wof13kg$F1Cn9dH/a44DQzH/hoDouEmxroCT7O9bLnvE1aRdNH8SjoR2R8FS/V/lleYN8iltLKwdEObvxbRehb/mbyXQKw'
+    redirect_uris:
+      - https://budget.mljr.eu/openid/callback
+    scopes: [openid, profile, email, groups]
+
 services_catalog:
   - name: authelia
     enabled: true
