@@ -1,0 +1,50 @@
+# Actual Budget: local-first personal finance, with a sync server.
+# https://actualbudget.org
+#
+# The image tag is pinned on purpose (env.epp forces IMAGE_TAG=latest for
+# every service). To upgrade, change the tag here and run
+# `make sync-openvox-services`.
+#
+# Login is OpenID Connect against Authelia (client "actual-budget", see
+# authelia_oidc_clients in common.yaml). The first user to log in via OIDC
+# becomes the Actual admin; further users are created manually. The password
+# login stays enabled as a fallback (ACTUAL_OPENID_ENFORCE is not set).
+services:
+  actual-budget:
+    image: actualbudget/actual-server:26.9.0-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-actual-budget}
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8096:5006"
+    volumes:
+      - actual-budget-data:/data
+    environment:
+      TZ: ${TZ:-Europe/Vienna}
+      # Caddy on mljr reaches this container over the tailnet.
+      ACTUAL_TRUSTED_PROXIES: 100.100.20.1
+      ACTUAL_OPENID_DISCOVERY_URL: https://auth.${DOMAIN:-mljr.eu}/.well-known/openid-configuration
+      ACTUAL_OPENID_CLIENT_ID: actual-budget
+      ACTUAL_OPENID_CLIENT_SECRET: ${ACTUAL_OPENID_CLIENT_SECRET:?}
+      ACTUAL_OPENID_SERVER_HOSTNAME: https://budget.${DOMAIN:-mljr.eu}
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD", "node", "src/scripts/health-check.js"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  actual-budget-data:
+    name: actual-budget-data

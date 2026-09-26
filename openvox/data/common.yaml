@@ -281,6 +281,19 @@ services_catalog:
     icon: "mdi:water-percent"
     backup_critical: true
 
+  - name: actual-budget
+    enabled: true
+    domain: ["budget.mljr.eu", "actual.mljr.eu"]
+    port: 8096
+    host: nuc
+    description: "Personal finance / budgeting"
+    icon: "mdi:piggy-bank"
+    backup_critical: true
+    # actual.mljr.eu is an alias; the OIDC redirect URI is bound to budget.mljr.eu.
+    caddy_extra_config: |
+      @alias host actual.mljr.eu
+      redir @alias https://budget.mljr.eu{uri} permanent
+
   - name: kuma
     enabled: true
     domain: "uptime.mljr.eu"

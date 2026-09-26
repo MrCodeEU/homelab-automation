@@ -234,6 +234,14 @@ class roles::backup (
       'recovery_skip_volumes' => ['nocturne_nocturne-postgres-data'],
       'critical'          => false,
     },
+    # SQLite (account + per-budget sync files) is copied live like kuma's;
+    # history_volumes keeps dated copies so a torn snapshot is never the only one.
+    'actual-budget' => {
+      'volumes'         => ['actual-budget-data'],
+      'critical'        => true,
+      'history_paths'   => [{'label' => 'service-config', 'path' => '/opt/actual-budget'}],
+      'history_volumes' => ['actual-budget-data'],
+    },
     'newsletter' => {
       'volumes'  => ['newsletter_newsletter-data'],
       'critical' => true,
