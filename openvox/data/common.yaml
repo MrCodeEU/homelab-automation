@@ -756,13 +756,13 @@ services_catalog:
     icon: "mdi:sync"
     https_backend: true
 
-  - name: filerun
-    enabled: false
+  - name: opencloud
+    enabled: true
     managed: false
     domain: "files.mljr.eu"
     port: 9200
     host: nas
-    description: "Filerun server"
+    description: "OpenCloud server"
     icon: "mdi:cloud"
 
   - name: test-ocis
