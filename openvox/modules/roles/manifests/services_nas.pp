@@ -14,7 +14,7 @@
 # catalog has ~15 entries with `host: nas`, but only 4 have
 # `managed: true` (nas-alloy, ollama, smartctl-exporter-nas,
 # auto-media-sort) - the rest (`nas`, `immich`, `nextcloud`, `dockhand`,
-# `syncthing`, `filerun`, `test-ocis`, `stats`, `projects`, `pairdrop`,
+# `syncthing`, `opencloud`, `test-ocis`, `stats`, `projects`, `pairdrop`,
 # `dawarich`) are `managed: false`: real containers, but ones someone set
 # up by hand through the Unraid UI, listed in the catalog purely for
 # health-report/backup-dashboard visibility - Ansible's own "Unraid
