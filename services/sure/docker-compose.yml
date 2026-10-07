@@ -33,7 +33,7 @@ x-sure-env: &sure-env
 
 services:
   web:
-    image: ghcr.io/we-promise/sure:0.7.4
+    image: ghcr.io/we-promise/sure:0.7.5-hotfix.2
     container_name: ${COMPOSE_PROJECT_NAME:-sure}
     restart: unless-stopped
     ports:
@@ -68,7 +68,7 @@ services:
         max-file: "3"
 
   worker:
-    image: ghcr.io/we-promise/sure:0.7.4
+    image: ghcr.io/we-promise/sure:0.7.5-hotfix.2
     container_name: ${COMPOSE_PROJECT_NAME:-sure}-worker
     command: bundle exec sidekiq
     restart: unless-stopped
