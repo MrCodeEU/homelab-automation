@@ -126,6 +126,14 @@ type Config struct {
 	SMTPFrom     string
 	EmailTo      string
 
+	// Backup relay, tried when the primary (mail.mljr.eu, hosted on this
+	// fleet) is unreachable or rejects the message. Optional.
+	SMTP2Host     string
+	SMTP2Port     int
+	SMTP2User     string
+	SMTP2Password string
+	SMTP2From     string
+
 	GrafanaURL    string
 	LookbackHours int
 
@@ -210,6 +218,11 @@ func ConfigFromEnv() Config {
 	c.SMTPUser = os.Getenv("HEALTHREPORT_SMTP_USER")
 	c.SMTPPassword = os.Getenv("HEALTHREPORT_SMTP_PASSWORD")
 	c.SMTPFrom = envOr("HEALTHREPORT_SMTP_FROM", c.SMTPFrom)
+	c.SMTP2Host = os.Getenv("HEALTHREPORT_SMTP2_HOST")
+	c.SMTP2Port = envInt("HEALTHREPORT_SMTP2_PORT", 587)
+	c.SMTP2User = os.Getenv("HEALTHREPORT_SMTP2_USER")
+	c.SMTP2Password = os.Getenv("HEALTHREPORT_SMTP2_PASSWORD")
+	c.SMTP2From = envOr("HEALTHREPORT_SMTP2_FROM", c.SMTP2User)
 	c.EmailTo = os.Getenv("HEALTHREPORT_EMAIL_TO")
 	c.GrafanaURL = envOr("HEALTHREPORT_GRAFANA_URL", c.GrafanaURL)
 	c.LookbackHours = envInt("HEALTHREPORT_LOOKBACK_HOURS", 24)
