@@ -177,6 +177,15 @@ func run() int {
 		}
 		if e := hr.SendEmail(cfg, facts, hr.SubjectLine(facts), body, bodyHTML); e != "" && !hasPrefix(e, "skipped") {
 			errs = append(errs, e)
+			// Whole mail path down: push the report over ntfy instead. A
+			// backup-relay delivery only gets the failure note, not the body.
+			pushBody := body
+			if hasPrefix(e, "email: delivered via backup") {
+				pushBody = ""
+			}
+			if fe := hr.SendNtfyEmailFailure(cfg, facts, e, pushBody); fe != "" && !hasPrefix(fe, "skipped") {
+				errs = append(errs, fe)
+			}
 		}
 		facts.DeliveryErrors = errs
 		for _, e := range errs {
