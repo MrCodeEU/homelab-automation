@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Remote eyaml command embeds a fixed, script-local path, same pattern as
+# scripts/rotate-eyaml-secret.sh.
+# shellcheck disable=SC2029
 # Add the healthreport backup-relay secrets (vault_healthreport_smtp2_*) to
 # nuc's eyaml. Prompts for each value (password hidden), encrypts it on nuc
 # with nuc's own public key (value piped over stdin, never argv), and
