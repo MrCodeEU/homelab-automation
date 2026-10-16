@@ -242,6 +242,12 @@ class roles::services (
       'smtp_user'              => lookup('vault_smtp_user', { 'default_value' => '' }),
       'smtp_password'          => lookup('vault_smtp_password', { 'default_value' => '' }),
       'smtp_from'              => 'notifications@mljr.eu',
+      # Backup relay independent of mail.mljr.eu; empty host = disabled.
+      'smtp2_host'             => lookup('vault_healthreport_smtp2_host', { 'default_value' => '' }),
+      'smtp2_port'             => lookup('vault_healthreport_smtp2_port', { 'default_value' => '587' }),
+      'smtp2_user'             => lookup('vault_healthreport_smtp2_user', { 'default_value' => '' }),
+      'smtp2_password'         => lookup('vault_healthreport_smtp2_password', { 'default_value' => '' }),
+      'smtp2_from'             => lookup('vault_healthreport_smtp2_from', { 'default_value' => '' }),
       'email_to'               => lookup('vault_healthreport_email_to', { 'default_value' => '' }),
       # Reuses dmarc-monitor's own db_password for read access to its
       # Postgres, not a separate credential - same precedent as Grafana's
