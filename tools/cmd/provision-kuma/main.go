@@ -148,9 +148,19 @@ func syncServiceMonitors(ctx context.Context, client *kuma.Client, services []se
 			}
 		} else {
 			fmt.Printf("  Creating %s (%s)\n", svc.Name, targetURL)
+			// Kuma v2 (2.5.6) rejects the client's zero values: nil
+			// AcceptedStatusCodes marshals to null ("Cannot read properties
+			// of null (reading 'every')"), so every create failed and
+			// services added since the upgrade had no monitor.
 			m := &monitor.HTTP{
-				Base:        monitor.Base{Name: svc.Name, Interval: 60, RetryInterval: 60},
-				HTTPDetails: monitor.HTTPDetails{URL: targetURL},
+				Base: monitor.Base{Name: svc.Name, Interval: 60, RetryInterval: 60},
+				HTTPDetails: monitor.HTTPDetails{
+					URL:                 targetURL,
+					Timeout:             48,
+					MaxRedirects:        10,
+					Method:              "GET",
+					AcceptedStatusCodes: []string{"200-299"},
+				},
 			}
 			if _, err := client.CreateMonitor(ctx, m); err != nil {
 				fmt.Printf("  Failed to create %s: %v\n", svc.Name, err)
@@ -189,9 +199,11 @@ func syncPingMonitors(ctx context.Context, client *kuma.Client, hosts []host, ex
 			}
 		} else {
 			fmt.Printf("  Creating %s (%s)\n", monitorName, h.NodeHost)
+			// Kuma v2: a nil Timeout is sent as NULL into a NOT NULL column.
+			pingTimeout := int64(10)
 			m := &monitor.Ping{
 				Base:        monitor.Base{Name: monitorName, Interval: 60, RetryInterval: 60, MaxRetries: 3},
-				PingDetails: monitor.PingDetails{Hostname: h.NodeHost},
+				PingDetails: monitor.PingDetails{Hostname: h.NodeHost, Timeout: &pingTimeout},
 			}
 			if _, err := client.CreateMonitor(ctx, m); err != nil {
 				fmt.Printf("  Failed to create %s: %v\n", monitorName, err)
