@@ -134,16 +134,13 @@ class roles::base (
   # Drop-in only takes effect on the next docker start - deliberately no
   # notify/restart of docker.service here, that would bounce every container.
   if $tailscale_ip != '' {
-    file { '/etc/systemd/system/docker.service.d':
-      ensure => directory,
-      mode   => '0755',
-    }
-
+    # The drop-in directory itself is owned by puppetlabs-docker
+    # (docker::service) - only the file is declared here.
     file { '/etc/systemd/system/docker.service.d/10-wait-tailscale.conf':
       ensure  => file,
       mode    => '0644',
       content => "[Unit]\nWants=tailscaled.service\nAfter=tailscaled.service\n\n[Service]\nExecStartPre=${work_dir}/wait-tailscale-ip.sh ${tailscale_ip}\nTimeoutStartSec=300\n",
-      require => [File['/etc/systemd/system/docker.service.d'], File[$work_dir]],
+      require => [Class['docker'], File[$work_dir]],
       notify  => Exec['base-docker-dropin-reload'],
     }
 
