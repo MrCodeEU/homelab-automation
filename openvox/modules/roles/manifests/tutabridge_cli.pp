@@ -93,6 +93,19 @@ class roles::tutabridge_cli (
     require => [File[$install_dir], File[$work_dir]],
   }
 
+  # Self-heal for a wrong SELinux label on the binary. download-apply.sh
+  # already restorecon's after its mv, but the 2026-10-16 install still left
+  # it tmp_t, which systemd refuses to exec (203/EXEC) - the nightly backup
+  # then failed silently for 3 days. `restorecon -n -v` prints only when a
+  # relabel is needed, so this is a no-op on a correct label.
+  exec { 'tutabridge-restorecon':
+    command  => "/usr/sbin/restorecon -v ${install_dir}/tutabridge-cli",
+    unless   => "test -z \"$(/usr/sbin/restorecon -n -v ${install_dir}/tutabridge-cli 2>&1)\"",
+    provider => shell,
+    onlyif   => "test -e ${install_dir}/tutabridge-cli",
+    require  => Exec['tutabridge-download'],
+  }
+
   file { $export_dir:
     ensure => directory,
     mode   => '0700',

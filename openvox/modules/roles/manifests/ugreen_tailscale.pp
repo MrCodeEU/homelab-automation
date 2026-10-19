@@ -26,9 +26,17 @@ class roles::ugreen_tailscale {
 
   # Read-only, always runs regardless of noop/real - matches the Ansible
   # role's own unconditional version-report step.
+  #
+  # GODEBUG= clears ugreen's system-wide GODEBUG=tlskyber=0
+  # (/etc/profile.d/go.sh): current Go releases treat that removed setting
+  # as fatal, so every Go binary - tailscale included - dies with
+  # "removed GODEBUG tlskyber" under the inherited environment. That failed
+  # the 2026-10-18 weekly deploy. Same workaround as
+  # services/syncthing-ugreen/hooks/post-deploy.sh.
   exec { 'ugreen-tailscale-version':
-    command   => '/usr/bin/tailscale version',
-    logoutput => true,
-    require   => Package['tailscale'],
+    command     => '/usr/bin/tailscale version',
+    environment => ['GODEBUG='],
+    logoutput   => true,
+    require     => Package['tailscale'],
   }
 }
