@@ -27,7 +27,26 @@ const (
 
 	mailcowSMTPHost = "mail.mljr.eu"
 	mailcowSMTPPort = 587
+
+	tcpPrefix = "TCP: "
 )
+
+// tcpTarget is a plain TCP-port monitor that is not derived from services.yml.
+type tcpTarget struct {
+	name string
+	host string
+	port int
+}
+
+// tcpTargets lists the fixed TCP checks. The CrowdSec LAPI is bound to mljr's
+// tailnet IP by docker; after the 2026-10-18 reboot that bind failed and the
+// container stayed down for ~23h while the crowdsec.mljr.eu HTTP monitor (which
+// only proves Caddy + the web UI) stayed green. A TCP check on the bind itself
+// catches exactly that.
+var tcpTargets = []tcpTarget{
+	{name: smtpPrefix + mailcowSMTPHost, host: mailcowSMTPHost, port: mailcowSMTPPort},
+	{name: tcpPrefix + "crowdsec LAPI (mljr)", host: "100.100.20.1", port: 8088},
+}
 
 type service struct {
 	Name    string `yaml:"name"`
@@ -86,7 +105,9 @@ func getExpectedMonitorNames(services []service, hosts []host) map[string]bool {
 			expected[pingPrefix+h.NodeName] = true
 		}
 	}
-	expected[smtpPrefix+mailcowSMTPHost] = true
+	for _, t := range tcpTargets {
+		expected[t.name] = true
+	}
 	return expected
 }
 
@@ -182,44 +203,47 @@ func syncPingMonitors(ctx context.Context, client *kuma.Client, hosts []host, ex
 	}
 }
 
-// syncSMTPMonitor checks mailcow's SMTP port via a TCP port monitor.
-// Uptime Kuma's own SMTP monitor type exists in this client library, but
-// the original used a TCP port check (no native SMTP type at the time it
-// was written) - kept as-is rather than silently changing an existing
-// production monitor's type as a side effect of this port.
-func syncSMTPMonitor(ctx context.Context, client *kuma.Client, existing map[string]monitor.Base, st *stats) {
-	monitorName := smtpPrefix + mailcowSMTPHost
+// syncTCPMonitors keeps one TCP port monitor per tcpTargets entry. The SMTP
+// check stays a TCP check (no native SMTP type at the time it was written) -
+// kept as-is rather than silently changing an existing production monitor's
+// type as a side effect.
+func syncTCPMonitors(ctx context.Context, client *kuma.Client, existing map[string]monitor.Base, st *stats) {
+	for _, t := range tcpTargets {
+		syncTCPMonitor(ctx, client, t, existing, st)
+	}
+}
 
-	if base, ok := existing[monitorName]; ok {
+func syncTCPMonitor(ctx context.Context, client *kuma.Client, t tcpTarget, existing map[string]monitor.Base, st *stats) {
+	if base, ok := existing[t.name]; ok {
 		var tcpMon monitor.TCPPort
 		_ = base.As(&tcpMon)
-		if tcpMon.Hostname != mailcowSMTPHost || tcpMon.Port != mailcowSMTPPort {
-			fmt.Printf("  Updating %s\n", monitorName)
+		if tcpMon.Hostname != t.host || tcpMon.Port != t.port {
+			fmt.Printf("  Updating %s\n", t.name)
 			tcpMon.Base = base
-			tcpMon.Hostname = mailcowSMTPHost
-			tcpMon.Port = mailcowSMTPPort
-			tcpMon.Base.Name = monitorName
+			tcpMon.Hostname = t.host
+			tcpMon.Port = t.port
+			tcpMon.Base.Name = t.name
 			if err := client.UpdateMonitor(ctx, &tcpMon); err != nil {
-				fmt.Printf("  Failed to update %s: %v\n", monitorName, err)
-				st.failed = append(st.failed, monitorName)
+				fmt.Printf("  Failed to update %s: %v\n", t.name, err)
+				st.failed = append(st.failed, t.name)
 			} else {
-				st.updated = append(st.updated, monitorName)
+				st.updated = append(st.updated, t.name)
 			}
 		} else {
 			st.skipped++
 		}
+		return
+	}
+	fmt.Printf("  Creating %s (TCP port %d)\n", t.name, t.port)
+	m := &monitor.TCPPort{
+		Base:           monitor.Base{Name: t.name, Interval: 60, RetryInterval: 60},
+		TCPPortDetails: monitor.TCPPortDetails{Hostname: t.host, Port: t.port},
+	}
+	if _, err := client.CreateMonitor(ctx, m); err != nil {
+		fmt.Printf("  Failed to create %s: %v\n", t.name, err)
+		st.failed = append(st.failed, t.name)
 	} else {
-		fmt.Printf("  Creating %s (TCP port %d)\n", monitorName, mailcowSMTPPort)
-		m := &monitor.TCPPort{
-			Base:           monitor.Base{Name: monitorName, Interval: 60, RetryInterval: 60},
-			TCPPortDetails: monitor.TCPPortDetails{Hostname: mailcowSMTPHost, Port: mailcowSMTPPort},
-		}
-		if _, err := client.CreateMonitor(ctx, m); err != nil {
-			fmt.Printf("  Failed to create SMTP monitor: %v\n", err)
-			st.failed = append(st.failed, monitorName)
-		} else {
-			st.created = append(st.created, monitorName)
-		}
+		st.created = append(st.created, t.name)
 	}
 }
 
@@ -309,7 +333,7 @@ func run() int {
 	st := &stats{}
 	syncServiceMonitors(ctx, client, cat.Services, existingMonitors, st)
 	syncPingMonitors(ctx, client, cat.Hosts, existingMonitors, st)
-	syncSMTPMonitor(ctx, client, existingMonitors, st)
+	syncTCPMonitors(ctx, client, existingMonitors, st)
 	deleteOrphanedMonitors(ctx, client, expectedNames, existingMonitors, st)
 
 	var summaryParts []string
