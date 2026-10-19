@@ -128,6 +128,32 @@ class roles::base (
     require => Class['docker'],
   }
 
+  # Boot-order guard: hosts that publish containers on their tailnet IP need
+  # tailscale0 to hold that address before dockerd starts, or the port bind
+  # fails and `unless-stopped` never retries (crowdsec on mljr, 2026-10-18).
+  # Drop-in only takes effect on the next docker start - deliberately no
+  # notify/restart of docker.service here, that would bounce every container.
+  if $tailscale_ip != '' {
+    file { '/etc/systemd/system/docker.service.d':
+      ensure => directory,
+      mode   => '0755',
+    }
+
+    file { '/etc/systemd/system/docker.service.d/10-wait-tailscale.conf':
+      ensure  => file,
+      mode    => '0644',
+      content => "[Unit]\nWants=tailscaled.service\nAfter=tailscaled.service\n\n[Service]\nExecStartPre=${work_dir}/wait-tailscale-ip.sh ${tailscale_ip}\nTimeoutStartSec=300\n",
+      require => [File['/etc/systemd/system/docker.service.d'], File[$work_dir]],
+      notify  => Exec['base-docker-dropin-reload'],
+    }
+
+    exec { 'base-docker-dropin-reload':
+      command     => 'systemctl daemon-reload',
+      provider    => shell,
+      refreshonly => true,
+    }
+  }
+
   # ==========================================================================
   # Docker Hub login (prevents 401s / anonymous rate limits)
   # ==========================================================================
