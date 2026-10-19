@@ -86,6 +86,7 @@ ssh_opts=(
   -F /dev/null
   -o BatchMode=yes
   -o ConnectTimeout=10
+  -o ConnectionAttempts=3
   -o ServerAliveInterval=15
   -o ServerAliveCountMax=3
   -o StrictHostKeyChecking=accept-new
@@ -152,9 +153,9 @@ echo "${c_bold}==> ${label}${c_reset} (${mode}) starting..." | prefix
   # Candidate PR dependencies go into the isolated environment. Production
   # noops stay read-only; applies reconcile the pinned dependency set first.
   if [ "$isolated_env" = true ] || [ "$mode" = apply ]; then
-    ./scripts/openvox-modules.sh reconcile "$host" "$module_target"
+    ./scripts/openvox-modules.sh reconcile "$host" "$module_target" || exit 1
   else
-    ./scripts/openvox-modules.sh verify "$host" "$module_target"
+    ./scripts/openvox-modules.sh verify "$host" "$module_target" || exit 1
   fi
 
   xfer_dir="$env_dir"
@@ -163,21 +164,40 @@ echo "${c_bold}==> ${label}${c_reset} (${mode}) starting..." | prefix
     xfer_dir="${releases_dir}/${release_ts}"
   fi
 
-  ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p ${xfer_dir}/manifests ${xfer_dir}/modules/roles ${xfer_dir}/modules/role ${xfer_dir}/data"
+  # Every step from here to the symlink swap must succeed. This block has no
+  # `set -e`, and a transient SSH timeout on the first call once let the swap
+  # point `production` at a release dir that was never created
+  # (2026-10-19, mljr) - the host then had no usable environment at all.
+  ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p ${xfer_dir}/manifests ${xfer_dir}/modules/roles ${xfer_dir}/modules/role ${xfer_dir}/data" \
+    || { echo "ERROR: could not create ${xfer_dir} on ${host}" >&2; exit 1; }
 
   if [ "${host}" = "ugreen.tail33930.ts.net" ]; then
-    scp -rq "${ssh_opts[@]}" openvox/manifests/. "root@${host}:${xfer_dir}/manifests/"
-    scp -rq "${ssh_opts[@]}" openvox/modules/roles/. "root@${host}:${xfer_dir}/modules/roles/"
-    scp -rq "${ssh_opts[@]}" openvox/modules/role/. "root@${host}:${xfer_dir}/modules/role/"
-    scp -q "${ssh_opts[@]}" openvox/hiera.yaml "root@${host}:${xfer_dir}/hiera.yaml"
-    scp -rq "${ssh_opts[@]}" openvox/data/. "root@${host}:${xfer_dir}/data/"
+    scp -rq "${ssh_opts[@]}" openvox/manifests/. "root@${host}:${xfer_dir}/manifests/" \
+      || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
+    scp -rq "${ssh_opts[@]}" openvox/modules/roles/. "root@${host}:${xfer_dir}/modules/roles/" \
+      || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
+    scp -rq "${ssh_opts[@]}" openvox/modules/role/. "root@${host}:${xfer_dir}/modules/role/" \
+      || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
+    scp -q "${ssh_opts[@]}" openvox/hiera.yaml "root@${host}:${xfer_dir}/hiera.yaml" \
+      || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
+    scp -rq "${ssh_opts[@]}" openvox/data/. "root@${host}:${xfer_dir}/data/" \
+      || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
   else
-    rsync -az -e "ssh ${ssh_opts[*]}" openvox/manifests/ "root@${host}:${xfer_dir}/manifests/"
-    rsync -az --delete -e "ssh ${ssh_opts[*]}" openvox/modules/roles/ "root@${host}:${xfer_dir}/modules/roles/"
-    rsync -az --delete -e "ssh ${ssh_opts[*]}" openvox/modules/role/ "root@${host}:${xfer_dir}/modules/role/"
-    rsync -az -e "ssh ${ssh_opts[*]}" openvox/hiera.yaml "root@${host}:${xfer_dir}/hiera.yaml"
-    rsync -az -e "ssh ${ssh_opts[*]}" openvox/data/ "root@${host}:${xfer_dir}/data/"
+    rsync -az -e "ssh ${ssh_opts[*]}" openvox/manifests/ "root@${host}:${xfer_dir}/manifests/" \
+      || { echo "ERROR: transfer to ${host} failed: rsync" >&2; exit 1; }
+    rsync -az --delete -e "ssh ${ssh_opts[*]}" openvox/modules/roles/ "root@${host}:${xfer_dir}/modules/roles/" \
+      || { echo "ERROR: transfer to ${host} failed: rsync" >&2; exit 1; }
+    rsync -az --delete -e "ssh ${ssh_opts[*]}" openvox/modules/role/ "root@${host}:${xfer_dir}/modules/role/" \
+      || { echo "ERROR: transfer to ${host} failed: rsync" >&2; exit 1; }
+    rsync -az -e "ssh ${ssh_opts[*]}" openvox/hiera.yaml "root@${host}:${xfer_dir}/hiera.yaml" \
+      || { echo "ERROR: transfer to ${host} failed: rsync" >&2; exit 1; }
+    rsync -az -e "ssh ${ssh_opts[*]}" openvox/data/ "root@${host}:${xfer_dir}/data/" \
+      || { echo "ERROR: transfer to ${host} failed: rsync" >&2; exit 1; }
   fi
+
+  # Refuse to continue unless the release is complete on the host.
+  ssh "${ssh_opts[@]}" "root@${host}" "test -f '${xfer_dir}/manifests/site.pp' && test -f '${xfer_dir}/hiera.yaml' && test -d '${xfer_dir}/modules/roles'" \
+    || { echo "ERROR: ${xfer_dir} on ${host} is incomplete (missing site.pp/hiera.yaml/modules/roles) - not activating it" >&2; exit 1; }
 
   if [ "$use_release" = true ]; then
     # Atomic swap: build the symlink under a temp name, then rename it over
