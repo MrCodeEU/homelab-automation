@@ -118,6 +118,20 @@ func targetURLFor(domain string) string {
 	return "https://" + domain
 }
 
+// createAndStart creates a monitor and resumes it: the client creates monitors
+// paused, so without this every new monitor sits inactive and checks nothing
+// (found live 2026-10-19: 13 freshly provisioned monitors with active=0).
+func createAndStart(ctx context.Context, client *kuma.Client, m monitor.Monitor) error {
+	id, err := client.CreateMonitor(ctx, m)
+	if err != nil {
+		return err
+	}
+	if err := client.ResumeMonitor(ctx, id); err != nil {
+		return fmt.Errorf("created (id %d) but could not resume: %w", id, err)
+	}
+	return nil
+}
+
 func syncServiceMonitors(ctx context.Context, client *kuma.Client, services []service, existing map[string]monitor.Base, st *stats) {
 	for _, svc := range services {
 		if !svc.isEnabled() {
@@ -162,7 +176,7 @@ func syncServiceMonitors(ctx context.Context, client *kuma.Client, services []se
 					AcceptedStatusCodes: []string{"200-299"},
 				},
 			}
-			if _, err := client.CreateMonitor(ctx, m); err != nil {
+			if err := createAndStart(ctx, client, m); err != nil {
 				fmt.Printf("  Failed to create %s: %v\n", svc.Name, err)
 				st.failed = append(st.failed, svc.Name)
 			} else {
@@ -205,7 +219,7 @@ func syncPingMonitors(ctx context.Context, client *kuma.Client, hosts []host, ex
 				Base:        monitor.Base{Name: monitorName, Interval: 60, RetryInterval: 60, MaxRetries: 3},
 				PingDetails: monitor.PingDetails{Hostname: h.NodeHost, Timeout: &pingTimeout},
 			}
-			if _, err := client.CreateMonitor(ctx, m); err != nil {
+			if err := createAndStart(ctx, client, m); err != nil {
 				fmt.Printf("  Failed to create %s: %v\n", monitorName, err)
 				st.failed = append(st.failed, monitorName)
 			} else {
@@ -251,7 +265,7 @@ func syncTCPMonitor(ctx context.Context, client *kuma.Client, t tcpTarget, exist
 		Base:           monitor.Base{Name: t.name, Interval: 60, RetryInterval: 60},
 		TCPPortDetails: monitor.TCPPortDetails{Hostname: t.host, Port: t.port},
 	}
-	if _, err := client.CreateMonitor(ctx, m); err != nil {
+	if err := createAndStart(ctx, client, m); err != nil {
 		fmt.Printf("  Failed to create %s: %v\n", t.name, err)
 		st.failed = append(st.failed, t.name)
 	} else {
