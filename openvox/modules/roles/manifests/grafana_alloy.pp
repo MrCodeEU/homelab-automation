@@ -61,6 +61,20 @@ class roles::grafana_alloy (
     $homeassistant_token = undef
   }
 
+  # Kuma's /metrics needs the API key as the basic-auth password. Same
+  # nuc-only scoping as the Home Assistant token above: the key lives only in
+  # nuc's per-host eyaml, so mljr/ugreen must not even look it up. History in
+  # VictoriaMetrics is what lets healthreport report downtime between runs.
+  if $hostname == 'nuc' {
+    $kuma_api_key_raw = lookup('vault_kuma_api_key', { 'default_value' => '' })
+    $kuma_api_key = $kuma_api_key_raw ? {
+      ''      => undef,
+      default => Sensitive($kuma_api_key_raw),
+    }
+  } else {
+    $kuma_api_key = undef
+  }
+
   $work_dir = '/usr/local/libexec/openvox-grafana-alloy'
 
   file { $work_dir:
@@ -87,6 +101,7 @@ class roles::grafana_alloy (
       'prometheus_remote_write_url' => $prometheus_remote_write_url,
       'loki_push_url'               => $loki_push_url,
       'homeassistant_token'         => $homeassistant_token,
+      'kuma_api_key'                => $kuma_api_key,
     })),
     require => File['/opt/grafana-alloy'],
   }
