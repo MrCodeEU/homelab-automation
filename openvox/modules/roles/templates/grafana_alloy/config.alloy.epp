@@ -2,6 +2,7 @@
       String $prometheus_remote_write_url,
       String $loki_push_url,
       Optional[Sensitive[String]] $homeassistant_token = undef,
+      Optional[Sensitive[String]] $kuma_api_key = undef,
 | -%>
 prometheus.exporter.unix "host" {
   rootfs_path = "/hostfs"
@@ -111,6 +112,32 @@ prometheus.scrape "homeassistant" {
   // remote_write instead - "instance"/"host" are already set on the target
   // above, and remote_write's external_labels only fill in labels that are
   // still absent, so they won't get overwritten back to "nuc".
+  forward_to      = [prometheus.remote_write.homelab.receiver]
+}
+
+<% } -%>
+<% if $hostname == 'nuc' and $kuma_api_key =~ NotUndef { -%>
+// Uptime Kuma (nuc, 127.0.0.1:3001 - Alloy runs with host networking).
+// Gives VictoriaMetrics monitor_status history so healthreport can report
+// downtime between its daily runs. Kuma authenticates /metrics with HTTP
+// basic auth: empty username, API key as password.
+prometheus.scrape "uptime_kuma" {
+  targets = [
+    {
+      "__address__" = "127.0.0.1:3001",
+      "job"         = "uptime-kuma",
+      "instance"    = "uptime-kuma",
+      "host"        = "nuc",
+    },
+  ]
+  metrics_path    = "/metrics"
+  scrape_interval = "60s"
+  basic_auth {
+    username = ""
+    password = "<%= $kuma_api_key.unwrap %>"
+  }
+  // Straight to remote_write for the same reason as homeassistant above:
+  // the identity relabel would overwrite instance/host.
   forward_to      = [prometheus.remote_write.homelab.receiver]
 }
 

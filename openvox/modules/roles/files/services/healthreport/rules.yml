@@ -67,6 +67,16 @@ rules:
     warn: 21
     crit: 7
 
+  # Downtime summary: 24h availability per Kuma monitor, from monitor_status
+  # history in VictoriaMetrics. monitor_status above only sees the state at
+  # run time; this catches outages that began and ended between two runs.
+  # 99% is ~14 min down a day, 90% is ~2.4 h.
+  monitor_availability:
+    type: threshold
+    direction: below
+    warn: 99
+    crit: 90
+
   metrics_missing:
     type: present
     level: crit
