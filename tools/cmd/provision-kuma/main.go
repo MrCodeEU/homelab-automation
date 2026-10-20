@@ -52,6 +52,9 @@ type service struct {
 	Name    string `yaml:"name"`
 	Enabled *bool  `yaml:"enabled"`
 	Domain  any    `yaml:"domain"`
+	// MonitorPath is appended to the monitor URL for services that do not
+	// serve 2xx on "/" (e.g. csp-reports is POST-only and 404s there).
+	MonitorPath string `yaml:"monitor_path"`
 }
 
 func (s service) isEnabled() bool { return s.Enabled == nil || *s.Enabled }
@@ -141,7 +144,7 @@ func syncServiceMonitors(ctx context.Context, client *kuma.Client, services []se
 		if domain == "" {
 			continue
 		}
-		targetURL := targetURLFor(domain)
+		targetURL := targetURLFor(domain) + svc.MonitorPath
 
 		if base, ok := existing[svc.Name]; ok {
 			var httpMon monitor.HTTP

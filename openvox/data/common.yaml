@@ -425,6 +425,8 @@ services_catalog:
   - name: csp-reports
     enabled: true
     domain: "csp.mljr.eu"
+    # Kuma probes this path: the collector 404s on "/" (POST-only endpoints).
+    monitor_path: "/healthz"
     port: 8094
     host: nuc
     build_from_source: true
