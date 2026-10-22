@@ -178,6 +178,12 @@ class roles::services (
     'actual-budget' => {
       'oidc_client_secret' => lookup('vault_actual_oidc_client_secret', { 'default_value' => '' }),
     },
+    'defectdojo' => {
+      'postgres_password' => lookup('vault_defectdojo_postgres_password', { 'default_value' => '' }),
+      'secret_key'        => lookup('vault_defectdojo_secret_key', { 'default_value' => '' }),
+      'aes_key'           => lookup('vault_defectdojo_aes_key', { 'default_value' => '' }),
+      'admin_password'    => lookup('vault_defectdojo_admin_password', { 'default_value' => '' }),
+    },
     'umami' => {
       'app_secret'        => lookup('vault_umami_app_secret', { 'default_value' => '' }),
       'postgres_password' => lookup('vault_umami_postgres_password', { 'default_value' => '' }),

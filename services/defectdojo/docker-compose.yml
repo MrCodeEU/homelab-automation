@@ -1,0 +1,192 @@
+# DefectDojo: vulnerability management / findings database.
+# https://github.com/DefectDojo/django-DefectDojo
+#
+# Collects Trivy and Nuclei results (imported through the API by timers on
+# the scanning hosts), deduplicates them across runs and tracks triage. It
+# is not a scanner itself. Reachable over the tailnet only: nuc binds its
+# published port to its Tailscale IP, there is no Caddy route and no DNS
+# name. Local admin login for now (password in nuc's eyaml:
+# vault_defectdojo_admin_password).
+#
+# Derived from upstream's docker-compose.yml, trimmed for this fleet:
+# images come from Docker Hub (upstream's default registry logs every pull
+# and the pulling IP), tags are pinned, secrets come from the .env, only
+# nginx publishes a port. DJANGO_VERSION and NGINX_VERSION must stay equal:
+# nginx serves the static files baked into the matching release. Read the
+# release notes before bumping (DefectDojo ships several releases a week
+# and some contain database migrations), then run
+# `make sync-openvox-services`.
+x-django: &django
+  image: docker.io/defectdojo/defectdojo-django:3.4.202
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  networks:
+    - defectdojo-internal
+  logging: &logging
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-django-env: &django-env
+  DD_DATABASE_URL: postgresql://defectdojo:${POSTGRES_PASSWORD:?}@postgres:5432/defectdojo
+  DD_CELERY_BROKER_URL: redis://valkey:6379/0
+  DD_CACHE_URL: redis://valkey:6379/1
+  DD_SECRET_KEY: ${DD_SECRET_KEY:?}
+  # Exactly 32 characters (AES-256). Encrypts credentials stored in
+  # DefectDojo (tool configurations); losing it makes those unreadable.
+  DD_CREDENTIAL_AES_256_KEY: ${DD_CREDENTIAL_AES_256_KEY:?}
+  DD_DATABASE_READINESS_TIMEOUT: "30"
+  TZ: ${TZ:-Europe/Vienna}
+
+services:
+  nginx:
+    image: docker.io/defectdojo/defectdojo-nginx:3.4.202
+    container_name: defectdojo-nginx
+    restart: unless-stopped
+    depends_on:
+      - uwsgi
+    environment:
+      NGINX_METRICS_ENABLED: "false"
+      DD_UWSGI_HOST: uwsgi
+      DD_UWSGI_PORT: "3031"
+    volumes:
+      - defectdojo-media:/usr/share/nginx/html/media
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8101:8080"
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    networks:
+      - defectdojo-internal
+    logging: *logging
+
+  uwsgi:
+    <<: *django
+    container_name: defectdojo-uwsgi
+    depends_on:
+      initializer:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    entrypoint: ['/wait-for-it.sh', 'postgres:5432', '-t', '30', '--', '/entrypoint-uwsgi.sh']
+    environment:
+      <<: *django-env
+      DD_DEBUG: "False"
+      # Tailnet-only service reached by IP or MagicDNS name.
+      DD_ALLOWED_HOSTS: "nuc.tail33930.ts.net,100.100.10.1,localhost,127.0.0.1"
+      # Upstream defaults to 4 processes x 4 threads, sized for far more users
+      # than one.
+      DD_UWSGI_NUM_OF_PROCESSES: "2"
+      DD_UWSGI_NUM_OF_THREADS: "4"
+    volumes:
+      - defectdojo-media:/app/media
+    mem_limit: 1536m
+
+  celerybeat:
+    <<: *django
+    container_name: defectdojo-celerybeat
+    depends_on:
+      initializer:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    entrypoint: ['/wait-for-it.sh', 'postgres:5432', '-t', '30', '--', '/entrypoint-celery-beat.sh']
+    environment:
+      <<: *django-env
+    mem_limit: 512m
+
+  celeryworker:
+    <<: *django
+    container_name: defectdojo-celeryworker
+    depends_on:
+      initializer:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    entrypoint: ['/wait-for-it.sh', 'postgres:5432', '-t', '30', '--', '/entrypoint-celery-worker.sh']
+    environment:
+      <<: *django-env
+    volumes:
+      - defectdojo-media:/app/media
+    mem_limit: 1g
+
+  # Runs migrations and creates the admin user, then exits. Re-runs on every
+  # deploy, which is how version bumps apply their migrations.
+  initializer:
+    <<: *django
+    container_name: defectdojo-initializer
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ['/wait-for-it.sh', 'postgres:5432', '--', '/entrypoint-initializer.sh']
+    environment:
+      <<: *django-env
+      DD_INITIALIZE: "true"
+      DD_ADMIN_USER: admin
+      DD_ADMIN_PASSWORD: ${DD_ADMIN_PASSWORD:?}
+      DD_ADMIN_MAIL: admin@${DOMAIN:-mljr.eu}
+      DD_ADMIN_FIRST_NAME: Admin
+      DD_ADMIN_LAST_NAME: User
+    mem_limit: 1g
+
+  postgres:
+    image: postgres:18.6-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    container_name: defectdojo-db
+    restart: unless-stopped
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_DB: defectdojo
+      POSTGRES_USER: defectdojo
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    volumes:
+      - defectdojo-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U defectdojo -d defectdojo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1g
+    networks:
+      - defectdojo-internal
+    logging: *logging
+
+  valkey:
+    image: valkey/valkey:9.1.2-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
+    container_name: defectdojo-valkey
+    restart: unless-stopped
+    volumes:
+      - defectdojo-valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    networks:
+      - defectdojo-internal
+    logging: *logging
+
+networks:
+  defectdojo-internal:
+    driver: bridge
+
+volumes:
+  defectdojo-media:
+    name: defectdojo-media
+  defectdojo-postgres-data:
+    name: defectdojo-postgres-data
+  defectdojo-valkey-data:
+    name: defectdojo-valkey-data

@@ -157,6 +157,21 @@ class roles::backup (
       < /opt/backups/sure-dumps/sure.sql
     | SURE_RESTORE
 
+  $defectdojo_pre_hook = @(DEFECTDOJO_PRE)
+    mkdir -p /opt/backups/defectdojo-dumps && \
+    docker exec defectdojo-db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+      > /opt/backups/defectdojo-dumps/defectdojo.sql
+    | DEFECTDOJO_PRE
+
+  $defectdojo_restore_hook = @(DEFECTDOJO_RESTORE)
+    for i in $(seq 1 30); do
+      docker exec defectdojo-db pg_isready > /dev/null 2>&1 && break
+      sleep 2
+    done
+    docker exec -i defectdojo-db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"' \
+      < /opt/backups/defectdojo-dumps/defectdojo.sql
+    | DEFECTDOJO_RESTORE
+
   $nocturne_pre_hook = @(NOCTURNE_PRE)
     mkdir -p /opt/backups/nocturne-dumps && \
     docker exec nocturne-postgres sh -c \
@@ -272,6 +287,23 @@ class roles::backup (
         {'label' => 'service-config', 'path' => '/opt/sure'},
       ],
       'history_volumes'   => ['sure-app-storage'],
+    },
+    # Logical pg_dump like sure; the postgres volume itself is skipped on
+    # recovery. Valkey holds only the Celery queue and cache, so it is not
+    # backed up.
+    'defectdojo' => {
+      'volumes'           => ['defectdojo-media', 'defectdojo-postgres-data'],
+      'pre_hook'          => $defectdojo_pre_hook,
+      'paths'             => ['/opt/backups/defectdojo-dumps'],
+      'post_hook'         => 'rm -rf /opt/backups/defectdojo-dumps',
+      'restore_post_hook' => $defectdojo_restore_hook,
+      'recovery_skip_volumes' => ['defectdojo-postgres-data'],
+      'critical'          => true,
+      'history_paths'     => [
+        {'label' => 'database-dump', 'path' => '/opt/backups/defectdojo-dumps'},
+        {'label' => 'service-config', 'path' => '/opt/defectdojo'},
+      ],
+      'history_volumes'   => ['defectdojo-media'],
     },
     'newsletter' => {
       'volumes'  => ['newsletter_newsletter-data'],

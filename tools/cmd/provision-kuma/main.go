@@ -46,6 +46,9 @@ type tcpTarget struct {
 var tcpTargets = []tcpTarget{
 	{name: smtpPrefix + mailcowSMTPHost, host: mailcowSMTPHost, port: mailcowSMTPPort},
 	{name: tcpPrefix + "crowdsec LAPI (mljr)", host: "100.100.20.1", port: 8088},
+	// DefectDojo has no Caddy route (tailnet-only), so no HTTP monitor is derived
+	// from the catalog. nginx publishes on nuc's Tailscale IP.
+	{name: tcpPrefix + "defectdojo (nuc)", host: "100.100.10.1", port: 8101},
 }
 
 type service struct {
