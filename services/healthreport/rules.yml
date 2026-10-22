@@ -347,6 +347,12 @@ rules:
     type: present
     level: warn
 
+  # The home IP drifted from what CrowdSec's allowlist trusts: the owner can
+  # get banned until the allowlist is updated.
+  home_ip_mismatch:
+    type: present
+    level: crit
+
   # CSP violations (csp-reports, fed by Caddy's security_headers snippet)
   # are normal noise right after an app's policy changes and settle down -
   # new_only surfaces a distinct (directive, document) pair once, not every

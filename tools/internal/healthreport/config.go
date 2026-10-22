@@ -164,6 +164,11 @@ type Config struct {
 	// reports name any domain a sender claims to be, not just this fleet's
 	// own, and a third party's failures are not this fleet's problem.
 	DMARCDomains []string
+
+	// Home connection's public IP as trusted by CrowdSec's
+	// mljr-local-allowlist.yaml (hiera home_public_ip). Empty disables the
+	// home_ip collector.
+	HomeIP string
 }
 
 func defaultConfig() Config {
@@ -245,6 +250,7 @@ func ConfigFromEnv() Config {
 	if raw, ok := os.LookupEnv("HEALTHREPORT_DMARC_DOMAINS"); ok {
 		c.DMARCDomains = parseWindows(&raw, nil)
 	}
+	c.HomeIP = strings.TrimSpace(os.Getenv("HEALTHREPORT_HOME_IP"))
 	return c
 }
 
