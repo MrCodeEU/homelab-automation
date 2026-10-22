@@ -314,6 +314,14 @@ services_catalog:
     icon: "mdi:finance"
     backup_critical: true
 
+  - name: defectdojo
+    enabled: true
+    port: 8101
+    host: nuc
+    description: "Vulnerability findings database (Trivy/Nuclei imports). Tailscale-only, no Caddy route."
+    icon: "mdi:shield-search"
+    backup_critical: true
+
   - name: kuma
     enabled: true
     domain: "uptime.mljr.eu"
