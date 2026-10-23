@@ -353,6 +353,24 @@ rules:
     type: present
     level: crit
 
+  # DefectDojo (nightly Trivy + Nuclei imports). It stores everything;
+  # these three are the actionable subset. A CISA KEV finding is exploited in
+  # the wild and stays crit until fixed. New Critical/High findings that
+  # already have a fix show up once, the day they are first imported. A stale
+  # scan means a nightly timer stopped, which would otherwise look like
+  # "nothing found".
+  vuln_known_exploited:
+    type: present
+    level: crit
+
+  vuln_new_fixable:
+    type: present
+    level: warn
+
+  vuln_scan_stale:
+    type: present
+    level: warn
+
   # CSP violations (csp-reports, fed by Caddy's security_headers snippet)
   # are normal noise right after an app's policy changes and settle down -
   # new_only surfaces a distinct (directive, document) pair once, not every

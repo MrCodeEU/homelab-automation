@@ -43,6 +43,12 @@ Most facts are HTTP calls to services already running on nuc:
 - **GitHub API** — workflow conclusions, Dependabot and code scanning alerts
   across every repo the account owns
 - **ntfy** — replays Diun's `docker-updates` topic instead of polling registries
+- **DefectDojo** (`:8101` on nuc's Tailscale IP) — the nightly Trivy/Nuclei
+  imports: known-exploited (CISA KEV) findings, new Critical/High findings that
+  already have a fix, and a stale-scan check. `HEALTHREPORT_DOJO_URL` /
+  `HEALTHREPORT_DOJO_PASSWORD`
+- **Public IP** — `home_ip` compares nuc's egress IP with the one CrowdSec
+  allowlists (`HEALTHREPORT_HOME_IP`)
 - **dmarc-monitor's Postgres** (`127.0.0.1:5432`, reachable directly since
   this container also runs `network_mode: host`) — DMARC aggregate report
   freshness and per-domain pass/fail counts, `HEALTHREPORT_DMARC_DB_URL`
