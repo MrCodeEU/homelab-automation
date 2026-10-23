@@ -18,4 +18,5 @@ class role::ugreen (
   include roles::services
   include roles::host_facts_endpoint
   include roles::grafana_alloy
+  include roles::vuln_scan
 }

@@ -63,3 +63,8 @@ roles::vuln_scan::dojo_url: 'http://100.100.10.1:8101'
 # in its own.
 roles::vuln_scan::importers:
   - mljr
+  - ugreen
+# Hosts scanned from nuc through their Docker daemon over SSH (Unraid has no
+# agent and a tmpfs root, so nothing is installed there).
+roles::vuln_scan::remote_docker_scans:
+  nas: 'ssh://root@nas.tail33930.ts.net'
