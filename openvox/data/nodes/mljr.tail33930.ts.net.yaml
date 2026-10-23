@@ -54,4 +54,7 @@ roles::canary_decoys::hostname: 'mljr'
 # scan runs on nuc only.
 roles::vuln_scan::dojo_url: 'http://100.100.10.1:8101'
 roles::vuln_scan::dojo_user: 'import-mljr'
+# The DefectDojo product the importer account is allowed to write to. Not the
+# VPS's real hostname (vmi2945702), which is the class default.
+roles::vuln_scan::product: 'mljr'
 roles::vuln_scan::nuclei_enabled: false
