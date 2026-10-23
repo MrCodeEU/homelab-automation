@@ -7,6 +7,12 @@
 #     from this host's internet connection, the outside view. nuc only
 #     ($nuclei_enabled), the other hosts would repeat the same scan.
 #
+#   - Hosts that can't run a timer of their own (Unraid) are scanned from
+#     here: $remote_docker_scans maps a DefectDojo product name to a
+#     DOCKER_HOST (ssh://...), so Trivy runs on that host's Docker daemon
+#     while the script, the timer and the import stay on this host.
+#     Containers only, there is no host package scan.
+#
 # The scripts live under files/vuln_scan/. DefectDojo is reached over the
 # tailnet at $dojo_url. Two ways to authenticate:
 #   - On the DefectDojo host (nuc): the admin password from
@@ -41,6 +47,11 @@ class roles::vuln_scan (
   # DefectDojo host only: hosts that push scans here. Each gets an account
   # import-<name> and a product <name>.
   Array[String] $importers = [],
+  # product name => DOCKER_HOST, e.g. { nas => 'ssh://root@nas.tail33930.ts.net' }.
+  # Use the FQDN: that is the name already in root's known_hosts.
+  Hash[String, String] $remote_docker_scans = {},
+  # Staggered after $scan_schedule so the scans do not compete for disk.
+  String $remote_scan_schedule = '*-*-* 05:30:00',
   # Importing hosts only: the account to push as (import-<host>).
   Optional[String] $dojo_user = undef,
 ) {
@@ -159,6 +170,30 @@ class roles::vuln_scan (
     content => "[Unit]\nDescription=Nightly Trivy scan of ${product}\n\n[Timer]\nOnCalendar=${scan_schedule}\nPersistent=true\nRandomizedDelaySec=10min\nUnit=trivy-scan.service\n\n[Install]\nWantedBy=timers.target\n",
   }
 
+  # Remote daemons, scanned from this host with the admin login (this is the
+  # DefectDojo host). TRIVY_SCAN_HOST=false: no host package scan.
+  $remote_docker_scans.each |$name, $docker_host| {
+    file { "/etc/systemd/system/trivy-scan-${name}.service":
+      ensure  => file,
+      mode    => '0644',
+      content => "[Unit]\nDescription=Trivy scan of the containers on ${name} into DefectDojo\nAfter=docker.service network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nEnvironment=TRIVY_IMAGE=${trivy_image}\nEnvironment=DOJO_PRODUCT=${name}\nEnvironment=DOJO_URL=${dojo_url}\nEnvironment=DOCKER_HOST=${docker_host}\nEnvironment=TRIVY_SCAN_HOST=false\nExecStart=${dir}/trivy-scan.sh\nTimeoutStartSec=3h\nNice=19\nStandardOutput=journal\nStandardError=journal\n",
+      require => File[$dir],
+    }
+
+    file { "/etc/systemd/system/trivy-scan-${name}.timer":
+      ensure  => file,
+      mode    => '0644',
+      content => "[Unit]\nDescription=Nightly Trivy scan of the containers on ${name}\n\n[Timer]\nOnCalendar=${remote_scan_schedule}\nPersistent=true\nRandomizedDelaySec=10min\nUnit=trivy-scan-${name}.service\n\n[Install]\nWantedBy=timers.target\n",
+    }
+
+    service { "trivy-scan-${name}.timer":
+      ensure    => running,
+      enable    => true,
+      subscribe => File["/etc/systemd/system/trivy-scan-${name}.timer"],
+      require   => Exec['trivy-scan-daemon-reload'],
+    }
+  }
+
   # Puppet's systemd service provider does not run `daemon-reload` on its
   # own when a unit file changes (same gotcha as roles::hawser_agent).
   $nuclei_units = $nuclei_enabled ? {
@@ -168,13 +203,19 @@ class roles::vuln_scan (
     ],
     default => [],
   }
+  $remote_units = $remote_docker_scans.keys.map |$name| {
+    [
+      File["/etc/systemd/system/trivy-scan-${name}.service"],
+      File["/etc/systemd/system/trivy-scan-${name}.timer"],
+    ]
+  }.flatten
   exec { 'trivy-scan-daemon-reload':
     command     => '/usr/bin/systemctl daemon-reload',
     refreshonly => true,
     subscribe   => [
       File['/etc/systemd/system/trivy-scan.service'],
       File['/etc/systemd/system/trivy-scan.timer'],
-    ] + $nuclei_units,
+    ] + $nuclei_units + $remote_units,
   }
 
   service { 'trivy-scan.timer':

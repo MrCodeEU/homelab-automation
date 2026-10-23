@@ -15,10 +15,18 @@
 # A failing target never stops the others. Exit status is non-zero when any
 # target failed, so the systemd unit shows up as failed.
 #
+# Remote mode: with DOCKER_HOST=ssh://root@<host> every docker command runs on
+# that host's daemon (Trivy included), while this script and the import stay
+# local. For hosts that can't run timers or scripts of their own (Unraid).
+# Set TRIVY_SCAN_HOST=false there: the OS packages of such a host are not
+# something Trivy can read.
+#
 # Usage: trivy-scan.sh [--dry-run]    (dry run: scan and summarise, no import)
 # Env:   TRIVY_IMAGE    pinned Trivy container image (required)
 #        DOJO_PRODUCT   DefectDojo product, normally the host name (required)
 #        TRIVY_SEVERITY default HIGH,CRITICAL
+#        TRIVY_SCAN_HOST default true; false skips the host package scan
+#        DOCKER_HOST    scan the containers of a remote daemon (see above)
 set -uo pipefail
 
 dry_run=false
@@ -29,6 +37,7 @@ fi
 : "${TRIVY_IMAGE:?TRIVY_IMAGE is required}"
 : "${DOJO_PRODUCT:?DOJO_PRODUCT is required}"
 severity="${TRIVY_SEVERITY:-HIGH,CRITICAL}"
+scan_host_packages="${TRIVY_SCAN_HOST:-true}"
 engagement="trivy-nightly"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workdir=$(mktemp -d)
@@ -38,7 +47,7 @@ trivy() {
   docker run --rm --security-opt label=disable \
     -v trivy-cache:/root/.cache \
     -v /var/run/docker.sock:/var/run/docker.sock \
-    "$@"
+    "$@" </dev/null
 }
 
 failed=0
@@ -93,9 +102,16 @@ scan_host() {
 # what should be reported. The test title is the image reference, or the
 # container name when docker only knows the image by ID (tag moved).
 declare -A seen=()
+# Listed up front, not through a process substitution: a failing docker (a
+# remote daemon that is unreachable) must fail the run, not look like a host
+# without containers.
+if ! containers=$(docker ps --format '{{.Names}}\t{{.Image}}'); then
+  echo "FAILED: cannot list containers" >&2
+  exit 1
+fi
 while IFS=$'\t' read -r name ref; do
   [ -n "$name" ] || continue
-  image_id=$(docker inspect --format '{{.Image}}' "$name" 2>/dev/null) || continue
+  image_id=$(docker inspect --format '{{.Image}}' "$name" 2>/dev/null </dev/null) || continue
   title="$ref"
   if [[ "$ref" =~ ^[0-9a-f]{12}$ ]]; then
     title="container $name"
@@ -108,7 +124,7 @@ while IFS=$'\t' read -r name ref; do
   # image was removed): scan the current tag instead of failing, and skip
   # when there is no tag to fall back to.
   target="$image_id"
-  if ! docker image inspect "$image_id" >/dev/null 2>&1; then
+  if ! docker image inspect "$image_id" >/dev/null 2>&1 </dev/null; then
     if [[ "$ref" =~ ^[0-9a-f]{12}$ ]]; then
       echo "skipping $title: its image no longer exists" >&2
       continue
@@ -117,8 +133,10 @@ while IFS=$'\t' read -r name ref; do
     target="$ref"
   fi
   scan_image "$title" "$target"
-done < <(docker ps --format '{{.Names}}\t{{.Image}}' | sort)
-scan_host
+done < <(sort <<< "$containers")
+if [ "$scan_host_packages" = true ]; then
+  scan_host
+fi
 
 if [ "$failed" -gt 0 ]; then
   echo "$failed target(s) failed" >&2

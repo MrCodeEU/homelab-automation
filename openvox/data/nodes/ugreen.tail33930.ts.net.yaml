@@ -28,3 +28,11 @@ roles::grafana_alloy::docker_root: '/volume1/@docker'
 
 roles::canary_decoys::hostname: 'ugreen'
 roles::grafana_alloy::manage_docker_sdk: true
+
+# Trivy scan of this NAS (containers + host packages), pushed to the
+# DefectDojo on nuc as the import-ugreen account (created on nuc from
+# roles::vuln_scan::importers). Same setup as mljr.
+roles::vuln_scan::dojo_url: 'http://100.100.10.1:8101'
+roles::vuln_scan::dojo_user: 'import-ugreen'
+roles::vuln_scan::product: 'ugreen'
+roles::vuln_scan::nuclei_enabled: false
