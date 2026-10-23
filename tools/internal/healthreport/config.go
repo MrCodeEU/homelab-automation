@@ -169,6 +169,12 @@ type Config struct {
 	// mljr-local-allowlist.yaml (hiera home_public_ip). Empty disables the
 	// home_ip collector.
 	HomeIP string
+
+	// DefectDojo (services/defectdojo): base URL and the admin password, from
+	// the same eyaml secret the service itself uses. Either empty disables
+	// the defectdojo collector.
+	DojoURL      string
+	DojoPassword string
 }
 
 func defaultConfig() Config {
@@ -251,6 +257,8 @@ func ConfigFromEnv() Config {
 		c.DMARCDomains = parseWindows(&raw, nil)
 	}
 	c.HomeIP = strings.TrimSpace(os.Getenv("HEALTHREPORT_HOME_IP"))
+	c.DojoURL = strings.TrimSpace(os.Getenv("HEALTHREPORT_DOJO_URL"))
+	c.DojoPassword = os.Getenv("HEALTHREPORT_DOJO_PASSWORD")
 	return c
 }
 
