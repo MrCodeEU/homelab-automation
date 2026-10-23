@@ -37,4 +37,5 @@ class role::nuc {
   include roles::unraid_host_facts_proxy
   include roles::grafana_alloy
   include roles::tutabridge_cli
+  include roles::vuln_scan
 }
