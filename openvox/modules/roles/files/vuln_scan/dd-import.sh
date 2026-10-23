@@ -90,7 +90,10 @@ response=$(curl -sS --fail-with-body --max-time 600 -X POST "$DOJO_URL/api/v2/re
   -F close_old_findings=true \
   -F active=true \
   -F verified=false \
-  -F minimum_severity=Info)
+  -F minimum_severity=Info) || {
+  echo "dd-import: import of $test_title into $product failed: $response" >&2
+  exit 1
+}
 
 echo "$response" | jq -r '"imported \(.scan_type) into test \(.test) (\(.statistics.after.total.active // 0) active findings)"' 2>/dev/null \
   || echo "imported $test_title"
