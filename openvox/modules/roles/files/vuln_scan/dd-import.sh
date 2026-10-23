@@ -40,8 +40,8 @@ for var in scan_type file product engagement test_title; do
     exit 2
   fi
 done
-if [ ! -s "$file" ]; then
-  echo "dd-import: report file missing or empty: $file" >&2
+if [ ! -e "$file" ]; then
+  echo "dd-import: report file missing: $file" >&2
   exit 2
 fi
 
