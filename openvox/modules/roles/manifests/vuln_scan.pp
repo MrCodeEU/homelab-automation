@@ -1,13 +1,22 @@
 # Nightly vulnerability scanning, imported into DefectDojo (roles::services'
-# `defectdojo` service) for deduplication and triage. nuc only for now.
+# `defectdojo` service) for deduplication and triage.
 #   - Trivy (from its official, pinned container) scans every running
-#     container image and the host OS packages.
+#     container image and the host OS packages, on every host that includes
+#     this class.
 #   - Nuclei (likewise) scans every public hostname in the services catalog
-#     from this host's internet connection, the outside view.
+#     from this host's internet connection, the outside view. nuc only
+#     ($nuclei_enabled), the other hosts would repeat the same scan.
 #
 # The scripts live under files/vuln_scan/. DefectDojo is reached over the
-# tailnet at $dojo_url and authenticated with the admin password from
-# /opt/defectdojo/.env, so no extra secret is provisioned.
+# tailnet at $dojo_url. Two ways to authenticate:
+#   - On the DefectDojo host (nuc): the admin password from
+#     /opt/defectdojo/.env, no extra secret.
+#   - On every other host: a least-privilege importer account, set with
+#     $dojo_user. The account is created on the DefectDojo host from
+#     $importers (one name per remote host); it can import into its own
+#     product and do nothing else. Its password is the same value in both
+#     hosts' eyaml: vault_dojo_import_<name>_password on the DefectDojo
+#     host, vault_dojo_import_password on the importing host.
 #
 # Parameter named $scan_schedule, not $schedule - the latter collides with
 # Puppet's own `schedule` metaparameter (same gotcha as
@@ -25,9 +34,15 @@ class roles::vuln_scan (
   String $nuclei_image  = 'docker.io/projectdiscovery/nuclei:v3.11.1',
   # DefectDojo product for the outside view (not a host).
   String $nuclei_product  = 'public hostnames',
+  Boolean $nuclei_enabled = true,
   # Network-only, so it can run in the quiet window before the backups
   # (03:00); Trivy is disk-heavy and runs after them.
   String $nuclei_schedule = '*-*-* 01:30:00',
+  # DefectDojo host only: hosts that push scans here. Each gets an account
+  # import-<name> and a product <name>.
+  Array[String] $importers = [],
+  # Importing hosts only: the account to push as (import-<host>).
+  Optional[String] $dojo_user = undef,
 ) {
   $dir = '/usr/local/libexec/vuln-scan'
 
@@ -50,33 +65,92 @@ class roles::vuln_scan (
     source  => 'puppet:///modules/roles/vuln_scan',
   }
 
+  $etc_dir = '/etc/vuln-scan'
+  $password_file = "${etc_dir}/dojo-password"
+
+  if $dojo_user or !$importers.empty {
+    file { $etc_dir:
+      ensure => directory,
+      owner  => 'root',
+      group  => 'root',
+      mode   => '0700',
+    }
+  }
+
+  # Importing host: the account's password, read by dd-import.sh.
+  if $dojo_user {
+    $login_env = "Environment=DOJO_USER=${dojo_user}\nEnvironment=DOJO_PASSWORD_FILE=${password_file}\n"
+    $login_require = File[$password_file]
+    file { $password_file:
+      ensure  => file,
+      owner   => 'root',
+      group   => 'root',
+      mode    => '0600',
+      content => Sensitive(lookup('vault_dojo_import_password')),
+      require => File[$etc_dir],
+    }
+  } else {
+    $login_env = ''
+    $login_require = []
+  }
+
+  # DefectDojo host: provision the importer accounts. The credentials file
+  # and the exec are two halves of one change, hence the shared guard.
+  unless $importers.empty {
+    $importers_file = "${etc_dir}/importers"
+    $importer_lines = $importers.map |$name| {
+      "${name}:${lookup("vault_dojo_import_${name}_password")}"
+    }
+    file { $importers_file:
+      ensure  => file,
+      owner   => 'root',
+      group   => 'root',
+      mode    => '0600',
+      content => Sensitive("${importer_lines.join("\n")}\n"),
+      require => File[$etc_dir],
+    }
+
+    # Through bash with a readability test: on the first rollout the scripts
+    # do not exist yet during --noop, and Puppet errors on a missing command
+    # or an exit 127. A plain exit 1 reads as "would run".
+    exec { 'dojo-importer-provision':
+      command     => "/usr/bin/bash ${dir}/dojo-importer-apply.sh",
+      unless      => "/usr/bin/bash -c 'test -r ${dir}/dojo-importer-check.sh && exec bash ${dir}/dojo-importer-check.sh'",
+      path        => ['/usr/bin', '/bin'],
+      environment => ["DOJO_URL=${dojo_url}", "IMPORTERS_FILE=${importers_file}"],
+      require     => [File[$dir], File[$importers_file], Exec['services-defectdojo-healthcheck']],
+    }
+  }
+
   file { '/etc/systemd/system/trivy-scan.service':
     ensure  => file,
     mode    => '0644',
-    content => "[Unit]\nDescription=Trivy scan of ${product} (images + host packages) into DefectDojo\nAfter=docker.service network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nEnvironment=TRIVY_IMAGE=${trivy_image}\nEnvironment=DOJO_PRODUCT=${product}\nEnvironment=DOJO_URL=${dojo_url}\nExecStart=${dir}/trivy-scan.sh\nTimeoutStartSec=3h\nNice=19\nIOSchedulingClass=idle\nStandardOutput=journal\nStandardError=journal\n",
-    require => File[$dir],
+    content => "[Unit]\nDescription=Trivy scan of ${product} (images + host packages) into DefectDojo\nAfter=docker.service network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nEnvironment=TRIVY_IMAGE=${trivy_image}\nEnvironment=DOJO_PRODUCT=${product}\nEnvironment=DOJO_URL=${dojo_url}\n${login_env}ExecStart=${dir}/trivy-scan.sh\nTimeoutStartSec=3h\nNice=19\nIOSchedulingClass=idle\nStandardOutput=journal\nStandardError=journal\n",
+    require => [File[$dir], $login_require],
   }
 
-  file { "${dir}/nuclei-targets.txt":
-    ensure  => file,
-    owner   => 'root',
-    group   => 'root',
-    mode    => '0644',
-    content => "${nuclei_targets.join("\n")}\n",
-    require => File[$dir],
-  }
+  if $nuclei_enabled {
+    file { "${dir}/nuclei-targets.txt":
+      ensure  => file,
+      owner   => 'root',
+      group   => 'root',
+      mode    => '0644',
+      content => "${nuclei_targets.join("\n")}\n",
+      require => File[$dir],
+    }
 
-  file { '/etc/systemd/system/nuclei-scan.service':
-    ensure  => file,
-    mode    => '0644',
-    content => "[Unit]\nDescription=Nuclei scan of the public hostnames into DefectDojo\nAfter=docker.service network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nEnvironment=NUCLEI_IMAGE=${nuclei_image}\nEnvironment=NUCLEI_TARGETS=${dir}/nuclei-targets.txt\nEnvironment=DOJO_PRODUCT=${nuclei_product}\nEnvironment=DOJO_URL=${dojo_url}\nExecStart=${dir}/nuclei-scan.sh\nTimeoutStartSec=2h\nNice=19\nIOSchedulingClass=idle\nStandardOutput=journal\nStandardError=journal\n",
-    require => [File[$dir], File["${dir}/nuclei-targets.txt"]],
-  }
+    file { '/etc/systemd/system/nuclei-scan.service':
+      ensure  => file,
+      mode    => '0644',
+      content => "[Unit]\nDescription=Nuclei scan of the public hostnames into DefectDojo\nAfter=docker.service network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nEnvironment=NUCLEI_IMAGE=${nuclei_image}\nEnvironment=NUCLEI_TARGETS=${dir}/nuclei-targets.txt\nEnvironment=DOJO_PRODUCT=${nuclei_product}\nEnvironment=DOJO_URL=${dojo_url}\nExecStart=${dir}/nuclei-scan.sh\nTimeoutStartSec=2h\nNice=19\nIOSchedulingClass=idle\nStandardOutput=journal\nStandardError=journal\n",
+      require => [File[$dir], File["${dir}/nuclei-targets.txt"]],
+    }
 
-  file { '/etc/systemd/system/nuclei-scan.timer':
-    ensure  => file,
-    mode    => '0644',
-    content => "[Unit]\nDescription=Nightly Nuclei scan of the public hostnames\n\n[Timer]\nOnCalendar=${nuclei_schedule}\nPersistent=true\nRandomizedDelaySec=10min\nUnit=nuclei-scan.service\n\n[Install]\nWantedBy=timers.target\n",
+    file { '/etc/systemd/system/nuclei-scan.timer':
+      ensure  => file,
+      mode    => '0644',
+      content => "[Unit]\nDescription=Nightly Nuclei scan of the public hostnames\n\n[Timer]\nOnCalendar=${nuclei_schedule}\nPersistent=true\nRandomizedDelaySec=10min\nUnit=nuclei-scan.service\n\n[Install]\nWantedBy=timers.target\n",
+    }
   }
 
   file { '/etc/systemd/system/trivy-scan.timer':
@@ -87,15 +161,20 @@ class roles::vuln_scan (
 
   # Puppet's systemd service provider does not run `daemon-reload` on its
   # own when a unit file changes (same gotcha as roles::hawser_agent).
+  $nuclei_units = $nuclei_enabled ? {
+    true    => [
+      File['/etc/systemd/system/nuclei-scan.service'],
+      File['/etc/systemd/system/nuclei-scan.timer'],
+    ],
+    default => [],
+  }
   exec { 'trivy-scan-daemon-reload':
     command     => '/usr/bin/systemctl daemon-reload',
     refreshonly => true,
     subscribe   => [
       File['/etc/systemd/system/trivy-scan.service'],
       File['/etc/systemd/system/trivy-scan.timer'],
-      File['/etc/systemd/system/nuclei-scan.service'],
-      File['/etc/systemd/system/nuclei-scan.timer'],
-    ],
+    ] + $nuclei_units,
   }
 
   service { 'trivy-scan.timer':
@@ -105,10 +184,12 @@ class roles::vuln_scan (
     require   => Exec['trivy-scan-daemon-reload'],
   }
 
-  service { 'nuclei-scan.timer':
-    ensure    => running,
-    enable    => true,
-    subscribe => File['/etc/systemd/system/nuclei-scan.timer'],
-    require   => Exec['trivy-scan-daemon-reload'],
+  if $nuclei_enabled {
+    service { 'nuclei-scan.timer':
+      ensure    => running,
+      enable    => true,
+      subscribe => File['/etc/systemd/system/nuclei-scan.timer'],
+      require   => Exec['trivy-scan-daemon-reload'],
+    }
   }
 }

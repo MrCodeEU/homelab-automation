@@ -58,3 +58,8 @@ docker::extra_parameters:
 
 # DefectDojo is published on nuc's Tailscale IP only (services/defectdojo).
 roles::vuln_scan::dojo_url: 'http://100.100.10.1:8101'
+# Remote hosts that push Trivy scans here; each needs
+# vault_dojo_import_<name>_password in this file and vault_dojo_import_password
+# in its own.
+roles::vuln_scan::importers:
+  - mljr

@@ -23,4 +23,5 @@ class role::mljr {
   include roles::host_facts_endpoint
   include roles::crowdsec_firewall_bouncer
   include roles::grafana_alloy
+  include roles::vuln_scan
 }
