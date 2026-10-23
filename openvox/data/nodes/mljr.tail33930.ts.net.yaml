@@ -47,3 +47,11 @@ roles::host_facts_endpoint::dest: '/usr/local/bin/homelab-facts'
 roles::grafana_alloy::hostname: 'mljr'
 
 roles::canary_decoys::hostname: 'mljr'
+
+# Trivy scan of this VPS (containers + host packages), pushed to the
+# DefectDojo on nuc over the tailnet as a least-privilege importer account
+# (created on nuc from roles::vuln_scan::importers). The outside-view Nuclei
+# scan runs on nuc only.
+roles::vuln_scan::dojo_url: 'http://100.100.10.1:8101'
+roles::vuln_scan::dojo_user: 'import-mljr'
+roles::vuln_scan::nuclei_enabled: false

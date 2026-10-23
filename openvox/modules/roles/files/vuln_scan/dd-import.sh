@@ -8,16 +8,24 @@
 # unchanged findings are deduplicated, findings missing from the new report
 # are closed (close_old_findings), reappearing ones are reopened.
 #
-# Authentication: logs in as the DefectDojo admin with the password from
-# DefectDojo's own .env (the file Puppet renders from eyaml), so no extra
-# secret has to be provisioned. The API token is fetched per invocation and
-# never put on a command line (visible in `ps`).
+# Authentication, in order:
+#   DOJO_TOKEN                      used as is
+#   DOJO_USER + DOJO_PASSWORD_FILE  a least-privilege importer account (see
+#                                   dojo-importer-apply.sh), for hosts that
+#                                   push to a remote DefectDojo
+#   otherwise                       the DefectDojo admin with the password
+#                                   from DefectDojo's own .env, which only
+#                                   exists on the DefectDojo host itself
+# The API token is fetched per invocation and never put on a command line
+# (visible in `ps`).
 #
 # Usage: dd-import.sh --scan-type "Trivy Scan" --file report.json \
 #          --product nuc --engagement trivy-nightly --test-title <title>
-# Env:   DOJO_URL       base URL, default http://127.0.0.1:8101
-#        DOJO_ENV_FILE  default /opt/defectdojo/.env
-#        DOJO_TOKEN     skip the login when already known
+# Env:   DOJO_URL            base URL, default http://127.0.0.1:8101
+#        DOJO_ENV_FILE       default /opt/defectdojo/.env
+#        DOJO_TOKEN          skip the login when already known
+#        DOJO_USER           login as this user instead of admin
+#        DOJO_PASSWORD_FILE  file holding that user's password
 set -euo pipefail
 
 DOJO_URL="${DOJO_URL:-http://127.0.0.1:8101}"
@@ -46,16 +54,25 @@ if [ ! -e "$file" ]; then
 fi
 
 if [ -z "${DOJO_TOKEN:-}" ]; then
-  if [ ! -r "$DOJO_ENV_FILE" ]; then
-    echo "dd-import: cannot read $DOJO_ENV_FILE" >&2
-    exit 1
+  user="${DOJO_USER:-admin}"
+  if [ -n "${DOJO_USER:-}" ]; then
+    if [ ! -r "${DOJO_PASSWORD_FILE:-}" ]; then
+      echo "dd-import: cannot read DOJO_PASSWORD_FILE (${DOJO_PASSWORD_FILE:-unset})" >&2
+      exit 1
+    fi
+    password=$(cat "$DOJO_PASSWORD_FILE")
+  else
+    if [ ! -r "$DOJO_ENV_FILE" ]; then
+      echo "dd-import: cannot read $DOJO_ENV_FILE" >&2
+      exit 1
+    fi
+    password=$(grep -m1 '^DD_ADMIN_PASSWORD=' "$DOJO_ENV_FILE" | cut -d= -f2-)
   fi
-  password=$(grep -m1 '^DD_ADMIN_PASSWORD=' "$DOJO_ENV_FILE" | cut -d= -f2-)
   if [ -z "$password" ]; then
-    echo "dd-import: DD_ADMIN_PASSWORD not set in $DOJO_ENV_FILE" >&2
+    echo "dd-import: no password for $user" >&2
     exit 1
   fi
-  DOJO_TOKEN=$(jq -n --arg u admin --arg p "$password" '{username: $u, password: $p}' \
+  DOJO_TOKEN=$(jq -n --arg u "$user" --arg p "$password" '{username: $u, password: $p}' \
     | curl -sS --fail-with-body --max-time 30 -X POST "$DOJO_URL/api/v2/api-token-auth/" \
         -H 'Content-Type: application/json' --data @- \
     | jq -er .token)
