@@ -15,8 +15,9 @@
 # Authenticates as admin with DD_ADMIN_PASSWORD from DOJO_ENV_FILE. The
 # tokens and passwords never appear on a command line.
 #
-# The API refuses password changes and a user that has imported cannot be
-# deleted, so an existing user's password is reset inside the uwsgi container.
+# The API refuses password changes and enforces a password policy, and a user
+# that has imported cannot be deleted, so the real password is always set
+# inside the uwsgi container.
 #
 # Env: DOJO_URL, IMPORTERS_FILE (see dojo-importer-check.sh), DOJO_ENV_FILE
 #      default /opt/defectdojo/.env
@@ -40,17 +41,25 @@ token=$(jq -n --arg u admin --arg p "$admin_password" '{username: $u, password: 
       -H 'Content-Type: application/json' --data @- \
   | jq -er .token)
 
-# $1 method, $2 path (under /api/v2), $3 JSON body (optional)
+# $1 method, $2 path (under /api/v2), $3 JSON body (optional). On failure the
+# response body goes to stderr: DefectDojo explains what it rejected.
 dojo() {
-  local method="$1" path="$2" body="${3:-}"
+  local method="$1" path="$2" body="${3:-}" out
   if [ -n "$body" ]; then
-    printf '%s' "$body" | curl -sS --fail-with-body --max-time 60 -X "$method" "$api/$path" \
+    out=$(printf '%s' "$body" | curl -sS --fail-with-body --max-time 60 -X "$method" "$api/$path" \
       -H @<(printf 'Authorization: Token %s\n' "$token") \
-      -H 'Content-Type: application/json' --data @-
+      -H 'Content-Type: application/json' --data @-) || {
+      echo "dojo-importer: $method $path failed: $out" >&2
+      return 1
+    }
   else
-    curl -sS --fail-with-body --max-time 60 -X "$method" "$api/$path" \
-      -H @<(printf 'Authorization: Token %s\n' "$token")
+    out=$(curl -sS --fail-with-body --max-time 60 -X "$method" "$api/$path" \
+      -H @<(printf 'Authorization: Token %s\n' "$token")) || {
+      echo "dojo-importer: $method $path failed: $out" >&2
+      return 1
+    }
   fi
+  printf '%s\n' "$out"
 }
 
 # $1 collection, $2 field, $3 value -> id of the exact match, empty if none.
@@ -93,15 +102,19 @@ while IFS= read -r line; do
 
   user_id=$(find_id users username "$username")
   if [ -z "$user_id" ]; then
-    user_id=$(dojo POST users/ "$(jq -n --arg u "$username" --arg p "$password" \
+    # The API enforces DefectDojo's password policy (upper case, special
+    # character), the shell route below does not. Create with a throwaway
+    # compliant password, then set the real one.
+    throwaway="Aa-$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')"
+    user_id=$(dojo POST users/ "$(jq -n --arg u "$username" --arg p "$throwaway" \
       '{username: $u, email: "\($u)@homelab.invalid", password: $p,
         is_active: true, is_staff: false, is_superuser: false}')" | jq -er .id)
     echo "created user $username"
   else
     dojo PATCH "users/$user_id/" '{"is_active": true, "is_staff": false, "is_superuser": false}' >/dev/null
-    set_password "$username" "$password"
     echo "reset user $username"
   fi
+  set_password "$username" "$password"
 
   members=$(dojo GET "products/$product_id/" \
     | jq -c --argjson u "$user_id" '(.authorized_users // []) + [$u] | unique')
