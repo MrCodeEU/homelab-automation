@@ -55,3 +55,6 @@ roles::canary_decoys::hostname: 'nuc'
 # anywhere near this limit yet.
 docker::extra_parameters:
   - '--default-address-pool base=172.16.0.0/12,size=24'
+
+# DefectDojo is published on nuc's Tailscale IP only (services/defectdojo).
+roles::vuln_scan::dojo_url: 'http://100.100.10.1:8101'
