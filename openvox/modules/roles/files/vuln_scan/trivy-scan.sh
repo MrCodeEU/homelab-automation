@@ -73,6 +73,12 @@ scan_image() {
     failed=$((failed + 1))
     return
   fi
+  # linux-libc-dev only ships the kernel's C headers for building software.
+  # A container runs the host's kernel, so the kernel CVEs Trivy attaches to
+  # this package (hundreds per Debian image) cannot be exploited through it.
+  local filtered="$workdir/image-filtered.json"
+  jq '.Results |= map(.Vulnerabilities |= (. // [] | map(select(.PkgName != "linux-libc-dev"))))' \
+    "$report" > "$filtered" && report="$filtered"
   if ! import_report "$title" "$report"; then
     echo "FAILED: import of $title" >&2
     failed=$((failed + 1))
