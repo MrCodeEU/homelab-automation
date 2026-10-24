@@ -770,6 +770,10 @@ services_catalog:
     description: "File Sync"
     icon: "mdi:sync"
     https_backend: true
+    # Syncthing's own GUI login stays; Authelia in front keeps the login page
+    # and the dashboard off the open internet (Nuclei: "Syncthing Dashboard
+    # Exposure"). API consumers use the NAS address directly, not this vhost.
+    caddy_auth: authelia
 
   - name: opencloud
     enabled: true
