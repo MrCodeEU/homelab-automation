@@ -7,3 +7,11 @@
 set -euo pipefail
 grep -qxF 'exclude = *.i686' /etc/dnf/dnf.conf || echo 'exclude = *.i686' >> /etc/dnf/dnf.conf
 grep -qxF 'best = False' /etc/dnf/dnf.conf || echo 'best = False' >> /etc/dnf/dnf.conf
+# Keep two kernels (the newest plus one fallback) instead of three. Every
+# installed kernel is reported by the vulnerability scan against its own CVEs,
+# so each extra old one is dead weight there, and /boot is small.
+if grep -q '^installonly_limit=' /etc/dnf/dnf.conf; then
+  sed -i 's/^installonly_limit=.*/installonly_limit=2/' /etc/dnf/dnf.conf
+else
+  echo 'installonly_limit=2' >> /etc/dnf/dnf.conf
+fi

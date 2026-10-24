@@ -91,6 +91,19 @@ scan_host() {
     failed=$((failed + 1))
     return
   fi
+  # Every installed kernel is reported against its own CVEs, including old
+  # ones kept as a fallback and the fixed one waiting for a reboot. Only the
+  # running kernel is exposed, so keep just its findings. The fix for those is
+  # a reboot, which weekly maintenance does.
+  local running filtered="$workdir/host-filtered.json"
+  running=$(uname -r)
+  running=${running%.*}
+  jq --arg run "$running" '
+    .Results |= map(.Vulnerabilities |= (. // [] | map(select(
+      (.PkgName | test("^kernel(-core|-modules(-core|-extra)?)?$") | not)
+      or .InstalledVersion == $run))))' "$report" > "$filtered"
+  echo "kernel findings: kept those of the running kernel $running"
+  report="$filtered"
   if ! import_report "host packages" "$report"; then
     echo "FAILED: import of host packages" >&2
     failed=$((failed + 1))
