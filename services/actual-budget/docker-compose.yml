@@ -11,7 +11,7 @@
 # login stays enabled as a fallback (ACTUAL_OPENID_ENFORCE is not set).
 services:
   actual-budget:
-    image: actualbudget/actual-server:26.9.0-alpine
+    image: actualbudget/actual-server:26.10.0-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-actual-budget}
     restart: unless-stopped
     # The image's own `actual` user owns /data; root with cap_drop ALL cannot
