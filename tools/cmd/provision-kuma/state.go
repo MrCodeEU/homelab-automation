@@ -156,6 +156,36 @@ var pages = []page{
 	},
 }
 
+const (
+	serverTimezone     = "Europe/Vienna"
+	keepDataPeriodDays = 365
+)
+
+// syncSettings applies the server settings the client can manage, on top of
+// what the server reports (SetSettings replaces the whole set). A fresh server
+// keeps 180 days of history and the container's timezone; the old instance ran
+// with 365 and Europe/Vienna.
+func syncSettings(ctx context.Context, client *kuma.Client, password string, st *stats) {
+	cur, err := client.GetSettings(ctx)
+	if err != nil {
+		fmt.Printf("  Failed to read settings: %v\n", err)
+		st.failed = append(st.failed, "settings")
+		return
+	}
+	if cur.ServerTimezone == serverTimezone && cur.KeepDataPeriodDays == keepDataPeriodDays {
+		return
+	}
+	cur.ServerTimezone = serverTimezone
+	cur.KeepDataPeriodDays = keepDataPeriodDays
+	fmt.Printf("  Setting timezone %s, keeping %d days of history\n", serverTimezone, keepDataPeriodDays)
+	if err := client.SetSettings(ctx, *cur, password); err != nil {
+		fmt.Printf("  Failed to save settings: %v\n", err)
+		st.failed = append(st.failed, "settings")
+		return
+	}
+	st.updated = append(st.updated, "settings")
+}
+
 func monitorIDs(ctx context.Context, client *kuma.Client) (map[string]int64, error) {
 	monitors, err := client.GetMonitors(ctx)
 	if err != nil {
