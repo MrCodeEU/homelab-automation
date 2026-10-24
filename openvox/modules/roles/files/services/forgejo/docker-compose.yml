@@ -39,7 +39,7 @@ services:
       - forgejo-internal
 
   runner-dind:
-    image: docker@sha256:12e683a161823b2a839aeea999b9d960e6e1f9a97b1679ad6b441982e2d9cf07
+    image: docker:dind@sha256:97545b7bab66319a476800a85b008b25c06681733d484909e2a776281e41574f
     container_name: ${COMPOSE_PROJECT_NAME:-forgejo}-runner-dind
     restart: unless-stopped
     privileged: true
@@ -63,7 +63,7 @@ services:
       - runner-egress
 
   runner-dind-cleanup:
-    image: docker@sha256:12e683a161823b2a839aeea999b9d960e6e1f9a97b1679ad6b441982e2d9cf07
+    image: docker:dind@sha256:97545b7bab66319a476800a85b008b25c06681733d484909e2a776281e41574f
     container_name: ${COMPOSE_PROJECT_NAME:-forgejo}-runner-dind-cleanup
     restart: unless-stopped
     environment:
