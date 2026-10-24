@@ -104,13 +104,13 @@ Uptime Kuma data is stored in a Docker volume. To backup:
 ```bash
 # Backup data volume
 docker run --rm \
-  -v uptime-kuma-data:/data \
+  -v uptime-kuma-sqlite:/data \
   -v $(pwd):/backup \
   alpine tar czf /backup/uptime-kuma-backup-$(date +%Y%m%d).tar.gz -C /data .
 
 # Restore from backup
 docker run --rm \
-  -v uptime-kuma-data:/data \
+  -v uptime-kuma-sqlite:/data \
   -v $(pwd):/backup \
   alpine sh -c "cd /data && tar xzf /backup/uptime-kuma-backup-YYYYMMDD.tar.gz"
 ```
@@ -158,10 +158,10 @@ If the SQLite database gets corrupted:
 docker stop uptime-kuma
 
 # Backup current data
-docker run --rm -v uptime-kuma-data:/data -v $(pwd):/backup alpine tar czf /backup/kuma-corrupted.tar.gz -C /data .
+docker run --rm -v uptime-kuma-sqlite:/data -v $(pwd):/backup alpine tar czf /backup/kuma-corrupted.tar.gz -C /data .
 
 # Remove volume and recreate
-docker volume rm uptime-kuma-data
+docker volume rm uptime-kuma-sqlite
 docker compose up -d
 
 # You'll need to reconfigure from scratch
@@ -180,3 +180,30 @@ docker compose up -d
 - [ ] Automatic monitor creation from services.yml
 - [ ] Backup automation
 - [ ] Notification configuration templates
+
+## Database and provisioning
+
+Kuma runs the `2-slim` image on SQLite (volume `uptime-kuma-sqlite`). Everything
+except the monitors' history is rebuilt from the repo by `provision-kuma`
+(monitors, the ntfy notification, maintenance windows, status pages, retention);
+see `tools/cmd/provision-kuma/state.go` for the maintenance windows and the
+status pages. `all` is read by mljr-web, keep its slug and monitor names.
+
+API keys cannot be declared (Kuma generates the secret). The one in use
+(`vault_kuma_api_key`, read by healthreport and Alloy) is verified by every
+provisioning run. Rebuilding Kuma from scratch means creating a key in
+Settings > API Keys and updating `vault_kuma_api_key`.
+
+### Cutover from the old embedded MariaDB (done once, 2026-10)
+
+1. On nuc, right before the deploy (the old container must still run):
+   `python3 /root/kuma-migration/kuma-mariadb-to-sqlite.py export --out /root/kuma-migration/export`
+2. `make openvox-deploy-nuc`: starts the new container on an empty SQLite volume,
+   provisioning creates the admin, monitors, notification, windows and pages.
+3. `docker stop uptime-kuma`, then
+   `python3 scripts/kuma-mariadb-to-sqlite.py import --export /root/kuma-migration/export --db /var/lib/docker/volumes/kuma_uptime-kuma-sqlite/_data/kuma.db`,
+   then `docker start uptime-kuma`.
+4. Check https://uptime.mljr.eu/api/status-page/all, `/metrics` with the API key,
+   and the healthreport `uptime_kuma` collector.
+5. Rollback until the old volume is deleted: point the compose file back to
+   `louislam/uptime-kuma:2` and `uptime-kuma-data`.

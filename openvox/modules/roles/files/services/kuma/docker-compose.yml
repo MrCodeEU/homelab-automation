@@ -1,6 +1,6 @@
 services:
   uptime-kuma:
-    image: louislam/uptime-kuma:2
+    image: louislam/uptime-kuma:2-slim@sha256:4837e2b531b118d2fad24430fabed1488b14542f03b2bebf035497271b3a1ee8
     container_name: uptime-kuma
     restart: unless-stopped
     ports:
@@ -13,9 +13,14 @@ services:
       # where BIND_ADDR is never 127.0.0.1 (that would be a duplicate bind).
       - "127.0.0.1:3001:3001"
     volumes:
-      - uptime-kuma-data:/app/data
+      - uptime-kuma-sqlite:/app/data
     environment:
       - TZ=${TZ:-Europe/Vienna}
+      # 2-slim ships no MariaDB server and no Chromium (about 230 fewer
+      # image CVEs); SQLite is plenty for ~55 monitors.
+      - UPTIME_KUMA_DB_TYPE=sqlite
 
 volumes:
-  uptime-kuma-data:
+  # New volume for the SQLite database. The old MariaDB volume
+  # (kuma_uptime-kuma-data) is kept until the migration is confirmed.
+  uptime-kuma-sqlite:
