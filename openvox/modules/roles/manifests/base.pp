@@ -199,6 +199,23 @@ class roles::base (
       environment => ["BREAKGLASS_PORT=${ssh_breakglass_port}"],
     }
 
+    # Provider cloud-init (Contabo) ships PasswordAuthentication yes and
+    # PermitRootLogin yes; with the break-glass port public that is a
+    # password-guessable root login. 00- sorts before 50-cloud-init.conf.
+    file { '/etc/ssh/sshd_config.d/00-openvox-hardening.conf':
+      ensure  => file,
+      owner   => 'root',
+      group   => 'root',
+      mode    => '0600',
+      content => "PasswordAuthentication no\nPermitRootLogin prohibit-password\nKbdInteractiveAuthentication no\n",
+      notify  => Exec['base-ssh-hardening-reload'],
+    }
+
+    exec { 'base-ssh-hardening-reload':
+      command     => '/usr/sbin/sshd -t && /usr/bin/systemctl reload sshd',
+      refreshonly => true,
+    }
+
     exec { 'base-ssh-breakglass':
       command     => "${work_dir}/ssh-breakglass-apply.sh",
       unless      => "${work_dir}/ssh-breakglass-check.sh",
