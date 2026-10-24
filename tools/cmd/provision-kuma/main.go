@@ -382,6 +382,7 @@ func run() int {
 	syncNotification(ctx, client, st)
 	syncMaintenance(ctx, client, cat.Services, ids, st)
 	syncStatusPages(ctx, client, ids, st)
+	checkAPIKey(url, os.Getenv("KUMA_API_KEY"), st)
 
 	var summaryParts []string
 	if len(st.created) > 0 {
