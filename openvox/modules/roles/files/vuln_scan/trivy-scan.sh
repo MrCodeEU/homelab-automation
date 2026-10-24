@@ -77,7 +77,7 @@ scan_image() {
   # A container runs the host's kernel, so the kernel CVEs Trivy attaches to
   # this package (hundreds per Debian image) cannot be exploited through it.
   local filtered="$workdir/image-filtered.json"
-  jq '.Results |= map(.Vulnerabilities |= (. // [] | map(select(.PkgName != "linux-libc-dev"))))' \
+  jq '.Results |= (. // [] | map(.Vulnerabilities |= (. // [] | map(select(.PkgName != "linux-libc-dev")))))' \
     "$report" > "$filtered" && report="$filtered"
   if ! import_report "$title" "$report"; then
     echo "FAILED: import of $title" >&2
@@ -105,9 +105,9 @@ scan_host() {
   running=$(uname -r)
   running=${running%.*}
   jq --arg run "$running" '
-    .Results |= map(.Vulnerabilities |= (. // [] | map(select(
+    .Results |= (. // [] | map(.Vulnerabilities |= (. // [] | map(select(
       (.PkgName | test("^kernel(-core|-modules(-core|-extra)?)?$") | not)
-      or .InstalledVersion == $run))))' "$report" > "$filtered"
+      or .InstalledVersion == $run)))))' "$report" > "$filtered"
   echo "kernel findings: kept those of the running kernel $running"
   report="$filtered"
   if ! import_report "host packages" "$report"; then
