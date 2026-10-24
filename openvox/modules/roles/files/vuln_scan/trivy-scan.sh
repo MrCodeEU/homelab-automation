@@ -138,6 +138,31 @@ if [ "$scan_host_packages" = true ]; then
   scan_host
 fi
 
+# Targets that were not scanned this run - an image that moved to a new tag, a
+# removed container - keep their old test, and with it their findings, open
+# forever. Close them. Every running container counts as still scanned (also
+# one that was skipped or failed above), so a transient problem never hides a
+# target's findings.
+close_stale_tests() {
+  local keep="$workdir/keep-titles.txt" empty="$workdir/empty.json" title
+  : > "$keep"
+  for title in "${!seen[@]}"; do
+    printf '%s\n' "$title" >> "$keep"
+  done
+  if [ "$scan_host_packages" = true ]; then
+    echo "host packages" >> "$keep"
+  fi
+  echo '{"SchemaVersion": 2, "Results": []}' > "$empty"
+  if ! "$script_dir/dd-close-stale.sh" --product "$DOJO_PRODUCT" --engagement "$engagement" \
+      --scan-type "Trivy Scan" --empty-report "$empty" --keep-file "$keep"; then
+    echo "FAILED: closing tests of targets that are no longer scanned" >&2
+    failed=$((failed + 1))
+  fi
+}
+if [ "$dry_run" = false ]; then
+  close_stale_tests
+fi
+
 if [ "$failed" -gt 0 ]; then
   echo "$failed target(s) failed" >&2
   exit 1
