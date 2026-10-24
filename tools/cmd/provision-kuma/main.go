@@ -379,6 +379,7 @@ func run() int {
 		fmt.Printf("Error fetching monitors: %v\n", err)
 		return 1
 	}
+	syncSettings(ctx, client, password, st)
 	syncNotification(ctx, client, st)
 	syncMaintenance(ctx, client, cat.Services, ids, st)
 	syncStatusPages(ctx, client, ids, st)
