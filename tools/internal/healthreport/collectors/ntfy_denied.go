@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 
 	hr "github.com/MrCodeEU/homelab-automation/tools/internal/healthreport"
 )
@@ -30,8 +31,23 @@ var ntfyTopicFromURI = regexp.MustCompile(`^/([^/?]+)`)
 // so the topic still has to be pulled out of it here.
 type caddyAccessLine struct {
 	Request struct {
-		URI string `json:"uri"`
+		URI     string              `json:"uri"`
+		Headers map[string][]string `json:"headers"`
 	} `json:"request"`
+}
+
+// isScannerNoise reports whether a denied request looks like an internet
+// scanner rather than a forgotten publisher or subscriber. ntfy.mljr.eu is
+// public, so /api, /_session, /cgi-bin and friends get probed all day (30 days
+// of Loki: ~100% of the 403s). Scanners fake a browser User-Agent or send
+// none; real clients (curl, ntfy app, Go/axios/python publishers) don't.
+// A topic denied in a browser tab is the owner testing the web UI.
+func isScannerNoise(line caddyAccessLine) bool {
+	ua := ""
+	if v := line.Request.Headers["User-Agent"]; len(v) > 0 {
+		ua = v[0]
+	}
+	return ua == "" || strings.HasPrefix(ua, "Mozilla/")
 }
 
 func init() {
@@ -51,6 +67,10 @@ func collectNtfyDenied(cfg hr.Config, rules hr.RulesFile) *hr.CollectorResult {
 	unknown := 0
 	for _, stream := range streams {
 		for _, pair := range stream.Values {
+			var parsed caddyAccessLine
+			if json.Unmarshal([]byte(pair[1]), &parsed) == nil && isScannerNoise(parsed) {
+				continue
+			}
 			topic := topicFromDeniedLine(pair[1])
 			if topic == "" {
 				unknown++

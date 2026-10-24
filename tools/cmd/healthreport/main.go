@@ -29,7 +29,8 @@ import (
 var defaultCollectors = []string{
 	"host_metrics", "containers", "logs", "uptime_kuma",
 	"ssh_facts", "github", "updates", "homeassistant", "dmarc",
-	"home_ip", "defectdojo",
+	"home_ip", "defectdojo", "ntfy_access", "csp_reports",
+	"monitor_availability",
 }
 
 type stringList []string
