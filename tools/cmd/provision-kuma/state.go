@@ -7,7 +7,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sort"
+	"time"
 
 	kuma "github.com/breml/go-uptime-kuma-client"
 	"github.com/breml/go-uptime-kuma-client/maintenance"
@@ -315,5 +317,34 @@ func syncStatusPages(ctx context.Context, client *kuma.Client, ids map[string]in
 			fmt.Printf("  Failed to save %s: %v\n", label, err)
 			st.failed = append(st.failed, label)
 		}
+	}
+}
+
+// checkAPIKey verifies that the API key healthreport and Grafana Alloy scrape
+// /metrics with is accepted. Kuma generates API-key secrets itself, so a key
+// cannot be declared: it survives a rebuild only if its row is carried over
+// (see docs on the SQLite migration). Without this check a lost key silently
+// blinds the uptime_kuma collector and the Kuma dashboards.
+func checkAPIKey(baseURL, key string, st *stats) {
+	if key == "" {
+		return
+	}
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/metrics", nil)
+	if err != nil {
+		st.failed = append(st.failed, "api key check")
+		return
+	}
+	req.SetBasicAuth("", key)
+	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	if err != nil {
+		fmt.Printf("  API key check: %v\n", err)
+		st.failed = append(st.failed, "api key check")
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("  API key check: /metrics answered %d - the key in vault_kuma_api_key is not valid on this Kuma.\n"+
+			"  Create a key in Settings > API Keys and update vault_kuma_api_key (healthreport and Alloy read it).\n", resp.StatusCode)
+		st.failed = append(st.failed, "api key check")
 	}
 }

@@ -462,6 +462,9 @@ class roles::services (
     $kuma_dir      = "${base_path}/kuma"
     $kuma_username = pick($all_secrets['kuma']['username'], '')
     $kuma_password = Sensitive(pick($all_secrets['kuma']['password'], ''))
+    # Only verified by provision-kuma (Kuma generates API keys itself, so it
+    # cannot declare one): a rejected key fails provisioning loudly.
+    $kuma_api_key  = Sensitive(lookup('vault_kuma_api_key', { 'default_value' => '' }))
 
     # Static host list mirrors ansible/inventory/hosts.yml's groups['all']
     # - Puppet's compiler has no live inventory to enumerate the way
@@ -501,7 +504,7 @@ class roles::services (
       exec { 'services-kuma-provision':
         command     => "${work_dir}/kuma-provision-apply.sh ${kuma_dir} ${kuma_services_hash}",
         unless      => "${work_dir}/kuma-provision-check.sh ${kuma_dir} ${kuma_services_hash}",
-        environment => ["KUMA_USERNAME=${kuma_username}", "KUMA_PASSWORD=${kuma_password.unwrap}"],
+        environment => ["KUMA_USERNAME=${kuma_username}", "KUMA_PASSWORD=${kuma_password.unwrap}", "KUMA_API_KEY=${kuma_api_key.unwrap}"],
         path        => ['/usr/bin', '/bin'],
         timeout     => 300,
         require     => File["${kuma_dir}/services.yml"],

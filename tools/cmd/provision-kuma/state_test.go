@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 )
@@ -45,5 +47,27 @@ func TestAllPageKeepsContract(t *testing.T) {
 			t.Errorf("duplicate maintenance window %q", w.Title)
 		}
 		titles[w.Title] = true
+	}
+}
+
+func TestCheckAPIKey(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, pass, ok := r.BasicAuth(); !ok || pass != "uk2_good" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	st := &stats{}
+	checkAPIKey(srv.URL, "uk2_good", st)
+	checkAPIKey(srv.URL, "", st) // no key configured: nothing to check
+	if len(st.failed) != 0 {
+		t.Errorf("valid or absent key reported failures: %v", st.failed)
+	}
+	checkAPIKey(srv.URL, "uk2_bad", st)
+	if len(st.failed) != 1 {
+		t.Errorf("rejected key not reported: %v", st.failed)
 	}
 }
