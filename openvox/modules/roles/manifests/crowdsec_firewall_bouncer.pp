@@ -47,7 +47,7 @@ class roles::crowdsec_firewall_bouncer (
     # continuation syntax needs one real string with embedded
     # newline+indent, matching the file already live in production
     # byte-for-byte (7-space indent under "gpgkey=").
-    gpgkey          => "https://packagecloud.io/crowdsec/crowdsec/gpgkey\n       https://packagecloud.io/crowdsec/crowdsec/gpgkey/crowdsec-crowdsec-EDE2C695EC9A5A5C.pub.gpg\n       https://packagecloud.io/crowdsec/crowdsec/gpgkey/crowdsec-crowdsec-C822EDD6B39954A1.pub.gpg\n       https://packagecloud.io/crowdsec/crowdsec/gpgkey/crowdsec-crowdsec-FED78314A2468CCF.pub.gpg",
+    gpgkey          => "https://packagecloud.io/crowdsec/crowdsec/gpgkey\n       https://packagecloud.io/crowdsec/crowdsec/gpgkey/crowdsec-crowdsec-C822EDD6B39954A1.pub.gpg\n       https://packagecloud.io/crowdsec/crowdsec/gpgkey/crowdsec-crowdsec-FED78314A2468CCF.pub.gpg",
     sslverify       => 1,
     sslcacert       => '/etc/pki/tls/certs/ca-bundle.crt',
     metadata_expire => '3600',
