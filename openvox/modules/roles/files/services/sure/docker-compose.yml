@@ -89,7 +89,7 @@ services:
     logging: *logging
 
   db:
-    image: postgres:16
+    image: postgres:18
     container_name: ${COMPOSE_PROJECT_NAME:-sure}-db
     restart: unless-stopped
     volumes:
