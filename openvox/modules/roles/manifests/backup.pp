@@ -208,7 +208,7 @@ class roles::backup (
       ],
     },
     'kuma' => {
-      'volumes'  => ['kuma_uptime-kuma-data'],
+      'volumes'  => ['kuma_uptime-kuma-sqlite'],
       'critical' => false,
     },
     'ntfy' => {
