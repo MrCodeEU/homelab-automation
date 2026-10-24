@@ -71,3 +71,18 @@ func TestCheckAPIKey(t *testing.T) {
 		t.Errorf("rejected key not reported: %v", st.failed)
 	}
 }
+
+func TestMonitorOptOut(t *testing.T) {
+	services := []service{
+		{Name: "a", Domain: "a.example"},
+		{Name: "b", Domain: "b.example", Monitor: bptr(false)},
+		{Name: "c", Domain: "c.example", Monitor: bptr(true)},
+		{Name: "d", Domain: "d.example", Enabled: bptr(false)},
+	}
+	got := getExpectedMonitorNames(services, nil)
+	for name, want := range map[string]bool{"a": true, "b": false, "c": true, "d": false} {
+		if got[name] != want {
+			t.Errorf("monitor %q expected=%v, want %v", name, got[name], want)
+		}
+	}
+}

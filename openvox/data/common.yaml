@@ -783,6 +783,8 @@ services_catalog:
     host: nas
     description: "OpenCloud server"
     icon: "mdi:cloud"
+    # Migration on hold, the container is stopped (502).
+    monitor: false
 
   - name: test-ocis
     enabled: false
@@ -906,6 +908,9 @@ services_catalog:
     host: mljr
     description: "Public Status Page"
     icon: "mdi:list-status"
+    # CNAME to Hetrixtools, which monitors itself; its IPv4 address is
+    # unreachable from the home network where Kuma runs.
+    monitor: false
     caddy_suppress_default_proxy: true
     caddy_extra_config: |
       redir https://hetrixtools.com/r/71c4b0a0c1f138d113d3557d81b472a4/ 302

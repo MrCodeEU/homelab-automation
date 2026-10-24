@@ -61,9 +61,17 @@ type service struct {
 	// Host is the catalog host running the service; maintenance windows
 	// select monitors by it.
 	Host string `yaml:"host"`
+	// Monitor: false keeps the service in the catalog (Caddy route, DNS) but
+	// gives it no Kuma monitor, e.g. a stopped service or a third-party page
+	// the Kuma host cannot reach. An existing monitor is deleted as orphaned.
+	Monitor *bool `yaml:"monitor"`
 }
 
 func (s service) isEnabled() bool { return s.Enabled == nil || *s.Enabled }
+
+func (s service) isMonitored() bool {
+	return s.isEnabled() && (s.Monitor == nil || *s.Monitor)
+}
 
 // firstDomain mirrors the Python original's domain handling: a list uses
 // its first element, a plain string is used as-is, anything absent is "".
@@ -105,7 +113,7 @@ type stats struct {
 func getExpectedMonitorNames(services []service, hosts []host) map[string]bool {
 	expected := map[string]bool{}
 	for _, svc := range services {
-		if svc.isEnabled() && firstDomain(svc.Domain) != "" {
+		if svc.isMonitored() && firstDomain(svc.Domain) != "" {
 			expected[svc.Name] = true
 		}
 	}
@@ -143,7 +151,7 @@ func createAndStart(ctx context.Context, client *kuma.Client, m monitor.Monitor)
 
 func syncServiceMonitors(ctx context.Context, client *kuma.Client, services []service, existing map[string]monitor.Base, st *stats) {
 	for _, svc := range services {
-		if !svc.isEnabled() {
+		if !svc.isMonitored() {
 			continue
 		}
 		domain := firstDomain(svc.Domain)
