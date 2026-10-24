@@ -396,6 +396,13 @@ class roles::backup (
     ensure => installed,
   }
 
+  # /root/.config does not exist on a fresh install (puppet file does not
+  # create parents).
+  file { dirname($rclone_config_path):
+    ensure => directory,
+    mode   => '0700',
+  }
+
   file { [$local_path, "${local_path}/volumes", "${local_path}/scripts", "${local_path}/logs", "${local_path}/verification", $rclone_config_path]:
     ensure => directory,
     mode   => '0700',

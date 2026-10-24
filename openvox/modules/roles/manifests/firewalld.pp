@@ -21,8 +21,14 @@ class roles::firewalld {
     require => File['/usr/local/libexec/openvox-firewalld'],
   }
 
+  # Rocky 10's cloud image ships without firewalld (the EL9 one had it).
+  package { 'firewalld':
+    ensure => installed,
+  }
+
   service { 'firewalld':
-    ensure => running,
-    enable => true,
+    ensure  => running,
+    enable  => true,
+    require => Package['firewalld'],
   }
 }
