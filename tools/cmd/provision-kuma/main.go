@@ -58,6 +58,9 @@ type service struct {
 	// MonitorPath is appended to the monitor URL for services that do not
 	// serve 2xx on "/" (e.g. csp-reports is POST-only and 404s there).
 	MonitorPath string `yaml:"monitor_path"`
+	// Host is the catalog host running the service; maintenance windows
+	// select monitors by it.
+	Host string `yaml:"host"`
 }
 
 func (s service) isEnabled() bool { return s.Enabled == nil || *s.Enabled }
@@ -316,11 +319,12 @@ func run() int {
 	ctx := context.Background()
 
 	fmt.Printf("Attempting login with username: %s\n", username)
-	client, err := kuma.New(ctx, url, username, password)
+	// WithAutosetup creates the database and the admin user on a fresh
+	// server (new volume), so a rebuild needs no manual first-run setup.
+	client, err := kuma.New(ctx, url, username, password, kuma.WithAutosetup())
 	if err != nil {
 		fmt.Printf("Login failed: %v\n", err)
 		fmt.Println("This may happen if:")
-		fmt.Println("  - First-time setup: Please complete initial setup via web UI first")
 		fmt.Println("  - Wrong credentials: Check KUMA_USERNAME and KUMA_PASSWORD in secrets")
 		fmt.Println("  - API not ready: Kuma may still be starting up")
 		return 1
@@ -367,6 +371,17 @@ func run() int {
 	syncPingMonitors(ctx, client, cat.Hosts, existingMonitors, st)
 	syncTCPMonitors(ctx, client, existingMonitors, st)
 	deleteOrphanedMonitors(ctx, client, expectedNames, existingMonitors, st)
+
+	// State around the monitors: notification, maintenance windows, status
+	// pages. Needs the monitor IDs, including those created just above.
+	ids, err := monitorIDs(ctx, client)
+	if err != nil {
+		fmt.Printf("Error fetching monitors: %v\n", err)
+		return 1
+	}
+	syncNotification(ctx, client, st)
+	syncMaintenance(ctx, client, cat.Services, ids, st)
+	syncStatusPages(ctx, client, ids, st)
 
 	var summaryParts []string
 	if len(st.created) > 0 {

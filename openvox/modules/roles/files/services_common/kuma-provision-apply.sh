@@ -9,11 +9,12 @@
 # checksum file is only updated on a real success, so a failed run is
 # retried on the next apply instead of being silently marked done.
 #
-# Args: $1 = kuma_dir (e.g. /opt/kuma), $2 = new checksum to store on success.
+# Args: $1 = kuma_dir (e.g. /opt/kuma), $2 = catalog hash. The stored checksum
+# is "<catalog hash>-<provision-kuma binary hash>" (see kuma-provision-check.sh).
 set -uo pipefail
 kuma_dir="$1"
-new_hash="$2"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+new_hash="$2-$(sha256sum "${script_dir}/provision-kuma" 2>/dev/null | cut -c1-16)"
 
 ready=false
 for _ in $(seq 1 12); do
