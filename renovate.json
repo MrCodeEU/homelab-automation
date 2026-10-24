@@ -5,6 +5,7 @@
   "dependencyDashboard": true,
   "labels": ["dependencies"],
   "minimumReleaseAge": "7 days",
+  "ignorePaths": ["tools/thirdparty/**"],
   "packageRules": [
     {
       "description": "Keep OpenVox Forge updates separate and manually reviewed",
@@ -15,6 +16,11 @@
     {
       "description": "Don't let Renovate bump go.mod's own `go` directive - it's pinned to match CI's toolchain (see .github/workflows), and Renovate bumping it alongside an unrelated dependency update breaks the build (seen live 2026-09-08, PR #311: x/sync bump silently carried go 1.25.2 -> 1.26.0)",
       "matchManagers": ["golang-version"],
+      "enabled": false
+    },
+    {
+      "description": "go.socket.io 0.2.0 makes provision-kuma hang on login against a fresh Kuma 2.5.7 (autosetup), tested 2026-10-24 on a throwaway container; the Kuma client lives in tools/thirdparty and tools/go.mod replaces it, so its version line is never used",
+      "matchPackageNames": ["github.com/maldikhan/go.socket.io", "github.com/breml/go-uptime-kuma-client"],
       "enabled": false
     }
   ]
