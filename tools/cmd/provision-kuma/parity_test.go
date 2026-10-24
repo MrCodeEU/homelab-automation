@@ -34,7 +34,7 @@ func TestParityAgainstRealCatalog(t *testing.T) {
 
 	enabledWithDomain := 0
 	for _, svc := range cat.Services {
-		if svc.isEnabled() && firstDomain(svc.Domain) != "" {
+		if svc.isMonitored() && firstDomain(svc.Domain) != "" {
 			enabledWithDomain++
 		}
 	}
