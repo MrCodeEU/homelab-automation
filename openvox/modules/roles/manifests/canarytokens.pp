@@ -119,7 +119,7 @@ class roles::canarytokens (
   $compose_content = @("COMPOSE"/L)
     services:
       redis:
-        image: redis:7.0.10
+        image: redis:7.4-alpine
         container_name: canarytokens-redis
         restart: unless-stopped
         volumes:
