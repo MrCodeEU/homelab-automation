@@ -1,0 +1,101 @@
+name: Caddy custom build
+
+# Builds Caddy with the CrowdSec bouncer + AppSec plugins from the pinned
+# Dockerfile (services/caddy-poc/Dockerfile, see docs/APPSEC_POC_PLAN.md) and
+# publishes the binary as a GitHub release. Puppet downloads a release by tag
+# and verifies the SHA-256 recorded in hiera, so a rebuild never changes
+# production by itself.
+#
+# Release tag = Caddy version + bouncer version + hash of the Dockerfile, so a
+# changed pin (Renovate or by hand) produces a new release and an unchanged
+# one is a no-op. The weekly run catches a build that broke upstream (module
+# proxy, base image) before a Caddy CVE forces an urgent rebuild.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+  push:
+    branches: [main]
+    paths:
+      - services/caddy-poc/Dockerfile
+      - .github/workflows/caddy-build.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - services/caddy-poc/Dockerfile
+      - .github/workflows/caddy-build.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caddy-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Read pins from the Dockerfile
+        id: pins
+        run: |
+          set -euo pipefail
+          df=services/caddy-poc/Dockerfile
+          caddy=$(sed -n 's/^ARG CADDY_TAG=//p' "$df")
+          bouncer=$(sed -n 's/^ARG BOUNCER_VERSION=//p' "$df")
+          [ -n "$caddy" ] && [ -n "$bouncer" ]
+          hash=$(sha256sum "$df" | cut -c1-8)
+          {
+            echo "caddy=$caddy"
+            echo "bouncer=$bouncer"
+            echo "tag=caddy-v${caddy}-crowdsec-${bouncer}-${hash}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build the binary
+        run: |
+          set -euo pipefail
+          docker build --target builder -t caddy-custom-builder -f services/caddy-poc/Dockerfile services/caddy-poc
+          id=$(docker create caddy-custom-builder)
+          docker cp "$id:/usr/bin/caddy" ./caddy-linux-amd64
+          docker rm "$id" >/dev/null
+          chmod 755 caddy-linux-amd64
+
+      - name: Check the binary
+        env:
+          CADDY: ${{ steps.pins.outputs.caddy }}
+        run: |
+          set -euo pipefail
+          ./caddy-linux-amd64 version | tee version.txt
+          grep -q "v${CADDY}" version.txt
+          ./caddy-linux-amd64 list-modules > modules.txt
+          for m in http.handlers.crowdsec http.handlers.appsec; do
+            grep -qx "$m" modules.txt || { echo "missing module $m"; exit 1; }
+          done
+          file caddy-linux-amd64 | tee file.txt
+          grep -q "statically linked" file.txt
+          sha256sum caddy-linux-amd64 | tee caddy-linux-amd64.sha256
+
+      - name: Publish release (new pin set only)
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.pins.outputs.tag }}
+          CADDY: ${{ steps.pins.outputs.caddy }}
+          BOUNCER: ${{ steps.pins.outputs.bouncer }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists, nothing to publish." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          gh release create "$TAG" caddy-linux-amd64 caddy-linux-amd64.sha256 \
+            --title "$TAG" --target "$GITHUB_SHA" \
+            --notes "Caddy ${CADDY} with hslatman/caddy-crowdsec-bouncer ${BOUNCER} (http + appsec). Built from services/caddy-poc/Dockerfile at ${GITHUB_SHA}. SHA-256: $(cut -d' ' -f1 caddy-linux-amd64.sha256)"
+          echo "Published $TAG, sha256 $(cut -d' ' -f1 caddy-linux-amd64.sha256)" | tee -a "$GITHUB_STEP_SUMMARY"

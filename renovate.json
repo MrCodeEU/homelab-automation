@@ -6,6 +6,14 @@
   "labels": ["dependencies"],
   "minimumReleaseAge": "7 days",
   "ignorePaths": ["tools/thirdparty/**"],
+  "customManagers": [
+    {
+      "description": "Version ARGs in services/caddy-poc/Dockerfile carry a '# renovate:' comment. Base image digests are not bumped by this rule: a new Caddy tag still builds with the pinned toolchain image, and digests are refreshed by hand.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^services/caddy-poc/Dockerfile$/"],
+      "matchStrings": ["# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nARG \\w+=(?<currentValue>\\S+)"]
+    }
+  ],
   "packageRules": [
     {
       "description": "Keep OpenVox Forge updates separate and manually reviewed",
