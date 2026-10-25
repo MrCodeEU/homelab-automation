@@ -52,9 +52,11 @@ jobs:
           bouncer=$(sed -n 's/^ARG BOUNCER_VERSION=//p' "$df")
           [ -n "$caddy" ] && [ -n "$bouncer" ]
           hash=$(sha256sum "$df" | cut -c1-8)
-          echo "caddy=$caddy" >> "$GITHUB_OUTPUT"
-          echo "bouncer=$bouncer" >> "$GITHUB_OUTPUT"
-          echo "tag=caddy-v${caddy}-crowdsec-${bouncer}-${hash}" >> "$GITHUB_OUTPUT"
+          {
+            echo "caddy=$caddy"
+            echo "bouncer=$bouncer"
+            echo "tag=caddy-v${caddy}-crowdsec-${bouncer}-${hash}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Build the binary
         run: |
