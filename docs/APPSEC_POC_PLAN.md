@@ -81,9 +81,10 @@ nuc (nuclei, replay) --tailnet--> mljr 100.100.20.1:8444  caddy-poc  --appsec-->
 
 - 108,960 x 200, 3,704 x 307, 5,038 x 403, 2 other. The 403s weigh 6,271 of the real hits, about 1 % of served traffic.
 - Of the 5,038 blocked shapes, 4,997 are reproducible with a one-by-one retry and all are scanner traffic that mljr answered with 2xx/3xx (the catch-all vhosts, or an auth redirect): `.env`/`.git`/cloud-credential file probes, path traversal, WordPress/PHP paths, CVE probes (Ivanti, Jira, Citrix and others), and scanner User-Agents. None is a legitimate user request.
-- **41 blocked requests are plain `GET /` with an ordinary browser User-Agent.** They returned 403 in the 12-connection run and 200 on a one-by-one retry. Two follow-up loads (36,000 clean requests; 36,000 requests with every fifth an attack) produced no clean 403. Cause unknown, 0.035 % of unique shapes. This is a false positive under load and the open item before any blocking rollout. Next step: repeat the replay with Caddy debug logging and `cscli` alert capture to see which rule or error produces it.
+- **41 blocked requests are plain `GET /` with ordinary browser User-Agents.** A one-by-one retry without the `Accept` header gave 200, which looked like a load-only false positive. A second full replay with the caddy-poc and crowdsec logs captured showed the cause: all 41 carry `Accept: ../../../../../../../../etc/passwd{{`, a path-traversal payload in a header. They are real attacks that AppSec caught, so the 5,038 blocks contain no false positive. The second run gave the same counts as the first (deterministic). Lesson: the retry must send the same headers as the original request.
+- Side findings from the crowdsec log: AppSec logs `unable to parse url '//interactsh.com%2f..'` for malformed scanner URLs (harmless); a pre-existing `sending signal to central API ... Forbidden` error is unrelated to AppSec.
 
-Criterion 1 is therefore **not yet met** (0 blocks required). Criterion 2 is met for the classes above. Criterion 5 memory is met; latency is still unmeasured.
+Criterion 1 is **met** for this replay: 0 blocks of legitimate traffic in 117,704 unique requests. Request bodies and cookies were left out of the replay on purpose, so they are not covered. Criterion 2 is met for the classes above. Criterion 5 memory is met; latency is still unmeasured.
 
 ## Rollout if go (separate plans and PRs)
 
