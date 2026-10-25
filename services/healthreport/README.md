@@ -52,6 +52,9 @@ Most facts are HTTP calls to services already running on nuc:
 - **Mail DNS** — `mail_dns` checks MX, SPF, DKIM, DMARC and the mail host's
   reverse DNS for `mljr.eu` (hardcoded; a lookup error is `collector_failed`,
   not "record missing")
+- **CrowdSec AppSec** — `appsec` reports how many requests the WAF rules
+  matched in 24h (`cs_appsec_block_total`, warn above 2000) and how often Caddy
+  could not reach AppSec and failed open (Loki, warn above 1000)
 - **dmarc-monitor's Postgres** (`127.0.0.1:5432`, reachable directly since
   this container also runs `network_mode: host`) — DMARC aggregate report
   freshness and per-domain pass/fail counts, `HEALTHREPORT_DMARC_DB_URL`
