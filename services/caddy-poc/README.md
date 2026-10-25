@@ -19,3 +19,18 @@ podman run --rm -e CROWDSEC_BOUNCER_KEY=x -v ./Caddyfile.poc:/etc/caddy/Caddyfil
 
 No compose file yet: it comes with the PR that enables the AppSec component
 in the `crowdsec` container.
+
+## Deploying the PoC to mljr
+
+The deploy runs `docker compose pull` / `up`, it does not build. Build the
+image on a host with spare RAM (nuc) and load it on mljr first:
+
+```
+scp -r services/caddy-poc root@nuc:/tmp/caddy-poc
+ssh root@nuc 'docker build -t local/caddy-poc:latest /tmp/caddy-poc && docker save local/caddy-poc:latest' \
+  | ssh root@mljr docker load
+```
+
+Then `make openvox-deploy-mljr`. Listeners: `100.100.20.1:8444` (AppSec) and
+`:8445` (baseline). Send `X-Appsec-Mode: block` to get a 403 on a match;
+without it AppSec only reports.

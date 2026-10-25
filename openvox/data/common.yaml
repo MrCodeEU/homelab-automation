@@ -492,6 +492,16 @@ services_catalog:
     icon: "mdi:spider-web"
     build_from_source: true
 
+  # CrowdSec AppSec proof of concept (docs/APPSEC_POC_PLAN.md): tailnet-only
+  # ports 8444/8445, no domain, so no Caddy route and no Kuma monitor. Remove
+  # this entry (and the crowdsec appsec bits) to end the PoC.
+  - name: caddy-poc
+    enabled: true
+    port: 8444
+    host: mljr
+    description: "Caddy + CrowdSec AppSec proof of concept (tailnet only)"
+    icon: "mdi:shield-bug"
+
   - name: homepage
     enabled: true
     domain: "mljr.eu"

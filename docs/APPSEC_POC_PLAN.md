@@ -64,6 +64,17 @@ nuc (nuclei, replay) --tailnet--> mljr 100.100.20.1:8444  caddy-poc  --appsec-->
 
 **D. Decision.** Fill in the table at the top, write results into this file, then go or no-go. A no-go removes `caddy-poc`, the bouncer key and the appsec acquisition (they are all additive, so this is a revert).
 
+## Results so far
+
+**B (2026-10-25, deployed to mljr, PoC listeners up):**
+
+- Chain verified from nuc over the tailnet against `100.100.20.1`: clean request 200; known phpunit RCE probe 200 in log-only mode with the rule counted; same probe with `X-Appsec-Mode: block` 403; the same probe on the baseline `:8445` 200.
+- Mode switch: `homelab/poc` returns `allow` unless the request has `X-Appsec-Mode: block`. Log-only matches still raise alerts.
+- Allowlist question answered: the CrowdSec allowlist (nuc's tailnet IP, the home IP) does **not** suppress AppSec alerts, so Nuclei from nuc is measurable.
+- Ban risk checked in a throwaway container with mljr's real profiles: 25 blocked probes per IP produced alerts but **no ban decisions**, so a blocking run cannot get nuc banned by the firewall bouncer.
+- Memory (criterion 5): crowdsec 67.5 MiB before, 84.3 MiB after (+17 MiB); caddy-poc 22 MiB; host available memory unchanged (about 2.3 GB).
+- Gotchas found: the Caddy binary has the file capability `cap_net_bind_service`, so `cap_drop: ALL` needs `cap_add: NET_BIND_SERVICE`; the builder image sets its own `CADDY_VERSION` env, so the Dockerfile arg is `CADDY_TAG`; the image is built on nuc and loaded on mljr (xcaddy is too heavy to run beside production).
+
 ## Rollout if go (separate plans and PRs)
 
 1. Weekly GitHub Actions build of the custom Caddy binary from pinned versions, published with a SHA-256 checksum. Renovate tracks Caddy and the bouncer commit. Puppet installs it (like the other prebuilt tools), keeping the COPR rpm installed so rollback is flipping one hiera value.
