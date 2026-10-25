@@ -28,6 +28,11 @@ describe 'roles::caddy' do
     )
   end
 
+  it 'renders no vhost for catalog entries whose DNS points elsewhere (caddy_vhost: false)' do
+    is_expected.not_to contain_file('/etc/caddy/conf.d.openvox-staging/dns-elsewhere.caddy')
+    is_expected.to contain_file('/etc/caddy/conf.d.openvox-staging/remote-https.caddy')
+  end
+
   it 'keeps generated snippets in an isolated, reconciled directory' do
     is_expected.to contain_file('/etc/caddy/conf.d.openvox-staging').with(
       ensure: 'directory',

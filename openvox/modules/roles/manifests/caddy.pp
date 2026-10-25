@@ -81,7 +81,11 @@ class roles::caddy (
     default => $custom_bin,
   }
   $services_catalog = lookup('services_catalog')
-  $caddy_services = $services_catalog.filter |$svc| { pick($svc['enabled'], true) and 'domain' in $svc }
+  # caddy_vhost: false = the domain is listed (dashboards, scans) but DNS points
+  # elsewhere, so mljr must not serve it or try to get a certificate for it.
+  $caddy_services = $services_catalog.filter |$svc| {
+    pick($svc['enabled'], true) and 'domain' in $svc and pick($svc['caddy_vhost'], true)
+  }
   $staging_target = "${staging_host}.tail33930.ts.net"
 
   $auth_user = Sensitive(lookup('vault_caddy_auth_user', { 'default_value' => 'admin' }))
