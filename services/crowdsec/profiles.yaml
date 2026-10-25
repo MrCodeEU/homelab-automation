@@ -1,3 +1,15 @@
+# AppSec (WAF) alerts report only. Log-only vhosts (roles::caddy `appsec: log`,
+# docs/APPSEC_POC_PLAN.md) would otherwise still end in a 4h host-wide firewall
+# ban of the client through the default profile below: found live 2026-10-25
+# when a test request to a log-only vhost banned the sending host. A false
+# positive must cost at most one 403, never every service on the host.
+# Scanners are still banned by the ordinary http-* scenarios.
+name: appsec_alert_only
+filters:
+ - Alert.GetScenario() startsWith "crowdsecurity/appsec-"
+decisions: []
+on_success: break
+---
 name: default_ip_remediation
 #debug: true
 filters:
