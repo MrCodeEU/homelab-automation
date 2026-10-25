@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Puppet's exec path is /usr/bin:/bin; restorecon lives in /usr/sbin. The
+# 'command not found' only surfaced once a real promotion ran after it was added.
+export PATH="/usr/sbin:/usr/bin:/bin:${PATH}"
 rsync -a --delete --exclude='.services-checksum' /etc/caddy/conf.d.openvox-staging/ /etc/caddy/conf.d/
 cp /etc/caddy/Caddyfile.openvox-staging /etc/caddy/Caddyfile
 chown -R caddy:caddy /etc/caddy/conf.d /etc/caddy/Caddyfile
