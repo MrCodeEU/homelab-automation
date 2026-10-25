@@ -143,7 +143,12 @@ class roles::caddy (
   if $custom_build {
     exec { 'caddy-custom-binary':
       command     => "${work_dir}/custom-binary-apply.sh",
-      unless      => "${work_dir}/custom-binary-check.sh",
+      # Read-only guard, inline on purpose: under --noop the scripts in
+      # ${work_dir} are not written yet on the run that introduces them, and a
+      # guard that points at a missing file fails the whole noop. Installed
+      # means: the pinned checksum and the packaged binary's SELinux type.
+      unless      => "test \"$(sha256sum ${custom_bin} | cut -d' ' -f1)\" = ${custom_build['sha256']} && stat -c %C ${custom_bin} | grep -q httpd_exec_t",
+      provider    => shell,
       path        => ['/usr/sbin', '/usr/bin', '/sbin', '/bin'],
       environment => [
         "CADDY_CUSTOM_BIN=${custom_bin}",

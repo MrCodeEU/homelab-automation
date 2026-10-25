@@ -91,7 +91,7 @@ describe 'roles::caddy' do
     it 'installs the pinned release before the unit override and restarts Caddy' do
       is_expected.to contain_exec('caddy-custom-binary').with(
         command: '/usr/local/libexec/openvox-caddy/custom-binary-apply.sh',
-        unless: '/usr/local/libexec/openvox-caddy/custom-binary-check.sh',
+        provider: 'shell',
         before: 'File[/etc/systemd/system/caddy.service.d/override.conf]',
         notify: 'Exec[caddy-restart-on-override]',
         environment: [
@@ -101,6 +101,13 @@ describe 'roles::caddy' do
         ],
       )
       is_expected.not_to contain_file('/usr/local/bin/caddy-crowdsec')
+    end
+
+    it 'skips the install only when the pinned checksum and SELinux type already match' do
+      guard = catalogue.resource('exec', 'caddy-custom-binary')[:unless]
+      expect(guard).to include(sha)
+      expect(guard).to include('httpd_exec_t')
+      expect(guard).not_to include('custom-binary-check.sh')
     end
 
     it 'points ExecStart and ExecReload at the custom binary and validates with it' do
