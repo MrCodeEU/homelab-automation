@@ -213,10 +213,22 @@ class roles::base (
 
     # Contabo's cloud-init re-runs its bootcmd on every boot (it rewrites
     # PermitRootLogin and failed on Rocky 10, leaving the system degraded).
-    # The image needs it only for first boot, which is long done.
-    file { '/etc/cloud/cloud-init.disabled':
-      ensure => file,
-      mode   => '0644',
+    # The image needs it only for first boot, which is long done, so it is
+    # removed instead of just disabled. Besides that, its dependency dhcpcd
+    # made Facter scan all of /proc for a running dhcpcd on every run; a process
+    # exiting mid-scan raised "Facter: No such process @ io_fread -
+    # /proc/<pid>/comm" and failed roughly one mljr noop/apply in three.
+    # The live network profile (/etc/NetworkManager/system-connections/
+    # cloud-init-eth0.nmconnection) and the NetworkManager drop-ins are not
+    # owned by the package and stay; the package scriptlet only prints
+    # "not removed" for them. Reinstalling the package is the way back.
+    package { 'cloud-init':
+      ensure => absent,
+    }
+
+    package { 'dhcpcd':
+      ensure  => absent,
+      require => Package['cloud-init'],
     }
 
     exec { 'base-ssh-hardening-reload':
