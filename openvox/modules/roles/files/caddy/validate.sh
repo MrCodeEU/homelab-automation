@@ -13,7 +13,7 @@
 # matching the same scope-boundary precedent as other "match reality,
 # don't improve on it mid-port" decisions elsewhere in this migration.
 set -euo pipefail
-if ! caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile.openvox-staging 2>&1; then
+if ! "${CADDY_BIN:-caddy}" validate --adapter caddyfile --config /etc/caddy/Caddyfile.openvox-staging 2>&1; then
   echo "FAILED: staged Caddyfile does not validate" >&2
   exit 1
 fi

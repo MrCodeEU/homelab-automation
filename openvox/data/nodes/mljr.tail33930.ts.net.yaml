@@ -9,6 +9,13 @@ roles::base::tailscale_ip: '100.100.20.1'
 roles::base::cockpit_console_enabled: true
 roles::base::domain: 'mljr.eu'
 
+# Caddy built by .github/workflows/caddy-build.yml (CrowdSec bouncer + AppSec
+# plugins, docs/APPSEC_POC_PLAN.md). The sha256 is the release asset's; a
+# mismatch aborts the install. Rollback = remove this key (back to the COPR rpm).
+roles::caddy::custom_build:
+  tag: 'caddy-v2.11.7-crowdsec-v0.14.1-b38ae651'
+  sha256: 'ebd5a88596a13c4aa6148e679fa08e1814789131e0349a53631219884b0431c9'
+
 roles::iperf3::base_path: '/opt'
 
 roles::netronome_agent::base_path: '/opt'
