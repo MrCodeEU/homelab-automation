@@ -1,6 +1,6 @@
 # CrowdSec AppSec (WAF) proof of concept
 
-Status: PoC measured (2026-10-25), decision pending. Backlog entry: "CrowdSec AppSec PoC".
+Status: PoC measured, decision GO (2026-10-25). Production rollout running, see "Rollout status". Backlog entry: "CrowdSec AppSec PoC".
 
 ## Goal
 
@@ -104,6 +104,31 @@ Criterion 1 is **met** for this replay: 0 blocks of legitimate traffic in 117,70
 | 6 | Maintainable | Build is pinned and reproducible (PR #415); rollback via the COPR package is the rollout plan, not yet exercised |
 
 Recommendation: **go**, as a staged rollout in log-only mode first (see below). The measurements cover only GET-style traffic with headers and URIs; bodies, cookies and real application flows (Authelia login, Mailcow SOGo/ActiveSync, Nextcloud WebDAV) are only tested by the log-only week in production, which is why blocking is not switched on at once. The decision is the user's.
+
+## Rollout status (2026-10-25)
+
+Live on mljr, log-only, on ten hobby vhosts (ui-showcase, regex, cron, codec, weather-cli, speedtest, wordwiz, sudoku, gameoflife, cglab). Everything is additive and reversible.
+
+| Piece | Where |
+|-------|-------|
+| Release build of Caddy + CrowdSec bouncer + AppSec | `.github/workflows/caddy-build.yml` (#419): weekly and on change of `services/caddy-poc/Dockerfile`; release asset plus SHA-256 |
+| Install on mljr | `roles::caddy::custom_build { tag, sha256 }` in `openvox/data/nodes/mljr...yaml` (#421). Rollback: delete the key and apply; the COPR rpm stays installed |
+| AppSec in Caddy | `roles::caddy::appsec_enabled` (#422, #423): global `crowdsec {}` block, fail-open, 2 s timeout, 1 MiB body cap; per catalog entry `appsec: log\|block` and optional `appsec_exclude_paths`. The mode header `X-Appsec-Mode` is always set or stripped by Caddy |
+| Alerts do not ban | `services/crowdsec/profiles.yaml` profile `appsec_alert_only` (#426) |
+| Monitoring | healthreport collector `appsec` (#427): match volume and fail-open count |
+
+The custom release is pinned in three places that must be bumped together: mljr's hiera, `.github/workflows/openvox-pr-check.yml` and `.github/workflows/deploy.yml`.
+
+**Correction to the PoC results.** The PoC found no ban decisions for blocked probes. In production the default CrowdSec profile did turn a log-only AppSec alert into a 4 h host-wide firewall ban of the client (found when a test request banned nuc's IPv6). The `appsec_alert_only` profile fixes that; bans from the ordinary log-based scenarios (for example `crowdsecurity/CVE-2017-9841`) are unchanged. A false positive therefore costs at most one 403. Ban policy for AppSec hits in block mode is a separate, later decision.
+
+**Order of directives.** Caddy runs `forward_auth` and `basicauth` before `route`, so AppSec inspects requests of authenticated vhosts only after Authelia let them through. Public, unauthenticated surface is inspected first; that is the surface that matters.
+
+Next:
+
+1. Watch the log-only week: `cscli metrics show appsec`, alerts by rule and vhost, healthreport. Any rule that matches real traffic is tuned away with a `pre_eval` rule removal and written down here.
+2. If clean, add more vhosts in log-only. Before Nextcloud, Immich and Mailcow, set `appsec_exclude_paths` (WebDAV, asset upload, ActiveSync/SOGo) and test with real clients.
+3. Switch vhosts to `appsec: block` one by one, starting with the ten hobby vhosts.
+4. Remove the PoC (`caddy-poc` catalog entry, `services/caddy-poc`, bouncer key `caddy_poc`), rename the `homelab/poc` AppSec config.
 
 ## Rollout if go (separate plans and PRs)
 
