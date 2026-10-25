@@ -15,7 +15,7 @@ class roles::iperf3 (
     content => @(END),
       services:
         iperf3:
-          image: networkstatic/iperf3:latest
+          image: networkstatic/iperf3:latest@sha256:bc267517f534d9f7cced2669f325799a1fd7fe1d5953c2ca2c6ea1db61affa08
           container_name: iperf3
           restart: unless-stopped
           network_mode: host

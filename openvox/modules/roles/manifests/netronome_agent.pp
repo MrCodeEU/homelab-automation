@@ -55,7 +55,7 @@ class roles::netronome_agent (
   $compose_content = @("END"/L)
     services:
       netronome-agent:
-        image: ghcr.io/autobrr/netronome:latest
+        image: ghcr.io/autobrr/netronome:v0.16.0@sha256:e6e43960e60e5a84e1eff325af179ebe383ea3c63b57a142d696729f825e867b
         container_name: netronome-agent
         restart: unless-stopped
         network_mode: host
@@ -74,7 +74,7 @@ class roles::netronome_agent (
             max-size: "5m"
             max-file: "2"
       vnstat:
-        image: ghcr.io/vergoh/vnstat:latest
+        image: ghcr.io/vergoh/vnstat:2.13@sha256:be13a307f99e27e0f6380396ce05e135aec0b1ac73c3fcc055212464ec386ca1
         container_name: netronome-vnstat
         restart: unless-stopped
         network_mode: host
