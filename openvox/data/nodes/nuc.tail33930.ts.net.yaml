@@ -23,6 +23,7 @@ roles::backup::services:
   - grafana
   - nocturne
   - actual-budget
+  - glucava
   - sure
   - defectdojo
 roles::backup::hostname: 'nuc'
