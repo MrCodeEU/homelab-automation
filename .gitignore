@@ -101,3 +101,6 @@ tools/bin/
 # Canarytoken (deletes/edits that token if leaked) - local staging only,
 # never committed.
 canary-out/
+
+# Local helper scripts
+*.local.sh
