@@ -1,6 +1,6 @@
 # CrowdSec AppSec (WAF) proof of concept
 
-Status: plan, not started (2026-10-25). Backlog entry: "CrowdSec AppSec PoC".
+Status: PoC measured (2026-10-25), decision pending. Backlog entry: "CrowdSec AppSec PoC".
 
 ## Goal
 
@@ -85,6 +85,25 @@ nuc (nuclei, replay) --tailnet--> mljr 100.100.20.1:8444  caddy-poc  --appsec-->
 - Side findings from the crowdsec log: AppSec logs `unable to parse url '//interactsh.com%2f..'` for malformed scanner URLs (harmless); a pre-existing `sending signal to central API ... Forbidden` error is unrelated to AppSec.
 
 Criterion 1 is **met** for this replay: 0 blocks of legitimate traffic in 117,704 unique requests. Request bodies and cookies were left out of the replay on purpose, so they are not covered. Criterion 2 is met for the classes above. Criterion 5 memory is met; latency is still unmeasured.
+
+**C5 fail-open (2026-10-25):** steady clean requests to `:8444` every 0.2 s while `docker stop crowdsec` ran for about 30 s. 97 of 97 clean requests during the outage returned 200 (slowest 0.13 s), and three `/.env` probes in block mode also returned 200, which is the intended fail-open behaviour. Caddy logged `appsec component unavailable ... connection refused` for each request. After `docker start crowdsec`, 312 of 312 requests returned 200; the first one took 0.94 s. Criterion 3 met. Cost of the test: crowdsec ingested no logs for about 30 s.
+
+**C6 uploads (2026-10-25):** PUT of 5 MiB and 1 GiB to both listeners. All four returned 200 and sent the full body (1 GiB in 115 s through AppSec, 128 s through the baseline). caddy-poc peaked at 70 MiB, so the body is streamed, not buffered; only the first 1 MiB (`appsec_max_body_bytes`) goes to AppSec, so larger bodies are inspected only in that first MiB. crowdsec peaked at 248 MiB during the whole session (replay plus uploads), 180 MiB above the 67.5 MiB baseline. Criterion 4 met. The upstream here is `whoami`, not Nextcloud, so this shows that the plugin does not buffer or break large bodies, not that Nextcloud WebDAV works; the rollout keeps WebDAV and Immich uploads excluded anyway.
+
+**C7 latency (2026-10-25):** the first two attempts (Python load generator from nuc and from mljr) were dominated by client noise and are discarded. Sequential curl on one connection from mljr, 1,500 requests per run, three rounds: p50 0.86–0.94 ms without AppSec, 2.58–3.03 ms with it, so AppSec adds about 1.8 ms. p95 and p99 are about 50 ms and 62–83 ms on both listeners (a TCP/curl artifact on this host, not caused by AppSec), so there is no measurable difference there. Criterion 5 met (limit 20 ms; memory 248 MiB peak against a 400 MiB growth limit).
+
+## Decision
+
+| # | Criterion | Result |
+|---|-----------|--------|
+| 1 | No false positive on legitimate traffic | Met: 0 of 117,704 real request shapes (bodies and cookies not covered) |
+| 2 | Catches real attacks | Met for known classes: 1,499 Nuclei requests blocked, 5,038 real scanner requests blocked; no recall figure |
+| 3 | Fail-open works | Met |
+| 4 | Large uploads are safe | Met (streamed, 70 MiB peak) |
+| 5 | Cheap enough | Met: +1.8 ms p50, crowdsec +180 MiB peak |
+| 6 | Maintainable | Build is pinned and reproducible (PR #415); rollback via the COPR package is the rollout plan, not yet exercised |
+
+Recommendation: **go**, as a staged rollout in log-only mode first (see below). The measurements cover only GET-style traffic with headers and URIs; bodies, cookies and real application flows (Authelia login, Mailcow SOGo/ActiveSync, Nextcloud WebDAV) are only tested by the log-only week in production, which is why blocking is not switched on at once. The decision is the user's.
 
 ## Rollout if go (separate plans and PRs)
 
