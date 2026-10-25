@@ -1,6 +1,6 @@
 # CrowdSec AppSec (WAF) proof of concept
 
-Status: plan, not started (2026-10-25). Backlog entry: "CrowdSec AppSec PoC".
+Status: PoC measured (2026-10-25), decision pending. Backlog entry: "CrowdSec AppSec PoC".
 
 ## Goal
 
@@ -74,6 +74,36 @@ nuc (nuclei, replay) --tailnet--> mljr 100.100.20.1:8444  caddy-poc  --appsec-->
 - Ban risk checked in a throwaway container with mljr's real profiles: 25 blocked probes per IP produced alerts but **no ban decisions**, so a blocking run cannot get nuc banned by the firewall bouncer.
 - Memory (criterion 5): crowdsec 67.5 MiB before, 84.3 MiB after (+17 MiB); caddy-poc 22 MiB; host available memory unchanged (about 2.3 GB).
 - Gotchas found: the Caddy binary has the file capability `cap_net_bind_service`, so `cap_drop: ALL` needs `cap_add: NET_BIND_SERVICE`; the builder image sets its own `CADDY_VERSION` env, so the Dockerfile arg is `CADDY_TAG`; the image is built on nuc and loaded on mljr (xcaddy is too heavy to run beside production).
+
+**C2 Nuclei detection (2026-10-25):** Nuclei v3.11.1, 6051 templates, about 14,000 requests per run against `:8444`. Log-only: 10,126 requests processed, 1,499 matched, 95 distinct rules, none blocked. Block mode: exactly the 1,499 matched requests got 403, everything else passed. 1,300 of the 1,499 are one Grafana path-traversal template; the other 198 are phpunit `eval-stdin.php`, `.env`/`.git`, WordPress plugin and misc CVE paths. The out-of-band `experimental-no-user-agent` rule fired 1,456 times and blocked nothing, as designed. The upstream is a static echo, so Nuclei findings carry no meaning and there is no recall percentage.
+
+**C3 replay of real traffic (2026-10-25):** source = Loki, mljr Caddy logs of the last 7 days, only requests served 2xx/3xx (about 647k lines), deduplicated to 117,704 unique request shapes (method, host, URI with token-like path parts and query values masked, User-Agent, Accept, Content-Type; no cookies, no bodies). Replayed in block mode at 200 req/s over 10 min, 12 connections. mljr load average rose to about 7 on 4 CPUs, crowdsec peaked at 124 % CPU and 144 MiB, no Kuma monitor went down.
+
+- 108,960 x 200, 3,704 x 307, 5,038 x 403, 2 other. The 403s weigh 6,271 of the real hits, about 1 % of served traffic.
+- Of the 5,038 blocked shapes, 4,997 are reproducible with a one-by-one retry and all are scanner traffic that mljr answered with 2xx/3xx (the catch-all vhosts, or an auth redirect): `.env`/`.git`/cloud-credential file probes, path traversal, WordPress/PHP paths, CVE probes (Ivanti, Jira, Citrix and others), and scanner User-Agents. None is a legitimate user request.
+- **41 blocked requests are plain `GET /` with ordinary browser User-Agents.** A one-by-one retry without the `Accept` header gave 200, which looked like a load-only false positive. A second full replay with the caddy-poc and crowdsec logs captured showed the cause: all 41 carry `Accept: ../../../../../../../../etc/passwd{{`, a path-traversal payload in a header. They are real attacks that AppSec caught, so the 5,038 blocks contain no false positive. The second run gave the same counts as the first (deterministic). Lesson: the retry must send the same headers as the original request.
+- Side findings from the crowdsec log: AppSec logs `unable to parse url '//interactsh.com%2f..'` for malformed scanner URLs (harmless); a pre-existing `sending signal to central API ... Forbidden` error is unrelated to AppSec.
+
+Criterion 1 is **met** for this replay: 0 blocks of legitimate traffic in 117,704 unique requests. Request bodies and cookies were left out of the replay on purpose, so they are not covered. Criterion 2 is met for the classes above. Criterion 5 memory is met; latency is still unmeasured.
+
+**C5 fail-open (2026-10-25):** steady clean requests to `:8444` every 0.2 s while `docker stop crowdsec` ran for about 30 s. 97 of 97 clean requests during the outage returned 200 (slowest 0.13 s), and three `/.env` probes in block mode also returned 200, which is the intended fail-open behaviour. Caddy logged `appsec component unavailable ... connection refused` for each request. After `docker start crowdsec`, 312 of 312 requests returned 200; the first one took 0.94 s. Criterion 3 met. Cost of the test: crowdsec ingested no logs for about 30 s.
+
+**C6 uploads (2026-10-25):** PUT of 5 MiB and 1 GiB to both listeners. All four returned 200 and sent the full body (1 GiB in 115 s through AppSec, 128 s through the baseline). caddy-poc peaked at 70 MiB, so the body is streamed, not buffered; only the first 1 MiB (`appsec_max_body_bytes`) goes to AppSec, so larger bodies are inspected only in that first MiB. crowdsec peaked at 248 MiB during the whole session (replay plus uploads), 180 MiB above the 67.5 MiB baseline. Criterion 4 met. The upstream here is `whoami`, not Nextcloud, so this shows that the plugin does not buffer or break large bodies, not that Nextcloud WebDAV works; the rollout keeps WebDAV and Immich uploads excluded anyway.
+
+**C7 latency (2026-10-25):** the first two attempts (Python load generator from nuc and from mljr) were dominated by client noise and are discarded. Sequential curl on one connection from mljr, 1,500 requests per run, three rounds: p50 0.86–0.94 ms without AppSec, 2.58–3.03 ms with it, so AppSec adds about 1.8 ms. p95 and p99 are about 50 ms and 62–83 ms on both listeners (a TCP/curl artifact on this host, not caused by AppSec), so there is no measurable difference there. Criterion 5 met (limit 20 ms; memory 248 MiB peak against a 400 MiB growth limit).
+
+## Decision
+
+| # | Criterion | Result |
+|---|-----------|--------|
+| 1 | No false positive on legitimate traffic | Met: 0 of 117,704 real request shapes (bodies and cookies not covered) |
+| 2 | Catches real attacks | Met for known classes: 1,499 Nuclei requests blocked, 5,038 real scanner requests blocked; no recall figure |
+| 3 | Fail-open works | Met |
+| 4 | Large uploads are safe | Met (streamed, 70 MiB peak) |
+| 5 | Cheap enough | Met: +1.8 ms p50, crowdsec +180 MiB peak |
+| 6 | Maintainable | Build is pinned and reproducible (PR #415); rollback via the COPR package is the rollout plan, not yet exercised |
+
+Recommendation: **go**, as a staged rollout in log-only mode first (see below). The measurements cover only GET-style traffic with headers and URIs; bodies, cookies and real application flows (Authelia login, Mailcow SOGo/ActiveSync, Nextcloud WebDAV) are only tested by the log-only week in production, which is why blocking is not switched on at once. The decision is the user's.
 
 ## Rollout if go (separate plans and PRs)
 
