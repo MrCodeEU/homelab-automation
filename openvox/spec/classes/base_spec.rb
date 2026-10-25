@@ -6,6 +6,7 @@ describe 'roles::base' do
   it 'keeps optional host changes disabled by default' do
     is_expected.not_to contain_exec('base-swap')
     is_expected.not_to contain_roles__firewalld__port('ssh-breakglass')
+    is_expected.not_to contain_package('cloud-init')
     is_expected.not_to contain_file('/etc/systemd/system/cockpit.socket.d/override.conf')
     is_expected.not_to contain_exec('base-docker-prune')
     is_expected.not_to contain_exec('base-reboot-if-needed')
@@ -88,6 +89,14 @@ describe 'roles::base' do
       is_expected.to contain_exec('base-ssh-breakglass').with(
         unless: %r{ssh-breakglass-check\.sh},
         require: 'Exec[base-selinux-breakglass-port]',
+      )
+    end
+
+    it 'removes cloud-init and dhcpcd (Facter scanned /proc for dhcpcd on every run and sometimes crashed)' do
+      is_expected.to contain_package('cloud-init').with_ensure('absent')
+      is_expected.to contain_package('dhcpcd').with(
+        ensure: 'absent',
+        require: 'Package[cloud-init]',
       )
     end
   end
