@@ -33,3 +33,8 @@
 :8445 {
 	reverse_proxy whoami:80
 }
+
+# Container healthcheck target (Dockerfile HEALTHCHECK), loopback only.
+http://127.0.0.1:8446 {
+	respond "ok"
+}

@@ -25,3 +25,14 @@ RUN xcaddy build "${CADDY_VERSION}" \
 
 FROM docker.io/library/caddy:${CADDY_VERSION}@${CADDY_RUNTIME_DIGEST}
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+# Non-root: the PoC listens on 8444/8445 and needs no privileged port. /data
+# and /config must be writable for Caddy's own state.
+RUN adduser -S -u 10001 -h /home/caddy caddy \
+    && mkdir -p /data /config \
+    && chown caddy /data /config
+USER caddy
+
+# Internal listener from Caddyfile.poc: answers without touching AppSec or the
+# upstream, so "healthy" means only that Caddy itself is serving.
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD wget -q --spider http://127.0.0.1:8446/ || exit 1
