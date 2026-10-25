@@ -68,3 +68,6 @@ roles::vuln_scan::importers:
 # agent and a tmpfs root, so nothing is installed there).
 roles::vuln_scan::remote_docker_scans:
   nas: 'ssh://root@nas.tail33930.ts.net'
+
+# Recovery key login tested from the LAN 2026-10-25; password login is now off.
+roles::ssh_hardening::disable_passwords: true
