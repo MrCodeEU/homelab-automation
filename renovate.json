@@ -8,6 +8,13 @@
   "ignorePaths": ["tools/thirdparty/**"],
   "customManagers": [
     {
+      "description": "Images pinned as tag@digest inside the inline compose YAML of these Puppet manifests; Renovate's compose manager only reads compose files.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^openvox/modules/roles/manifests/(iperf3|netronome_agent)\\.pp$/"],
+      "matchStrings": ["image: (?<depName>[^:\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]+)"],
+      "datasourceTemplate": "docker"
+    },
+    {
       "description": "Version ARGs in services/caddy-poc/Dockerfile carry a '# renovate:' comment. Base image digests are not bumped by this rule: a new Caddy tag still builds with the pinned toolchain image, and digests are refreshed by hand.",
       "customType": "regex",
       "managerFilePatterns": ["/^services/caddy-poc/Dockerfile$/"],
