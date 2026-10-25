@@ -934,8 +934,8 @@ services_catalog:
     description: "Public Status Page"
     icon: "mdi:list-status"
     # CNAME to Hetrixtools, which monitors itself; its IPv4 address is
-    # unreachable from the home network where Kuma runs.
+    # unreachable from the home network where Kuma runs. DNS points at
+    # Hetrixtools, never at mljr, so a Caddy vhost here could not be reached and
+    # only produced failing Let's Encrypt/ZeroSSL challenges (found 2026-10-25).
     monitor: false
-    caddy_suppress_default_proxy: true
-    caddy_extra_config: |
-      redir https://hetrixtools.com/r/71c4b0a0c1f138d113d3557d81b472a4/ 302
+    caddy_vhost: false
