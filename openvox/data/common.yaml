@@ -321,9 +321,11 @@ services_catalog:
 
   - name: defectdojo
     enabled: true
+    domain: "dojo.mljr.eu"
     port: 8101
     host: nuc
-    description: "Vulnerability findings database (Trivy/Nuclei imports). Tailscale-only, no Caddy route."
+    description: "Vulnerability findings database (Trivy/Nuclei imports). Behind Authelia; importers keep using the tailnet address 100.100.10.1:8101."
+    caddy_auth: authelia
     icon: "mdi:shield-search"
     backup_critical: true
 
