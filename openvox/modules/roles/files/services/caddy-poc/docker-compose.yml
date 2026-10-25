@@ -1,0 +1,58 @@
+# AppSec proof of concept (docs/APPSEC_POC_PLAN.md). Listens on mljr's
+# tailnet IP only: :8444 runs every request through CrowdSec AppSec, :8445 is
+# the same Caddy without it (baseline). Production Caddy is not involved.
+#
+# local/caddy-poc:latest is NOT pulled or built by the deploy: xcaddy needs
+# more RAM than mljr can spare next to production. Build it elsewhere and load
+# it (see README.md); pull_policy: never keeps `compose pull` from failing on
+# the local-only name.
+services:
+  caddy-poc:
+    image: local/caddy-poc:latest
+    pull_policy: never
+    container_name: caddy-poc
+    restart: unless-stopped
+    ports:
+      - "100.100.20.1:8444:8444"
+      - "100.100.20.1:8445:8445"
+    environment:
+      - CROWDSEC_BOUNCER_KEY=${CROWDSEC_BOUNCER_KEY}
+    volumes:
+      - ./Caddyfile.poc:/etc/caddy/Caddyfile:ro
+    networks:
+      - default
+      - crowdsec
+    depends_on:
+      - whoami
+    cap_drop:
+      - ALL
+    # The Caddy binary carries the file capability cap_net_bind_service; with
+    # every capability dropped the kernel refuses to exec it ("operation not
+    # permitted"). This one capability is all it needs back (ports are >1024).
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 0.5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  whoami:
+    image: docker.io/traefik/whoami:v1.12.0@sha256:c4717a8d1f0134a7444e24f881160e033991f23027c6c5a9a3f8fd22e70d1d44
+    container_name: caddy-poc-whoami
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 32m
+    cpus: 0.1
+
+networks:
+  crowdsec:
+    external: true
+    name: crowdsec_default

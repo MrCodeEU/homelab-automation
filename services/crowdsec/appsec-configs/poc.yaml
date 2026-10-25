@@ -1,0 +1,21 @@
+# AppSec proof of concept (docs/APPSEC_POC_PLAN.md): same rule set as
+# crowdsecurity/appsec-default, but a matched request is only reported
+# (remediation "allow", the alert is still raised) unless the request carries
+# `X-Appsec-Mode: block`. That lets one running instance do both the log-only
+# replay and the blocking Nuclei run without a restart.
+#
+# The header is a test switch for the PoC listener only; production Caddy is
+# not pointed at this config.
+name: homelab/poc
+default_remediation: ban
+inband_rules:
+ - crowdsecurity/base-config
+ - crowdsecurity/vpatch-*
+ - crowdsecurity/generic-*
+outofband_rules:
+ - crowdsecurity/experimental-*
+ - crowdsecurity/appsec-generic-test
+on_match:
+ - filter: req.Header.Get("X-Appsec-Mode") != "block"
+   apply:
+     - SetRemediation("allow")
