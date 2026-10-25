@@ -144,7 +144,7 @@ var pages = []page{
 	{
 		Slug: "mail", Title: "MLJR Mail",
 		Groups: []group{{Name: "Mail", Monitors: []string{
-			"mailcow", smtpPrefix + mailcowSMTPHost, "mail-archiver", "dmarc-monitor", "newsletter",
+			"mailcow", smtpPrefix + mailcowSMTPHost, mailSMTPInName, mailSMTPSName, mailIMAPSName, "mail-archiver", "dmarc-monitor", "newsletter",
 		}}},
 	},
 	{

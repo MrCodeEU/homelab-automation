@@ -94,7 +94,13 @@ class roles::backup (
     cd /opt/mailcow-dockerized && \
     set -a && . ./mailcow.conf && set +a && \
     mkdir -p /opt/backups/mailcow-dumps && \
-    docker compose exec -T mysql-mailcow mysqldump -u"$DBUSER" -p"$DBPASS" "$DBNAME" > /opt/backups/mailcow-dumps/mailcow.sql
+    chmod 700 /opt/backups/mailcow-dumps && \
+    docker compose exec -T mysql-mailcow mysqldump -u"$DBUSER" -p"$DBPASS" "$DBNAME" > /opt/backups/mailcow-dumps/mailcow.sql && \
+    { { install -m 600 mailcow.conf /opt/backups/mailcow-dumps/mailcow.conf && \
+        docker compose exec -T redis-mailcow redis-cli -a "$REDISPASS" --no-auth-warning save > /dev/null && \
+        docker cp "$(docker compose ps -q redis-mailcow)":/data/dump.rdb /opt/backups/mailcow-dumps/redis-dump.rdb && \
+        chmod 600 /opt/backups/mailcow-dumps/redis-dump.rdb; \
+        } || echo "WARN: mailcow.conf / redis dump not captured (DKIM keys live in redis)" >&2; }
     | MAILCOW_PRE
 
   $forgejo_pre_hook = @(FORGEJO_PRE)
