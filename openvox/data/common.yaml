@@ -571,6 +571,7 @@ services_catalog:
   - name: ui-showcase
     enabled: true
     domain: "ui.mljr.eu"
+    appsec: log
     port: 8083
     host: mljr
     staging: true
@@ -580,6 +581,7 @@ services_catalog:
   - name: regex
     enabled: true
     domain: "regex.mljr.eu"
+    appsec: log
     port: 8084
     host: mljr
     description: "Regex Lab — live PCRE tester (Go + Datastar)"
@@ -588,6 +590,7 @@ services_catalog:
   - name: cron
     enabled: true
     domain: "cron.mljr.eu"
+    appsec: log
     port: 8085
     host: mljr
     description: "Cron Explorer — cron expression parser & next-run previewer"
@@ -596,6 +599,7 @@ services_catalog:
   - name: codec
     enabled: true
     domain: "codec.mljr.eu"
+    appsec: log
     port: 8086
     host: mljr
     description: "Codec — hash (MD5/SHA) + Base64/URL/HTML encode-decode"
@@ -613,6 +617,7 @@ services_catalog:
   - name: weather-cli
     enabled: true
     domain: "weather-cli.mljr.eu"
+    appsec: log
     port: 8091
     host: mljr
     description: "Weather CLI - browser terminal weather dashboard"
@@ -621,6 +626,7 @@ services_catalog:
   - name: speedtest
     enabled: true
     domain: "speedtest.mljr.eu"
+    appsec: log
     port: 8090
     host: nuc
     staging: true
@@ -869,6 +875,7 @@ services_catalog:
   - name: wordwiz
     enabled: true
     domain: "wordwiz.mljr.eu"
+    appsec: log
     port: 3601
     host: nuc
     description: "Word Wizard App"
@@ -877,6 +884,7 @@ services_catalog:
   - name: sudoku
     enabled: true
     domain: "sudoku.mljr.eu"
+    appsec: log
     port: 3602
     host: nuc
     description: "Sudoku Generator"
@@ -885,6 +893,7 @@ services_catalog:
   - name: gameoflife
     enabled: true
     domain: "gameoflife.mljr.eu"
+    appsec: log
     port: 3603
     host: nuc
     description: "Game of Life (Kotlin/WASM)"
@@ -893,6 +902,7 @@ services_catalog:
   - name: cglab
     enabled: true
     domain: "cglab.mljr.eu"
+    appsec: log
     port: 3604
     host: nuc
     description: "CG Lab WebGL Project"
