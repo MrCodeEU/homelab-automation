@@ -15,6 +15,10 @@ roles::base::domain: 'mljr.eu'
 roles::caddy::custom_build:
   tag: 'caddy-v2.11.7-crowdsec-v0.14.1-b38ae651'
   sha256: 'ebd5a88596a13c4aa6148e679fa08e1814789131e0349a53631219884b0431c9'
+# CrowdSec AppSec (WAF) in Caddy. Vhosts opt in per catalog entry with
+# `appsec: log|block`; first wave is log-only (docs/APPSEC_POC_PLAN.md).
+# Off switch: set to false (Caddy then drops the block on the next apply).
+roles::caddy::appsec_enabled: true
 
 roles::iperf3::base_path: '/opt'
 
