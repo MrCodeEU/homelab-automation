@@ -232,6 +232,22 @@ rules:
     # Informational: a spike is interesting, a baseline is not.
     warn: 500
 
+  # CrowdSec AppSec (WAF) in front of Caddy. A baseline of scanner matches is
+  # normal; the counter also includes the PoC listener's own test traffic, so
+  # the threshold sits well above any day of routine scanning.
+  appsec_matches_24h:
+    type: threshold
+    direction: above
+    warn: 2000
+
+  # Caddy fails open when AppSec is unreachable, so the sites stay up but the
+  # WAF stops inspecting. A crowdsec restart during a deploy logs a short burst
+  # (a few hundred), hence the threshold.
+  appsec_unavailable_24h:
+    type: threshold
+    direction: above
+    warn: 1000
+
   auth_failures:
     type: threshold
     direction: above
