@@ -29,12 +29,18 @@ services:
       - "100.100.20.1:8088:8080"
       - "127.0.0.1:8088:8080"
       - "127.0.0.1:6060:6060"
+      # AppSec (WAF) component, for the host's production Caddy
+      # (docs/APPSEC_POC_PLAN.md). Loopback only: Caddy runs on the host, the
+      # PoC container reaches it as crowdsec:7422 over the compose network.
+      - "127.0.0.1:7422:7422"
     environment:
       - TZ=${TZ}
       - COLLECTIONS=crowdsecurity/linux crowdsecurity/sshd crowdsecurity/caddy crowdsecurity/http-cve crowdsecurity/base-http-scenarios crowdsecurity/whitelist-good-actors Guezli/mailcow LePresidente/authelia crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-generic-rules
       - BOUNCER_KEY_firewall=${CROWDSEC_FIREWALL_BOUNCER_KEY}
       # AppSec PoC bouncer (services/caddy-poc/); remove with the PoC.
       - BOUNCER_KEY_caddy_poc=${CROWDSEC_CADDY_POC_BOUNCER_KEY}
+      # Production Caddy (host service, roles::caddy appsec_enabled).
+      - BOUNCER_KEY_caddy=${CROWDSEC_CADDY_BOUNCER_KEY}
       # NOT extended for the LAPI's new tailnet exposure below:
       # TRUSTED_IPS grants admin API access, which a remote agent must
       # not have - machine username/password auth (scoped, revocable

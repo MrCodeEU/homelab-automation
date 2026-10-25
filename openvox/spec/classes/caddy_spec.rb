@@ -126,4 +126,59 @@ describe 'roles::caddy' do
       it { is_expected.to compile.and_raise_error(%r{custom_build}) }
     end
   end
+
+  context 'AppSec' do
+    let(:sha) { 'ebd5a88596a13c4aa6148e679fa08e1814789131e0349a53631219884b0431c9' }
+    let(:custom) { { 'tag' => 'caddy-v2.11.7-crowdsec-v0.14.1-b38ae651', 'sha256' => sha } }
+
+    context 'disabled (the default)' do
+      it 'renders no AppSec config even for catalog entries that opt in' do
+        expect(catalogue.resource('file', '/etc/caddy/Caddyfile.openvox-staging')[:content]).not_to include('crowdsec')
+        snippet = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/appsec-log.caddy')[:content]
+        expect(snippet).not_to include('route {')
+        expect(snippet).not_to include('X-Appsec-Mode')
+        is_expected.not_to contain_file('/etc/caddy/crowdsec.env')
+      end
+    end
+
+    context 'enabled without a custom build' do
+      let(:params) { { appsec_enabled: true } }
+
+      it { is_expected.to compile.and_raise_error(%r{needs roles::caddy::custom_build}) }
+    end
+
+    context 'enabled with a custom build' do
+      let(:params) { { custom_build: custom, appsec_enabled: true } }
+
+      it { is_expected.to compile.with_all_deps }
+
+      it 'keeps the bouncer key out of the Caddyfile and in a root:caddy 0640 env file' do
+        is_expected.to contain_file('/etc/caddy/crowdsec.env').with(
+          owner: 'root',
+          group: 'caddy',
+          mode: '0640',
+          show_diff: false,
+          notify: 'Exec[caddy-restart-on-override]',
+        )
+        is_expected.to contain_file('/etc/systemd/system/caddy.service.d/override.conf')
+          .with_content(%r{^EnvironmentFile=/etc/caddy/crowdsec\.env$})
+        caddyfile = catalogue.resource('file', '/etc/caddy/Caddyfile.openvox-staging')[:content]
+        expect(caddyfile).to include('api_key {env.CROWDSEC_BOUNCER_KEY}')
+        expect(caddyfile).to include('appsec_url http://127.0.0.1:7422', 'appsec_fail_open', 'appsec_timeout 2s')
+      end
+
+      it 'opts vhosts in per catalog entry and fixes the mode server-side' do
+        log = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/appsec-log.caddy')[:content]
+        expect(log).to include("    request_header -X-Appsec-Mode\n    route {\n        appsec\n    }")
+        expect(log).not_to include('X-Appsec-Mode block')
+
+        blk = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/appsec-block.caddy')[:content]
+        expect(blk).to include('request_header X-Appsec-Mode block')
+        expect(blk).to include('@appsec_inspect not path /upload/* /dav/*', 'route @appsec_inspect {')
+
+        other = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/remote-https.caddy')[:content]
+        expect(other).not_to include('route {')
+      end
+    end
+  end
 end

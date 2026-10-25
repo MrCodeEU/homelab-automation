@@ -296,6 +296,8 @@ class roles::services (
         # AppSec PoC (docs/APPSEC_POC_PLAN.md): the crowdsec container registers
         # this bouncer, caddy-poc authenticates with it.
         'caddy_poc_bouncer_key'      => lookup('vault_crowdsec_caddy_poc_bouncer_key', { 'default_value' => '' }),
+        # Production Caddy's AppSec bouncer; roles::caddy reads the same lookup.
+        'caddy_bouncer_key'          => lookup('vault_crowdsec_caddy_bouncer_key', { 'default_value' => '' }),
         'web_ui_password'            => lookup('vault_crowdsec_web_ui_password', { 'default_value' => '' }),
         'web_ui_notification_secret' => lookup('vault_crowdsec_web_ui_notification_secret', { 'default_value' => '' }),
         # Same plaintext as nuc's vault_crowdsec_nuc_agent_password, encrypted

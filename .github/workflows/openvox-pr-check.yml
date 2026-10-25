@@ -34,13 +34,15 @@ jobs:
           sudo gem install --no-document openvox --version 8.28.1
           pip install --quiet pyyaml jinja2
 
-      - name: Install Caddy for rendered-config validation
+      - name: Install Caddy (custom CrowdSec/AppSec build) for config validation
         env:
-          CADDY_VERSION: "2.11.2"
+          CADDY_RELEASE: caddy-v2.11.7-crowdsec-v0.14.1-b38ae651
+          CADDY_SHA256: ebd5a88596a13c4aa6148e679fa08e1814789131e0349a53631219884b0431c9
         run: |
-          curl -sSL \
-            "https://github.com/caddyserver/caddy/releases/download/v${CADDY_VERSION}/caddy_${CADDY_VERSION}_linux_amd64.tar.gz" \
-            | sudo tar -xz -C /usr/local/bin caddy
+          curl -fsSL -o caddy \
+            "https://github.com/MrCodeEU/homelab-automation/releases/download/${CADDY_RELEASE}/caddy-linux-amd64"
+          echo "${CADDY_SHA256}  caddy" | sha256sum -c -
+          sudo install -m 755 caddy /usr/local/bin/caddy
           caddy version
 
       - name: Validate OpenVox, services, and scripts

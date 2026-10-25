@@ -43,6 +43,15 @@
 # systemd unit runs it instead of the COPR package's /usr/bin/caddy, which
 # stays installed. Unsetting it is the rollback: the next apply drops the
 # ExecStart override, removes the binary and restarts Caddy on the rpm.
+#
+# $appsec_enabled (needs $custom_build): adds the global `crowdsec { ... }`
+# block to the Caddyfile (LAPI + AppSec on the loopback ports the crowdsec
+# container publishes), a root:caddy 0640 /etc/caddy/crowdsec.env with the
+# bouncer key (systemd EnvironmentFile, so the key never lands in the
+# world-readable Caddyfile), and lets catalog entries opt in with
+# `appsec: log|block` (+ `appsec_exclude_paths`). Mode is chosen per vhost:
+# Caddy sets X-Appsec-Mode: block for `block`, strips it for `log`; the
+# homelab/poc AppSec config only enforces when the header is `block`.
 class roles::caddy (
   String $work_dir               = '/usr/local/libexec/openvox-caddy',
   String $email                  = 'admin@mljr.eu',
@@ -60,7 +69,12 @@ class roles::caddy (
     tag    => String[1],
     sha256 => Pattern[/\A[0-9a-f]{64}\z/],
   }]] $custom_build              = undef,
+  Boolean $appsec_enabled        = false,
 ) {
+  if $appsec_enabled and !$custom_build {
+    fail('roles::caddy::appsec_enabled needs roles::caddy::custom_build (the packaged Caddy has no AppSec module)')
+  }
+  $appsec_key = Sensitive(lookup('vault_crowdsec_caddy_bouncer_key', { 'default_value' => '' }))
   $custom_bin = '/usr/local/bin/caddy-crowdsec'
   $caddy_bin = $custom_build ? {
     undef   => '/usr/bin/caddy',
@@ -176,6 +190,23 @@ class roles::caddy (
     }
   }
 
+  if $appsec_enabled {
+    file { '/etc/caddy/crowdsec.env':
+      ensure    => file,
+      owner     => 'root',
+      group     => 'caddy',
+      mode      => '0640',
+      content   => Sensitive("CROWDSEC_BOUNCER_KEY=${appsec_key.unwrap}\n"),
+      show_diff => false,
+      require   => Exec['caddy-dirs'],
+      before    => File['/etc/systemd/system/caddy.service.d/override.conf'],
+      notify    => Exec['caddy-restart-on-override'],
+    }
+    $env_override = "EnvironmentFile=/etc/caddy/crowdsec.env\n"
+  } else {
+    $env_override = ''
+  }
+
   file { '/etc/systemd/system/caddy.service.d':
     ensure  => directory,
     mode    => '0755',
@@ -206,7 +237,7 @@ class roles::caddy (
       # The upstream unit enables ProtectSystem=full. Keep Caddy's log directory
       # explicitly writable so timberjack can rename files during log rotation.
       ReadWritePaths=/var/log/caddy
-      ${exec_override}
+      ${env_override}${exec_override}
       | OVERRIDE
     require => File['/etc/systemd/system/caddy.service.d'],
     notify  => Exec['caddy-restart-on-override'],
@@ -253,6 +284,7 @@ class roles::caddy (
         'is_staging_deployment' => $is_staging_deployment,
         'staging_domain_prefix' => $staging_domain_prefix,
         'staging_target'        => $staging_target,
+        'appsec_enabled'        => $appsec_enabled,
       }),
       require => File['/etc/caddy/conf.d.openvox-staging'],
     }
@@ -270,6 +302,7 @@ class roles::caddy (
       'roll_keep'         => $roll_keep,
       'roll_keep_for'     => $roll_keep_for,
       'roll_uncompressed' => $roll_uncompressed,
+      'appsec_enabled'    => $appsec_enabled,
     }),
     require => Exec['caddy-dirs'],
   }
