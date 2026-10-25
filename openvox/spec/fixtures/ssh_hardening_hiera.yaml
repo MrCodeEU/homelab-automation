@@ -1,0 +1,10 @@
+---
+version: 5
+
+defaults:
+  datadir: data
+
+hierarchy:
+  - name: ssh_hardening unit-test fixture
+    data_hash: yaml_data
+    path: ssh_hardening.yaml

@@ -4,6 +4,7 @@
 # Per-host data: data/nodes/nuc.tail33930.ts.net.yaml.
 class role::nuc {
   include roles::base
+  include roles::ssh_hardening
   include roles::iperf3
   include roles::netronome_agent
 

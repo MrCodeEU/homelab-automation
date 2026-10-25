@@ -166,6 +166,11 @@ unraid_backup_excluded:
   - path: /mnt/user/system
     reason: "Unraid's own VM/docker.img system storage, not user data"
 
+# Public half of the offline recovery key (private half + passphrase in
+# Bitwarden). Installed by roles::ssh_hardening so a LAN login still works
+# when Tailscale and every other device are gone.
+recovery_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDJm7rwkD/lLe3buOfiEnlV4E7TBcGT471OZPBz54NRO homelab-recovery"
+
 # Home connection's public IP. Keep in sync with the owner IP in
 # services/crowdsec/parsers/s02-enrich/mljr-local-allowlist.yaml (a healthreport
 # test enforces it); healthreport alerts when nuc's egress IP differs.

@@ -36,3 +36,8 @@ roles::vuln_scan::dojo_url: 'http://100.100.10.1:8101'
 roles::vuln_scan::dojo_user: 'import-ugreen'
 roles::vuln_scan::product: 'ugreen'
 roles::vuln_scan::nuclei_enabled: false
+
+# UGOS: root SSH login stays off and /home is immutable, so the recovery key
+# belongs to the admin user, read from /etc/ssh/authorized_keys.d.
+roles::ssh_hardening::recovery_user: 'mrcode'
+roles::ssh_hardening::disable_passwords: true

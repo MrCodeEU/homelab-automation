@@ -9,6 +9,7 @@ class role::ugreen (
   Boolean $backup_remote_target_enabled = true,
 ) {
   include roles::iperf3
+  include roles::ssh_hardening
   include roles::netronome_agent
   if $backup_remote_target_enabled {
     include roles::backup_remote_target
