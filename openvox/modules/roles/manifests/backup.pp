@@ -278,6 +278,17 @@ class roles::backup (
       'history_paths'   => [{'label' => 'service-config', 'path' => '/opt/actual-budget'}],
       'history_volumes' => ['actual-budget-data'],
     },
+    # PocketBase: data.db and auxiliary.db (SQLite, WAL mode) in one volume,
+    # backed up as a plain volume copy like kuma and authelia. glucava has no
+    # export command and nuc has no sqlite3, so there is no consistent-snapshot
+    # hook; a copy torn by a commit mid-copy is recovered by SQLite from the
+    # WAL on first open. Stored credentials are encrypted with
+    # vault_glucava_secret_key (nuc eyaml), which this backup does not contain.
+    'glucava' => {
+      'volumes'         => ['glucava-data'],
+      'critical'        => true,
+      'history_volumes' => ['glucava-data'],
+    },
     # Logical pg_dump like umami/nocturne; the postgres volume itself is skipped
     # on recovery (the dump is imported after the DB starts).
     'sure' => {

@@ -17,10 +17,10 @@ out to already be covered under different class names
 (`roles::unraid_proxy`, `roles::wd_mycloud_proxy`, a static vault
 secret) - see `docs/OPENVOX_BACKLOG.md` for the full correction.
 
-Not yet tested against a real from-scratch rebuild (no spare hardware to
-throwaway-test against). Treat the steps below as the best current
-understanding, not a proven drill. A real test (spin up a VM, run this
-doc against it) is its own backlog item.
+`mljr` was rebuilt from scratch for real on 2026-10-24 (Rocky 9 to 10, see
+[mljr rebuild notes](#mljr-rebuild-2026-10-24)), and `ugreen` was rebuilt
+after the 2026-07-31 failure. The other hosts and the Unraid flash restore
+have not been drilled. A scheduled restore drill is still a backlog item.
 
 ## Before any of this works at all
 
@@ -116,11 +116,12 @@ firewalld, CrowdSec + nftables bouncer, Caddy (reverse proxy/ingress +
 ACME TLS), Authelia (SSO), Mailcow, Glance, HetrixTools agent, and every
 service-catalog entry scoped to `host: mljr`.
 
-`roles::backup` then auto-restores every `backup_critical: true` service
-on a detected fresh install (`.initialized` flag missing) - see the
-explicit fresh-host recovery mode below (`make openvox-recovery`).
-Non-critical services still get their data back if you run `restore.sh
---service <name>` manually.
+**Auto-restore on a fresh install is not ported.** Nothing restores data by
+itself after the first apply. Restore each service explicitly, either with
+`make openvox-recovery HOST=mljr SERVICE=<name>[,<name>...]` (fresh host
+only, see the nuc section) or with `restore.sh --service <name> --force` on
+the host after stopping that service's containers. This applies to critical
+and non-critical services alike.
 
 **Known friction, not data loss:**
 - Caddy's ACME/TLS certificate cache isn't backed up - Let's Encrypt just
@@ -139,6 +140,31 @@ Non-critical services still get their data back if you run `restore.sh
   tedious (per the role's own comment) - local decisions restore fine
   from backup, but the instance needs to re-enroll with CrowdSec's
   central API.
+
+### mljr rebuild (2026-10-24)
+
+No supported in-place Rocky 9 to 10 upgrade exists (ELevate dropped Rocky),
+so mljr was reinstalled from the Contabo Rocky 10 image on the same IP, with
+its Tailscale identity kept by restoring `tailscaled.state`. Then: OpenVox
+install, per-host eyaml key, apply, manual restore. Things that bite on a
+fresh host:
+
+- The first apply on a fresh EL10 host needs a reboot into the newest kernel
+  (netfilter module mismatch).
+- Caddy's logs were root-owned and labelled `var_log_t`, so `httpd_t` could
+  not open them and Caddy stayed HTTP-only. Fixed in the role; if it recurs,
+  `restorecon -R /var/log/caddy`.
+- Contabo's cloud-init leaves password SSH login enabled and stores the root
+  password in `/var/lib/cloud/instance/user-data.txt`. The role now removes
+  cloud-init and dhcpcd on public hosts and ships an sshd hardening drop-in.
+  Rotate the root password after the rebuild.
+- Mailcow restore (vmail, mysql, data) took about 11 minutes. The backup's
+  pre-hook captures `mailcow.conf` and a Redis dump, which holds the DKIM
+  keys. The DKIM TXT record in DNS is managed by hand (see above).
+- Caddy re-issued about 54 certificates in about 10 minutes through its rate
+  limiter. Expect that delay.
+- `canarytokens` has no `canarytokens-uploads` volume backup. The restore
+  error for it is harmless.
 
 ## nuc (Rocky, staging + misc services)
 
@@ -408,6 +434,9 @@ regenerate identically, not just "annoying":
   **`vault_google_client_id/secret`**, **`vault_strava_*`**,
   **`vault_homeassistant_token`** - third-party identities, regenerable
   only by re-authorizing with each provider by hand.
+- **`vault_glucava_secret_key`** (nuc eyaml) - encrypts the credentials
+  stored inside glucava's database. The `glucava-data` volume backup does
+  not contain it, so a restored database is only readable with the same key.
 - Postgres passwords (nocturne, forgejo, umami, mail-archiver) only
   matter if trying to reuse an existing volume as-is - restoring from a
   `pg_dump` backup means a fresh container can just get a new password.
