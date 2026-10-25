@@ -75,6 +75,16 @@ nuc (nuclei, replay) --tailnet--> mljr 100.100.20.1:8444  caddy-poc  --appsec-->
 - Memory (criterion 5): crowdsec 67.5 MiB before, 84.3 MiB after (+17 MiB); caddy-poc 22 MiB; host available memory unchanged (about 2.3 GB).
 - Gotchas found: the Caddy binary has the file capability `cap_net_bind_service`, so `cap_drop: ALL` needs `cap_add: NET_BIND_SERVICE`; the builder image sets its own `CADDY_VERSION` env, so the Dockerfile arg is `CADDY_TAG`; the image is built on nuc and loaded on mljr (xcaddy is too heavy to run beside production).
 
+**C2 Nuclei detection (2026-10-25):** Nuclei v3.11.1, 6051 templates, about 14,000 requests per run against `:8444`. Log-only: 10,126 requests processed, 1,499 matched, 95 distinct rules, none blocked. Block mode: exactly the 1,499 matched requests got 403, everything else passed. 1,300 of the 1,499 are one Grafana path-traversal template; the other 198 are phpunit `eval-stdin.php`, `.env`/`.git`, WordPress plugin and misc CVE paths. The out-of-band `experimental-no-user-agent` rule fired 1,456 times and blocked nothing, as designed. The upstream is a static echo, so Nuclei findings carry no meaning and there is no recall percentage.
+
+**C3 replay of real traffic (2026-10-25):** source = Loki, mljr Caddy logs of the last 7 days, only requests served 2xx/3xx (about 647k lines), deduplicated to 117,704 unique request shapes (method, host, URI with token-like path parts and query values masked, User-Agent, Accept, Content-Type; no cookies, no bodies). Replayed in block mode at 200 req/s over 10 min, 12 connections. mljr load average rose to about 7 on 4 CPUs, crowdsec peaked at 124 % CPU and 144 MiB, no Kuma monitor went down.
+
+- 108,960 x 200, 3,704 x 307, 5,038 x 403, 2 other. The 403s weigh 6,271 of the real hits, about 1 % of served traffic.
+- Of the 5,038 blocked shapes, 4,997 are reproducible with a one-by-one retry and all are scanner traffic that mljr answered with 2xx/3xx (the catch-all vhosts, or an auth redirect): `.env`/`.git`/cloud-credential file probes, path traversal, WordPress/PHP paths, CVE probes (Ivanti, Jira, Citrix and others), and scanner User-Agents. None is a legitimate user request.
+- **41 blocked requests are plain `GET /` with an ordinary browser User-Agent.** They returned 403 in the 12-connection run and 200 on a one-by-one retry. Two follow-up loads (36,000 clean requests; 36,000 requests with every fifth an attack) produced no clean 403. Cause unknown, 0.035 % of unique shapes. This is a false positive under load and the open item before any blocking rollout. Next step: repeat the replay with Caddy debug logging and `cscli` alert capture to see which rule or error produces it.
+
+Criterion 1 is therefore **not yet met** (0 blocks required). Criterion 2 is met for the classes above. Criterion 5 memory is met; latency is still unmeasured.
+
 ## Rollout if go (separate plans and PRs)
 
 1. Weekly GitHub Actions build of the custom Caddy binary from pinned versions, published with a SHA-256 checksum. Renovate tracks Caddy and the bouncer commit. Puppet installs it (like the other prebuilt tools), keeping the COPR rpm installed so rollback is flipping one hiera value.
