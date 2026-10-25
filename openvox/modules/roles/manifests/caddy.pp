@@ -36,6 +36,13 @@
 # `caddy validate` before ever touching the live paths that the running
 # process would pick up on reload. Kept unchanged by the EPP rework -
 # it's orthogonal to where the content comes from.
+#
+# $custom_build (hiera, optional): { tag, sha256 } of a release built by
+# .github/workflows/caddy-build.yml (Caddy + CrowdSec bouncer + AppSec). When
+# set, that binary is installed to /usr/local/bin/caddy-crowdsec and the
+# systemd unit runs it instead of the COPR package's /usr/bin/caddy, which
+# stays installed. Unsetting it is the rollback: the next apply drops the
+# ExecStart override, removes the binary and restarts Caddy on the rpm.
 class roles::caddy (
   String $work_dir               = '/usr/local/libexec/openvox-caddy',
   String $email                  = 'admin@mljr.eu',
@@ -49,7 +56,16 @@ class roles::caddy (
   Boolean $is_staging_deployment = true,
   String $staging_domain_prefix  = 'dev',
   String $staging_host           = 'nuc',
+  Optional[Struct[{
+    tag    => String[1],
+    sha256 => Pattern[/\A[0-9a-f]{64}\z/],
+  }]] $custom_build              = undef,
 ) {
+  $custom_bin = '/usr/local/bin/caddy-crowdsec'
+  $caddy_bin = $custom_build ? {
+    undef   => '/usr/bin/caddy',
+    default => $custom_bin,
+  }
   $services_catalog = lookup('services_catalog')
   $caddy_services = $services_catalog.filter |$svc| { pick($svc['enabled'], true) and 'domain' in $svc }
   $staging_target = "${staging_host}.tail33930.ts.net"
@@ -124,6 +140,42 @@ class roles::caddy (
     timeout => 180,
   }
 
+  if $custom_build {
+    exec { 'caddy-custom-binary':
+      command     => "${work_dir}/custom-binary-apply.sh",
+      # Read-only guard, inline on purpose: under --noop the scripts in
+      # ${work_dir} are not written yet on the run that introduces them, and a
+      # guard that points at a missing file fails the whole noop. Installed
+      # means: the pinned checksum and the packaged binary's SELinux type.
+      unless      => "test \"$(sha256sum ${custom_bin} | cut -d' ' -f1)\" = ${custom_build['sha256']} && stat -c %C ${custom_bin} | grep -q httpd_exec_t",
+      provider    => shell,
+      path        => ['/usr/sbin', '/usr/bin', '/sbin', '/bin'],
+      environment => [
+        "CADDY_CUSTOM_BIN=${custom_bin}",
+        "CADDY_CUSTOM_TAG=${custom_build['tag']}",
+        "CADDY_CUSTOM_SHA256=${custom_build['sha256']}",
+      ],
+      require     => [File[$work_dir], Exec['caddy-package'], Exec['caddy-selinux']],
+      before      => File['/etc/systemd/system/caddy.service.d/override.conf'],
+      notify      => Exec['caddy-restart-on-override'],
+      timeout     => 400,
+    }
+    $exec_override = @("EXEC")
+      # Custom build with the CrowdSec bouncer and AppSec (roles::caddy::custom_build).
+      # The first, empty assignment clears the ExecStart/ExecReload of the packaged unit.
+      ExecStart=
+      ExecStart=${custom_bin} run --environ --config /etc/caddy/Caddyfile
+      ExecReload=
+      ExecReload=${custom_bin} reload --config /etc/caddy/Caddyfile --force
+      |- EXEC
+  } else {
+    $exec_override = ''
+    file { $custom_bin:
+      ensure => absent,
+      notify => Exec['caddy-restart-on-override'],
+    }
+  }
+
   file { '/etc/systemd/system/caddy.service.d':
     ensure  => directory,
     mode    => '0755',
@@ -133,7 +185,7 @@ class roles::caddy (
   file { '/etc/systemd/system/caddy.service.d/override.conf':
     ensure  => file,
     mode    => '0644',
-    content => @(OVERRIDE),
+    content => @("OVERRIDE"),
       # Systemd override for Caddy
       # Ensures proper network setup and DNS resolution for Tailscale
 
@@ -154,6 +206,7 @@ class roles::caddy (
       # The upstream unit enables ProtectSystem=full. Keep Caddy's log directory
       # explicitly writable so timberjack can rename files during log rotation.
       ReadWritePaths=/var/log/caddy
+      ${exec_override}
       | OVERRIDE
     require => File['/etc/systemd/system/caddy.service.d'],
     notify  => Exec['caddy-restart-on-override'],
@@ -222,9 +275,10 @@ class roles::caddy (
   }
 
   exec { 'caddy-validate':
-    command => "${work_dir}/validate.sh",
-    path    => ['/usr/bin', '/bin'],
-    require => [
+    command     => "${work_dir}/validate.sh",
+    path        => ['/usr/bin', '/bin'],
+    environment => ["CADDY_BIN=${caddy_bin}"],
+    require     => [
       File['/etc/caddy/conf.d.openvox-staging'],
       File['/etc/caddy/conf.d.openvox-staging/000-snippets.caddy'],
       File['/etc/caddy/Caddyfile.openvox-staging'],

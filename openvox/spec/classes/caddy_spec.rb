@@ -66,4 +66,64 @@ describe 'roles::caddy' do
       require: 'Exec[caddy-service]',
     )
   end
+
+  context 'without a custom build (the default)' do
+    it 'runs the packaged binary and removes any leftover custom one' do
+      is_expected.not_to contain_exec('caddy-custom-binary')
+      is_expected.to contain_file('/usr/local/bin/caddy-crowdsec').with(
+        ensure: 'absent',
+        notify: 'Exec[caddy-restart-on-override]',
+      )
+      is_expected.to contain_file('/etc/systemd/system/caddy.service.d/override.conf')
+        .without_content(%r{ExecStart=})
+      is_expected.to contain_exec('caddy-validate').with(
+        environment: ['CADDY_BIN=/usr/bin/caddy'],
+      )
+    end
+  end
+
+  context 'with a custom build pinned in hiera' do
+    let(:sha) { 'ebd5a88596a13c4aa6148e679fa08e1814789131e0349a53631219884b0431c9' }
+    let(:params) { { custom_build: { 'tag' => 'caddy-v2.11.7-crowdsec-v0.14.1-b38ae651', 'sha256' => sha } } }
+
+    it { is_expected.to compile.with_all_deps }
+
+    it 'installs the pinned release before the unit override and restarts Caddy' do
+      is_expected.to contain_exec('caddy-custom-binary').with(
+        command: '/usr/local/libexec/openvox-caddy/custom-binary-apply.sh',
+        provider: 'shell',
+        before: 'File[/etc/systemd/system/caddy.service.d/override.conf]',
+        notify: 'Exec[caddy-restart-on-override]',
+        environment: [
+          'CADDY_CUSTOM_BIN=/usr/local/bin/caddy-crowdsec',
+          'CADDY_CUSTOM_TAG=caddy-v2.11.7-crowdsec-v0.14.1-b38ae651',
+          "CADDY_CUSTOM_SHA256=#{sha}",
+        ],
+      )
+      is_expected.not_to contain_file('/usr/local/bin/caddy-crowdsec')
+    end
+
+    it 'skips the install only when the pinned checksum and SELinux type already match' do
+      guard = catalogue.resource('exec', 'caddy-custom-binary')[:unless]
+      expect(guard).to include(sha)
+      expect(guard).to include('httpd_exec_t')
+      expect(guard).not_to include('custom-binary-check.sh')
+    end
+
+    it 'points ExecStart and ExecReload at the custom binary and validates with it' do
+      is_expected.to contain_file('/etc/systemd/system/caddy.service.d/override.conf')
+        .with_content(%r{^ExecStart=$})
+        .with_content(%r{^ExecStart=/usr/local/bin/caddy-crowdsec run --environ --config /etc/caddy/Caddyfile$})
+        .with_content(%r{^ExecReload=/usr/local/bin/caddy-crowdsec reload --config /etc/caddy/Caddyfile --force$})
+      is_expected.to contain_exec('caddy-validate').with(
+        environment: ['CADDY_BIN=/usr/local/bin/caddy-crowdsec'],
+      )
+    end
+
+    context 'with a malformed checksum' do
+      let(:params) { { custom_build: { 'tag' => 'x', 'sha256' => 'abc' } } }
+
+      it { is_expected.to compile.and_raise_error(%r{custom_build}) }
+    end
+  end
 end
