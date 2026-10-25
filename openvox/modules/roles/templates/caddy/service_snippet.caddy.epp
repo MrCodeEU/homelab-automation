@@ -8,6 +8,7 @@
       Boolean $is_staging_deployment,
       String $staging_domain_prefix,
       String $staging_target,
+      Boolean $appsec_enabled = false,
 | -%>
 <%
   $name = $service['name']
@@ -16,6 +17,14 @@
   $target_port = $service['port']
   $auth_type = pick_default($service['caddy_auth'], '')
   $has_dev_folder = pick_default($service['staging'], false)
+  # appsec: 'log' reports matches only, 'block' answers 403. The mode travels in
+  # a request header that the AppSec config (services/crowdsec) reads; Caddy
+  # always sets or strips it, so a client cannot choose its own mode.
+  $appsec_mode = $appsec_enabled ? {
+    true    => pick_default($service['appsec'], ''),
+    default => '',
+  }
+  $appsec_exclude = pick_default($service['appsec_exclude_paths'], [])
 -%>
 <% if $is_domain_string { -%>
 <%= $domain %> {
@@ -33,6 +42,23 @@
         }
     }
     import security_headers
+<% if $appsec_mode != '' { -%>
+<% if $appsec_mode == 'block' { -%>
+    request_header X-Appsec-Mode block
+<% } else { -%>
+    request_header -X-Appsec-Mode
+<% } -%>
+<% if $appsec_exclude.empty { -%>
+    route {
+        appsec
+    }
+<% } else { -%>
+    @appsec_inspect not path <%= $appsec_exclude.join(' ') %>
+    route @appsec_inspect {
+        appsec
+    }
+<% } -%>
+<% } -%>
 <% if $name == 'goaccess' { -%>
     # WebSocket requests go directly to GoAccess real-time server (no auth needed for WS)
     @websocket {

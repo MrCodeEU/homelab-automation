@@ -46,10 +46,10 @@ labels:
   type: authelia
 
 ---
-# AppSec (WAF) component for the Caddy proof of concept
-# (docs/APPSEC_POC_PLAN.md). Listens inside the container network only: the
-# port is deliberately not published, caddy-poc reaches it as crowdsec:7422.
-# homelab/poc is log-only unless a request carries X-Appsec-Mode: block.
+# AppSec (WAF) component (docs/APPSEC_POC_PLAN.md). Published on 127.0.0.1:7422
+# for the host's Caddy; caddy-poc reaches it as crowdsec:7422. homelab/poc
+# (kept under this name so the PoC keeps working) only reports a match unless
+# the request carries X-Appsec-Mode: block, which Caddy sets per vhost.
 source: appsec
 listen_addr: 0.0.0.0:7422
 appsec_configs:

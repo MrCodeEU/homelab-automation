@@ -28,3 +28,17 @@ services_catalog:
     host: mljr
     port: 9999
     domain: disabled.example.test
+  # AppSec opt-in is only rendered when roles::caddy::appsec_enabled is true.
+  - name: appsec-log
+    enabled: true
+    host: nuc
+    port: 7001
+    domain: log.example.test
+    appsec: log
+  - name: appsec-block
+    enabled: true
+    host: nuc
+    port: 7002
+    domain: block.example.test
+    appsec: block
+    appsec_exclude_paths: ['/upload/*', '/dav/*']
