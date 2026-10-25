@@ -353,6 +353,12 @@ rules:
     type: present
     level: crit
 
+  # MX/SPF/DKIM/DMARC or the mail host's reverse DNS is missing or wrong:
+  # outgoing mail gets rejected or junked until it is fixed.
+  mail_dns_problem:
+    type: present
+    level: crit
+
   # DefectDojo (nightly Trivy + Nuclei imports). It stores everything;
   # these three are the actionable subset. A CISA KEV finding is exploited in
   # the wild and stays crit until fixed. New Critical/High findings that

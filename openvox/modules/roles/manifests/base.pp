@@ -211,6 +211,14 @@ class roles::base (
       notify  => Exec['base-ssh-hardening-reload'],
     }
 
+    # Contabo's cloud-init re-runs its bootcmd on every boot (it rewrites
+    # PermitRootLogin and failed on Rocky 10, leaving the system degraded).
+    # The image needs it only for first boot, which is long done.
+    file { '/etc/cloud/cloud-init.disabled':
+      ensure => file,
+      mode   => '0644',
+    }
+
     exec { 'base-ssh-hardening-reload':
       command     => '/usr/sbin/sshd -t && /usr/bin/systemctl reload sshd',
       refreshonly => true,

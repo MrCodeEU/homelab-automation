@@ -49,6 +49,9 @@ Most facts are HTTP calls to services already running on nuc:
   `HEALTHREPORT_DOJO_PASSWORD`
 - **Public IP** — `home_ip` compares nuc's egress IP with the one CrowdSec
   allowlists (`HEALTHREPORT_HOME_IP`)
+- **Mail DNS** — `mail_dns` checks MX, SPF, DKIM, DMARC and the mail host's
+  reverse DNS for `mljr.eu` (hardcoded; a lookup error is `collector_failed`,
+  not "record missing")
 - **dmarc-monitor's Postgres** (`127.0.0.1:5432`, reachable directly since
   this container also runs `network_mode: host`) — DMARC aggregate report
   freshness and per-domain pass/fail counts, `HEALTHREPORT_DMARC_DB_URL`

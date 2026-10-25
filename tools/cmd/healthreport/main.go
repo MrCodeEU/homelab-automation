@@ -29,7 +29,7 @@ import (
 var defaultCollectors = []string{
 	"host_metrics", "containers", "logs", "uptime_kuma",
 	"ssh_facts", "github", "updates", "homeassistant", "dmarc",
-	"home_ip", "defectdojo", "ntfy_access", "csp_reports",
+	"home_ip", "mail_dns", "defectdojo", "ntfy_access", "csp_reports",
 	"monitor_availability",
 }
 

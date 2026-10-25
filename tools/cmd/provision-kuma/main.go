@@ -29,6 +29,12 @@ const (
 	mailcowSMTPPort = 587
 
 	tcpPrefix = "TCP: "
+
+	// Mail ports besides 587. The HTTP monitor only proves Caddy and the
+	// webmail; each of these proves the port itself answers.
+	mailSMTPInName = tcpPrefix + "mail SMTP 25 (mljr)"
+	mailSMTPSName  = tcpPrefix + "mail SMTPS 465"
+	mailIMAPSName  = tcpPrefix + "mail IMAPS 993"
 )
 
 // tcpTarget is a plain TCP-port monitor that is not derived from services.yml.
@@ -46,6 +52,12 @@ type tcpTarget struct {
 var tcpTargets = []tcpTarget{
 	{name: smtpPrefix + mailcowSMTPHost, host: mailcowSMTPHost, port: mailcowSMTPPort},
 	{name: tcpPrefix + "crowdsec LAPI (mljr)", host: "100.100.20.1", port: 8088},
+	// Port 25 goes over the tailnet: Kuma runs on nuc, whose home network
+	// cannot reach port 25 on the public IP (checked 2026-10-24 from three
+	// outside networks: fine), so a public check would be permanently red.
+	{name: mailSMTPInName, host: "100.100.20.1", port: 25},
+	{name: mailSMTPSName, host: mailcowSMTPHost, port: 465},
+	{name: mailIMAPSName, host: mailcowSMTPHost, port: 993},
 	// DefectDojo has no Caddy route (tailnet-only), so no HTTP monitor is derived
 	// from the catalog. nginx publishes on nuc's Tailscale IP.
 	{name: tcpPrefix + "defectdojo (nuc)", host: "100.100.10.1", port: 8101},
