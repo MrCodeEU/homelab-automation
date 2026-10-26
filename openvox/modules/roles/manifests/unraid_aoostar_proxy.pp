@@ -17,6 +17,9 @@
 # /mnt/user/appdata/aoostar/controller.env (mode 600, written by hand, see the
 # header of aoostar-controller.sh) and AOOSTAR-X's own config. Nothing is
 # started by a deploy; the array's start event does that.
+# The `unless` guards test for the check script first: on the very first run
+# (and its noop) the work dir does not exist yet, and a missing guard would be
+# an evaluation error instead of "work needed".
 class roles::unraid_aoostar_proxy (
   String $work_dir = '/usr/local/libexec/openvox-unraid-aoostar',
 ) {
@@ -29,16 +32,18 @@ class roles::unraid_aoostar_proxy (
   }
 
   exec { 'unraid-aoostar-scripts':
-    command => "${work_dir}/scripts-apply.sh",
-    unless  => "${work_dir}/scripts-check.sh",
-    path    => ['/usr/bin', '/bin'],
-    require => [File[$work_dir], Exec['unraid-array-started']],
+    command  => "${work_dir}/scripts-apply.sh",
+    unless   => "test -x ${work_dir}/scripts-check.sh && ${work_dir}/scripts-check.sh",
+    path     => ['/usr/bin', '/bin'],
+    provider => shell,
+    require  => [File[$work_dir], Exec['unraid-array-started']],
   }
 
   exec { 'unraid-aoostar-schedule':
-    command => "${work_dir}/schedule-apply.sh",
-    unless  => "${work_dir}/schedule-check.sh",
-    path    => ['/usr/bin', '/bin'],
-    require => Exec['unraid-aoostar-scripts'],
+    command  => "${work_dir}/schedule-apply.sh",
+    unless   => "test -x ${work_dir}/schedule-check.sh && ${work_dir}/schedule-check.sh",
+    path     => ['/usr/bin', '/bin'],
+    provider => shell,
+    require  => Exec['unraid-aoostar-scripts'],
   }
 }
