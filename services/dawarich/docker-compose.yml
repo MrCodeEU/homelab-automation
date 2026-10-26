@@ -3,6 +3,8 @@ services:
     image: freikin/dawarich:latest@sha256:e22d39339a00ab03b057a75897a8950dfd5d084e0f23202a7c6d5e8814f96aff
     container_name: Dawarich
     restart: unless-stopped
+    # The image has no usable default command; web-entrypoint.sh needs one.
+    command: ["bin/rails", "server", "-p", "3000", "-b", "::"]
     depends_on:
       dawarich_db:
         condition: service_healthy
