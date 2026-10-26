@@ -870,7 +870,7 @@ services_catalog:
 
   - name: projects
     enabled: true
-    managed: false
+    managed: true
     domain: "projects.mljr.eu"
     port: 6528
     host: nas
