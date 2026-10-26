@@ -1,0 +1,46 @@
+# Keeps `occ files_external:notify` alive across Nextcloud AIO restarts and runs
+# the daily preview pre-generation. See supervise.sh. Replaces the weekly
+# "Nextcloud Start Notify" User Script, which died on every nightly AIO backup.
+services:
+  nextcloud-notify:
+    image: docker:29.9.2-cli@sha256:5e6baf67325a79f64ed3bed6863954d5e05d0f3d4e57cbdb14809346814bbfdb
+    container_name: nextcloud-notify
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/app/supervise.sh"]
+    # Only talks to the Docker socket, no network needed.
+    network_mode: none
+    environment:
+      NEXTCLOUD_CONTAINER: nextcloud-aio-nextcloud
+      # External storage mount ids (occ files_external:list): 1 = /Fotos.
+      # Add 2 (/Sync, admin only) to watch it as well.
+      NOTIFY_MOUNTS: "1"
+      # /Sync needs no previews; the generator skips mounts with previews off.
+      NO_PREVIEW_MOUNTS: "2"
+      # UTC, after AIO's 02:00 UTC backup window.
+      PREGEN_TIME: "03:30"
+    volumes:
+      - ./supervise.sh:/app/supervise.sh:ro
+      # Needed for `docker exec`. Same exposure as dockhand and the AIO
+      # containers on this host.
+      - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 128m
+    healthcheck:
+      # The loop touches /tmp/healthy while Nextcloud is up and every watcher
+      # runs. Three hours of silence covers AIO's backup window.
+      test: ["CMD-SHELL", "test -f /tmp/healthy && [ $$(( $$(date +%s) - $$(stat -c %Y /tmp/healthy) )) -lt 10800 ]"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 5m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

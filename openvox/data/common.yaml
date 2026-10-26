@@ -679,6 +679,14 @@ services_catalog:
     description: "Ollama LLM runtime (health report triage). Tailscale-only, no Caddy route."
     icon: "mdi:robot"
 
+  - name: nextcloud-notify
+    enabled: true
+    managed: true
+    port: 0
+    host: nas
+    description: "Keeps Nextcloud's files_external:notify watcher alive across AIO restarts and runs the daily preview pre-generation"
+    icon: "mdi:image-refresh"
+
   - name: crowdsec-nas
     enabled: true
     managed: true
