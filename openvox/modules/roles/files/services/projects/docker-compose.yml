@@ -1,0 +1,34 @@
+services:
+  vikunja:
+    image: vikunja/vikunja:latest@sha256:f7dc8428d10aef17f3075886d3c1c022f566ec456f88985f02c137f4fc534576
+    container_name: Vikunja
+    restart: unless-stopped
+    # Same uid:gid as Unraid's nobody:users, which owns the SQLite files.
+    user: "99:100"
+    ports:
+      # projects.mljr.eu is proxied to nas:6528 by Caddy on mljr.
+      - "6528:3456"
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+      - VIKUNJA_SERVICE_PUBLICURL=https://projects.${DOMAIN:-mljr.eu}
+      - VIKUNJA_SERVICE_ROOTPATH=/app/vikunja/
+      - VIKUNJA_SERVICE_ENABLEREGISTRATION=true
+      - VIKUNJA_SERVICE_ENABLEUSERDELETION=true
+      - VIKUNJA_SERVICE_ENABLEEMAILREMINDERS=true
+      - VIKUNJA_DATABASE_TYPE=sqlite
+      - VIKUNJA_DATABASE_PATH=/etc/vikunja/vikunja.db
+      - VIKUNJA_MAILER_ENABLED=false
+    volumes:
+      # SQLite database (and its -wal/-shm). Covered by the appdata-backup
+      # path in unraid_backup_paths.
+      - /mnt/user/appdata/vikunja/config:/etc/vikunja
+      - /mnt/user/appdata/vikunja:/app/vikunja/files
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "2"
