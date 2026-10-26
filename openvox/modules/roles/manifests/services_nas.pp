@@ -97,6 +97,19 @@ class roles::services_nas (
       # transit precedent as the rest of this class's .env content.
       'crowdsec_agent_password' => lookup('vault_crowdsec_nas_agent_password', { 'default_value' => '' }),
     },
+    # Moved out of hand-written env files on nas (2026-10-26). Decrypted by
+    # nuc's keypair like everything else in this class.
+    'immich-kiosk' => {
+      'api_key' => lookup('vault_immich_kiosk_api_key', { 'default_value' => '' }),
+    },
+    'dawarich' => {
+      'db_password'     => lookup('vault_dawarich_db_password', { 'default_value' => '' }),
+      'secret_key_base' => lookup('vault_dawarich_secret_key_base', { 'default_value' => '' }),
+      'valkey_password' => lookup('vault_dawarich_valkey_password', { 'default_value' => '' }),
+    },
+    'immich' => {
+      'db_password' => lookup('vault_immich_db_password', { 'default_value' => '' }),
+    },
   }
 
   $nas_services.each |$svc| {

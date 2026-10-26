@@ -14,15 +14,17 @@ services:
       # dawarich.mljr.eu is proxied to nas:3001 by Caddy.
       - "3001:3000"
       - "9394:9394"
-    # DATABASE_PASSWORD, REDIS_URL (carries the valkey password),
-    # SECRET_KEY_BASE and the OTP_ENCRYPTION_* keys. Written by hand on nas
-    # (mode 600), not in the repo; onboarding them into eyaml is on the
-    # backlog. Changing SECRET_KEY_BASE or the OTP keys invalidates sessions /
-    # 2FA enrolments.
-    env_file:
-      - /mnt/user/appdata/dawarich/dawarich.env
     environment:
       - TZ=${TZ:-Europe/Vienna}
+      # Secrets come from eyaml (vault_dawarich_*) via the generated .env.
+      # Changing SECRET_KEY_BASE invalidates sessions.
+      - DATABASE_PASSWORD=${DAWARICH_DB_PASSWORD}
+      - SECRET_KEY_BASE=${DAWARICH_SECRET_KEY_BASE}
+      - REDIS_URL=redis://:${DAWARICH_VALKEY_PASSWORD}@dawarich_valkey:6379
+      # Deliberately empty, as they always were (no 2FA encryption keys set).
+      - OTP_ENCRYPTION_PRIMARY_KEY=
+      - OTP_ENCRYPTION_DETERMINISTIC_KEY=
+      - OTP_ENCRYPTION_KEY_DERIVATION_SALT=
       - RAILS_ENV=production
       - SELF_HOSTED=true
       - APPLICATION_PROTOCOL=https
@@ -58,11 +60,9 @@ services:
     image: postgis/postgis:17-3.5-alpine@sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f
     container_name: dawarich_db
     restart: unless-stopped
-    # POSTGRES_PASSWORD, same hand-written-on-nas arrangement as above.
-    env_file:
-      - /mnt/user/appdata/dawarich/db.env
     environment:
       - TZ=${TZ:-Europe/Vienna}
+      - POSTGRES_PASSWORD=${DAWARICH_DB_PASSWORD}
       - POSTGRES_USER=postgres
       - POSTGRES_DB=dawarich_development
     volumes:
@@ -84,16 +84,15 @@ services:
     image: valkey/valkey:9@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
     container_name: dawarich_valkey
     restart: unless-stopped
-    # VALKEY_PASSWORD (and REDISCLI_AUTH, the same value, so the healthcheck's
-    # valkey-cli authenticates). Hand-written on nas, mode 600.
-    env_file:
-      - /mnt/user/appdata/dawarich/valkey.env
     command:
       - sh
       - -c
       - exec valkey-server --appendonly yes --tcp-keepalive 60 --requirepass "$$VALKEY_PASSWORD"
     environment:
       - TZ=${TZ:-Europe/Vienna}
+      - VALKEY_PASSWORD=${DAWARICH_VALKEY_PASSWORD}
+      # Same value, so the healthcheck's valkey-cli authenticates.
+      - REDISCLI_AUTH=${DAWARICH_VALKEY_PASSWORD}
     volumes:
       - /mnt/user/appdata/dawarich/valkey:/data
     healthcheck:
