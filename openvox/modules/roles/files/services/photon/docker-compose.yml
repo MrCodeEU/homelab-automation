@@ -1,0 +1,29 @@
+services:
+  photon:
+    image: rtuszik/photon-docker:latest@sha256:c5babeb0ac396b485822036cf3c69e54fb6c79d699328a4e042e11bbd6f73f1a
+    container_name: Photon
+    restart: unless-stopped
+    ports:
+      # Geocoder for Dawarich; reached over the LAN address, so not narrowed
+      # to the Tailscale IP like other nas services.
+      - "2322:2322"
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+      - PUID=99
+      - PGID=100
+      - LOG_LEVEL=INFO
+      # Planet index (~180 GB, in the appdata volume below), refreshed monthly.
+      - REGION=planet
+      - UPDATE_STRATEGY=PARALLEL
+      - UPDATE_INTERVAL=30d
+      - FORCE_UPDATE=FALSE
+      - SKIP_MD5_CHECK=FALSE
+    volumes:
+      # Explicit array path: the index is huge and must stay where it is.
+      - /mnt/user/appdata/photon:/photon/data
+    shm_size: 64m
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "2"
