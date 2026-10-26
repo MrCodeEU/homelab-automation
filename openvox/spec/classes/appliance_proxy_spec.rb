@@ -146,6 +146,15 @@ describe 'roles::unraid_aoostar_proxy' do
     )
   end
 
+  it 'writes controller.env after the scripts, guarded and with secrets in the exec environment' do
+    is_expected.to contain_exec('unraid-aoostar-env').with(
+      command: %r{env-apply\.sh},
+      unless: %r{env-check\.sh},
+      logoutput: false,
+    )
+    is_expected.to contain_exec('unraid-aoostar-env').that_requires('Exec[unraid-aoostar-scripts]')
+  end
+
   it 'ships the controller without embedded credentials' do
     controller = File.read(File.expand_path('../../modules/roles/files/unraid_aoostar/aoostar-controller.sh', __dir__))
     expect(controller).to include('PASSWORD="${PASSWORD:?')

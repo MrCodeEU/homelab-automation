@@ -62,12 +62,37 @@ stop() {
   kill_strays
 }
 
+# The vendor UI keeps its login in Monitor3.json (plain text). controller.env
+# is the source of truth, so the vendor login follows it at every start.
+sync_ui_password() {
+  local env_file="$DIR/controller.env" cfg="$DIR/Monitor3.json"
+  [ -r "$env_file" ] && [ -f "$cfg" ] || return 0
+  (
+    # shellcheck disable=SC1090
+    . "$env_file"
+    AOOSTAR_PW="${PASSWORD:-}" python3 - "$cfg" <<'PY'
+import json, os, sys
+path, pw = sys.argv[1], os.environ.get("AOOSTAR_PW", "")
+if not pw:
+    sys.exit(0)
+with open(path) as f:
+    cfg = json.load(f)
+if cfg.get("credentials", {}).get("password") != pw:
+    cfg.setdefault("credentials", {})["password"] = pw
+    with open(path, "w") as f:
+        json.dump(cfg, f, indent=2)
+    print("vendor UI password updated from controller.env")
+PY
+  ) | while IFS= read -r l; do log "$l"; done
+}
+
 start() {
   if [ ! -x "$BINARY" ]; then
     log "ERROR: $BINARY missing or not executable"
     return 1
   fi
   stop
+  sync_ui_password
   cd "$DIR" || return 1
   log "starting AOOSTAR-X"
   setsid nohup "$BINARY" >> "$LOG_X" 2>&1 < /dev/null &

@@ -11,7 +11,7 @@
 # Drives the AOOSTAR-X web UI (the vendor display driver) over HTTP: day/night
 # mode, a rotating Immich photo, optional stats panels. Started by
 # aoostar-ctl.sh; the credentials live in an env file that is NOT in the repo
-# (mode 600, written once by hand):
+# (mode 600, rendered by OpenVox from eyaml - do not edit by hand):
 #
 #   /mnt/user/appdata/aoostar/controller.env
 #     NAS_IP=192.168.50.80        (optional)
@@ -408,7 +408,8 @@ EOF
     log_message "Sending panel configuration with unique ID..."
     log_message "Payload size: $(stat -c%s "$temp_json" 2>/dev/null || wc -c < "$temp_json") bytes"
     
-    PANEL_RESPONSE=$(curl -s -b cookies.txt \
+    local http_code
+    http_code=$(curl -s -o /dev/null -w '%{http_code}' -b cookies.txt \
         -X POST \
         -H 'Content-Type: application/json' \
         -H 'Cache-Control: no-cache' \
@@ -421,9 +422,14 @@ EOF
     # Cleanup temp file
     rm -f "$temp_json"
     
-    if [[ $curl_exit_code -eq 0 ]]; then
+    # The vendor UI answers 403 to an unauthenticated upload (wrong PASSWORD in
+    # controller.env); curl itself still exits 0, which used to be logged as success.
+    if [[ $curl_exit_code -eq 0 && "$http_code" == "200" ]]; then
         log_message "✓ Panels updated successfully"
         return 0
+    elif [[ $curl_exit_code -eq 0 ]]; then
+        log_message "✗ Panel update rejected (HTTP $http_code) - is PASSWORD in controller.env the vendor UI login?"
+        return 1
     else
         log_message "✗ Panel update failed (exit code: $curl_exit_code)"
         return 1
