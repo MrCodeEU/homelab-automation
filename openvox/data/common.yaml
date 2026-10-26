@@ -766,7 +766,7 @@ services_catalog:
 
   - name: immich
     enabled: true
-    managed: false
+    managed: true
     domain: "immich.mljr.eu"
     port: 8080
     host: nas
