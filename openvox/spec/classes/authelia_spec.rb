@@ -58,6 +58,8 @@ describe 'roles::authelia' do
       '      id-token-claims:',
     )
     expect(config.scan('claims_policy:').length).to eq(1)
+    expect(config.scan('token_endpoint_auth_method: client_secret_basic').length).to eq(1)
+    expect(config.scan('token_endpoint_auth_method: client_secret_post').length).to eq(1)
     expect(config.index('claims_policies:')).to be < config.index('    clients:')
   end
 end
