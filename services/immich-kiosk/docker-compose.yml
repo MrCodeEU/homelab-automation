@@ -1,0 +1,44 @@
+services:
+  immich-kiosk:
+    image: ghcr.io/damongolding/immich-kiosk:latest@sha256:2059203dbe7d509f529937a39f2def13d6363254bcc0a4f59d963b726c9e58b6
+    container_name: Immich-Kiosk
+    restart: unless-stopped
+    ports:
+      # LAN-reachable on purpose: opened from wall tablets and photo frames.
+      - "3000:3000"
+    # KIOSK_IMMICH_API_KEY and KIOSK_PASSWORD. Written by hand on nas (mode
+    # 600), not in the repo; onboarding them into eyaml is on the backlog.
+    # config.yaml also carries the Immich URL and API key.
+    env_file:
+      - /mnt/user/appdata/immich_kiosk/kiosk.env
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+      - KIOSK_IMMICH_URL=https://immich.${DOMAIN:-mljr.eu}
+      - KIOSK_ALBUM=
+      - KIOSK_PERSON=
+      - KIOSK_REFRESH=60
+      - KIOSK_CACHE=true
+      - KIOSK_DISABLE_UI=false
+      - KIOSK_TRANSITION=fade
+      - KIOSK_IMAGE_FIT=contain
+      - KIOSK_BACKGROUND_BLUR=true
+      - KIOSK_SHOW_PROGRESS=false
+      - KIOSK_SHOW_TIME=true
+      - KIOSK_TIME_FORMAT=24
+      - KIOSK_SHOW_DATE=true
+      - KIOSK_DATE_FORMAT=DD.MM.YYYY
+      - KIOSK_SHOW_IMAGE_TIME=true
+      - KIOSK_IMAGE_TIME_FORMAT=24
+      - KIOSK_SHOW_IMAGE_DATE=true
+      - KIOSK_IMAGE_DATE_FORMAT=DD.MM.YYYY
+    volumes:
+      - /mnt/user/appdata/immich_kiosk/config.yaml:/config.yaml:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

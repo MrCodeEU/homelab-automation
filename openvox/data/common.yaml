@@ -679,6 +679,22 @@ services_catalog:
     description: "Ollama LLM runtime (health report triage). Tailscale-only, no Caddy route."
     icon: "mdi:robot"
 
+  - name: immich-kiosk
+    enabled: true
+    managed: true
+    port: 3000
+    host: nas
+    description: "Immich Kiosk photo slideshow (wall tablets). LAN only, no Caddy route."
+    icon: "mdi:image-frame"
+
+  - name: photon
+    enabled: true
+    managed: true
+    port: 2322
+    host: nas
+    description: "Photon geocoder (planet index) for Dawarich. LAN only, no Caddy route."
+    icon: "mdi:map-search"
+
   - name: nextcloud-notify
     enabled: true
     managed: true
