@@ -733,6 +733,10 @@ services_catalog:
     host: nas
     description: "NAS Management"
     icon: "mdi:server"
+    # Authelia gate in front of the Unraid login page, plus Unraid's own OIDC
+    # "sign in with Authelia" button behind it (client `unraid`). The tailnet
+    # address of the nas stays open as the fallback if Authelia is down.
+    caddy_auth: authelia
 
   - name: immich
     enabled: true
