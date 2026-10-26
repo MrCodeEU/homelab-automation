@@ -247,6 +247,16 @@ authelia_oidc_clients:
     redirect_uris:
       - https://sure.mljr.eu/auth/openid_connect/callback
     scopes: [openid, profile, email]
+  # Unraid 7.3 native SSO (Settings -> Management Access -> API -> OIDC). The
+  # plaintext secret is entered once in the Unraid UI and lives on the flash
+  # drive; nas has no OpenVox agent, so there is no eyaml copy.
+  - id: unraid
+    name: Unraid
+    secret_digest: '$pbkdf2-sha512$310000$GQ.4ciz0blczS50BU0vKgw$E6XutXS6Purf7fD5mZdFDaGyTL6SswPSh612cCJcrsJCRIcVJ928Y5tizo1VQ.6pejjvc4Cj3QGuLDJRVUsTEw'
+    redirect_uris:
+      - https://nas.mljr.eu/graphql/api/auth/oidc/callback
+    scopes: [openid, profile, email, groups]
+    claims_policy: id-token-claims
 
 services_catalog:
   - name: authelia

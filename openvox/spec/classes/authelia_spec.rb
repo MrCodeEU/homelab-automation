@@ -46,4 +46,18 @@ describe 'roles::authelia' do
       require: 'File[/opt/authelia/docker-compose.yml]',
     )
   end
+
+  it 'renders OIDC clients and the claims policy only for clients that ask for it' do
+    config = rendered_file('/opt/authelia/configuration.yml')
+
+    expect(config).to include(
+      "      - client_id: 'plain-app'",
+      "      - client_id: 'token-app'",
+      "        claims_policy: 'id-token-claims'",
+      '    claims_policies:',
+      '      id-token-claims:',
+    )
+    expect(config.scan('claims_policy:').length).to eq(1)
+    expect(config.index('claims_policies:')).to be < config.index('    clients:')
+  end
 end
