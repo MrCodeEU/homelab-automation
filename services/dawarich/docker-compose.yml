@@ -14,10 +14,11 @@ services:
       # dawarich.mljr.eu is proxied to nas:3001 by Caddy.
       - "3001:3000"
       - "9394:9394"
-    # DATABASE_PASSWORD, SECRET_KEY_BASE and the OTP_ENCRYPTION_* keys. Written
-    # by hand on nas (mode 600), not in the repo; onboarding them into eyaml is
-    # on the backlog. Changing SECRET_KEY_BASE or the OTP keys invalidates
-    # sessions / 2FA enrolments.
+    # DATABASE_PASSWORD, REDIS_URL (carries the valkey password),
+    # SECRET_KEY_BASE and the OTP_ENCRYPTION_* keys. Written by hand on nas
+    # (mode 600), not in the repo; onboarding them into eyaml is on the
+    # backlog. Changing SECRET_KEY_BASE or the OTP keys invalidates sessions /
+    # 2FA enrolments.
     env_file:
       - /mnt/user/appdata/dawarich/dawarich.env
     environment:
@@ -27,13 +28,13 @@ services:
       - APPLICATION_PROTOCOL=https
       - APPLICATION_HOSTS=localhost,192.168.50.80:3001,dawarich.${DOMAIN:-mljr.eu},nas:3001,nas.tail33930.ts.net:3001
       - TIME_ZONE=UTC
-      # The app reaches its database, cache and geocoder through the host's
-      # LAN address and published ports, as it always has.
-      - DATABASE_HOST=192.168.50.80
-      - DATABASE_PORT=5433
+      # Database and cache are only reachable on the compose network; the
+      # geocoder (Photon) is a separate project, reached via the host's LAN
+      # address.
+      - DATABASE_HOST=dawarich_db
+      - DATABASE_PORT=5432
       - DATABASE_USERNAME=postgres
       - DATABASE_NAME=dawarich_development
-      - REDIS_URL=redis://192.168.50.80:6380
       - PHOTON_API_HOST=192.168.50.80:2322
       - PHOTON_API_USE_HTTPS=false
       - STORE_GEODATA=true
@@ -57,8 +58,6 @@ services:
     image: postgis/postgis:17-3.5-alpine@sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f
     container_name: dawarich_db
     restart: unless-stopped
-    ports:
-      - "5433:5432"
     # POSTGRES_PASSWORD, same hand-written-on-nas arrangement as above.
     env_file:
       - /mnt/user/appdata/dawarich/db.env
@@ -85,9 +84,14 @@ services:
     image: valkey/valkey:9@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
     container_name: dawarich_valkey
     restart: unless-stopped
-    command: ["valkey-server", "--appendonly", "yes", "--tcp-keepalive", "60"]
-    ports:
-      - "6380:6379"
+    # VALKEY_PASSWORD (and REDISCLI_AUTH, the same value, so the healthcheck's
+    # valkey-cli authenticates). Hand-written on nas, mode 600.
+    env_file:
+      - /mnt/user/appdata/dawarich/valkey.env
+    command:
+      - sh
+      - -c
+      - exec valkey-server --appendonly yes --tcp-keepalive 60 --requirepass "$$VALKEY_PASSWORD"
     environment:
       - TZ=${TZ:-Europe/Vienna}
     volumes:
