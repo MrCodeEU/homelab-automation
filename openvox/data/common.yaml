@@ -257,6 +257,8 @@ authelia_oidc_clients:
       - https://nas.mljr.eu/graphql/api/auth/oidc/callback
     scopes: [openid, profile, email, groups]
     claims_policy: id-token-claims
+    # Unraid's OIDC client sends the secret in the POST body, not as HTTP Basic.
+    token_endpoint_auth_method: client_secret_post
 
 services_catalog:
   - name: authelia

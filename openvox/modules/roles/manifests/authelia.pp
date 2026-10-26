@@ -78,7 +78,7 @@ class roles::authelia (
           '        public: false',
           '        authorization_policy: one_factor',
           '        consent_mode: implicit',
-          '        token_endpoint_auth_method: client_secret_basic',
+          "        token_endpoint_auth_method: ${pick($c['token_endpoint_auth_method'], 'client_secret_basic')}",
           $c['claims_policy'] ? {
             undef   => [],
             default => "        claims_policy: '${c['claims_policy']}'",
