@@ -6,13 +6,11 @@ services:
     ports:
       # LAN-reachable on purpose: opened from wall tablets and photo frames.
       - "3000:3000"
-    # KIOSK_IMMICH_API_KEY and KIOSK_PASSWORD. Written by hand on nas (mode
-    # 600), not in the repo; onboarding them into eyaml is on the backlog.
-    # config.yaml also carries the Immich URL and API key.
-    env_file:
-      - /mnt/user/appdata/immich_kiosk/kiosk.env
     environment:
       - TZ=${TZ:-Europe/Vienna}
+      # From eyaml (vault_immich_kiosk_api_key) via the generated .env.
+      # config.yaml also carries the Immich URL and API key.
+      - KIOSK_IMMICH_API_KEY=${KIOSK_IMMICH_API_KEY}
       - KIOSK_IMMICH_URL=https://immich.${DOMAIN:-mljr.eu}
       - KIOSK_ALBUM=
       - KIOSK_PERSON=

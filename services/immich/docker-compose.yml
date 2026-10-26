@@ -12,12 +12,12 @@ services:
       # immich.mljr.eu is proxied to nas:8080 by Caddy; phones also use it
       # directly on the LAN.
       - "8080:8080"
-    # DB_PASSWORD and REDIS_PASSWORD (empty: the cache has no auth). Written by
-    # hand on nas (mode 600), not in the repo; eyaml onboarding is backlog.
-    env_file:
-      - /mnt/user/appdata/immich/immich.env
     environment:
       - TZ=${TZ:-Europe/Vienna}
+      # From eyaml (vault_immich_db_password) via the generated .env.
+      - DB_PASSWORD=${IMMICH_DB_PASSWORD}
+      # The cache has no auth.
+      - REDIS_PASSWORD=
       - PUID=99
       - PGID=100
       - UMASK=022
@@ -55,11 +55,9 @@ services:
     # Host network on purpose: the app connects to 192.168.50.80:5432, and
     # moving the database behind a bridge would change that address.
     network_mode: host
-    # POSTGRES_PASSWORD, same hand-written-on-nas arrangement as above.
-    env_file:
-      - /mnt/user/appdata/immich/db.env
     environment:
       - TZ=${TZ:-Europe/Vienna}
+      - POSTGRES_PASSWORD=${IMMICH_DB_PASSWORD}
       - POSTGRES_USER=postgres
       - POSTGRES_DB=immich
     volumes:
