@@ -13,10 +13,10 @@
 #     block every shutdown until the driver was killed by hand.
 #   - retires the hand-made aoostar_display / aoostar_display_controller scripts
 #
-# Not managed here (deliberately, for now): the controller's credentials in
-# /mnt/user/appdata/aoostar/controller.env (mode 600, written by hand, see the
-# header of aoostar-controller.sh) and AOOSTAR-X's own config. Nothing is
-# started by a deploy; the array's start event does that.
+# The controller's credentials in /mnt/user/appdata/aoostar/controller.env come
+# from eyaml (vault_aoostar_*), and the vendor UI login in Monitor3.json is
+# synced from it at every start. Nothing is started by a deploy; the array's
+# start event does that.
 # The `unless` guards test for the check script first: on the very first run
 # (and its noop) the work dir does not exist yet, and a missing guard would be
 # an evaluation error instead of "work needed".
@@ -37,6 +37,26 @@ class roles::unraid_aoostar_proxy (
     path     => ['/usr/bin', '/bin'],
     provider => shell,
     require  => [File[$work_dir], Exec['unraid-array-started']],
+  }
+
+  # controller.env (vendor UI login + Immich key) is rendered from eyaml on
+  # nuc and written to nas; aoostar-ctl.sh then syncs the vendor login from it
+  # at every start. Both guard and command need the secrets in their
+  # environment, which exec's `environment` gives them.
+  $ui_password    = Sensitive(lookup('vault_aoostar_ui_password', { 'default_value' => '' }))
+  $immich_api_key = Sensitive(lookup('vault_aoostar_immich_api_key', { 'default_value' => '' }))
+
+  exec { 'unraid-aoostar-env':
+    command     => "${work_dir}/env-apply.sh",
+    unless      => "test -x ${work_dir}/env-check.sh && ${work_dir}/env-check.sh",
+    path        => ['/usr/bin', '/bin'],
+    provider    => shell,
+    environment => [
+      "AOOSTAR_UI_PASSWORD=${ui_password.unwrap}",
+      "AOOSTAR_IMMICH_API_KEY=${immich_api_key.unwrap}",
+    ],
+    logoutput   => false,
+    require     => [File[$work_dir], Exec['unraid-array-started'], Exec['unraid-aoostar-scripts']],
   }
 
   exec { 'unraid-aoostar-schedule':
