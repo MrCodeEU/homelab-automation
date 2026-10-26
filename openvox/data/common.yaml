@@ -826,7 +826,7 @@ services_catalog:
 
   - name: syncthing
     enabled: true
-    managed: false
+    managed: true
     domain: "sync.mljr.eu"
     port: 8384
     host: nas
