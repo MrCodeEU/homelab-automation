@@ -27,12 +27,12 @@ log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] aoostar-ctl: $*"; }
 alive() { [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; }
 
 stop_one() {
-  local pidfile=$1 name=$2 pid i
+  local pidfile=$1 name=$2 pid
   if alive "$pidfile"; then
     pid=$(cat "$pidfile")
     log "stopping $name (process group $pid)"
     kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
-    for i in 1 2 3 4 5 6 7 8 9 10; do
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
       kill -0 "$pid" 2>/dev/null || break
       sleep 1
     done
@@ -73,8 +73,7 @@ start() {
   setsid nohup "$BINARY" >> "$LOG_X" 2>&1 < /dev/null &
   echo $! > "$PID_X"
 
-  local i
-  for i in $(seq 1 60); do
+  for _ in $(seq 1 60); do
     curl -s -o /dev/null --max-time 2 "$UI_URL" && break
     sleep 1
   done

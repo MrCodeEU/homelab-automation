@@ -1,4 +1,9 @@
 #!/bin/bash
+# Carried over from the hand-made script; the remaining findings are style/info
+# noise in code that works (exit-code checks via $?, read without -r, unused
+# response variables, config variables set by read_config). Cleanup is part of
+# the planned rewrite, not this move.
+# shellcheck disable=SC1090,SC2034,SC2154,SC2155,SC2162,SC2181
 
 # NAS Display State Controller with Immich Integration
 # Managed by OpenVox (roles::unraid_aoostar_proxy, proxy-exec from nuc) - do not edit manually.
@@ -864,14 +869,14 @@ daemon_loop() {
         if [[ "$auto_mode" == "true" ]]; then
             if [[ $current_hour -ge 23 || $current_hour -lt 6 ]]; then
                 # Night time (23:00-06:00) - Screen OFF
-                if [[ "$display_on" != "false" && $current_hour != $last_hour ]]; then
+                if [[ "$display_on" != "false" && "$current_hour" != "$last_hour" ]]; then
                     log_message "Auto: Switching to night mode - Screen OFF ($(date '+%H:%M'))"
                     display_on="false"
                     config_changed=true
                 fi
             else
                 # Day time (06:00-23:00) - Screen ON + Image Panel
-                if [[ ("$display_on" != "true" || "$image_panel" != "true") && $current_hour != $last_hour ]]; then
+                if [[ ("$display_on" != "true" || "$image_panel" != "true") && "$current_hour" != "$last_hour" ]]; then
                     log_message "Auto: Switching to day mode - Screen ON + Image Panel ($(date '+%H:%M'))"
                     display_on="true"
                     image_panel="true"
@@ -953,7 +958,7 @@ show_status() {
     show_active_panels
     echo ""
     echo "Immich Image Info:"
-    echo "  Last update: $(date -d @$last_image_update '+%H:%M:%S' 2>/dev/null || echo 'Never')"
+    echo "  Last update: $(date -d "@$last_image_update" '+%H:%M:%S' 2>/dev/null || echo 'Never')"
     echo "  Image loaded: $([[ -n "$current_image" ]] && echo 'Yes' || echo 'No')"
     if [[ -n "$current_image" ]]; then
         echo "  Image size: ${#current_image} chars"
