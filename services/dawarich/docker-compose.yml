@@ -1,0 +1,103 @@
+services:
+  dawarich:
+    image: freikin/dawarich:latest@sha256:e22d39339a00ab03b057a75897a8950dfd5d084e0f23202a7c6d5e8814f96aff
+    container_name: Dawarich
+    restart: unless-stopped
+    depends_on:
+      dawarich_db:
+        condition: service_healthy
+      dawarich_valkey:
+        condition: service_healthy
+    ports:
+      # dawarich.mljr.eu is proxied to nas:3001 by Caddy.
+      - "3001:3000"
+      - "9394:9394"
+    # DATABASE_PASSWORD, SECRET_KEY_BASE and the OTP_ENCRYPTION_* keys. Written
+    # by hand on nas (mode 600), not in the repo; onboarding them into eyaml is
+    # on the backlog. Changing SECRET_KEY_BASE or the OTP keys invalidates
+    # sessions / 2FA enrolments.
+    env_file:
+      - /mnt/user/appdata/dawarich/dawarich.env
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+      - RAILS_ENV=production
+      - SELF_HOSTED=true
+      - APPLICATION_PROTOCOL=https
+      - APPLICATION_HOSTS=localhost,192.168.50.80:3001,dawarich.${DOMAIN:-mljr.eu},nas:3001,nas.tail33930.ts.net:3001
+      - TIME_ZONE=UTC
+      # The app reaches its database, cache and geocoder through the host's
+      # LAN address and published ports, as it always has.
+      - DATABASE_HOST=192.168.50.80
+      - DATABASE_PORT=5433
+      - DATABASE_USERNAME=postgres
+      - DATABASE_NAME=dawarich_development
+      - REDIS_URL=redis://192.168.50.80:6380
+      - PHOTON_API_HOST=192.168.50.80:2322
+      - PHOTON_API_USE_HTTPS=false
+      - STORE_GEODATA=true
+      - MIN_MINUTES_SPENT_IN_CITY=60
+      - BACKGROUND_PROCESSING_CONCURRENCY=10
+      - PROMETHEUS_EXPORTER_ENABLED=true
+      - ENABLE_TELEMETRY=false
+    volumes:
+      - /mnt/user/appdata/dawarich/imports:/var/app/tmp/imports/watched
+      - /mnt/user/appdata/dawarich/storage:/var/app/storage
+      - /mnt/user/appdata/dawarich/db_data:/dawarich_db_data
+      - /mnt/user/appdata/dawarich/wwwroot:/var/app/public
+    shm_size: 64m
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "2"
+
+  dawarich_db:
+    image: postgis/postgis:17-3.5-alpine@sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f
+    container_name: dawarich_db
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    # POSTGRES_PASSWORD, same hand-written-on-nas arrangement as above.
+    env_file:
+      - /mnt/user/appdata/dawarich/db.env
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=dawarich_development
+    volumes:
+      - /mnt/user/appdata/dawarich/db_data:/var/lib/postgresql/data
+    shm_size: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dawarich_development || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "2"
+
+  dawarich_valkey:
+    image: valkey/valkey:9@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+    container_name: dawarich_valkey
+    restart: unless-stopped
+    command: ["valkey-server", "--appendonly", "yes", "--tcp-keepalive", "60"]
+    ports:
+      - "6380:6379"
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+    volumes:
+      - /mnt/user/appdata/dawarich/valkey:/data
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "2"
