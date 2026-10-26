@@ -8,3 +8,22 @@ vault_smtp_port: '587'
 vault_smtp_user: authelia@example.test
 vault_smtp_password: test-smtp-password
 vault_smtp_from: notifications@example.test
+vault_authelia_oidc_hmac_secret: test-hmac-secret
+vault_authelia_oidc_jwks_key: |
+  -----BEGIN PRIVATE KEY-----
+  test-jwks-key
+  -----END PRIVATE KEY-----
+authelia_oidc_clients:
+  - id: plain-app
+    name: Plain App
+    secret_digest: '$pbkdf2-sha512$310000$plainsalt$plainhash'
+    redirect_uris:
+      - https://plain.example.test/callback
+    scopes: [openid, profile]
+  - id: token-app
+    name: Token App
+    secret_digest: '$pbkdf2-sha512$310000$tokensalt$tokenhash'
+    redirect_uris:
+      - https://token.example.test/callback
+    scopes: [openid, profile, email, groups]
+    claims_policy: id-token-claims

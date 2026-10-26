@@ -44,6 +44,15 @@ class roles::authelia (
   # OIDC provider. Rendered only when authelia_oidc_clients (common.yaml) is
   # non-empty, so the HMAC/JWKS secrets are optional until the first client.
   $oidc_clients = lookup('authelia_oidc_clients', { 'default_value' => [] })
+  $claims_policy_clients = $oidc_clients.filter |$c| { $c['claims_policy'] =~ NotUndef }
+  $oidc_claims_policy = $claims_policy_clients.empty ? {
+    false   => join([
+      '    claims_policies:',
+      '      id-token-claims:',
+      "        id_token: ['groups', 'email', 'email_verified', 'preferred_username', 'name']",
+    ], "\n"),
+    default => [],
+  }
   $oidc_block = $oidc_clients.empty ? {
     true    => '',
     default => join([
@@ -56,6 +65,10 @@ class roles::authelia (
       '        use: sig',
       '        key: |',
       Sensitive(lookup('vault_authelia_oidc_jwks_key')).unwrap.split("\n").map |$l| { "          ${l}" }.join("\n"),
+      # Clients that set claims_policy get their claims in the ID token itself
+      # (Authelia otherwise serves groups/email only from /userinfo, and some
+      # apps, e.g. Unraid, only read the ID token).
+      $oidc_claims_policy,
       '    clients:',
       $oidc_clients.map |$c| {
         join([
@@ -66,6 +79,10 @@ class roles::authelia (
           '        authorization_policy: one_factor',
           '        consent_mode: implicit',
           '        token_endpoint_auth_method: client_secret_basic',
+          $c['claims_policy'] ? {
+            undef   => [],
+            default => "        claims_policy: '${c['claims_policy']}'",
+          },
           '        redirect_uris:',
           $c['redirect_uris'].map |$u| { "          - '${u}'" }.join("\n"),
           '        scopes:',
