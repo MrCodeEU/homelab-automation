@@ -1,0 +1,93 @@
+services:
+  immich:
+    image: ghcr.io/imagegenius/immich:latest@sha256:44429b30189301d45d05349fc50b394e90163415c6a2e203f191d16047671374
+    container_name: immich
+    restart: unless-stopped
+    depends_on:
+      immich-postgres:
+        condition: service_healthy
+      immich-valkey:
+        condition: service_healthy
+    ports:
+      # immich.mljr.eu is proxied to nas:8080 by Caddy; phones also use it
+      # directly on the LAN.
+      - "8080:8080"
+    # DB_PASSWORD and REDIS_PASSWORD (empty: the cache has no auth). Written by
+    # hand on nas (mode 600), not in the repo; eyaml onboarding is backlog.
+    env_file:
+      - /mnt/user/appdata/immich/immich.env
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+      - PUID=99
+      - PGID=100
+      - UMASK=022
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      # The database runs on the host network, so it is reached through the
+      # host's LAN address.
+      - DB_HOSTNAME=192.168.50.80
+      - DB_PORT=5432
+      - DB_USERNAME=postgres
+      - DB_DATABASE_NAME=immich
+      - REDIS_HOSTNAME=immich-valkey
+      - REDIS_PORT=6379
+      - MACHINE_LEARNING_HOST=0.0.0.0
+      - MACHINE_LEARNING_PORT=3003
+      - MACHINE_LEARNING_WORKERS=7
+      - MACHINE_LEARNING_WORKER_TIMEOUT=120
+    devices:
+      # Intel iGPU for hardware transcoding.
+      - /dev/dri:/dev/dri
+    volumes:
+      - /mnt/user/appdata/immich/data:/photos
+      - /mnt/user/Fotos/Fotos:/libraries
+      - /mnt/user/appdata/immich:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "2"
+
+  immich-postgres:
+    image: ghcr.io/immich-app/postgres:16-vectorchord1.1.1-pgvector0.8.5@sha256:0446995e2b4713ae45d25de7c81c745a63180491018ded84cf13ef4d3c0c5cc9
+    container_name: Immich_PostgreSQL
+    restart: unless-stopped
+    # Host network on purpose: the app connects to 192.168.50.80:5432, and
+    # moving the database behind a bridge would change that address.
+    network_mode: host
+    # POSTGRES_PASSWORD, same hand-written-on-nas arrangement as above.
+    env_file:
+      - /mnt/user/appdata/immich/db.env
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=immich
+    volumes:
+      # fastpool (SSD), not the array.
+      - /mnt/fastpool/appdata/postgresql_immich:/var/lib/postgresql/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "2"
+
+  immich-valkey:
+    image: valkey/valkey:9@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+    container_name: immich-valkey
+    restart: unless-stopped
+    command: ["valkey-server", "--maxmemory", "0", "--appendonly", "yes", "--tcp-keepalive", "60"]
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+    volumes:
+      - /mnt/user/appdata/immich-valkey:/data
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "2"
