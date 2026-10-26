@@ -122,3 +122,35 @@ describe 'roles::unraid_host_facts_proxy' do
     )
   end
 end
+
+describe 'roles::unraid_aoostar_proxy' do
+  # The scripts write to the array, so the class borrows roles::unraid_proxy's
+  # array-started precondition.
+  let(:pre_condition) { 'include roles::unraid_proxy' }
+
+  it { is_expected.to compile.with_all_deps }
+
+  it 'installs the scripts only after the array is confirmed started' do
+    is_expected.to contain_exec('unraid-aoostar-scripts').with(
+      command: %r{scripts-apply\.sh},
+      unless: %r{scripts-check\.sh},
+      require: ['File[/usr/local/libexec/openvox-unraid-aoostar]', 'Exec[unraid-array-started]'],
+    )
+  end
+
+  it 'merges the start and stop schedule entries after the scripts exist' do
+    is_expected.to contain_exec('unraid-aoostar-schedule').with(
+      command: %r{schedule-apply\.sh},
+      unless: %r{schedule-check\.sh},
+      require: 'Exec[unraid-aoostar-scripts]',
+    )
+  end
+
+  it 'ships the controller without embedded credentials' do
+    controller = File.read(File.expand_path('../../modules/roles/files/unraid_aoostar/aoostar-controller.sh', __dir__))
+    expect(controller).to include('PASSWORD="${PASSWORD:?')
+    expect(controller).to include('IMMICH_API_KEY="${IMMICH_API_KEY:?')
+    expect(controller).not_to match(/IMMICH_API_KEY="[A-Za-z0-9_-]{20,}"/)
+    expect(controller).not_to match(/PASSWORD="[^$"]+"/)
+  end
+end

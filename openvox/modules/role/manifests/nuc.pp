@@ -24,6 +24,7 @@ class role::nuc {
   include roles::wd_mycloud_node_exporter_proxy
   include roles::unraid_proxy
   include roles::unraid_backup_proxy
+  include roles::unraid_aoostar_proxy
   include roles::canary_decoys
   include roles::canary_decoys_nas
   include roles::services_nas

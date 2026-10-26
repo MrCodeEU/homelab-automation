@@ -25,12 +25,21 @@ const (
 	backupPath  = usPath + "/schedule.json.openvox-bak"
 )
 
+// Entry is a further User Scripts entry merged alongside Config.ScriptName,
+// for roles that install more than one script (e.g. a start and a stop hook).
+type Entry struct {
+	ScriptName string
+	Frequency  string
+}
+
 type Config struct {
 	// ScriptName is both the User Scripts directory name and, with
 	// non-alphanumerics stripped, the suffix of the generated schedule id
 	// ("schedule" + alnum(ScriptName)).
 	ScriptName string
 	Frequency  string
+	// Extra entries merged the same way as ScriptName/Frequency.
+	Extra []Entry
 	// Retired User Scripts entries (by directory name) to drop from
 	// schedule.json and delete from disk.
 	Retired []string
@@ -99,7 +108,6 @@ func marshalSorted(m map[string]any) (string, error) {
 
 func Run(cfg Config, checkOnly bool) error {
 	schedPath := schedulePath()
-	thisScriptPath := scriptPath(cfg.ScriptName)
 	retiredPaths := make(map[string]bool, len(cfg.Retired))
 	for _, n := range cfg.Retired {
 		retiredPaths[scriptPath(n)] = true
@@ -126,11 +134,14 @@ func Run(cfg Config, checkOnly bool) error {
 			merged[k] = v
 		}
 	}
-	merged[thisScriptPath] = map[string]any{
-		"script":    thisScriptPath,
-		"frequency": cfg.Frequency,
-		"id":        scheduleID(cfg.ScriptName),
-		"custom":    "",
+	for _, e := range append([]Entry{{cfg.ScriptName, cfg.Frequency}}, cfg.Extra...) {
+		p := scriptPath(e.ScriptName)
+		merged[p] = map[string]any{
+			"script":    p,
+			"frequency": e.Frequency,
+			"id":        scheduleID(e.ScriptName),
+			"custom":    "",
+		}
 	}
 	mergedJSON, err := marshalSorted(merged)
 	if err != nil {
