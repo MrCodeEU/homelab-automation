@@ -888,7 +888,7 @@ services_catalog:
 
   - name: dawarich
     enabled: true
-    managed: false
+    managed: true
     domain: "dawarich.mljr.eu"
     port: 3001
     host: nas
