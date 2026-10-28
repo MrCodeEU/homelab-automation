@@ -43,8 +43,11 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT
 
+# --network host: the default bridge copies the host resolv.conf, whose only
+# nameserver on a Tailscale-DNS host (mljr) is 100.100.100.100, unreachable
+# from the bridge ("no route to host"), so the DB download failed for all targets.
 trivy() {
-  docker run --rm --security-opt label=disable \
+  docker run --rm --network host --security-opt label=disable \
     -v trivy-cache:/root/.cache \
     -v /var/run/docker.sock:/var/run/docker.sock \
     "$@" </dev/null
