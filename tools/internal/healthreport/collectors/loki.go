@@ -47,7 +47,7 @@ const selfLogPattern = `(component=querier|component=ingester|caller=(metrics|en
 // probes a day (/etc/passwd, /wp-admin, /jmx-console, our own nightly Nuclei
 // scan), which crossed the 5000 threshold with 3,400 identical 404s. A real
 // server error still logs its own "Error:" line and stays counted.
-const knownNoisePattern = `(?i)(ConflictInMappingEntry|Failed to acquire open port|Couldn't add pinhole|SvelteKitError: Not found|Error occurred during request: (GET|POST|HEAD|PUT|DELETE|OPTIONS) https://)`
+const knownNoisePattern = `(?i)(ConflictInMappingEntry|Failed to acquire open port|Couldn't add pinhole|SvelteKitError: Not found|Error ID: [0-9a-f-]+ \{ status: 40[45], message: '[^']*' \}|Error occurred during request: (GET|POST|HEAD|PUT|DELETE|OPTIONS) https://)`
 
 // A signature must recur this often within the sample before it becomes an
 // observation, and only this many are reported per run.

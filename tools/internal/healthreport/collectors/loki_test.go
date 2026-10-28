@@ -196,6 +196,7 @@ func TestKnownNoiseMatchesSyncthingUPnPChatter(t *testing.T) {
 		`syncthing[1]: WARNING: Couldn't add pinhole: 403 Not Available`,
 		`nocturne-web: Error ID: 500b7928 SvelteKitError: Not found: /etc/passwd`,
 		`nocturne-web: Error occurred during request: GET https://nc.mljr.eu/jmx-console/`,
+		`nocturne-web: Error ID: 3c1f8a0e-1111-4222-8333-944455556666 { status: 404, message: 'Not Found' }`,
 	}
 	for _, line := range noisy {
 		if !re.MatchString(line) {
