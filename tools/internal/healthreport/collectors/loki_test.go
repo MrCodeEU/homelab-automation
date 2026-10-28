@@ -194,6 +194,8 @@ func TestKnownNoiseMatchesSyncthingUPnPChatter(t *testing.T) {
 		`syncthing[1]: WARNING: Service: broadcast: ConflictInMappingEntry (718)`,
 		`syncthing[1]: WARNING: Universal PnP: Failed to acquire open port`,
 		`syncthing[1]: WARNING: Couldn't add pinhole: 403 Not Available`,
+		`nocturne-web: Error ID: 500b7928 SvelteKitError: Not found: /etc/passwd`,
+		`nocturne-web: Error occurred during request: GET https://nc.mljr.eu/jmx-console/`,
 	}
 	for _, line := range noisy {
 		if !re.MatchString(line) {
@@ -202,6 +204,9 @@ func TestKnownNoiseMatchesSyncthingUPnPChatter(t *testing.T) {
 	}
 	if re.MatchString(`postgres[1]: ERROR could not write block N of base/16384/12345`) {
 		t.Fatal("knownNoisePattern must not swallow real errors")
+	}
+	if re.MatchString(`nocturne-web: Error: connect ECONNREFUSED nocturne-api:8080`) {
+		t.Fatal("knownNoisePattern must not swallow a real backend failure")
 	}
 }
 

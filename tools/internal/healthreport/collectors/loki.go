@@ -40,7 +40,14 @@ const selfLogPattern = `(component=querier|component=ingester|caller=(metrics|en
 // drops - but the connection UUID in the log line changes each time,
 // rotating the signature hash and flaring to warn on every Syncthing
 // restart. See backlog-2026-08-07.md's 2026-08-21 UPnP triage note.
-const knownNoisePattern = `(?i)(ConflictInMappingEntry|Failed to acquire open port|Couldn't add pinhole)`
+//
+// nocturne-web (SvelteKit) logs two lines per request for a path it does not
+// serve: "SvelteKitError: Not found: /x" and "Error occurred during request:
+// GET https://...". The public Nightscout host gets thousands of scanner
+// probes a day (/etc/passwd, /wp-admin, /jmx-console, our own nightly Nuclei
+// scan), which crossed the 5000 threshold with 3,400 identical 404s. A real
+// server error still logs its own "Error:" line and stays counted.
+const knownNoisePattern = `(?i)(ConflictInMappingEntry|Failed to acquire open port|Couldn't add pinhole|SvelteKitError: Not found|Error occurred during request: (GET|POST|HEAD|PUT|DELETE|OPTIONS) https://)`
 
 // A signature must recur this often within the sample before it becomes an
 // observation, and only this many are reported per run.
