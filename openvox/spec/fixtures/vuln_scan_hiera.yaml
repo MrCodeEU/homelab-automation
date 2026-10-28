@@ -1,0 +1,10 @@
+---
+version: 5
+
+defaults:
+  datadir: data
+
+hierarchy:
+  - name: vuln_scan catalog fixture
+    data_hash: yaml_data
+    path: vuln_scan.yaml

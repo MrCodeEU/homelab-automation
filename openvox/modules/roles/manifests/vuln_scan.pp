@@ -54,6 +54,12 @@ class roles::vuln_scan (
   String $remote_scan_schedule = '*-*-* 05:30:00',
   # Importing hosts only: the account to push as (import-<host>).
   Optional[String] $dojo_user = undef,
+  # DefectDojo host only: fill EPSS and CISA KEV on the findings (the Trivy
+  # parser leaves them empty). After the 05:00 local and 05:30 remote scans, so
+  # it sees the night's new findings; the 05:06 health report reads the result
+  # one day later.
+  Boolean $enrich_enabled = false,
+  String $enrich_schedule = '*-*-* 06:15:00',
 ) {
   $dir = '/usr/local/libexec/vuln-scan'
 
@@ -194,12 +200,34 @@ class roles::vuln_scan (
     }
   }
 
+  if $enrich_enabled {
+    file { '/etc/systemd/system/dd-enrich.service':
+      ensure  => file,
+      mode    => '0644',
+      content => "[Unit]\nDescription=Fill EPSS and CISA KEV on the DefectDojo findings\nAfter=network-online.target\nWants=network-online.target\n\n[Service]\nType=oneshot\nEnvironment=DOJO_URL=${dojo_url}\nExecStart=/usr/bin/bash ${dir}/dd-enrich.sh\nTimeoutStartSec=1h\nNice=19\nStandardOutput=journal\nStandardError=journal\n",
+      require => File[$dir],
+    }
+
+    file { '/etc/systemd/system/dd-enrich.timer':
+      ensure  => file,
+      mode    => '0644',
+      content => "[Unit]\nDescription=Daily EPSS and CISA KEV enrichment of the DefectDojo findings\n\n[Timer]\nOnCalendar=${enrich_schedule}\nPersistent=true\nRandomizedDelaySec=5min\nUnit=dd-enrich.service\n\n[Install]\nWantedBy=timers.target\n",
+    }
+  }
+
   # Puppet's systemd service provider does not run `daemon-reload` on its
   # own when a unit file changes (same gotcha as roles::hawser_agent).
   $nuclei_units = $nuclei_enabled ? {
     true    => [
       File['/etc/systemd/system/nuclei-scan.service'],
       File['/etc/systemd/system/nuclei-scan.timer'],
+    ],
+    default => [],
+  }
+  $enrich_units = $enrich_enabled ? {
+    true    => [
+      File['/etc/systemd/system/dd-enrich.service'],
+      File['/etc/systemd/system/dd-enrich.timer'],
     ],
     default => [],
   }
@@ -215,7 +243,7 @@ class roles::vuln_scan (
     subscribe   => [
       File['/etc/systemd/system/trivy-scan.service'],
       File['/etc/systemd/system/trivy-scan.timer'],
-    ] + $nuclei_units + $remote_units,
+    ] + $nuclei_units + $enrich_units + $remote_units,
   }
 
   service { 'trivy-scan.timer':
@@ -223,6 +251,15 @@ class roles::vuln_scan (
     enable    => true,
     subscribe => File['/etc/systemd/system/trivy-scan.timer'],
     require   => Exec['trivy-scan-daemon-reload'],
+  }
+
+  if $enrich_enabled {
+    service { 'dd-enrich.timer':
+      ensure    => running,
+      enable    => true,
+      subscribe => File['/etc/systemd/system/dd-enrich.timer'],
+      require   => Exec['trivy-scan-daemon-reload'],
+    }
   }
 
   if $nuclei_enabled {

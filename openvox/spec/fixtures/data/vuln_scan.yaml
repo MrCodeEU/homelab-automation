@@ -1,0 +1,4 @@
+---
+services_catalog:
+  - name: example
+    domain: example.mljr.eu

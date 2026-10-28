@@ -65,6 +65,8 @@ roles::vuln_scan::dojo_url: 'http://100.100.10.1:8101'
 roles::vuln_scan::importers:
   - mljr
   - ugreen
+# EPSS + CISA KEV enrichment of the findings (dd-enrich.sh), DefectDojo host only.
+roles::vuln_scan::enrich_enabled: true
 # Hosts scanned from nuc through their Docker daemon over SSH (Unraid has no
 # agent and a tmpfs root, so nothing is installed there).
 roles::vuln_scan::remote_docker_scans:
