@@ -47,7 +47,11 @@ trap 'rm -rf "$workdir"' EXIT
 # nameserver on a Tailscale-DNS host (mljr) is 100.100.100.100, unreachable
 # from the bridge ("no route to host"), so the DB download failed for all targets.
 trivy() {
-  docker run --rm --network host --security-opt label=disable \
+  # --log-driver none: the scripts capture stdout themselves. With the default
+  # json-file driver the whole JSON report also landed in Docker's log, Alloy
+  # shipped it to Loki, and words like "thiserror" in CVE text became error
+  # signatures on a random container name (dreamy_goldberg, funny_clarke).
+  docker run --rm --log-driver none --network host --security-opt label=disable \
     -v trivy-cache:/root/.cache \
     -v /var/run/docker.sock:/var/run/docker.sock \
     "$@" </dev/null
