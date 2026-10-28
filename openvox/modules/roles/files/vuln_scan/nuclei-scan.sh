@@ -40,7 +40,11 @@ fi
 cp "$NUCLEI_TARGETS" "$workdir/targets.txt"
 
 nuclei() {
-  docker run --rm --security-opt label=disable \
+  # --log-driver none: the scripts capture stdout themselves. With the default
+  # json-file driver the whole JSON report also landed in Docker's log, Alloy
+  # shipped it to Loki, and words like "thiserror" in CVE text became error
+  # signatures on a random container name (dreamy_goldberg, funny_clarke).
+  docker run --rm --log-driver none --security-opt label=disable \
     -v nuclei-data:/root \
     -v "$workdir":/work \
     "$NUCLEI_IMAGE" "$@"
