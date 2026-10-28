@@ -1,6 +1,9 @@
 package collectors
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDowntimeMinutes(t *testing.T) {
 	cases := []struct {
@@ -26,5 +29,18 @@ func TestAvailabilityMessage(t *testing.T) {
 	}
 	if got := availabilityMessage("x", 100, 0, false); got != "x was 100.00% available over 24h (~0 min down)" {
 		t.Errorf("no-7d message wrong: %q", got)
+	}
+}
+
+func TestAvailabilityQueryExcludesMaintenance(t *testing.T) {
+	q := availabilityQuery("24h")
+	if !strings.Contains(q, "monitor_status != bool 3") {
+		t.Errorf("maintenance minutes must leave the denominator: %s", q)
+	}
+	if !strings.Contains(q, "monitor_status == bool 1") {
+		t.Errorf("only status 1 counts as up: %s", q)
+	}
+	if strings.Count(q, "24h:1m") != 2 {
+		t.Errorf("both sums must use the same window: %s", q)
 	}
 }

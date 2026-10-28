@@ -16,9 +16,13 @@ func init() {
 	hr.RegisterCollector("monitor_availability", collectMonitorAvailability)
 }
 
-// Kuma reports 1=up, 0=down, 2=pending, 3=maintenance; only 1 counts as up.
+// Kuma reports 1=up, 0=down, 2=pending, 3=maintenance. Only 1 counts as up,
+// but maintenance minutes leave the denominator: a scheduled window (the nightly
+// Unraid container update, the Nextcloud AIO backup) is planned, not downtime,
+// and counting it left nextcloud permanently at ~94% (80 min "down" a day).
+// A monitor that was in maintenance the whole window yields NaN and is skipped.
 func availabilityQuery(window string) string {
-	return fmt.Sprintf("100 * avg_over_time((monitor_status == bool 1)[%s:1m])", window)
+	return fmt.Sprintf("100 * sum_over_time((monitor_status == bool 1)[%[1]s:1m]) / sum_over_time((monitor_status != bool 3)[%[1]s:1m])", window)
 }
 
 func downtimeMinutes(availabilityPct float64, windowMinutes float64) float64 {
@@ -57,13 +61,16 @@ func collectMonitorAvailability(cfg hr.Config, rules hr.RulesFile) *hr.Collector
 	}
 	pct7 := map[string]float64{}
 	for _, s := range rows7 {
+		if math.IsNaN(s.value) {
+			continue
+		}
 		pct7[s.metric["monitor_name"]] = s.value
 	}
 
 	sort.Slice(rows24, func(i, j int) bool { return rows24[i].metric["monitor_name"] < rows24[j].metric["monitor_name"] })
 	for _, s := range rows24 {
 		name := s.metric["monitor_name"]
-		if name == "" {
+		if name == "" || math.IsNaN(s.value) {
 			continue
 		}
 		p7, has7 := pct7[name]
