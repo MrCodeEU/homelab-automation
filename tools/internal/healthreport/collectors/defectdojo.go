@@ -3,7 +3,13 @@
 // DefectDojo. DefectDojo holds everything, including the unfixable noise;
 // this collector surfaces only what is actionable:
 //
-//   - vuln_known_exploited: an active finding is on the CISA KEV list.
+//   - vuln_known_exploited: an active finding is on the CISA KEV list. One
+//     observation per CVE, not per scan target: a KEV-listed library such as
+//     Brotli sits in dozens of images and must read as one thing to fix.
+//   - vuln_high_epss: an active, fixable Critical/High CVE whose EPSS score
+//     (probability of exploitation in the next 30 days) is at least
+//     dojoEPSSThreshold. Also per CVE. The EPSS and KEV fields are filled
+//     daily by dd-enrich.sh; DefectDojo's Trivy parser leaves them empty.
 //   - vuln_new_fixable: Critical/High findings first seen within the
 //     lookback window that already have a fix available.
 //   - vuln_scan_stale: an engagement's newest scan is old, i.e. the nightly
@@ -30,17 +36,23 @@ import (
 // missed run, not just a late one.
 const dojoScanStaleAfter = 36 * time.Hour
 
+// A 10% chance of exploitation within 30 days is roughly the top few percent
+// of all CVEs; below that a fixable finding is routine patching, not a page.
+const dojoEPSSThreshold = 0.10
+
 func init() {
 	hr.RegisterCollector("defectdojo", collectDefectDojo)
 }
 
 type dojoFinding struct {
-	Title           string `json:"title"`
-	Severity        string `json:"severity"`
-	Date            string `json:"date"`
-	Test            int    `json:"test"`
-	FixAvailable    bool   `json:"fix_available"`
-	KnownExploited  bool   `json:"known_exploited"`
+	Title           string   `json:"title"`
+	Severity        string   `json:"severity"`
+	Date            string   `json:"date"`
+	Test            int      `json:"test"`
+	FixAvailable    bool     `json:"fix_available"`
+	KnownExploited  bool     `json:"known_exploited"`
+	KevDate         string   `json:"kev_date"`
+	EpssScore       *float64 `json:"epss_score"`
 	VulnerabilityID []struct {
 		ID string `json:"vulnerability_id"`
 	} `json:"vulnerability_ids"`
@@ -149,17 +161,6 @@ func dojoFindingObservations(findings, kev []dojoFinding, labels map[int]string,
 		g.count++
 		g.ids = append(g.ids, dojoFindingName(f))
 	}
-	exploited := map[int]*group{}
-	for _, f := range kev {
-		g := exploited[f.Test]
-		if g == nil {
-			g = &group{}
-			exploited[f.Test] = g
-		}
-		g.count++
-		g.ids = append(g.ids, dojoFindingName(f))
-	}
-
 	var out []*hr.Observation
 	emit := func(groups map[int]*group, kind, format string) {
 		tests := make([]int, 0, len(groups))
@@ -183,8 +184,88 @@ func dojoFindingObservations(findings, kev []dojoFinding, labels map[int]string,
 			})
 		}
 	}
-	emit(exploited, "vuln_known_exploited", "%d actively exploited (CISA KEV) finding(s) in %s, e.g. %s")
 	emit(fresh, "vuln_new_fixable", "%d new Critical/High finding(s) with a fix available in %s, e.g. %s")
+
+	out = append(out, dojoCVEObservations(kev, labels, "vuln_known_exploited",
+		"%s is actively exploited (CISA KEV%s) and affects %d scan target(s), e.g. %s",
+		func(dojoFinding) bool { return true })...)
+	out = append(out, dojoCVEObservations(findings, labels, "vuln_high_epss",
+		"%s has a %.0f%% exploitation probability (EPSS) with a fix available and affects %d scan target(s), e.g. %s",
+		func(f dojoFinding) bool {
+			return f.FixAvailable && !f.KnownExploited && f.EpssScore != nil && *f.EpssScore >= dojoEPSSThreshold
+		})...)
+	return out
+}
+
+// dojoCVEObservations emits one observation per CVE over the findings that
+// pass keep, counting distinct scan targets. The format takes the CVE, then
+// either the KEV date suffix or the EPSS percentage, the target count and the
+// first targets.
+func dojoCVEObservations(findings []dojoFinding, labels map[int]string, kind, format string, keep func(dojoFinding) bool) []*hr.Observation {
+	type cve struct {
+		targets map[string]bool
+		epss    float64
+		kevDate string
+	}
+	groups := map[string]*cve{}
+	for _, f := range findings {
+		if !keep(f) {
+			continue
+		}
+		name := dojoFindingName(f)
+		g := groups[name]
+		if g == nil {
+			g = &cve{targets: map[string]bool{}}
+			groups[name] = g
+		}
+		label := labels[f.Test]
+		if label == "" {
+			label = fmt.Sprintf("test %d", f.Test)
+		}
+		g.targets[label] = true
+		if f.EpssScore != nil && *f.EpssScore > g.epss {
+			g.epss = *f.EpssScore
+		}
+		if f.KevDate != "" {
+			g.kevDate = f.KevDate
+		}
+	}
+	names := make([]string, 0, len(groups))
+	for name := range groups {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var out []*hr.Observation
+	for _, name := range names {
+		g := groups[name]
+		targets := make([]string, 0, len(g.targets))
+		for t := range g.targets {
+			targets = append(targets, t)
+		}
+		sort.Strings(targets)
+		var message string
+		if kind == "vuln_known_exploited" {
+			added := ""
+			if g.kevDate != "" {
+				added = ", listed " + g.kevDate
+			}
+			message = fmt.Sprintf(format, name, added, len(targets), strings.Join(dojoFirstN(targets, 3), ", "))
+		} else {
+			message = fmt.Sprintf(format, name, g.epss*100, len(targets), strings.Join(dojoFirstN(targets, 3), ", "))
+		}
+		evidence := map[string]any{"targets": dojoFirstN(targets, 10), "target_count": len(targets)}
+		if g.epss > 0 {
+			evidence["epss"] = g.epss
+		}
+		if g.kevDate != "" {
+			evidence["kev_date"] = g.kevDate
+		}
+		out = append(out, &hr.Observation{
+			ID: kind + "." + name + ".", Collector: "defectdojo", Subject: name, Kind: kind,
+			Value: len(targets), Unit: "targets", Message: message, Evidence: evidence, Severity: "info",
+		})
+	}
 	return out
 }
 

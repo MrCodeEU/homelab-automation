@@ -375,19 +375,30 @@ rules:
     type: present
     level: crit
 
-  # DefectDojo (nightly Trivy + Nuclei imports). It stores everything;
-  # these three are the actionable subset. A CISA KEV finding is exploited in
-  # the wild and stays crit until fixed. New Critical/High findings that
-  # already have a fix show up once, the day they are first imported. A stale
-  # scan means a nightly timer stopped, which would otherwise look like
-  # "nothing found".
+  # DefectDojo (nightly Trivy + Nuclei imports). It stores everything; the
+  # report surfaces what is worth acting on, ranked by exploitability (EPSS and
+  # CISA KEV are filled daily by dd-enrich.sh, Trivy's own parser leaves them
+  # empty):
+  #   - KEV: exploited in the wild, crit until fixed. One line per CVE, not per
+  #     image, because a KEV-listed library sits in dozens of images.
+  #   - high EPSS (>= 10% chance of exploitation in 30 days) with a fix: warn,
+  #     also per CVE.
+  #   - new_fixable: every new Critical/High with a fix, one line per image.
+  #     That is a patching digest, not an alert (the first full scan found 41
+  #     warnings for ~5,400 findings), so it stays info.
+  # A stale scan means a nightly timer stopped, which would otherwise look
+  # like "nothing found".
   vuln_known_exploited:
     type: present
     level: crit
 
-  vuln_new_fixable:
+  vuln_high_epss:
     type: present
     level: warn
+
+  vuln_new_fixable:
+    type: present
+    level: info
 
   vuln_scan_stale:
     type: present

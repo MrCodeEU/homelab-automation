@@ -53,18 +53,24 @@ func fakeDojo(t *testing.T, now time.Time, lastScan time.Time) *httptest.Server 
 			switch {
 			case q.Get("known_exploited") == "true":
 				_, _ = w.Write([]byte(dojoPage([]map[string]any{
-					{"title": "t", "severity": "High", "date": old, "test": 2, "known_exploited": true, "vulnerability_ids": vuln("CVE-2024-0001")},
-				}, 1)))
+					{"title": "t", "severity": "High", "date": old, "test": 2, "known_exploited": true, "kev_date": "2026-10-27", "epss_score": 0.88, "vulnerability_ids": vuln("CVE-2024-0001")},
+					// the same CVE in a second target: one observation, two targets
+					{"title": "t", "severity": "High", "date": old, "test": 1, "known_exploited": true, "kev_date": "2026-10-27", "epss_score": 0.88, "vulnerability_ids": vuln("CVE-2024-0001")},
+				}, 2)))
 			case q.Get("severity") == "Critical":
 				_, _ = w.Write([]byte(dojoPage([]map[string]any{
 					// new + fixable: counts
-					{"title": "a", "severity": "Critical", "date": today, "test": 1, "fix_available": true, "vulnerability_ids": vuln("CVE-2026-1111")},
+					{"title": "a", "severity": "Critical", "date": today, "test": 1, "fix_available": true, "epss_score": 0.34, "vulnerability_ids": vuln("CVE-2026-1111")},
 					{"title": "b", "severity": "Critical", "date": today, "test": 1, "fix_available": true, "vulnerability_ids": vuln("CVE-2026-2222")},
 					// new but no fix: must not count
 					{"title": "c", "severity": "Critical", "date": today, "test": 1, "fix_available": false, "vulnerability_ids": vuln("CVE-2026-3333")},
 					// fixable but old (already known): must not count
 					{"title": "d", "severity": "Critical", "date": old, "test": 1, "fix_available": true, "vulnerability_ids": vuln("CVE-2020-4444")},
-				}, 4)))
+					// high EPSS but no fix: nothing to act on, must not page
+					{"title": "e", "severity": "Critical", "date": old, "test": 1, "fix_available": false, "epss_score": 0.9, "vulnerability_ids": vuln("CVE-2026-5555")},
+					// fixable but a 1% exploitation chance: routine patching
+					{"title": "f", "severity": "Critical", "date": old, "test": 2, "fix_available": true, "epss_score": 0.01, "vulnerability_ids": vuln("CVE-2026-6666")},
+				}, 6)))
 			default:
 				_, _ = w.Write([]byte(dojoPage([]map[string]any{}, 0)))
 			}
@@ -102,8 +108,18 @@ func TestDefectDojoReportsOnlyActionableFindings(t *testing.T) {
 		t.Fatalf("id = %q", fixable[0].ID)
 	}
 	exploited := kinds["vuln_known_exploited"]
-	if len(exploited) != 1 || exploited[0].Subject != "nuc: host packages" || exploited[0].Value != 1 {
-		t.Fatalf("vuln_known_exploited = %+v, want the KEV finding in host packages", exploited)
+	if len(exploited) != 1 || exploited[0].Subject != "CVE-2024-0001" || exploited[0].Value != 2 {
+		t.Fatalf("vuln_known_exploited = %+v, want one observation for the CVE across 2 targets", exploited)
+	}
+	if exploited[0].ID != "vuln_known_exploited.CVE-2024-0001." || !strings.Contains(exploited[0].Message, "listed 2026-10-27") {
+		t.Fatalf("kev id/message = %q / %q", exploited[0].ID, exploited[0].Message)
+	}
+	likely := kinds["vuln_high_epss"]
+	if len(likely) != 1 || likely[0].Subject != "CVE-2026-1111" || likely[0].Value != 1 {
+		t.Fatalf("vuln_high_epss = %+v, want only the fixable CVE-2026-1111 at EPSS 0.34", likely)
+	}
+	if !strings.Contains(likely[0].Message, "34%") {
+		t.Fatalf("epss message = %q", likely[0].Message)
 	}
 	if len(kinds["vuln_scan_stale"]) != 0 {
 		t.Fatalf("fresh scan reported stale: %+v", kinds["vuln_scan_stale"])
