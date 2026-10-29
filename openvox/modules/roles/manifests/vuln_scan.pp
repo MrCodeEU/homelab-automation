@@ -34,7 +34,7 @@ class roles::vuln_scan (
   # Pin on purpose: a Trivy bump can change the report format. Check
   # DefectDojo's Trivy parser before raising it.
   String $trivy_image   = 'ghcr.io/aquasecurity/trivy:0.76.1',
-  # After the 03:00 backups, before the 06:00 health report.
+  # After the 03:00 backups, before the 06:15 health report.
   String $scan_schedule = '*-*-* 05:00:00',
   # Pin on purpose, same reasoning as $trivy_image (the JSONL format).
   String $nuclei_image  = 'docker.io/projectdiscovery/nuclei:v3.11.1',
@@ -56,10 +56,10 @@ class roles::vuln_scan (
   Optional[String] $dojo_user = undef,
   # DefectDojo host only: fill EPSS and CISA KEV on the findings (the Trivy
   # parser leaves them empty). After the 05:00 local and 05:30 remote scans, so
-  # it sees the night's new findings; the 05:06 health report reads the result
-  # one day later.
+  # it sees the night's new findings; the 06:15 health report reads the result
+  # the same morning.
   Boolean $enrich_enabled = false,
-  String $enrich_schedule = '*-*-* 06:15:00',
+  String $enrich_schedule = '*-*-* 05:55:00',
 ) {
   $dir = '/usr/local/libexec/vuln-scan'
 

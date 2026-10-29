@@ -23,7 +23,7 @@ describe 'roles::vuln_scan' do
         'ExecStart=/usr/bin/bash /usr/local/libexec/vuln-scan/dd-enrich.sh',
         'Type=oneshot',
       )
-      expect(timer[:content]).to include('OnCalendar=*-*-* 06:15:00', 'Persistent=true')
+      expect(timer[:content]).to include('OnCalendar=*-*-* 05:55:00', 'Persistent=true')
       is_expected.to contain_service('dd-enrich.timer').with(ensure: 'running', enable: true)
     end
 

@@ -204,9 +204,15 @@ rules:
   # finding. mljr sat 15 weeks on a superseded kernel with every fix already on
   # disk, and nothing in the report said so - the advisory count looked like
   # missing patches instead of a missing reboot.
+  #
+  # mljr/nuc reboot in the weekly maintenance run when needed, so a pending
+  # reboot younger than a week is just "waiting for its normal window". Only
+  # flag it once it has outlived that cycle. nas/ugreen are not rebooted by
+  # the workflow, but the same grace is harmless there.
   reboot_required:
     type: present
     level: warn
+    min_age_days: 7
 
   crowdsec_absent:
     type: present

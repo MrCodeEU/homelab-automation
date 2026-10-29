@@ -218,3 +218,23 @@ func TestMinAgeDaysWithNoFirstSeenStaysInfo(t *testing.T) {
 		t.Errorf("got %s", got)
 	}
 }
+
+func TestRebootRequiredGraceWeek(t *testing.T) {
+	rules := loadTestRules(t)
+	now := time.Date(2026, 10, 29, 6, 0, 0, 0, time.UTC)
+	cases := []struct {
+		firstSeen string
+		want      string
+	}{
+		{"", "info"},
+		{now.Add(-2 * 24 * time.Hour).Format(time.RFC3339), "info"},
+		{now.Add(-8 * 24 * time.Hour).Format(time.RFC3339), "warn"},
+	}
+	for _, c := range cases {
+		obs := testObs("reboot_required", "6.12.0", "nuc")
+		obs.FirstSeen = c.firstSeen
+		if got := Classify(obs, rules.Rules["reboot_required"], false, &now); got != c.want {
+			t.Errorf("first_seen=%q expected %s, got %s", c.firstSeen, c.want, got)
+		}
+	}
+}
