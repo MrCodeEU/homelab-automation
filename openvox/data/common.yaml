@@ -692,7 +692,7 @@ services_catalog:
     managed: true
     port: 2322
     host: nas
-    description: "Photon geocoder (planet index) for Dawarich. LAN only, no Caddy route."
+    description: "Photon geocoder (planet index) for Dawarich. Bound to the nas Tailscale IP only, no Caddy route."
     icon: "mdi:map-search"
 
   - name: nextcloud-notify
