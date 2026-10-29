@@ -227,7 +227,7 @@ class roles::services (
       'ugreen_ip'              => '100.100.10.4',
       'homeassistant_ip'       => '100.100.10.200',
       'kuma_api_key'           => lookup('vault_kuma_api_key', { 'default_value' => '' }),
-      'healthreport_schedule'  => '*-*-* 06:00:00',
+      'healthreport_schedule'  => '*-*-* 06:15:00',
       'healthreport_model'     => 'qwen3:8b',
       'healthreport_llm_enabled' => 'true',
       'healthreport_llm_timeout' => '300',

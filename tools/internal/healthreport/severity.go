@@ -268,6 +268,15 @@ func Classify(obs *Observation, rule Rule, isNew bool, now *time.Time) string {
 		if level == "" {
 			level = "warn"
 		}
+		if rule.MinAgeDays != nil {
+			// Same grace as threshold rules: a condition that a routine
+			// cycle (e.g. the weekly reboot) clears is only worth flagging
+			// once it has outlived that cycle.
+			age, ok := ageDays(obs.FirstSeen, now)
+			if !ok || age < *rule.MinAgeDays {
+				return "info"
+			}
+		}
 		return level
 
 	case "new_only":

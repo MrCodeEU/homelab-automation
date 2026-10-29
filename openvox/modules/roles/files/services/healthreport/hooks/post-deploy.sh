@@ -9,7 +9,7 @@ set -euo pipefail
 
 SERVICE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UNIT_NAME="homelab-healthreport"
-SCHEDULE="${HEALTHREPORT_SCHEDULE:-*-*-* 06:00:00}"
+SCHEDULE="${HEALTHREPORT_SCHEDULE:-*-*-* 06:15:00}"
 
 cd "$SERVICE_DIR"
 
