@@ -51,6 +51,25 @@ class roles::backup (
   String        $backup_schedule = '*-*-* 03:00:00',
   String        $verification_integrity_schedule = 'Sun *-*-* 04:30:00',
   String        $verification_restore_schedule = 'Sun *-*-01..07 08:30:00',
+  # Real restore checks run by the monthly "restore" verification, always
+  # filtered to services/volumes in this host's backup contract. Postgres:
+  # the dump is fetched from the remote (so the offsite copy is what gets
+  # proven), loaded into a throwaway container with no network, and must
+  # yield user tables. A dump over max_restore_mib is only checked for its
+  # header, its end marker and its age (mail-archiver is multi-GiB).
+  Hash          $verification_restore_postgres = {
+    'forgejo'       => { 'dump' => 'forgejo-dumps/forgejo.sql', 'image' => 'postgres:18.6-alpine' },
+    'defectdojo'    => { 'dump' => 'defectdojo-dumps/defectdojo.sql', 'image' => 'postgres:18.6-alpine' },
+    'nocturne'      => { 'dump' => 'nocturne-dumps/nocturne.sql', 'image' => 'postgres:18.6-alpine' },
+    'umami'         => { 'dump' => 'umami-dumps/umami.sql', 'image' => 'postgres:18.6-alpine' },
+    'mail-archiver' => { 'dump' => 'mail-archiver-dumps/mail-archiver.sql', 'image' => 'postgres:18.6-alpine' },
+    'sure'          => { 'dump' => 'sure-dumps/sure.sql', 'image' => 'postgres:16' },
+  },
+  # SQLite volumes: copied back from the remote and PRAGMA integrity_check
+  # run on every *.db / *.sqlite file inside.
+  Array[String] $verification_restore_sqlite_volumes = ['kuma_uptime-kuma-sqlite', 'actual-budget-data', 'glucava-data'],
+  Integer       $verification_restore_max_mib = 1024,
+  Integer       $verification_dump_max_age_hours = 72,
   Boolean       $history_enabled = false,
   String        $history_remote_path = 'homelab-backups-history',
   Integer       $history_daily = 14,
@@ -404,6 +423,12 @@ class roles::backup (
     'hostname'    => $hostname,
     'ntfy_url'    => $verification_ntfy_url,
     'host_configs' => $host_configs,
+    'restore_postgres' => $verification_restore_postgres.filter |$svc, $cfg| { $svc in $host_configs },
+    'restore_sqlite'   => $verification_restore_sqlite_volumes.filter |$vol| {
+      $host_configs.any |$svc, $cfg| { $vol in $cfg['volumes'] }
+    },
+    'restore_max_mib'  => $verification_restore_max_mib,
+    'dump_max_age_h'   => $verification_dump_max_age_hours,
   })
 
   # ==========================================================================
