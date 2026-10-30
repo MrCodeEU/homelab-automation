@@ -4,6 +4,10 @@
       String $hostname,
       String $ntfy_url,
       Hash $host_configs,
+      Hash $restore_postgres,
+      Array[String] $restore_sqlite,
+      Integer $restore_max_mib,
+      Integer $dump_max_age_h,
 | -%>
 #!/usr/bin/env bash
 # Read-only backup integrity and disposable restore verifier.
@@ -20,9 +24,18 @@ NTFY_URL="<%= $ntfy_url %>"
 STATE_DIR="${LOCAL_PATH}/verification"
 STATUS="${STATE_DIR}/status.json"
 RESULTS=$(mktemp)
-WORK=$(mktemp -d)
-trap 'rm -f "$RESULTS"; rm -rf "$WORK"' EXIT
 mkdir -p "$STATE_DIR"
+# Under the backup tree, not /tmp: dumps are large and /tmp may be RAM-backed.
+WORK=$(mktemp -d -p "$STATE_DIR" work.XXXXXX)
+PG_CONTAINER=""
+PG_VOLUME=""
+cleanup() {
+  [[ -n "$PG_CONTAINER" ]] && docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
+  [[ -n "$PG_VOLUME" ]] && docker volume rm -f "$PG_VOLUME" >/dev/null 2>&1 || true
+  rm -f "$RESULTS"
+  rm -rf "$WORK"
+}
+trap cleanup EXIT
 # The integrity and restore systemd instances share one status document and
 # pCloud bandwidth. A later invocation is harmlessly skipped instead of
 # racing the active one or doubling the remote load.
@@ -102,6 +115,132 @@ restore_sample() {
   fi
 }
 
+RESTORE_MAX_BYTES=$(( <%= $restore_max_mib %> * 1024 * 1024 ))
+DUMP_MAX_AGE_S=$(( <%= $dump_max_age_h %> * 3600 ))
+
+result() { printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$RESULTS"; }
+
+# Restores one pg_dump (plain SQL) from the remote into a throwaway Postgres
+# with no network and a disposable volume, then requires user tables.
+restore_postgres() {
+  local svc="$1" dump="$2" image="$3" name="restore_pg:${1}"
+  local remote_file="${REMOTE}/paths/${dump}" meta size mtime age file roles tables
+  meta=$(rclone lsjson "$remote_file" --stat 2>/dev/null) || { result "$name" failed "dump missing on remote: ${dump}"; return; }
+  size=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["Size"])' "$meta")
+  mtime=$(python3 -c 'import json,sys; from datetime import datetime; print(int(datetime.fromisoformat(json.loads(sys.argv[1])["ModTime"].replace("Z","+00:00")).timestamp()))' "$meta")
+  age=$(( $(date +%s) - mtime ))
+  if (( age > DUMP_MAX_AGE_S )); then
+    result "$name" failed "dump is $(( age / 3600 ))h old (limit <%= $dump_max_age_h %>h)"; return
+  fi
+  if (( size < 1024 )); then
+    result "$name" failed "dump is only ${size} bytes"; return
+  fi
+  if (( size > RESTORE_MAX_BYTES )); then
+    # Too big to restore monthly: still prove it is a complete pg_dump.
+    local head_ok tail_ok
+    head_ok=$(rclone cat "$remote_file" --count 4096 2>/dev/null | grep -ac 'PostgreSQL database dump' || true)
+    tail_ok=$(rclone cat "$remote_file" --offset $(( size - 512 )) 2>/dev/null | grep -ac 'PostgreSQL database dump complete' || true)
+    if (( head_ok > 0 && tail_ok > 0 )); then
+      result "$name" ok "$(( size / 1048576 )) MiB, header+end marker only (over restore limit), $(( age / 3600 ))h old"
+    else
+      result "$name" failed "large dump is incomplete (header=${head_ok} end=${tail_ok})"
+    fi
+    return
+  fi
+  file="${WORK}/${svc}.sql"
+  if ! rclone copyto "$remote_file" "$file" --stats=0 --log-level ERROR; then
+    result "$name" failed "download from remote failed"; return
+  fi
+  PG_CONTAINER="verify-pg-${svc}-$$"
+  PG_VOLUME="verify-pg-${svc}-$$"
+  docker volume create "$PG_VOLUME" >/dev/null
+  if ! docker run -d --name "$PG_CONTAINER" --network none -e POSTGRES_PASSWORD=verify \
+      -v "${PG_VOLUME}:/var/lib/postgresql" "$image" >/dev/null 2>&1; then
+    result "$name" failed "could not start ${image}"
+    docker volume rm -f "$PG_VOLUME" >/dev/null 2>&1 || true
+    PG_CONTAINER=""; PG_VOLUME=""
+    return
+  fi
+  local ready=""
+  for _ in $(seq 1 60); do
+    # The image restarts postgres once after init; two successes in a row
+    # avoids connecting to the temporary init instance.
+    if docker exec "$PG_CONTAINER" pg_isready -U postgres -q 2>/dev/null; then
+      sleep 2
+      docker exec "$PG_CONTAINER" pg_isready -U postgres -q 2>/dev/null && { ready=1; break; }
+    fi
+    sleep 1
+  done
+  if [[ -z "$ready" ]]; then
+    result "$name" failed "throwaway postgres never became ready"
+  else
+    # Plain dumps carry OWNER TO <role>; the roles live outside the dump.
+    roles=$(grep -aoE 'OWNER TO [A-Za-z0-9_"]+' "$file" | awk '{print $3}' | sort -u || true)
+    local role
+    for role in $roles; do
+      docker exec "$PG_CONTAINER" psql -U postgres -qc "CREATE ROLE ${role} SUPERUSER" >/dev/null 2>&1 || true
+    done
+    if docker exec -i "$PG_CONTAINER" psql -U postgres -q -v ON_ERROR_STOP=1 -o /dev/null < "$file" >"${WORK}/${svc}.psql.log" 2>&1; then
+      tables=$(docker exec "$PG_CONTAINER" psql -U postgres -Atc "select count(*) from pg_stat_user_tables" 2>/dev/null || echo 0)
+      if (( tables > 0 )); then
+        result "$name" ok "$(( size / 1048576 )) MiB restored, ${tables} tables, $(( age / 3600 ))h old"
+      else
+        result "$name" failed "restore ran but produced no tables"
+      fi
+    else
+      result "$name" failed "psql restore failed: $(tail -n 1 "${WORK}/${svc}.psql.log" | cut -c1-160)"
+    fi
+  fi
+  docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
+  docker volume rm -f "$PG_VOLUME" >/dev/null 2>&1 || true
+  PG_CONTAINER=""; PG_VOLUME=""
+  rm -f "$file"
+}
+
+# Copies a SQLite-bearing volume back from the remote and runs
+# PRAGMA integrity_check on every database file in it.
+restore_sqlite() {
+  local volume="$1" name="restore_sqlite:${1}" dest="${WORK}/sqlite-${1}" out
+  if ! rclone copy "${REMOTE}/volumes/${volume}" "$dest" --max-size "<%= $restore_max_mib %>M" --stats=0 --log-level ERROR; then
+    result "$name" failed "download from remote failed"; return
+  fi
+  out=$(python3 - "$dest" <<'SQLITE_PY'
+import os, sqlite3, sys
+root = sys.argv[1]
+checked, bad = 0, []
+for dirpath, _, files in os.walk(root):
+    for f in files:
+        if not f.endswith(('.db', '.sqlite', '.sqlite3')):
+            continue
+        path = os.path.join(dirpath, f)
+        try:
+            with open(path, 'rb') as fh:
+                if fh.read(16) != b'SQLite format 3\x00':
+                    continue
+            con = sqlite3.connect(path)
+            row = con.execute('PRAGMA integrity_check').fetchone()
+            con.close()
+            checked += 1
+            if not row or row[0] != 'ok':
+                bad.append(f'{os.path.relpath(path, root)}: {row[0] if row else "no result"}')
+        except sqlite3.Error as exc:
+            checked += 1
+            bad.append(f'{os.path.relpath(path, root)}: {exc}')
+if bad:
+    print('BAD ' + '; '.join(bad)[:200])
+elif checked == 0:
+    print('NONE no sqlite database found')
+else:
+    print(f'OK {checked} database file(s) pass integrity_check')
+SQLITE_PY
+)
+  case "$out" in
+    OK*) result "$name" ok "${out#OK }" ;;
+    *)   result "$name" failed "${out#* }" ;;
+  esac
+  rm -rf "$dest"
+}
+
 if [[ "$MODE" == integrity ]]; then
   # The local snapshot area is intentionally retained across service moves.
   # Verify only volumes in this host's current backup contract; retired or
@@ -114,6 +253,12 @@ if [[ "$MODE" == integrity ]]; then
   check_tree paths "${LOCAL_PATH}/paths" "${REMOTE}/paths"
 else
   restore_sample
+<% $restore_postgres.each |String $service, Hash $cfg| { -%>
+  restore_postgres '<%= $service %>' '<%= $cfg['dump'] %>' '<%= $cfg['image'] %>'
+<% } -%>
+<% $restore_sqlite.each |String $volume| { -%>
+  restore_sqlite '<%= $volume %>'
+<% } -%>
 fi
 
 FINAL_STATE=ok

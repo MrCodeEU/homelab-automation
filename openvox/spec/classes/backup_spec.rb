@@ -87,6 +87,38 @@ describe 'roles::backup' do
     end
   end
 
+  context 'restore verification' do
+    let(:verify) { catalogue.resource('file', '/opt/backups/scripts/verify.sh')[:content] }
+
+    it 'restores dumps only for services in this host\'s contract' do
+      expect(verify).to match(%r{^  restore_postgres 'forgejo' 'forgejo-dumps/forgejo\.sql' 'postgres:18\.6-alpine'$})
+      expect(verify).to match(%r{^  restore_postgres 'umami' 'umami-dumps/umami\.sql'})
+      expect(verify).not_to match(%r{restore_postgres 'sure'})
+      expect(verify).not_to match(%r{restore_postgres 'defectdojo'})
+    end
+
+    it 'checks only SQLite volumes that are in the contract' do
+      # neither kuma, actual-budget nor glucava is selected here
+      expect(verify).not_to match(%r{^  restore_sqlite })
+    end
+
+    it 'runs the throwaway restore without network and cleans up' do
+      expect(verify).to match(%r{--network none})
+      expect(verify).to match(%r{docker volume rm -f "\$PG_VOLUME"})
+      expect(verify).to match(%r{DUMP_MAX_AGE_S=\$\(\( 72 \* 3600 \)\)})
+    end
+
+    context 'with kuma and glucava selected' do
+      let(:params) { super().merge(services: ['kuma', 'glucava']) }
+
+      it do
+        expect(verify).to match(%r{^  restore_sqlite 'kuma_uptime-kuma-sqlite'$})
+        expect(verify).to match(%r{^  restore_sqlite 'glucava-data'$})
+        expect(verify).not_to match(%r{restore_sqlite 'actual-budget-data'})
+      end
+    end
+  end
+
   context 'when backup CPU quota is configured' do
     let(:params) do
       super().merge(cpu_quota: '35%')

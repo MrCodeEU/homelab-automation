@@ -1,0 +1,321 @@
+#!/usr/bin/env bash
+# Read-only backup integrity and disposable restore verifier.
+# Managed by OpenVox. It never touches live service data or retention state.
+set -euo pipefail
+
+MODE="${1:-integrity}"
+case "$MODE" in integrity|restore) ;; *) echo "usage: $0 [integrity|restore]" >&2; exit 2;; esac
+
+LOCAL_PATH="/opt/backups"
+REMOTE="pcloud:homelab-backups"
+HOST="spec-host"
+NTFY_URL="https://ntfy.mljr.eu/homelab-health"
+STATE_DIR="${LOCAL_PATH}/verification"
+STATUS="${STATE_DIR}/status.json"
+RESULTS=$(mktemp)
+mkdir -p "$STATE_DIR"
+# Under the backup tree, not /tmp: dumps are large and /tmp may be RAM-backed.
+WORK=$(mktemp -d -p "$STATE_DIR" work.XXXXXX)
+PG_CONTAINER=""
+PG_VOLUME=""
+cleanup() {
+  [[ -n "$PG_CONTAINER" ]] && docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
+  [[ -n "$PG_VOLUME" ]] && docker volume rm -f "$PG_VOLUME" >/dev/null 2>&1 || true
+  rm -f "$RESULTS"
+  rm -rf "$WORK"
+}
+trap cleanup EXIT
+# The integrity and restore systemd instances share one status document and
+# pCloud bandwidth. A later invocation is harmlessly skipped instead of
+# racing the active one or doubling the remote load.
+exec 9>"${STATE_DIR}/verify.lock"
+if ! flock -n 9; then
+  echo "backup verification already running; skipping ${MODE}" >&2
+  exit 0
+fi
+
+# An initial result establishes the baseline silently. Thereafter alert only
+# on a state change: a failed verification and its eventual recovery matter;
+# repeating either result on every run would not.
+PREVIOUS_STATE=$(python3 - "$STATUS" "$MODE" <<'PY'
+import json, sys
+try:
+    with open(sys.argv[1], encoding='utf-8') as fh:
+        payload = json.load(fh)
+    mode = sys.argv[2]
+    checks = payload.get('checks', {})
+    if isinstance(checks, dict):
+        state = checks.get(mode, {}).get('state')
+    elif payload.get('last_mode') == mode:
+        state = payload.get('state')
+    else:
+        state = ''
+    print(state if state in ('ok', 'failed') else '')
+except (OSError, ValueError, TypeError):
+    print('')
+PY
+)
+
+check_tree() {
+  local name="$1" local_tree="$2" remote_tree="$3"
+  if [[ ! -d "$local_tree" ]]; then
+    printf '%s\tskipped\tlocal path absent\n' "$name" >> "$RESULTS"
+    return
+  fi
+  # pCloud has high per-directory listing latency. The backup trees are
+  # bounded, so a single in-memory listing is preferable to many API walks.
+  if rclone check "$local_tree" "$remote_tree" --one-way --fast-list --stats=0 --log-level ERROR; then
+    printf '%s\tok\t\n' "$name" >> "$RESULTS"
+  else
+    printf '%s\tfailed\trclone check failed\n' "$name" >> "$RESULTS"
+  fi
+}
+
+restore_sample() {
+  local sample relative remote_sample restored sample_root
+  sample=""
+  # Restrict sampling to the same current backup contract as integrity checks.
+  # The snapshot tree intentionally retains data for retired/moved services;
+  # restoring one of those files proves nothing about today's recoverability.
+  # Prefer ordinary path backups, then current service volumes.
+  local -a sample_roots=("${LOCAL_PATH}/paths"
+    "${LOCAL_PATH}/volumes/kuma_uptime-kuma-sqlite"
+    "${LOCAL_PATH}/volumes/forgejo-data"
+    "${LOCAL_PATH}/volumes/forgejo-db-data"
+    "${LOCAL_PATH}/volumes/umami_umami-db-data-v18"
+    "${LOCAL_PATH}/volumes/glucava-data"
+    "${LOCAL_PATH}/volumes/sure-app-storage"
+    "${LOCAL_PATH}/volumes/sure-postgres-data"
+  )
+  for sample_root in "${sample_roots[@]}"; do
+    [[ -d "$sample_root" ]] || continue
+    sample=$(find "$sample_root" -type f -size -64M -print -quit 2>/dev/null || true)
+    [[ -n "$sample" ]] && break
+  done
+  if [[ -z "$sample" ]]; then
+    printf 'sample_restore\tskipped\tno bounded sample file\n' >> "$RESULTS"
+    return
+  fi
+  relative="${sample#${LOCAL_PATH}/}"
+  remote_sample="${REMOTE}/${relative}"
+  restored="${WORK}/sample"
+  if rclone copyto "$remote_sample" "$restored" --stats=0 --log-level ERROR && cmp -s "$sample" "$restored"; then
+    printf 'sample_restore\tok\t%s\n' "$relative" >> "$RESULTS"
+  else
+    printf 'sample_restore\tfailed\trestored sample differs or is unreadable\n' >> "$RESULTS"
+  fi
+}
+
+RESTORE_MAX_BYTES=$(( 1024 * 1024 * 1024 ))
+DUMP_MAX_AGE_S=$(( 72 * 3600 ))
+
+result() { printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$RESULTS"; }
+
+# Restores one pg_dump (plain SQL) from the remote into a throwaway Postgres
+# with no network and a disposable volume, then requires user tables.
+restore_postgres() {
+  local svc="$1" dump="$2" image="$3" name="restore_pg:${1}"
+  local remote_file="${REMOTE}/paths/${dump}" meta size mtime age file roles tables
+  meta=$(rclone lsjson "$remote_file" --stat 2>/dev/null) || { result "$name" failed "dump missing on remote: ${dump}"; return; }
+  size=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["Size"])' "$meta")
+  mtime=$(python3 -c 'import json,sys; from datetime import datetime; print(int(datetime.fromisoformat(json.loads(sys.argv[1])["ModTime"].replace("Z","+00:00")).timestamp()))' "$meta")
+  age=$(( $(date +%s) - mtime ))
+  if (( age > DUMP_MAX_AGE_S )); then
+    result "$name" failed "dump is $(( age / 3600 ))h old (limit 72h)"; return
+  fi
+  if (( size < 1024 )); then
+    result "$name" failed "dump is only ${size} bytes"; return
+  fi
+  if (( size > RESTORE_MAX_BYTES )); then
+    # Too big to restore monthly: still prove it is a complete pg_dump.
+    local head_ok tail_ok
+    head_ok=$(rclone cat "$remote_file" --count 4096 2>/dev/null | grep -ac 'PostgreSQL database dump' || true)
+    tail_ok=$(rclone cat "$remote_file" --offset $(( size - 512 )) 2>/dev/null | grep -ac 'PostgreSQL database dump complete' || true)
+    if (( head_ok > 0 && tail_ok > 0 )); then
+      result "$name" ok "$(( size / 1048576 )) MiB, header+end marker only (over restore limit), $(( age / 3600 ))h old"
+    else
+      result "$name" failed "large dump is incomplete (header=${head_ok} end=${tail_ok})"
+    fi
+    return
+  fi
+  file="${WORK}/${svc}.sql"
+  if ! rclone copyto "$remote_file" "$file" --stats=0 --log-level ERROR; then
+    result "$name" failed "download from remote failed"; return
+  fi
+  PG_CONTAINER="verify-pg-${svc}-$$"
+  PG_VOLUME="verify-pg-${svc}-$$"
+  docker volume create "$PG_VOLUME" >/dev/null
+  if ! docker run -d --name "$PG_CONTAINER" --network none -e POSTGRES_PASSWORD=verify \
+      -v "${PG_VOLUME}:/var/lib/postgresql" "$image" >/dev/null 2>&1; then
+    result "$name" failed "could not start ${image}"
+    docker volume rm -f "$PG_VOLUME" >/dev/null 2>&1 || true
+    PG_CONTAINER=""; PG_VOLUME=""
+    return
+  fi
+  local i ready=""
+  for i in $(seq 1 60); do
+    # The image restarts postgres once after init; two successes in a row
+    # avoids connecting to the temporary init instance.
+    if docker exec "$PG_CONTAINER" pg_isready -U postgres -q 2>/dev/null; then
+      sleep 2
+      docker exec "$PG_CONTAINER" pg_isready -U postgres -q 2>/dev/null && { ready=1; break; }
+    fi
+    sleep 1
+  done
+  if [[ -z "$ready" ]]; then
+    result "$name" failed "throwaway postgres never became ready"
+  else
+    # Plain dumps carry OWNER TO <role>; the roles live outside the dump.
+    roles=$(grep -aoE 'OWNER TO [A-Za-z0-9_"]+' "$file" | awk '{print $3}' | sort -u || true)
+    local role
+    for role in $roles; do
+      docker exec "$PG_CONTAINER" psql -U postgres -qc "CREATE ROLE ${role} SUPERUSER" >/dev/null 2>&1 || true
+    done
+    if docker exec -i "$PG_CONTAINER" psql -U postgres -q -v ON_ERROR_STOP=1 -o /dev/null < "$file" >"${WORK}/${svc}.psql.log" 2>&1; then
+      tables=$(docker exec "$PG_CONTAINER" psql -U postgres -Atc "select count(*) from pg_stat_user_tables" 2>/dev/null || echo 0)
+      if (( tables > 0 )); then
+        result "$name" ok "$(( size / 1048576 )) MiB restored, ${tables} tables, $(( age / 3600 ))h old"
+      else
+        result "$name" failed "restore ran but produced no tables"
+      fi
+    else
+      result "$name" failed "psql restore failed: $(tail -n 1 "${WORK}/${svc}.psql.log" | cut -c1-160)"
+    fi
+  fi
+  docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
+  docker volume rm -f "$PG_VOLUME" >/dev/null 2>&1 || true
+  PG_CONTAINER=""; PG_VOLUME=""
+  rm -f "$file"
+}
+
+# Copies a SQLite-bearing volume back from the remote and runs
+# PRAGMA integrity_check on every database file in it.
+restore_sqlite() {
+  local volume="$1" name="restore_sqlite:${1}" dest="${WORK}/sqlite-${1}" out
+  if ! rclone copy "${REMOTE}/volumes/${volume}" "$dest" --max-size "1024M" --stats=0 --log-level ERROR; then
+    result "$name" failed "download from remote failed"; return
+  fi
+  out=$(python3 - "$dest" <<'SQLITE_PY'
+import os, sqlite3, sys
+root = sys.argv[1]
+checked, bad = 0, []
+for dirpath, _, files in os.walk(root):
+    for f in files:
+        if not f.endswith(('.db', '.sqlite', '.sqlite3')):
+            continue
+        path = os.path.join(dirpath, f)
+        try:
+            with open(path, 'rb') as fh:
+                if fh.read(16) != b'SQLite format 3\x00':
+                    continue
+            con = sqlite3.connect(path)
+            row = con.execute('PRAGMA integrity_check').fetchone()
+            con.close()
+            checked += 1
+            if not row or row[0] != 'ok':
+                bad.append(f'{os.path.relpath(path, root)}: {row[0] if row else "no result"}')
+        except sqlite3.Error as exc:
+            checked += 1
+            bad.append(f'{os.path.relpath(path, root)}: {exc}')
+if bad:
+    print('BAD ' + '; '.join(bad)[:200])
+elif checked == 0:
+    print('NONE no sqlite database found')
+else:
+    print(f'OK {checked} database file(s) pass integrity_check')
+SQLITE_PY
+)
+  case "$out" in
+    OK*) result "$name" ok "${out#OK }" ;;
+    *)   result "$name" failed "${out#* }" ;;
+  esac
+  rm -rf "$dest"
+}
+
+if [[ "$MODE" == integrity ]]; then
+  # The local snapshot area is intentionally retained across service moves.
+  # Verify only volumes in this host's current backup contract; retired or
+  # moved services must not turn an otherwise healthy backup red.
+  check_tree "volume:kuma_uptime-kuma-sqlite" "${LOCAL_PATH}/volumes/kuma_uptime-kuma-sqlite" "${REMOTE}/volumes/kuma_uptime-kuma-sqlite"
+  check_tree "volume:forgejo-data" "${LOCAL_PATH}/volumes/forgejo-data" "${REMOTE}/volumes/forgejo-data"
+  check_tree "volume:forgejo-db-data" "${LOCAL_PATH}/volumes/forgejo-db-data" "${REMOTE}/volumes/forgejo-db-data"
+  check_tree "volume:umami_umami-db-data-v18" "${LOCAL_PATH}/volumes/umami_umami-db-data-v18" "${REMOTE}/volumes/umami_umami-db-data-v18"
+  check_tree "volume:glucava-data" "${LOCAL_PATH}/volumes/glucava-data" "${REMOTE}/volumes/glucava-data"
+  check_tree "volume:sure-app-storage" "${LOCAL_PATH}/volumes/sure-app-storage" "${REMOTE}/volumes/sure-app-storage"
+  check_tree "volume:sure-postgres-data" "${LOCAL_PATH}/volumes/sure-postgres-data" "${REMOTE}/volumes/sure-postgres-data"
+  check_tree paths "${LOCAL_PATH}/paths" "${REMOTE}/paths"
+else
+  restore_sample
+  restore_postgres 'forgejo' 'forgejo-dumps/forgejo.sql' 'postgres:18.6-alpine'
+  restore_postgres 'umami' 'umami-dumps/umami.sql' 'postgres:18.6-alpine'
+  restore_postgres 'sure' 'sure-dumps/sure.sql' 'postgres:16'
+  restore_sqlite 'kuma_uptime-kuma-sqlite'
+  restore_sqlite 'glucava-data'
+fi
+
+FINAL_STATE=ok
+if grep -q $'\tfailed\t' "$RESULTS"; then
+  FINAL_STATE=failed
+fi
+
+python3 - "$STATUS" "$HOST" "$MODE" "$RESULTS" "$FINAL_STATE" <<'PY'
+import json, os, sys, tempfile
+from datetime import datetime, timezone
+
+status, host, mode, results_file, final_state = sys.argv[1:]
+results = []
+with open(results_file, encoding='utf-8') as fh:
+    for line in fh:
+        name, result_state, detail = line.rstrip('\n').split('\t', 2)
+        results.append({'name': name, 'state': result_state, 'detail': detail})
+try:
+    with open(status, encoding='utf-8') as fh:
+        previous = json.load(fh)
+except (OSError, ValueError, TypeError):
+    previous = {}
+checks = previous.get('checks', {}) if isinstance(previous.get('checks'), dict) else {}
+# Upgrade the initial single-result schema without discarding it. Thereafter
+# integrity and restore are retained independently: a passing restore cannot
+# hide a failed integrity check (or the other way round).
+if previous.get('version') == 1 and previous.get('last_mode') in ('integrity', 'restore'):
+    checks[previous['last_mode']] = {
+        'state': previous.get('state', 'unknown'),
+        'updated_at': previous.get('updated_at'),
+        'results': previous.get('results', []),
+    }
+now = datetime.now(timezone.utc).isoformat()
+checks[mode] = {'state': final_state, 'updated_at': now, 'results': results}
+integrity = checks.get('integrity', {})
+payload = {
+    'version': 2,
+    'host': host,
+    'updated_at': integrity.get('updated_at'),
+    'last_mode': 'integrity' if integrity else mode,
+    'state': integrity.get('state', 'unknown'),
+    'results': integrity.get('results', []),
+    'checks': checks,
+}
+fd, temp = tempfile.mkstemp(dir=os.path.dirname(status), prefix='.status.', text=True)
+with os.fdopen(fd, 'w', encoding='utf-8') as fh:
+    json.dump(payload, fh, sort_keys=True)
+    fh.write('\n')
+os.replace(temp, status)
+PY
+
+if [[ -n "$PREVIOUS_STATE" && "$PREVIOUS_STATE" != "$FINAL_STATE" && -n "$NTFY_URL" ]]; then
+  if [[ "$FINAL_STATE" == failed ]]; then
+    TITLE="Backup verification failed on ${HOST}"
+    PRIORITY=5
+    TAGS="rotating_light,backup"
+  else
+    TITLE="Backup verification recovered on ${HOST}"
+    PRIORITY=3
+    TAGS="white_check_mark,backup"
+  fi
+  curl --fail --silent --show-error --max-time 20 \
+    -H "Title: ${TITLE}" -H "Priority: ${PRIORITY}" -H "Tags: ${TAGS}" \
+    -d "mode=${MODE}; state=${FINAL_STATE}" "$NTFY_URL" \
+    || echo "backup verification notification failed" >&2
+fi
+
+[[ "$FINAL_STATE" == ok ]]
