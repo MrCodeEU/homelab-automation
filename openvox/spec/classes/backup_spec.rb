@@ -108,6 +108,18 @@ describe 'roles::backup' do
       expect(verify).to match(%r{DUMP_MAX_AGE_S=\$\(\( 72 \* 3600 \)\)})
     end
 
+    context 'with mailcow selected' do
+      let(:params) { super().merge(services: ['mailcow']) }
+
+      it do
+        expect(verify).to match(%r{^  restore_mariadb 'mailcow' 'mailcow-dumps/mailcow\.sql' 'mariadb:10\.11' 'mailcow' 'mailcow-dumps/mailcow\.conf mailcow-dumps/redis-dump\.rdb'$})
+      end
+    end
+
+    it 'does not restore mariadb for hosts without mailcow' do
+      expect(verify).not_to match(%r{^  restore_mariadb })
+    end
+
     context 'with kuma and glucava selected' do
       let(:params) { super().merge(services: ['kuma', 'glucava']) }
 
