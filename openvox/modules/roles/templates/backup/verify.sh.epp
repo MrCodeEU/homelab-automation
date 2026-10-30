@@ -5,6 +5,7 @@
       String $ntfy_url,
       Hash $host_configs,
       Hash $restore_postgres,
+      Hash $restore_mariadb,
       Array[String] $restore_sqlite,
       Integer $restore_max_mib,
       Integer $dump_max_age_h,
@@ -207,6 +208,75 @@ restore_postgres() {
   rm -f "$file"
 }
 
+# Restores one mysqldump (MariaDB) from the remote into a throwaway MariaDB
+# with no network and a disposable volume, requires tables, and checks that
+# the companion files saved next to it (config, redis dump) exist.
+restore_mariadb() {
+  local svc="$1" dump="$2" image="$3" database="$4" extras="$5" name="restore_mariadb:${1}"
+  local remote_file="${REMOTE}/paths/${dump}" meta size mtime age file tables extra extra_meta extra_size
+  meta=$(rclone lsjson "$remote_file" --stat 2>/dev/null) || { result "$name" failed "dump missing on remote: ${dump}"; return; }
+  size=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["Size"])' "$meta")
+  mtime=$(python3 -c 'import json,sys; from datetime import datetime; print(int(datetime.fromisoformat(json.loads(sys.argv[1])["ModTime"].replace("Z","+00:00")).timestamp()))' "$meta")
+  age=$(( $(date +%s) - mtime ))
+  if (( age > DUMP_MAX_AGE_S )); then
+    result "$name" failed "dump is $(( age / 3600 ))h old (limit <%= $dump_max_age_h %>h)"; return
+  fi
+  if (( size < 1024 || size > RESTORE_MAX_BYTES )); then
+    result "$name" failed "dump size ${size} bytes is outside 1 KiB..<%= $restore_max_mib %> MiB"; return
+  fi
+  # Companion files are part of the service's recovery contract.
+  for extra in $extras; do
+    extra_meta=$(rclone lsjson "${REMOTE}/paths/${extra}" --stat 2>/dev/null) || { result "$name" failed "companion missing on remote: ${extra}"; return; }
+    extra_size=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["Size"])' "$extra_meta")
+    if (( extra_size == 0 )); then
+      result "$name" failed "companion is empty: ${extra}"; return
+    fi
+    if [[ "$extra" == *.rdb ]] && [[ "$(rclone cat "${REMOTE}/paths/${extra}" --count 5 2>/dev/null)" != "REDIS" ]]; then
+      result "$name" failed "redis dump has no REDIS header: ${extra}"; return
+    fi
+  done
+  file="${WORK}/${svc}.sql"
+  if ! rclone copyto "$remote_file" "$file" --stats=0 --log-level ERROR; then
+    result "$name" failed "download from remote failed"; return
+  fi
+  PG_CONTAINER="verify-maria-${svc}-$$"
+  PG_VOLUME="verify-maria-${svc}-$$"
+  docker volume create "$PG_VOLUME" >/dev/null
+  if ! docker run -d --name "$PG_CONTAINER" --network none -e MARIADB_ROOT_PASSWORD=verify \
+      -v "${PG_VOLUME}:/var/lib/mysql" "$image" >/dev/null 2>&1; then
+    result "$name" failed "could not start ${image}"
+    docker volume rm -f "$PG_VOLUME" >/dev/null 2>&1 || true
+    PG_CONTAINER=""; PG_VOLUME=""
+    return
+  fi
+  local ready=""
+  for _ in $(seq 1 90); do
+    # Init runs a temporary server first; require two pings in a row.
+    if docker exec "$PG_CONTAINER" mariadb-admin -uroot -pverify ping --silent >/dev/null 2>&1; then
+      sleep 3
+      docker exec "$PG_CONTAINER" mariadb-admin -uroot -pverify ping --silent >/dev/null 2>&1 && { ready=1; break; }
+    fi
+    sleep 1
+  done
+  if [[ -z "$ready" ]]; then
+    result "$name" failed "throwaway mariadb never became ready"
+  elif docker exec "$PG_CONTAINER" mariadb -uroot -pverify -e "CREATE DATABASE \`${database}\`" >/dev/null 2>&1 \
+      && docker exec -i "$PG_CONTAINER" mariadb -uroot -pverify "$database" < "$file" >"${WORK}/${svc}.sql.log" 2>&1; then
+    tables=$(docker exec "$PG_CONTAINER" mariadb -uroot -pverify -Nse "select count(*) from information_schema.tables where table_schema='${database}'" 2>/dev/null || echo 0)
+    if (( tables > 0 )); then
+      result "$name" ok "$(( size / 1024 )) KiB restored, ${tables} tables, companions ok, $(( age / 3600 ))h old"
+    else
+      result "$name" failed "restore ran but produced no tables"
+    fi
+  else
+    result "$name" failed "mariadb restore failed: $(tail -n 1 "${WORK}/${svc}.sql.log" 2>/dev/null | cut -c1-160)"
+  fi
+  docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
+  docker volume rm -f "$PG_VOLUME" >/dev/null 2>&1 || true
+  PG_CONTAINER=""; PG_VOLUME=""
+  rm -f "$file"
+}
+
 # Copies a SQLite-bearing volume back from the remote and runs
 # PRAGMA integrity_check on every database file in it.
 restore_sqlite() {
@@ -265,6 +335,9 @@ else
   restore_sample
 <% $restore_postgres.each |String $service, Hash $cfg| { -%>
   restore_postgres '<%= $service %>' '<%= $cfg['dump'] %>' '<%= $cfg['image'] %>'
+<% } -%>
+<% $restore_mariadb.each |String $service, Hash $cfg| { -%>
+  restore_mariadb '<%= $service %>' '<%= $cfg['dump'] %>' '<%= $cfg['image'] %>' '<%= $cfg['database'] %>' '<%= join($cfg['companions'], ' ') %>'
 <% } -%>
 <% $restore_sqlite.each |String $volume| { -%>
   restore_sqlite '<%= $volume %>'

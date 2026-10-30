@@ -65,6 +65,17 @@ class roles::backup (
     'mail-archiver' => { 'dump' => 'mail-archiver-dumps/mail-archiver.sql', 'image' => 'postgres:18.6-alpine' },
     'sure'          => { 'dump' => 'sure-dumps/sure.sql', 'image' => 'postgres:16' },
   },
+  # MariaDB dumps (mailcow): same idea, restored into a throwaway mariadb.
+  # companions are files saved next to the dump that must also exist (and
+  # a .rdb must start with the REDIS magic).
+  Hash          $verification_restore_mariadb = {
+    'mailcow' => {
+      'dump'       => 'mailcow-dumps/mailcow.sql',
+      'image'      => 'mariadb:10.11',
+      'database'   => 'mailcow',
+      'companions' => ['mailcow-dumps/mailcow.conf', 'mailcow-dumps/redis-dump.rdb'],
+    },
+  },
   # SQLite volumes: copied back from the remote and PRAGMA integrity_check
   # run on every *.db / *.sqlite file inside.
   Array[String] $verification_restore_sqlite_volumes = ['kuma_uptime-kuma-sqlite', 'actual-budget-data', 'glucava-data'],
@@ -424,6 +435,7 @@ class roles::backup (
     'ntfy_url'    => $verification_ntfy_url,
     'host_configs' => $host_configs,
     'restore_postgres' => $verification_restore_postgres.filter |$svc, $cfg| { $svc in $host_configs },
+    'restore_mariadb'  => $verification_restore_mariadb.filter |$svc, $cfg| { $svc in $host_configs },
     'restore_sqlite'   => $verification_restore_sqlite_volumes.filter |$vol| {
       $host_configs.any |$svc, $cfg| { $vol in $cfg['volumes'] }
     },
