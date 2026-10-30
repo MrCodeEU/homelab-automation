@@ -124,7 +124,7 @@ result() { printf '%s\t%s\t%s\n' "$1" "$2" "$3" >> "$RESULTS"; }
 # with no network and a disposable volume, then requires user tables.
 restore_postgres() {
   local svc="$1" dump="$2" image="$3" name="restore_pg:${1}"
-  local remote_file="${REMOTE}/paths/${dump}" meta size mtime age file roles tables
+  local remote_file="${REMOTE}/paths/${dump}" meta size mtime age file tables
   meta=$(rclone lsjson "$remote_file" --stat 2>/dev/null) || { result "$name" failed "dump missing on remote: ${dump}"; return; }
   size=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["Size"])' "$meta")
   mtime=$(python3 -c 'import json,sys; from datetime import datetime; print(int(datetime.fromisoformat(json.loads(sys.argv[1])["ModTime"].replace("Z","+00:00")).timestamp()))' "$meta")
@@ -174,14 +174,24 @@ restore_postgres() {
   if [[ -z "$ready" ]]; then
     result "$name" failed "throwaway postgres never became ready"
   else
-    # Plain dumps carry OWNER TO <role>; the roles live outside the dump.
-    roles=$(grep -aoE 'OWNER TO [A-Za-z0-9_"]+' "$file" | awk '{print $3}' | sort -u || true)
-    local role
-    for role in $roles; do
-      docker exec "$PG_CONTAINER" psql -U postgres -qc "CREATE ROLE ${role} SUPERUSER" >/dev/null 2>&1 || true
+    # Plain dumps reference roles that live outside the dump (OWNER TO,
+    # GRANT ... TO). Create each one the restore reports missing and retry
+    # on a fresh database, so a service that grants to an extra role is
+    # still restorable here.
+    local role restored=""
+    for _ in 1 2 3 4 5 6 7 8; do
+      docker exec "$PG_CONTAINER" psql -U postgres -qc "DROP DATABASE IF EXISTS verify" >/dev/null 2>&1 || true
+      docker exec "$PG_CONTAINER" psql -U postgres -qc "CREATE DATABASE verify" >/dev/null 2>&1
+      if docker exec -i "$PG_CONTAINER" psql -U postgres -d verify -q -v ON_ERROR_STOP=1 -o /dev/null < "$file" >"${WORK}/${svc}.psql.log" 2>&1; then
+        restored=1
+        break
+      fi
+      role=$(grep -aoE 'role "[^"]+" does not exist' "${WORK}/${svc}.psql.log" | head -n 1 | cut -d'"' -f2 || true)
+      [[ -n "$role" ]] || break
+      docker exec "$PG_CONTAINER" psql -U postgres -qc "CREATE ROLE \"${role}\" SUPERUSER" >/dev/null 2>&1 || break
     done
-    if docker exec -i "$PG_CONTAINER" psql -U postgres -q -v ON_ERROR_STOP=1 -o /dev/null < "$file" >"${WORK}/${svc}.psql.log" 2>&1; then
-      tables=$(docker exec "$PG_CONTAINER" psql -U postgres -Atc "select count(*) from pg_stat_user_tables" 2>/dev/null || echo 0)
+    if [[ -n "$restored" ]]; then
+      tables=$(docker exec "$PG_CONTAINER" psql -U postgres -d verify -Atc "select count(*) from pg_stat_user_tables" 2>/dev/null || echo 0)
       if (( tables > 0 )); then
         result "$name" ok "$(( size / 1048576 )) MiB restored, ${tables} tables, $(( age / 3600 ))h old"
       else
