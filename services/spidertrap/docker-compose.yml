@@ -1,6 +1,12 @@
 services:
   spidertrap:
-    build: .
+    # network: host - mljr's default-bridge build containers inherit the host's
+    # MagicDNS resolver (100.100.100.100), which is unreachable from the
+    # bridge, so `apk add` inside the build failed with "DNS: transient error"
+    # (found 2026-10-30; same cause as the trivy DNS failures on mljr).
+    build:
+      context: .
+      network: host
     image: local/spidertrap:latest
     container_name: spidertrap
     restart: unless-stopped
