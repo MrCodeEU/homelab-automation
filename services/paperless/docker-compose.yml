@@ -1,0 +1,107 @@
+# paperless-ngx on nas. Public at paperless.mljr.eu behind Caddy forward-auth
+# (Authelia, two_factor) AND Authelia OIDC login (client "paperless", see
+# authelia_oidc_clients in common.yaml). The port is bound to the Tailscale
+# address only; Caddy on mljr reaches it over the tailnet.
+#
+# Rollout order matters: PAPERLESS_DISABLE_REGULAR_LOGIN stays false until the
+# OIDC identity is linked to the admin user (Profile -> Connected social
+# accounts), otherwise the first OIDC login creates a fresh non-admin user and
+# nobody can administer the instance.
+#
+# Everything lives under /mnt/user/appdata/paperless (appdata is a
+# fastpool-only share). The consume dir is the single ingest point:
+# consume/<Group>/... subfolders become tags.
+services:
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.4.0
+    container_name: paperless
+    restart: unless-stopped
+    depends_on:
+      paperless_db:
+        condition: service_healthy
+      paperless_valkey:
+        condition: service_healthy
+    ports:
+      - "${BIND_ADDR:-100.100.10.2}:8102:8000"
+    environment:
+      TZ: ${TZ:-Europe/Vienna}
+      PAPERLESS_TIME_ZONE: ${TZ:-Europe/Vienna}
+      PAPERLESS_URL: https://paperless.${DOMAIN:-mljr.eu}
+      # Caddy terminates TLS and forwards X-Forwarded-Proto/Host.
+      PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
+      PAPERLESS_USE_X_FORWARD_HOST: "true"
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY:?}
+      PAPERLESS_DBENGINE: postgresql
+      PAPERLESS_DBHOST: paperless_db
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      PAPERLESS_DBPASS: ${PAPERLESS_DB_PASSWORD:?}
+      PAPERLESS_REDIS: redis://paperless_valkey:6379
+      PAPERLESS_OCR_LANGUAGE: deu+eng
+      PAPERLESS_OCR_LANGUAGES: deu
+      # Bootstrap admin; the password is only read on first start.
+      PAPERLESS_ADMIN_USER: admin
+      PAPERLESS_ADMIN_PASSWORD: ${PAPERLESS_ADMIN_PASSWORD:?}
+      PAPERLESS_ADMIN_MAIL: ${EMAIL:-admin@mljr.eu}
+      # Consume dir: folder names become tags. Polling because the dir sits on
+      # shfs (FUSE), where inotify misses writes made by other processes.
+      PAPERLESS_CONSUMER_RECURSIVE: "true"
+      PAPERLESS_CONSUMER_SUBDIRS_AS_TAGS: "true"
+      PAPERLESS_CONSUMER_POLLING_INTERVAL: "30"
+      # Human-readable media tree, usable without the app.
+      PAPERLESS_FILENAME_FORMAT: "{{ created_year }}/{{ correspondent }}/{{ title }}"
+      PAPERLESS_FILENAME_FORMAT_REMOVE_NONE: "true"
+      PAPERLESS_EMPTY_TRASH_DELAY: "30"
+      # SSO via Authelia. Self-signup stays off; the one real user is linked
+      # by hand (see the rollout note at the top).
+      PAPERLESS_APPS: allauth.socialaccount.providers.openid_connect
+      PAPERLESS_ACCOUNT_ALLOW_SIGNUPS: "false"
+      PAPERLESS_SOCIALACCOUNT_ALLOW_SIGNUPS: "false"
+      PAPERLESS_DISABLE_REGULAR_LOGIN: ${PAPERLESS_DISABLE_REGULAR_LOGIN:-false}
+      PAPERLESS_REDIRECT_LOGIN_TO_SSO: ${PAPERLESS_DISABLE_REGULAR_LOGIN:-false}
+      PAPERLESS_SOCIALACCOUNT_PROVIDERS: '{"openid_connect":{"OAUTH_PKCE_ENABLED":true,"APPS":[{"provider_id":"authelia","name":"Authelia","client_id":"paperless","secret":"${PAPERLESS_OIDC_CLIENT_SECRET:?}","settings":{"server_url":"https://auth.${DOMAIN:-mljr.eu}","token_auth_method":"client_secret_basic"}}]}}'
+    volumes:
+      - /mnt/user/appdata/paperless/data:/usr/src/paperless/data
+      - /mnt/user/appdata/paperless/media:/usr/src/paperless/media
+      - /mnt/user/appdata/paperless/consume:/usr/src/paperless/consume
+      - /mnt/user/appdata/paperless/export:/usr/src/paperless/export
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-S", "--max-time", "2", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "2"
+
+  paperless_db:
+    image: postgres:18-alpine
+    container_name: paperless_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${PAPERLESS_DB_PASSWORD:?}
+    volumes:
+      - /mnt/fastpool/appdata/paperless/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  paperless_valkey:
+    image: valkey/valkey:9-alpine
+    container_name: paperless_valkey
+    restart: unless-stopped
+    volumes:
+      - /mnt/user/appdata/paperless/valkey:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
