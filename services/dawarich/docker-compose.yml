@@ -1,6 +1,6 @@
 services:
   dawarich:
-    image: freikin/dawarich:latest@sha256:e22d39339a00ab03b057a75897a8950dfd5d084e0f23202a7c6d5e8814f96aff
+    image: &dawarich-image freikin/dawarich:latest@sha256:e22d39339a00ab03b057a75897a8950dfd5d084e0f23202a7c6d5e8814f96aff
     container_name: Dawarich
     restart: unless-stopped
     # The image has no usable default command; web-entrypoint.sh needs one.
@@ -14,7 +14,7 @@ services:
       # dawarich.mljr.eu is proxied to nas:3001 by Caddy.
       - "3001:3000"
       - "9394:9394"
-    environment:
+    environment: &dawarich-env
       - TZ=${TZ:-Europe/Vienna}
       # Secrets come from eyaml (vault_dawarich_*) via the generated .env.
       # Changing SECRET_KEY_BASE invalidates sessions.
@@ -48,6 +48,33 @@ services:
       - /mnt/user/appdata/dawarich/imports:/var/app/tmp/imports/watched
       - /mnt/user/appdata/dawarich/storage:/var/app/storage
       - /mnt/user/appdata/dawarich/db_data:/dawarich_db_data
+      - /mnt/user/appdata/dawarich/wwwroot:/var/app/public
+    shm_size: 64m
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "2"
+
+  # Background-job worker (track generation, visit suggestions, stats,
+  # geocoding, imports). The web container above runs only puma. This worker
+  # was a separate dockerMan container that never came up after a reboot, so no
+  # job ran from 2026-09-28 until this service was added (2026-10-30).
+  dawarich_sidekiq:
+    image: *dawarich-image
+    container_name: dawarich_sidekiq
+    restart: unless-stopped
+    entrypoint: sidekiq-entrypoint.sh
+    command: ["sidekiq"]
+    depends_on:
+      dawarich_db:
+        condition: service_healthy
+      dawarich_valkey:
+        condition: service_healthy
+    environment: *dawarich-env
+    volumes:
+      - /mnt/user/appdata/dawarich/imports:/var/app/tmp/imports/watched
+      - /mnt/user/appdata/dawarich/storage:/var/app/storage
       - /mnt/user/appdata/dawarich/wwwroot:/var/app/public
     shm_size: 64m
     logging:
