@@ -129,7 +129,12 @@ name the wildcard doesn't cover (e.g. a `CNAME` to a third party).
 
 1. Add to `services_catalog` in `openvox/data/common.yaml`.
 2. Create `services/<name>/docker-compose.yml`.
-3. Secrets needed? Add each `vault_*` key to every required host's
+3. Secrets needed? `make add-secret KEY=vault_x HOSTS=nuc[,mljr] [GEN=hex:32]`
+   adds each `vault_*` key to every recipient host's
+   `data/secrets/<certname>.eyaml` (encrypted on that host with its public
+   key, value pasted or generated, never printed, PR opened for you).
+   `scripts/eyaml-get.sh <host> [key]` reads one back. By hand this is:
+   add each `vault_*` key to every required host's
    `data/secrets/<certname>.eyaml`, encrypted with that host's public key;
    then map it into the service's `.env` in `roles::services`' host branch
    (`services_nas.pp` instead, for a `nas`-hosted service). Include `nuc`

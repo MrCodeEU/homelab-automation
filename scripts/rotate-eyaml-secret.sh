@@ -2,9 +2,11 @@
 # Remote eyaml command below is deliberately constructed from a validated
 # client-side path, same pattern as scripts/openvox-sync.sh.
 # shellcheck disable=SC2029
-# Interactive secret rotation: pick a vault_* key, paste its new value, and
-# this walks the whole flow documented in AGENTS.md ("Secrets are
-# host-scoped and decrypt host-side") end to end:
+# Interactive secret rotation or creation: pick a vault_* key, paste its new
+# value, and this walks the whole flow documented in AGENTS.md ("Secrets are
+# host-scoped and decrypt host-side") end to end. With --new it adds a key
+# that does not exist yet (recipients given by --hosts, value pasted or
+# generated) instead of replacing one.
 #
 #   1. discover which openvox/data/secrets/<certname>.eyaml files carry the
 #      key (a secret can have several recipient hosts)
@@ -55,17 +57,32 @@ done
 # 0. Args: optional --dry-run flag + optional key name, in either order
 # ---------------------------------------------------------------------------
 dry_run=false
+new_key=false
+new_hosts=""
+generate=""
 positional=()
-for arg in "$@"; do
-  case "$arg" in
+while [ $# -gt 0 ]; do
+  case "$1" in
     --dry-run) dry_run=true ;;
+    --new) new_key=true ;;
+    --hosts) new_hosts="${2:-}"; shift ;;
+    --generate) generate="${2:-}"; shift ;;
     -h|--help)
       echo "usage: $0 [--dry-run] [vault_key_name]"
+      echo "       $0 [--dry-run] --new vault_key_name --hosts nuc[,mljr,ugreen] [--generate hex:N]"
       exit 0
       ;;
-    *) positional+=("$arg") ;;
+    *) positional+=("$1") ;;
   esac
+  shift
 done
+if [ "$new_key" = true ]; then
+  [ -n "${positional[0]:-}" ] || die "--new needs a key name"
+  [[ "${positional[0]}" =~ ^vault_[a-z0-9_]+$ ]] || die "key must match vault_[a-z0-9_]+"
+  [ -n "$new_hosts" ] || die "--new needs --hosts (comma separated: nuc,mljr,ugreen)"
+  [ -z "$generate" ] || [[ "$generate" =~ ^hex:[0-9]+$ ]] || die "--generate takes hex:N (N random bytes)"
+  command -v openssl >/dev/null 2>&1 || [ -z "$generate" ] || die "'openssl' not found on PATH"
+fi
 [ "$dry_run" = true ] && bold "DRY RUN — will stop after showing the ciphertext diff, no commit/push/PR/deploy"
 
 # ---------------------------------------------------------------------------
@@ -115,25 +132,42 @@ if [ -z "$target_key" ]; then
   [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le "${#KEY_ORDER[@]}" ] \
     || die "invalid selection"
   target_key="${KEY_ORDER[$((choice - 1))]}"
+elif [ "$new_key" = true ]; then
+  [ -z "${KEY_HOSTS[$target_key]:-}" ] || die "'$target_key' already exists (hosts: ${KEY_HOSTS[$target_key]}) - rotate it without --new"
 else
   [ -n "${KEY_HOSTS[$target_key]:-}" ] || die "unknown key '$target_key' (not found in any $secrets_dir/*.eyaml)"
 fi
 
-hosts="${KEY_HOSTS[$target_key]}"
-bold "Rotating: $target_key"
+if [ "$new_key" = true ]; then
+  hosts="${new_hosts//,/ }"
+  for h in $hosts; do
+    [ -n "${HOST_CERTNAME[$h]:-}" ] || die "unknown host '$h' (known: ${!HOST_CERTNAME[*]})"
+  done
+  bold "Adding new secret: $target_key"
+else
+  hosts="${KEY_HOSTS[$target_key]}"
+  bold "Rotating: $target_key"
+fi
 info "recipient hosts: $hosts"
 
 # ---------------------------------------------------------------------------
 # 3. Paste new value
 # ---------------------------------------------------------------------------
-step "Paste the new value for $target_key (input hidden)"
-read -r -s -p "New value: " new_value
-echo
-[ -n "$new_value" ] || die "empty value, aborting"
-read -r -s -p "Confirm (paste again): " new_value_confirm
-echo
-[ "$new_value" = "$new_value_confirm" ] || die "values did not match, aborting"
-unset new_value_confirm
+if [ -n "$generate" ]; then
+  # Generated in memory and piped straight to each host's eyaml: it is never
+  # printed. Read it back later with scripts/eyaml-get.sh <host> <key>.
+  new_value="$(openssl rand -hex "${generate#hex:}")"
+  step "Generated a random value for $target_key (${generate}, not shown)"
+else
+  step "Paste the new value for $target_key (input hidden)"
+  read -r -s -p "New value: " new_value
+  echo
+  [ -n "$new_value" ] || die "empty value, aborting"
+  read -r -s -p "Confirm (paste again): " new_value_confirm
+  echo
+  [ "$new_value" = "$new_value_confirm" ] || die "values did not match, aborting"
+  unset new_value_confirm
+fi
 
 confirm "Proceed encrypting for hosts: $hosts?" || die "aborted"
 
@@ -163,11 +197,16 @@ declare -a changed_files
 for short in $hosts; do
   certname="${HOST_CERTNAME[$short]}"
   file="${secrets_dir}/${certname}.eyaml"
-  lineno="$(grep -n "^\"${target_key}\":" "$file" | head -1 | cut -d: -f1)"
-  [ -n "$lineno" ] || die "could not find line for $target_key in $file"
   newline="\"${target_key}\": \"${CIPHERTEXT[$short]}\""
-  awk -v n="$lineno" -v newline="$newline" 'NR==n { print newline; next } { print }' "$file" > "${file}.tmp"
-  mv "${file}.tmp" "$file"
+  if [ "$new_key" = true ]; then
+    [ -z "$(tail -c1 "$file")" ] || echo >> "$file"
+    printf '%s\n' "$newline" >> "$file"
+  else
+    lineno="$(grep -n "^\"${target_key}\":" "$file" | head -1 | cut -d: -f1)"
+    [ -n "$lineno" ] || die "could not find line for $target_key in $file"
+    awk -v n="$lineno" -v newline="$newline" 'NR==n { print newline; next } { print }' "$file" > "${file}.tmp"
+    mv "${file}.tmp" "$file"
+  fi
   changed_files+=("$file")
 done
 
@@ -177,7 +216,7 @@ git diff -- "${changed_files[@]}"
 if [ "$dry_run" = true ]; then
   git checkout -- "${changed_files[@]}"
   bold "Dry run complete - files reverted, nothing committed/pushed/deployed."
-  info "Re-run without --dry-run to actually rotate ${target_key}."
+  info "Re-run without --dry-run to actually write ${target_key}."
   exit 0
 fi
 
@@ -190,14 +229,14 @@ confirm "Write looks right - keep these changes staged for commit?" || {
 # 6. Branch, commit, push, PR
 # ---------------------------------------------------------------------------
 slug="$(echo "$target_key" | tr '_' '-')"
-branch="rotate/${slug}-$(date +%Y%m%d)"
+branch="$([ "$new_key" = true ] && echo secret || echo rotate)/${slug}-$(date +%Y%m%d)"
 
 step "Creating branch $branch"
 current_branch="$(git branch --show-current)"
 [ "$current_branch" = "main" ] || confirm "Not on main (on '$current_branch') - branch off here anyway?" || die "aborted, switch to main first"
 git checkout -b "$branch"
 git add "${changed_files[@]}"
-git commit -m "chore: rotate ${target_key}"
+git commit -m "chore: $([ "$new_key" = true ] && echo add || echo rotate) ${target_key}"
 
 confirm "Push $branch and open a PR?" || die "left committed locally on $branch, not pushed"
 git push -u origin "$branch"
@@ -244,4 +283,8 @@ for short in $hosts; do
   fi
 done
 
-bold "Done rotating ${target_key}."
+bold "Done with ${target_key}."
+if [ "$new_key" = true ]; then
+  info "Reminder: an eyaml entry alone never reaches a container - add the lookup()"
+  info "mapping in the role (services_nas.pp / services.pp) and the env.epp line."
+fi
