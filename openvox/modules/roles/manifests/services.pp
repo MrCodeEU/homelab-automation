@@ -169,6 +169,7 @@ class roles::services (
     },
     'paperless-mail-export' => {
       'api_key' => lookup('vault_mailarchiver_api_key', { 'default_value' => '' }),
+      'pdf_passwords' => lookup('vault_pdf_passwords', { 'default_value' => '' }),
     },
     'sure' => {
       'postgres_password'  => lookup('vault_sure_postgres_password', { 'default_value' => '' }),

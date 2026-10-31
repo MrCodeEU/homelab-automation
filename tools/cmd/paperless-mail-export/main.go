@@ -28,6 +28,7 @@ import (
 	"net/mail"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -151,6 +152,70 @@ var (
 	bulkSender = regexp.MustCompile(`(?i)(^|[.@_-])(no-?reply|do-?not-?reply|newsletter|news|mailer|marketing|bounce)([.@_-]|$)`)
 	bannerName = regexp.MustCompile(`(?i)(banner|header|footer|qr-?code|modul\d|flyer|aktion|^ic_|sponsor|newsletter)`)
 )
+
+// errLocked marks a mail whose password-protected PDF no known password
+// opens. The mail is not marked done, so a later run retries it once the
+// password has been added to the secret.
+var errLocked = errors.New("password-protected PDF, no known password")
+
+// parsePasswords splits the vault_pdf_passwords secret: one password per line.
+// The .env file cannot hold newlines, so the template joins the lines with a
+// literal backslash-n, which is accepted here as well.
+func parsePasswords(raw string) []string {
+	var out []string
+	for _, l := range strings.Split(strings.ReplaceAll(raw, `\n`, "\n"), "\n") {
+		if l = strings.TrimRight(l, "\r"); l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+const (
+	pdfPlain    = "plain"
+	pdfUnlocked = "unlocked"
+	pdfLocked   = "locked"
+)
+
+// unlock is swapped out in tests that have no qpdf.
+var unlock = unlockPDF
+
+// unlockPDF removes the password from an encrypted PDF in place. PDFs that
+// need no password (or when qpdf is missing) are left untouched.
+func unlockPDF(path string, passwords []string) string {
+	if _, err := exec.LookPath("qpdf"); err != nil {
+		return pdfPlain
+	}
+	// exit 0: a password is required; 2: not encrypted; 3: encrypted, none needed.
+	if exec.Command("qpdf", "--requires-password", path).Run() != nil {
+		return pdfPlain
+	}
+	dir := filepath.Dir(path)
+	for _, pw := range passwords {
+		pf, err := os.CreateTemp(dir, ".pw-*")
+		if err != nil {
+			return pdfLocked
+		}
+		// A password file keeps the secret off the process list.
+		_, werr := pf.WriteString(pw)
+		pf.Close()
+		out := path + ".dec"
+		var runErr error
+		if werr == nil {
+			runErr = exec.Command("qpdf", "--password-file="+pf.Name(), "--decrypt", path, out).Run()
+		}
+		os.Remove(pf.Name())
+		// exit 3 means success with warnings.
+		var ee *exec.ExitError
+		if runErr == nil || (errors.As(runErr, &ee) && ee.ExitCode() == 3) {
+			if os.Rename(out, path) == nil {
+				return pdfUnlocked
+			}
+		}
+		os.Remove(out)
+	}
+	return pdfLocked
+}
 
 func wanted(a attachment, from string, minImage, minDoc int64) bool {
 	ext := strings.ToLower(filepath.Ext(a.FileName))
@@ -291,6 +356,7 @@ func (c *client) getJSON(ctx context.Context, path string, q url.Values, out any
 // ---- run ------------------------------------------------------------------
 
 type config struct {
+	passwords        []string
 	mode             string
 	out, statePath   string
 	minImage, minDoc int64
@@ -300,7 +366,7 @@ type config struct {
 }
 
 type result struct {
-	scanned, processed, exported, deduped, skipped, failed int
+	scanned, processed, exported, deduped, skipped, failed, locked int
 }
 
 func run(ctx context.Context, c *client, cfg config, st *State, logf func(string, ...any)) (result, error) {
@@ -335,6 +401,12 @@ func run(ctx context.Context, c *client, cfg config, st *State, logf func(string
 			res.exported += n
 			res.deduped += d
 			res.skipped += s
+			if errors.Is(err, errLocked) {
+				// Not a failure: retried by later runs, needs a password.
+				res.locked++
+				logf("mail %d (%s): %v", e.ID, e.SentDate.Format("2006-01-02"), err)
+				continue
+			}
 			if err != nil {
 				res.failed++
 				logf("mail %d (%s): %v", e.ID, e.SentDate.Format("2006-01-02"), err)
@@ -372,6 +444,7 @@ func processMail(ctx context.Context, c *client, cfg config, st *State, e emailS
 	if err := c.getJSON(ctx, fmt.Sprintf("/api/v1/emails/%d", e.ID), nil, &d); err != nil {
 		return 0, 0, 0, err
 	}
+	locked := 0
 	for _, a := range d.Attachments {
 		if !wanted(a, e.From, cfg.minImage, cfg.minDoc) {
 			skipped++
@@ -400,6 +473,16 @@ func processMail(ctx context.Context, c *client, cfg config, st *State, e emailS
 			deduped++
 			continue
 		}
+		if strings.EqualFold(filepath.Ext(a.FileName), ".pdf") {
+			switch unlock(tmp.Name(), cfg.passwords) {
+			case pdfLocked:
+				// Held back, not remembered in Seen: the file is fetched again
+				// on the next run, when the password may be known.
+				os.Remove(tmp.Name())
+				locked++
+				continue
+			}
+		}
 		rel := outName(acct, e.SentDate.Time, e.From, a.FileName, sha, func(p string) bool {
 			_, statErr := os.Stat(filepath.Join(cfg.out, p))
 			return statErr == nil
@@ -421,6 +504,9 @@ func processMail(ctx context.Context, c *client, cfg config, st *State, e emailS
 		st.Seen[sha] = struct{}{}
 		exported++
 	}
+	if locked > 0 {
+		return exported, deduped, skipped, fmt.Errorf("%d file(s): %w", locked, errLocked)
+	}
 	return exported, deduped, skipped, nil
 }
 
@@ -437,6 +523,7 @@ func main() {
 	flag.IntVar(&cfg.pageSize, "page-size", 100, "API page size (server max 100)")
 	flag.IntVar(&cfg.saveEvery, "save-every", 50, "persist state every N processed mails")
 	flag.Parse()
+	cfg.passwords = parsePasswords(os.Getenv("PDF_PASSWORDS"))
 	if cfg.mode != "incremental" && cfg.mode != "sweep" {
 		log.Fatalf("--mode must be incremental or sweep, got %q", cfg.mode)
 	}
@@ -453,8 +540,8 @@ func main() {
 	}
 	start := time.Now()
 	res, err := run(context.Background(), newClient(*api, key, *rate), cfg, st, log.Printf)
-	log.Printf("mode=%s scanned=%d processed=%d exported=%d deduped=%d skipped=%d failed=%d in %s",
-		cfg.mode, res.scanned, res.processed, res.exported, res.deduped, res.skipped, res.failed, time.Since(start).Round(time.Second))
+	log.Printf("mode=%s scanned=%d processed=%d exported=%d deduped=%d skipped=%d locked=%d failed=%d in %s",
+		cfg.mode, res.scanned, res.processed, res.exported, res.deduped, res.skipped, res.locked, res.failed, time.Since(start).Round(time.Second))
 	if err != nil {
 		log.Fatal(err)
 	}
