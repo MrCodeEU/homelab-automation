@@ -144,13 +144,28 @@ var (
 )
 
 // wanted reports whether an attachment is worth sending to paperless.
-func wanted(a attachment, minImage, minDoc int64) bool {
+// Automated bulk senders (newsletters, system mail): their images are banners
+// and tracking pixels, never documents. PDFs and Office files are still kept,
+// invoices come from exactly these senders.
+var (
+	bulkSender = regexp.MustCompile(`(?i)(^|[.@_-])(no-?reply|do-?not-?reply|newsletter|news|mailer|marketing|bounce)([.@_-]|$)`)
+	bannerName = regexp.MustCompile(`(?i)(banner|header|footer|qr-?code|modul\d|flyer|aktion|^ic_|sponsor|newsletter)`)
+)
+
+func wanted(a attachment, from string, minImage, minDoc int64) bool {
 	ext := strings.ToLower(filepath.Ext(a.FileName))
 	switch {
 	case docExts[ext]:
 		return a.Size >= minDoc
 	case imageExts[ext]:
-		return a.Size >= minImage && !noiseName.MatchString(a.FileName)
+		if a.Size < minImage || noiseName.MatchString(a.FileName) || bannerName.MatchString(a.FileName) {
+			return false
+		}
+		addr := from
+		if m, err := mail.ParseAddress(from); err == nil {
+			addr = m.Address
+		}
+		return !bulkSender.MatchString(addr)
 	}
 	return false
 }
@@ -358,7 +373,7 @@ func processMail(ctx context.Context, c *client, cfg config, st *State, e emailS
 		return 0, 0, 0, err
 	}
 	for _, a := range d.Attachments {
-		if !wanted(a, cfg.minImage, cfg.minDoc) {
+		if !wanted(a, e.From, cfg.minImage, cfg.minDoc) {
 			skipped++
 			continue
 		}

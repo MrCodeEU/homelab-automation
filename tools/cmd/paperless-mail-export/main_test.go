@@ -19,22 +19,32 @@ func TestWanted(t *testing.T) {
 		name string
 		size int64
 		want bool
+		from string
 	}{
-		{"Rechnung.pdf", 5000, true},
-		{"tiny.pdf", 500, false},
-		{"scan.JPG", 150000, true},
-		{"photo.jpg", 5000, false},
-		{"image001.png", 90000, false},
-		{"Outlook-abc123.png", 90000, false},
-		{"logo-firma.png", 90000, false},
-		{"Lohnzettel.docx", 40000, true},
-		{"winmail.dat", 90000, false},
-		{"report.html", 90000, false},
-		{"dmarc.xml.gz", 90000, false},
-		{"invite.ics", 3000, false},
+		{"Rechnung.pdf", 5000, true, ""},
+		{"tiny.pdf", 500, false, ""},
+		{"scan.JPG", 150000, true, ""},
+		{"photo.jpg", 5000, false, ""},
+		{"image001.png", 90000, false, ""},
+		{"Outlook-abc123.png", 90000, false, ""},
+		{"logo-firma.png", 90000, false, ""},
+		{"Lohnzettel.docx", 40000, true, ""},
+		{"winmail.dat", 90000, false, ""},
+		{"report.html", 90000, false, ""},
+		{"dmarc.xml.gz", 90000, false, ""},
+		{"invite.ics", 3000, false, ""},
+		// Images from bulk senders and banner-like names are dropped, their PDFs stay.
+		{"scan.jpg", 150000, false, "Shop <no-reply@mail.willhaben.at>"},
+		{"scan.jpg", 150000, false, "news@news.vienna-marathon.com"},
+		{"Rechnung.pdf", 5000, true, "noreply@icard.com"},
+		{"scan.jpg", 150000, true, "Maria <maria@gmail.com>"},
+		{"ÖH Mail Banner.png", 90000, false, "oeh@oeh.jku.at"},
+		{"modul6.jpg", 90000, false, "x@y.at"},
+		{"ic_doc_requiered.png", 90000, false, "x@y.at"},
+		{"Personalausweis.jpg", 90000, true, "me@tuta.io"},
 	}
 	for _, c := range cases {
-		if got := wanted(attachment{FileName: c.name, Size: c.size}, 20000, 2000); got != c.want {
+		if got := wanted(attachment{FileName: c.name, Size: c.size}, c.from, 20000, 2000); got != c.want {
 			t.Errorf("%s (%d bytes): got %v, want %v", c.name, c.size, got, c.want)
 		}
 	}
