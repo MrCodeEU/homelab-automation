@@ -137,6 +137,6 @@ services:
       - "--api-timeout=5m"
 
   paperless_tika:
-    image: docker.io/apache/tika:3.3.1.0
+    image: docker.io/apache/tika:3.3.3.0
     container_name: paperless_tika
     restart: unless-stopped
