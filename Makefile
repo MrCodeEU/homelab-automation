@@ -27,7 +27,7 @@
 
 .PHONY: test test-quick test-services test-services-verbose test-healthreport test-openvox-unit test-openvox-caddy-render \
         help \
-        _check-validate _check-syntax _check-compose \
+        _check-validate _check-syntax _check-compose _check-binaries \
         openvox-check openvox-deploy openvox-recovery openvox-rollback \
         rotate-secret rotate-secret-dry-run add-secret
 
@@ -35,7 +35,7 @@
 # DEFAULT: fast local tests (no Docker)
 ################################################################################
 
-test: _check-validate _check-syntax _check-compose
+test: _check-validate _check-syntax _check-compose _check-binaries
 	@echo ""
 	@echo "All fast tests passed."
 
@@ -71,6 +71,11 @@ _check-syntax:
 	fi
 
 ## 3. YAML lint on all docker-compose.yml files
+## 4. Committed service binaries still match their Go source
+_check-binaries:
+	@echo "==> [4/4] Committed Go binaries vs source"
+	bash ./scripts/service-binary.sh check
+
 _check-compose:
 	@echo "==> [3/3] docker-compose.yml syntax"
 	@find services -name "docker-compose.yml" -print0 \

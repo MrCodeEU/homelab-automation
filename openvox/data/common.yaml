@@ -437,6 +437,14 @@ services_catalog:
     description: "Mail Archiver"
     icon: "mdi:email"
 
+  - name: paperless-mail-export
+    enabled: true
+    managed: true
+    port: 0
+    host: nuc
+    description: "Exports mail-archiver attachments (REST API) into paperless' consume dir on nas via systemd timers. No Caddy route."
+    icon: "mdi:email-fast"
+
   - name: dmarc-monitor
     enabled: true
     managed: true
