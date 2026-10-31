@@ -40,13 +40,40 @@ type account struct {
 	Name string `json:"name"`
 }
 
+// apiTime reads mail-archiver timestamps, which carry no timezone
+// ("2026-10-31T16:30:16", taken as UTC). Mails with a missing or bogus date
+// (the API returns 0001-01-01 for some) become the zero time.
+type apiTime struct{ time.Time }
+
+func (t *apiTime) UnmarshalJSON(b []byte) error {
+	s := strings.Trim(string(b), `"`)
+	if s == "null" || s == "" {
+		return nil
+	}
+	var v time.Time
+	var err error
+	for _, layout := range []string{time.RFC3339Nano, "2006-01-02T15:04:05.999999999", "2006-01-02"} {
+		if v, err = time.Parse(layout, s); err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return err
+	}
+	if v.Year() < 1990 {
+		v = time.Time{}
+	}
+	t.Time = v
+	return nil
+}
+
 type emailSummary struct {
-	ID             int       `json:"id"`
-	AccountID      int       `json:"accountId"`
-	Subject        string    `json:"subject"`
-	From           string    `json:"from"`
-	SentDate       time.Time `json:"sentDate"`
-	HasAttachments bool      `json:"hasAttachments"`
+	ID             int     `json:"id"`
+	AccountID      int     `json:"accountId"`
+	Subject        string  `json:"subject"`
+	From           string  `json:"from"`
+	SentDate       apiTime `json:"sentDate"`
+	HasAttachments bool    `json:"hasAttachments"`
 }
 
 type attachment struct {
@@ -162,10 +189,14 @@ func outName(acct string, sent time.Time, from, file, sha string, exists func(st
 		ext = "." + ext
 	}
 	dir := filepath.Join("Mail", clean(acct, 40))
-	name := fmt.Sprintf("%s_%s_%s%s", sent.UTC().Format("2006-01-02"), senderOf(from), base, ext)
+	day := "undated"
+	if !sent.IsZero() {
+		day = sent.UTC().Format("2006-01-02")
+	}
+	name := fmt.Sprintf("%s_%s_%s%s", day, senderOf(from), base, ext)
 	p := filepath.Join(dir, name)
 	if exists(p) {
-		p = filepath.Join(dir, fmt.Sprintf("%s_%s_%s-%s%s", sent.UTC().Format("2006-01-02"), senderOf(from), base, sha[:8], ext))
+		p = filepath.Join(dir, fmt.Sprintf("%s_%s_%s-%s%s", day, senderOf(from), base, sha[:8], ext))
 	}
 	return p
 }
@@ -297,7 +328,7 @@ func run(ctx context.Context, c *client, cfg config, st *State, logf func(string
 			res.processed++
 			st.Done[e.ID] = true
 			if e.SentDate.After(maxSent) {
-				maxSent = e.SentDate
+				maxSent = e.SentDate.Time
 			}
 			if sinceSave++; sinceSave >= cfg.saveEvery {
 				if err := st.save(cfg.statePath); err != nil {
@@ -354,7 +385,7 @@ func processMail(ctx context.Context, c *client, cfg config, st *State, e emailS
 			deduped++
 			continue
 		}
-		rel := outName(acct, e.SentDate, e.From, a.FileName, sha, func(p string) bool {
+		rel := outName(acct, e.SentDate.Time, e.From, a.FileName, sha, func(p string) bool {
 			_, statErr := os.Stat(filepath.Join(cfg.out, p))
 			return statErr == nil
 		})
@@ -368,7 +399,9 @@ func processMail(ctx context.Context, c *client, cfg config, st *State, e emailS
 			return exported, deduped, skipped, err
 		}
 		// paperless falls back to the file mtime as the created date.
-		_ = os.Chtimes(dst, e.SentDate, e.SentDate)
+		if !e.SentDate.IsZero() {
+			_ = os.Chtimes(dst, e.SentDate.Time, e.SentDate.Time)
+		}
 		_ = os.Chmod(dst, 0o644)
 		st.Seen[sha] = struct{}{}
 		exported++

@@ -40,6 +40,25 @@ func TestWanted(t *testing.T) {
 	}
 }
 
+func TestAPITime(t *testing.T) {
+	var e emailSummary
+	if err := json.Unmarshal([]byte(`{"sentDate":"2026-10-31T16:30:16"}`), &e); err != nil {
+		t.Fatal(err)
+	}
+	if !e.SentDate.Equal(time.Date(2026, 10, 31, 16, 30, 16, 0, time.UTC)) {
+		t.Fatalf("naive timestamp: %v", e.SentDate)
+	}
+	if err := json.Unmarshal([]byte(`{"sentDate":"0001-01-01T01:05:00"}`), &e); err != nil || !e.SentDate.IsZero() {
+		t.Fatalf("bogus date should be zero: %v %v", e.SentDate, err)
+	}
+	if err := json.Unmarshal([]byte(`{"sentDate":"2024-01-10T08:00:00Z"}`), &e); err != nil || e.SentDate.IsZero() {
+		t.Fatalf("RFC3339: %v %v", e.SentDate, err)
+	}
+	if got := outName("Gmail", time.Time{}, "a@b.at", "x.pdf", "abcdef1234", func(string) bool { return false }); !strings.Contains(got, "undated_") {
+		t.Fatalf("undated name %q", got)
+	}
+}
+
 func TestOutName(t *testing.T) {
 	sent := time.Date(2024, 3, 5, 10, 0, 0, 0, time.UTC)
 	none := func(string) bool { return false }
@@ -86,12 +105,12 @@ func (f *fake) handler() http.Handler {
 		d3 := time.Date(2024, 3, 12, 8, 0, 0, 0, time.UTC)
 		if pg == "1" {
 			js(w, page{Page: 1, TotalPages: 2, Items: []emailSummary{
-				{ID: 10, AccountID: 1, From: "Bank <bank@x.at>", SentDate: d1, HasAttachments: true},
-				{ID: 11, AccountID: 1, From: "hr@firma.at", SentDate: d2, HasAttachments: true},
+				{ID: 10, AccountID: 1, From: "Bank <bank@x.at>", SentDate: apiTime{d1}, HasAttachments: true},
+				{ID: 11, AccountID: 1, From: "hr@firma.at", SentDate: apiTime{d2}, HasAttachments: true},
 			}})
 			return
 		}
-		js(w, page{Page: 2, TotalPages: 2, Items: []emailSummary{{ID: 12, AccountID: 1, SentDate: d3}}})
+		js(w, page{Page: 2, TotalPages: 2, Items: []emailSummary{{ID: 12, AccountID: 1, SentDate: apiTime{d3}}}})
 	}))
 	mux.HandleFunc("/api/v1/emails/10", auth(func(w http.ResponseWriter, r *http.Request) {
 		js(w, emailDetail{Attachments: []attachment{
