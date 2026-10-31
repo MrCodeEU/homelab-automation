@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"golang.org/x/text/unicode/norm"
 )
@@ -77,5 +78,26 @@ func TestPlanDedupePrefersHigherPriority(t *testing.T) {
 	}
 	if res.stats[skip][0] != 1 {
 		t.Fatalf("skip count %d, want 1", res.stats[skip][0])
+	}
+}
+
+func TestCopyFileCreatesOwnedDirsAndKeepsMtime(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src.pdf")
+	os.WriteFile(src, []byte("data"), 0o644)
+	old := time.Date(2019, 3, 4, 5, 6, 7, 0, time.UTC)
+	os.Chtimes(src, old, old)
+	consume := filepath.Join(dir, "consume")
+	os.Mkdir(consume, 0o755)
+	dst := filepath.Join(consume, "Wissen", "HTL", "src.pdf")
+	if err := copyFile(src, dst, consume, os.Getuid(), os.Getgid()); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(dst)
+	if err != nil || !info.ModTime().Equal(old) {
+		t.Fatalf("copy missing or mtime lost: %v %v", err, info)
+	}
+	if err := copyFile(src, dst, consume, os.Getuid(), os.Getgid()); err == nil {
+		t.Fatal("copy over an existing file must fail (O_EXCL)")
 	}
 }
