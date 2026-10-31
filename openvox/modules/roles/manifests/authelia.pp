@@ -76,7 +76,7 @@ class roles::authelia (
           "        client_name: '${c['name']}'",
           "        client_secret: '${c['secret_digest']}'",
           '        public: false',
-          '        authorization_policy: one_factor',
+          "        authorization_policy: ${pick($c['authorization_policy'], 'one_factor')}",
           '        consent_mode: implicit',
           "        token_endpoint_auth_method: ${pick($c['token_endpoint_auth_method'], 'client_secret_basic')}",
           $c['claims_policy'] ? {
@@ -161,6 +161,11 @@ class roles::authelia (
         #     - "docker.${domain}"
         #   policy: two_factor
         #   subject: "group:admins"
+
+        # Personal documents (paperless) are reachable from the public
+        # internet, so a second factor is mandatory.
+        - domain: "paperless.${domain}"
+          policy: two_factor
 
         # Allow all authenticated users to access everything else
         - domain: "*.${domain}"

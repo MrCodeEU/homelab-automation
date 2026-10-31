@@ -110,6 +110,12 @@ class roles::services_nas (
     'immich' => {
       'db_password' => lookup('vault_immich_db_password', { 'default_value' => '' }),
     },
+    'paperless' => {
+      'db_password'        => lookup('vault_paperless_db_password', { 'default_value' => '' }),
+      'secret_key'         => lookup('vault_paperless_secret_key', { 'default_value' => '' }),
+      'admin_password'     => lookup('vault_paperless_admin_password', { 'default_value' => '' }),
+      'oidc_client_secret' => lookup('vault_paperless_oidc_client_secret', { 'default_value' => '' }),
+    },
   }
 
   $nas_services.each |$svc| {

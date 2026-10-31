@@ -247,6 +247,13 @@ authelia_oidc_clients:
     redirect_uris:
       - https://sure.mljr.eu/auth/openid_connect/callback
     scopes: [openid, profile, email]
+  - id: paperless
+    name: Paperless
+    secret_digest: '$pbkdf2-sha512$310000$GjdNxMdVQk/.F8im81Z88g$41rOpNE1GPGpinZ9DEJu.xPohQve0BjPR2hGzFES6kma9.NRuANES3SxWcns4jx3d/Dk5V3oRQbNxklV0cbz2g'
+    redirect_uris:
+      - https://paperless.mljr.eu/accounts/oidc/authelia/login/callback/
+    scopes: [openid, profile, email]
+    authorization_policy: two_factor
   # Unraid 7.3 native SSO (Settings -> Management Access -> API -> OIDC). The
   # plaintext secret is entered once in the Unraid UI and lives on the flash
   # drive; nas has no OpenVox agent, so there is no eyaml copy.
@@ -894,6 +901,17 @@ services_catalog:
     host: nas
     description: "Location History & Travel Tracking"
     icon: "mdi:map-marker-path"
+
+  - name: paperless
+    enabled: true
+    managed: true
+    domain: "paperless.mljr.eu"
+    port: 8102
+    host: nas
+    description: "Document management (paperless-ngx). Authelia two_factor at Caddy plus OIDC login."
+    icon: "mdi:file-document-multiple"
+    caddy_auth: authelia
+    backup_critical: true
 
   - name: homeserver-ui
     enabled: false
