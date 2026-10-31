@@ -8,7 +8,7 @@ FROM alpine:3.24
 # hooks/post-deploy.sh.
 ARG APP_UID=10001
 
-RUN apk add --no-cache ca-certificates \
+RUN apk add --no-cache ca-certificates qpdf \
     && addgroup -g ${APP_UID} mailexport \
     && adduser -D -H -u ${APP_UID} -G mailexport mailexport
 

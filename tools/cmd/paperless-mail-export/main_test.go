@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -246,5 +248,92 @@ func TestBadKeyFails(t *testing.T) {
 	c.sleep = func(time.Duration) {}
 	if _, err := run(context.Background(), c, cfg, st, t.Logf); err == nil {
 		t.Fatal("expected an auth error")
+	}
+}
+
+func TestParsePasswords(t *testing.T) {
+	got := parsePasswords("a b\r\n\nsecond" + `\n` + "third\n")
+	want := []string{"a b", "second", "third"}
+	if len(got) != len(want) {
+		t.Fatalf("got %q want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %q want %q", got, want)
+		}
+	}
+	if len(parsePasswords("")) != 0 {
+		t.Fatal("empty input must yield no passwords")
+	}
+}
+
+func TestLockedPDFIsHeldBackAndRetried(t *testing.T) {
+	f := &fake{t: t}
+	srv := httptest.NewServer(f.handler())
+	defer srv.Close()
+	cfg := testConfig(t)
+	os.MkdirAll(cfg.out, 0o755)
+
+	old := unlock
+	defer func() { unlock = old }()
+	unlock = func(string, []string) string { return pdfLocked }
+	st, _ := loadState(cfg.statePath)
+	res, err := run(context.Background(), testClient(srv.URL), cfg, st, t.Logf)
+	if err != nil || res.failed != 0 || res.locked != 2 || res.exported != 0 {
+		t.Fatalf("locked run: %+v %v", res, err)
+	}
+	if st.Done[10] || len(st.Seen) != 0 {
+		t.Fatalf("locked mail must stay retryable: done=%v seen=%d", st.Done, len(st.Seen))
+	}
+	if entries, _ := os.ReadDir(filepath.Join(cfg.out, "Mail")); len(entries) != 0 {
+		t.Fatal("locked file reached the outbox")
+	}
+
+	// Password added: the next run exports it.
+	unlock = func(string, []string) string { return pdfUnlocked }
+	st2, _ := loadState(cfg.statePath)
+	res, err = run(context.Background(), testClient(srv.URL), cfg, st2, t.Logf)
+	if err != nil || res.locked != 0 || res.exported != 1 {
+		t.Fatalf("retry run: %+v %v", res, err)
+	}
+}
+
+func TestUnlockPDFWithQpdf(t *testing.T) {
+	if _, err := exec.LookPath("qpdf"); err != nil {
+		t.Skip("qpdf not installed")
+	}
+	dir := t.TempDir()
+	plain := filepath.Join(dir, "plain.pdf")
+	// Minimal one-page PDF without an xref table; qpdf rebuilds it (exit 3).
+	const pdf = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n" +
+		"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n" +
+		"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 100 100]>>endobj\n" +
+		"trailer<</Root 1 0 R/Size 4>>\n%%EOF\n"
+	if err := os.WriteFile(plain, []byte(pdf), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	enc := filepath.Join(dir, "enc.pdf")
+	var ee *exec.ExitError
+	if err := exec.Command("qpdf", "--encrypt", "geheim", "geheim", "256", "--", plain, enc).Run(); err != nil &&
+		!(errors.As(err, &ee) && ee.ExitCode() == 3) {
+		t.Fatal(err)
+	}
+	if exec.Command("qpdf", "--requires-password", enc).Run() != nil {
+		t.Fatal("test pdf should require a password")
+	}
+	if got := unlockPDF(plain, []string{"x"}); got != pdfPlain {
+		t.Fatalf("unencrypted pdf: %s", got)
+	}
+	if got := unlockPDF(enc, []string{"falsch", "other"}); got != pdfLocked {
+		t.Fatalf("wrong passwords: %s", got)
+	}
+	if got := unlockPDF(enc, []string{"falsch", "geheim"}); got != pdfUnlocked {
+		t.Fatalf("right password: %s", got)
+	}
+	if exec.Command("qpdf", "--requires-password", enc).Run() == nil {
+		t.Fatal("file still needs a password after unlocking")
+	}
+	if left, _ := filepath.Glob(filepath.Join(dir, ".pw-*")); len(left) != 0 {
+		t.Fatalf("password file left behind: %v", left)
 	}
 }
