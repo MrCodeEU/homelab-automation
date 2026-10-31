@@ -16,12 +16,13 @@ docker compose build paperless-mail-export
 # uid 10001 matches the unprivileged user in the Dockerfile.
 install -d -o 10001 -g 10001 -m 0755 "$STATE_ROOT" "$STATE_ROOT/state" "$STATE_ROOT/outbox"
 
-# unit <name> <mode> <description> <OnCalendar>
+# unit <mode> <description> <OnCalendar>; the mode (incremental|sweep) is also
+# the unit name suffix and the argument run.sh receives.
 unit() {
   local name="homelab-paperless-mail-export-$1"
   cat > "/etc/systemd/system/${name}.service" <<UNIT
 [Unit]
-Description=$3
+Description=$2
 After=docker.service network-online.target
 Requires=docker.service
 
@@ -34,10 +35,10 @@ TimeoutStartSec=12h
 UNIT
   cat > "/etc/systemd/system/${name}.timer" <<TIMER
 [Unit]
-Description=$3 (timer)
+Description=$2 (timer)
 
 [Timer]
-OnCalendar=$4
+OnCalendar=$3
 RandomizedDelaySec=5min
 # Catch up after the host was down at the scheduled time.
 Persistent=true

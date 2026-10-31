@@ -56,7 +56,7 @@ class roles::services (
   Array[String] $post_deploy_hook_services = [
     'crowdsec', 'forgejo', 'grafana', 'speedtest', 'godrive-demo',
     'healthreport', 'backup-dashboard', 'mail-archiver', 'umami', 'nocturne',
-    'syncthing-ugreen', 'ntfy', 'crowdsec-nuc',
+    'syncthing-ugreen', 'ntfy', 'crowdsec-nuc', 'paperless-mail-export',
   ],
   Array[String] $critical_hook_services = ['crowdsec', 'forgejo', 'grafana', 'speedtest'],
   # Matches Ansible's own `cleanup_enabled | default(true)` - ugreen's own
