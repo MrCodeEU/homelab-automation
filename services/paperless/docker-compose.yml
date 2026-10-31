@@ -129,6 +129,10 @@ services:
       - "gotenberg"
       - "--chromium-disable-javascript=true"
       - "--chromium-allow-list=^file:///tmp/.*"
+      # LibreOffice converts one file at a time; with several paperless workers
+      # queued the default 30s request limit cut off most pptx conversions
+      # ("context deadline exceeded").
+      - "--api-timeout=5m"
 
   paperless_tika:
     image: docker.io/apache/tika:3.3.1.0
