@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/breml/go-uptime-kuma-client v0.4.2
 	github.com/lib/pq v1.12.3
+	golang.org/x/text v0.43.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
