@@ -442,6 +442,7 @@ services_catalog:
     managed: true
     port: 0
     host: nuc
+    build_from_source: true
     description: "Exports mail-archiver attachments (REST API) into paperless' consume dir on nas via systemd timers. No Caddy route."
     icon: "mdi:email-fast"
 
