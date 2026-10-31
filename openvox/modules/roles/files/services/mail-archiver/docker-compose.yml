@@ -11,6 +11,11 @@ services:
       Authentication__Password: ${MAILARCHIVER_ADMIN_PASSWORD}
       TimeZone__DisplayTimeZoneId: ${TZ:-Europe/Vienna}
       LocalImport__AllowedPaths__0: /data/import
+      # Read-only REST API v1 (bearer API keys, created in the web UI). Used by
+      # the paperless mail exporter on this host via 127.0.0.1:5000; Swagger
+      # needs a browser session and is not wanted.
+      Api__Enabled: "true"
+      Api__EnableSwaggerUi: "false"
     volumes:
       - mail-archiver-dp-keys:/app/DataProtection-Keys
       - mail-archiver-logs:/app/logs
