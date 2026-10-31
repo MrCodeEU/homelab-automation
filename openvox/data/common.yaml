@@ -94,6 +94,12 @@ unraid_backup_paths:
     src: "/mnt/user/backup/appdata"
     dest: "pcloud:unraid-appdata-backup"
     destinations: [pcloud, ugreen]
+  # ugreen only, on purpose: identity documents and payslips, and the pCloud
+  # remote is not an rclone crypt remote. Offsite needs an encrypted remote first.
+  - name: paperless-export
+    src: "/mnt/user/backup/paperless-export"
+    dest: "ugreen:nas/paperless-export"
+    destinations: [ugreen]
   - name: origami
     src: "/mnt/user/backup/origami"
     dest: "pcloud:origami"

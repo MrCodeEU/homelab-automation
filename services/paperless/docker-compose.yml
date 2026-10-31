@@ -77,7 +77,9 @@ services:
       - /mnt/user/appdata/paperless/data:/usr/src/paperless/data
       - /mnt/user/appdata/paperless/media:/usr/src/paperless/media
       - /mnt/user/appdata/paperless/consume:/usr/src/paperless/consume
-      - /mnt/user/appdata/paperless/export:/usr/src/paperless/export
+      # Plain-file export (document_exporter, run by the nightly NAS backup
+      # script). Lives in the `backup` share, which is what gets synced offsite.
+      - /mnt/user/backup/paperless-export:/usr/src/paperless/export
     healthcheck:
       test: ["CMD", "curl", "-fs", "-S", "--max-time", "2", "http://localhost:8000"]
       interval: 30s

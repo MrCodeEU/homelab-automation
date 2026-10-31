@@ -406,6 +406,34 @@ else
     failed_paths+=("pcloud:Sync")
 fi
 
+# paperless-ngx: refresh the plain-file export (originals under their
+# document names plus manifest.json with every DB record, restorable with
+# document_importer), then ship it to ugreen only. No pCloud leg: this holds
+# identity documents and payslips and the pCloud remote is not encrypted.
+total_count=$((total_count + 1))
+log "Exporting paperless-ngx -> /mnt/user/backup/paperless-export"
+if docker exec paperless document_exporter ../export -d -f -na -nt --no-progress-bar >> "$LOG_FILE" 2>&1; then
+    log "SUCCESS: paperless-ngx export refreshed"
+    record_stats "paperless-export" "/mnt/user/backup/paperless-export"
+    if [ "$UGREEN_AVAILABLE" = "1" ]; then
+        log "Backing up /mnt/user/backup/paperless-export -> ugreen:nas/paperless-export"
+        if rclone --config "$UGREEN_CONFIG" sync "/mnt/user/backup/paperless-export" "ugreen:nas/paperless-export" \
+            --backup-dir "ugreen:nas/.deleted/paperless-export/${BACKUP_DATE}" \
+            --transfers 2 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
+            log "SUCCESS: /mnt/user/backup/paperless-export backed up to ugreen"
+        else
+            log_error "Failed to sync /mnt/user/backup/paperless-export to ugreen"
+            failed_paths+=("ugreen:paperless-export")
+        fi
+    else
+        log_error "ugreen unavailable - paperless export has no off-box copy tonight"
+        failed_paths+=("ugreen:paperless-export")
+    fi
+else
+    log_error "paperless-ngx document_exporter failed"
+    failed_paths+=("paperless-export")
+fi
+
 # Prune .deleted/ point-in-time folders older than the retention window -
 # --backup-dir keeps every changed/deleted file forever otherwise.
 log "Pruning .deleted/ folders older than 30 days"
@@ -430,6 +458,7 @@ rclone delete --min-age 30d "pcloud:.deleted/appdata-backup" >/dev/null 2>&1 || 
 [ "$UGREEN_AVAILABLE" = "1" ] && rclone --config "$UGREEN_CONFIG" delete --min-age 30d "ugreen:nas/.deleted/appdata-backup" >/dev/null 2>&1 || true
 rclone delete --min-age 30d "pcloud:.deleted/origami" >/dev/null 2>&1 || true
 [ "$UGREEN_AVAILABLE" = "1" ] && rclone --config "$UGREEN_CONFIG" delete --min-age 30d "ugreen:nas/.deleted/origami" >/dev/null 2>&1 || true
+[ "$UGREEN_AVAILABLE" = "1" ] && rclone --config "$UGREEN_CONFIG" delete --min-age 30d "ugreen:nas/.deleted/paperless-export" >/dev/null 2>&1 || true
 rclone delete --min-age 30d "pcloud:.deleted/sync" >/dev/null 2>&1 || true
 
 log "=========================================="
