@@ -1,0 +1,24 @@
+services:
+  paperless-mail-export:
+    build: .
+    image: paperless-mail-export:local
+    container_name: paperless-mail-export
+    # One-shot, invoked by run.sh via `docker compose run`. The default
+    # command only prints usage, so the services role's `up -d` at deploy
+    # time never starts a (potentially hours-long) backfill.
+    command: ["--help"]
+    restart: "no"
+    # Reaches mail-archiver on nuc's Tailscale address (100.100.10.1:5000).
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      # Not under /opt/<service>: the services role rsyncs that directory with
+      # delete: true, which would wipe the state on every deploy.
+      - /var/lib/paperless-mail-export/state:/state
+      - /var/lib/paperless-mail-export/outbox:/outbox
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

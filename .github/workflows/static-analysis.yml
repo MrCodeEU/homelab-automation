@@ -157,6 +157,9 @@ jobs:
           go mod tidy
           git diff --exit-code -- go.mod go.sum
 
+      - name: Committed Go binaries match their source
+        run: bash scripts/service-binary.sh check
+
       - name: Record baseline result
         if: always()
         run: |
