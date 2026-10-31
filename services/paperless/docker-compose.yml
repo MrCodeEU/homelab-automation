@@ -46,6 +46,10 @@ services:
       PAPERLESS_TIKA_ENABLED: "1"
       PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://paperless_gotenberg:3000
       PAPERLESS_TIKA_ENDPOINT: http://paperless_tika:9998
+      # One worker used a single core of 16 (~20 s/doc); the backfill is
+      # ~3,000 files. Total OCR threads = workers x threads.
+      PAPERLESS_TASK_WORKERS: "6"
+      PAPERLESS_THREADS_PER_WORKER: "2"
       PAPERLESS_OCR_LANGUAGE: deu+eng
       PAPERLESS_OCR_LANGUAGES: deu
       # Bootstrap admin; the password is only read on first start.

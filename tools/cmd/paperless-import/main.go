@@ -423,7 +423,28 @@ func quarantine(consume, failed string) int {
 	return n
 }
 
-func copyFile(src, dst string) error {
+// mkdirAllOwned creates dir (and missing parents below stop) owned by
+// uid:gid, so the unprivileged paperless user can consume and delete files.
+func mkdirAllOwned(dir, stop string, uid, gid int) error {
+	var missing []string
+	for d := dir; d != stop && d != "/" && d != "."; d = filepath.Dir(d) {
+		if _, err := os.Stat(d); err == nil {
+			break
+		}
+		missing = append(missing, d)
+	}
+	for i := len(missing) - 1; i >= 0; i-- {
+		if err := os.Mkdir(missing[i], 0o755); err != nil && !os.IsExist(err) {
+			return err
+		}
+		if err := os.Lchown(missing[i], uid, gid); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyFile(src, dst, consume string, uid, gid int) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -433,7 +454,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := mkdirAllOwned(filepath.Dir(dst), consume, uid, gid); err != nil {
 		return err
 	}
 	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
@@ -448,6 +469,9 @@ func copyFile(src, dst string) error {
 	if err := out.Close(); err != nil {
 		return err
 	}
+	if err := os.Lchown(dst, uid, gid); err != nil {
+		return err
+	}
 	// Keep the source mtime: paperless falls back to it as the created date.
 	return os.Chtimes(dst, info.ModTime(), info.ModTime())
 }
@@ -460,6 +484,8 @@ func cmdApply(args []string) error {
 	batch := fs.Int("batch", 100, "files per batch")
 	maxBatches := fs.Int("max-batches", 0, "stop after N batches (0 = all)")
 	only := fs.String("only", "", "only this class (persoenlich|wissen|unsortiert)")
+	uid := fs.Int("uid", 1000, "owner uid of created files (paperless container user)")
+	gid := fs.Int("gid", 1000, "owner gid of created files")
 	stall := fs.Duration("stall", 15*time.Minute, "no progress before leftovers are quarantined")
 	fs.Parse(args)
 
@@ -503,7 +529,7 @@ func cmdApply(args []string) error {
 				}
 				target = strings.TrimSuffix(target, ext) + "-" + sum[:8] + ext
 			}
-			if err := copyFile(filepath.Join(*src, r.rel), target); err != nil {
+			if err := copyFile(filepath.Join(*src, r.rel), target, *consume, *uid, *gid); err != nil {
 				fmt.Fprintf(os.Stderr, "copy %s: %v\n", r.rel, err)
 				continue
 			}
