@@ -345,6 +345,7 @@ class roles::services (
     'healthreport'      => ['healthreport'],
     'backup-dashboard'  => ['backup-dashboard-collect'],
     'csp-reports'       => ['csp-reports'],
+    'paperless-mail-export' => ['paperless-mail-export', 'run.sh'],
   }
 
   # Explicit, one-shot major-version migrations. The persistent marker is
