@@ -21,6 +21,10 @@ services:
         condition: service_healthy
       paperless_valkey:
         condition: service_healthy
+      paperless_gotenberg:
+        condition: service_started
+      paperless_tika:
+        condition: service_started
     ports:
       - "${BIND_ADDR:-100.100.10.2}:8102:8000"
     environment:
@@ -37,6 +41,11 @@ services:
       PAPERLESS_DBUSER: paperless
       PAPERLESS_DBPASS: ${PAPERLESS_DB_PASSWORD:?}
       PAPERLESS_REDIS: redis://paperless_valkey:6379
+      # Office documents (docx/pptx/xlsx/odt) are converted via Tika +
+      # Gotenberg; plain PDFs and images never touch them.
+      PAPERLESS_TIKA_ENABLED: "1"
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://paperless_gotenberg:3000
+      PAPERLESS_TIKA_ENDPOINT: http://paperless_tika:9998
       PAPERLESS_OCR_LANGUAGE: deu+eng
       PAPERLESS_OCR_LANGUAGES: deu
       # Bootstrap admin; the password is only read on first start.
@@ -105,3 +114,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  paperless_gotenberg:
+    image: docker.io/gotenberg/gotenberg:8.37
+    container_name: paperless_gotenberg
+    restart: unless-stopped
+    # Same flags as upstream: no JavaScript, no external content (tracking
+    # pixels) when converting mails/office files.
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=true"
+      - "--chromium-allow-list=^file:///tmp/.*"
+
+  paperless_tika:
+    image: docker.io/apache/tika:3.3.1.0
+    container_name: paperless_tika
+    restart: unless-stopped
