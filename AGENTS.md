@@ -133,6 +133,11 @@ name the wildcard doesn't cover (e.g. a `CNAME` to a third party).
    adds each `vault_*` key to every recipient host's
    `data/secrets/<certname>.eyaml` (encrypted on that host with its public
    key, value pasted or generated, never printed, PR opened for you).
+   `make rotate-secret KEY=vault_x` replaces a value. A multi-line secret (one
+   entry per line, e.g. `vault_pdf_passwords`) is extended with
+   `make add-secret-line KEY=vault_x`: it decrypts the current value on the
+   host, appends your one new line, re-encrypts and verifies the round trip;
+   existing lines are kept. Removing a single line is not supported yet.
    `scripts/eyaml-get.sh <host> [key]` reads one back. By hand this is:
    add each `vault_*` key to every required host's
    `data/secrets/<certname>.eyaml`, encrypted with that host's public key;
