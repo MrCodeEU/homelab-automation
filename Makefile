@@ -190,7 +190,7 @@ sync-openvox-services:
 #        make rotate-secret-dry-run [KEY=vault_some_key]  — stop after the
 #        ciphertext diff, no commit/push/PR/deploy.
 rotate-secret:
-	@./scripts/rotate-eyaml-secret.sh $(KEY)
+	@bash ./scripts/rotate-eyaml-secret.sh $(KEY)
 
 # Usage: make add-secret-line KEY=vault_some_key  (e.g. vault_pdf_passwords)
 add-secret-line:
@@ -200,10 +200,10 @@ add-secret-line:
 # Usage: make add-secret KEY=vault_some_key HOSTS=nuc[,mljr,ugreen] [GEN=hex:32]
 add-secret:
 	@test -n "$(KEY)" -a -n "$(HOSTS)" || { echo "usage: make add-secret KEY=vault_x HOSTS=nuc[,mljr] [GEN=hex:32]"; exit 2; }
-	@./scripts/rotate-eyaml-secret.sh --new $(KEY) --hosts $(HOSTS) $(if $(GEN),--generate $(GEN))
+	@bash ./scripts/rotate-eyaml-secret.sh --new $(KEY) --hosts $(HOSTS) $(if $(GEN),--generate $(GEN))
 
 rotate-secret-dry-run:
-	@./scripts/rotate-eyaml-secret.sh --dry-run $(KEY)
+	@bash ./scripts/rotate-eyaml-secret.sh --dry-run $(KEY)
 
 ################################################################################
 # Housekeeping
