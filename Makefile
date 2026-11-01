@@ -18,6 +18,7 @@
 #   make rotate-secret-dry-run [KEY=vault_x]   Preview only, nothing written
 #   make rotate-secret [KEY=vault_x]           Full flow, confirmed at each step
 #   make add-secret KEY=vault_x HOSTS=nuc[,mljr] [GEN=hex:32]   Add a NEW secret (pasted, or generated)
+#   make add-secret-line KEY=vault_x          Append ONE line to a multi-line secret (keeps the others)
 #
 # `ansible/` (the pre-OpenVox implementation) was removed 2026-09-02 after
 # a full parity audit confirmed every role had a real OpenVox equivalent -
@@ -29,7 +30,7 @@
         help \
         _check-validate _check-syntax _check-compose _check-binaries \
         openvox-check openvox-deploy openvox-recovery openvox-rollback \
-        rotate-secret rotate-secret-dry-run add-secret
+        rotate-secret rotate-secret-dry-run add-secret add-secret-line
 
 ################################################################################
 # DEFAULT: fast local tests (no Docker)
@@ -190,6 +191,11 @@ sync-openvox-services:
 #        ciphertext diff, no commit/push/PR/deploy.
 rotate-secret:
 	@./scripts/rotate-eyaml-secret.sh $(KEY)
+
+# Usage: make add-secret-line KEY=vault_some_key  (e.g. vault_pdf_passwords)
+add-secret-line:
+	@test -n "$(KEY)" || { echo "usage: make add-secret-line KEY=vault_x"; exit 2; }
+	@bash ./scripts/rotate-eyaml-secret.sh --append $(KEY)
 
 # Usage: make add-secret KEY=vault_some_key HOSTS=nuc[,mljr,ugreen] [GEN=hex:32]
 add-secret:

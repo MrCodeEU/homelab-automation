@@ -6,7 +6,10 @@
 # value, and this walks the whole flow documented in AGENTS.md ("Secrets are
 # host-scoped and decrypt host-side") end to end. With --new it adds a key
 # that does not exist yet (recipients given by --hosts, value pasted or
-# generated) instead of replacing one.
+# generated) instead of replacing one. With --append it adds one LINE to an
+# existing multi-line secret (e.g. vault_pdf_passwords, one password per line):
+# the current value is decrypted on the recipient host, the new line is added,
+# the whole value is re-encrypted there - nothing is ever printed.
 #
 #   1. discover which openvox/data/secrets/<certname>.eyaml files carry the
 #      key (a secret can have several recipient hosts)
@@ -58,6 +61,7 @@ done
 # ---------------------------------------------------------------------------
 dry_run=false
 new_key=false
+append=false
 new_hosts=""
 generate=""
 positional=()
@@ -65,17 +69,24 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) dry_run=true ;;
     --new) new_key=true ;;
+    --append) append=true ;;
     --hosts) new_hosts="${2:-}"; shift ;;
     --generate) generate="${2:-}"; shift ;;
     -h|--help)
       echo "usage: $0 [--dry-run] [vault_key_name]"
       echo "       $0 [--dry-run] --new vault_key_name --hosts nuc[,mljr,ugreen] [--generate hex:N]"
+      echo "       $0 [--dry-run] --append vault_key_name     (add one line to a multi-line secret)"
       exit 0
       ;;
     *) positional+=("$1") ;;
   esac
   shift
 done
+if [ "$append" = true ]; then
+  [ "$new_key" = false ] || die "--append and --new cannot be combined"
+  [ -z "$generate" ] || die "--append takes a typed line, not --generate"
+  [ -n "${positional[0]:-}" ] || die "--append needs a key name"
+fi
 if [ "$new_key" = true ]; then
   [ -n "${positional[0]:-}" ] || die "--new needs a key name"
   [[ "${positional[0]}" =~ ^vault_[a-z0-9_]+$ ]] || die "key must match vault_[a-z0-9_]+"
@@ -146,7 +157,11 @@ if [ "$new_key" = true ]; then
   bold "Adding new secret: $target_key"
 else
   hosts="${KEY_HOSTS[$target_key]}"
-  bold "Rotating: $target_key"
+  if [ "$append" = true ]; then
+    bold "Appending one line to: $target_key"
+  else
+    bold "Rotating: $target_key"
+  fi
 fi
 info "recipient hosts: $hosts"
 
@@ -159,10 +174,15 @@ if [ -n "$generate" ]; then
   new_value="$(openssl rand -hex "${generate#hex:}")"
   step "Generated a random value for $target_key (${generate}, not shown)"
 else
-  step "Paste the new value for $target_key (input hidden)"
+  if [ "$append" = true ]; then
+    step "Type the ONE new line to append to $target_key (input hidden)"
+  else
+    step "Paste the new value for $target_key (input hidden)"
+  fi
   read -r -s -p "New value: " new_value
   echo
   [ -n "$new_value" ] || die "empty value, aborting"
+  [ "$append" = false ] || [[ "$new_value" != *$'\r'* ]] || die "line contains a carriage return, aborting"
   read -r -s -p "Confirm (paste again): " new_value_confirm
   echo
   [ "$new_value" = "$new_value_confirm" ] || die "values did not match, aborting"
@@ -179,13 +199,35 @@ for short in $hosts; do
   certname="${HOST_CERTNAME[$short]}"
   step "Encrypting for $short ($certname)"
   remote_pub="/etc/puppetlabs/puppet/eyaml/hosts/${certname}/public_key.pkcs7.pem"
-  cipher="$(printf '%s' "$new_value" | ssh "root@${certname}" \
+  value="$new_value"
+  if [ "$append" = true ]; then
+    # Decrypted on the recipient host (same path as scripts/eyaml-get.sh); the
+    # plaintext only lives in this shell variable.
+    current="$(bash scripts/eyaml-get.sh "$short" "$target_key")" || die "could not decrypt the current $target_key on $short"
+    if printf '%s\n' "$current" | grep -qxF -- "$new_value"; then
+      die "that line is already part of $target_key on $short, nothing to add"
+    fi
+    before=$(printf '%s\n' "$current" | grep -c .)
+    if [ -n "$current" ]; then value="${current}"$'\n'"${new_value}"; fi
+    info "lines: $before -> $(printf '%s\n' "$value" | grep -c .)"
+  fi
+  cipher="$(printf '%s' "$value" | ssh "root@${certname}" \
     "/opt/puppetlabs/puppet/bin/eyaml encrypt --pkcs7-public-key='${remote_pub}' -o string --stdin" \
     2>/dev/null)" || die "eyaml encrypt failed on $short"
   # -o string prints exactly "ENC[PKCS7,...]" with a trailing newline, no
   # other framing - strip only that trailing newline.
   cipher="${cipher%$'\n'}"
   [[ "$cipher" =~ ^ENC\[PKCS7, ]] || die "unexpected eyaml output for $short, refusing to write it"
+  if [ "$append" = true ]; then
+    # Round trip: the stored ciphertext must decrypt to exactly what was meant.
+    back="$(ssh "root@${certname}" "/opt/puppetlabs/puppet/bin/eyaml decrypt -s '${cipher}' \
+      --pkcs7-private-key=/etc/puppetlabs/puppet/eyaml/hosts/${certname}/private_key.pkcs7.pem \
+      --pkcs7-public-key=${remote_pub}" 2>/dev/null)" || die "verification decrypt failed on $short"
+    [ "$(printf '%s' "$back" | sha256sum)" = "$(printf '%s' "$value" | sha256sum)" ] \
+      || die "verification failed on $short: decrypted value differs, refusing to write it"
+    info "verified: ciphertext decrypts to the expected $(printf '%s\n' "$value" | grep -c .) line(s)"
+  fi
+  unset value current back
   CIPHERTEXT[$short]="$cipher"
   info "OK"
 done
@@ -229,14 +271,14 @@ confirm "Write looks right - keep these changes staged for commit?" || {
 # 6. Branch, commit, push, PR
 # ---------------------------------------------------------------------------
 slug="$(echo "$target_key" | tr '_' '-')"
-branch="$([ "$new_key" = true ] && echo secret || echo rotate)/${slug}-$(date +%Y%m%d)"
+branch="$(if [ "$new_key" = true ]; then echo secret; elif [ "$append" = true ]; then echo append; else echo rotate; fi)/${slug}-$(date +%Y%m%d%H%M)"
 
 step "Creating branch $branch"
 current_branch="$(git branch --show-current)"
 [ "$current_branch" = "main" ] || confirm "Not on main (on '$current_branch') - branch off here anyway?" || die "aborted, switch to main first"
 git checkout -b "$branch"
 git add "${changed_files[@]}"
-git commit -m "chore: $([ "$new_key" = true ] && echo add || echo rotate) ${target_key}"
+git commit -m "chore: $(if [ "$new_key" = true ]; then echo add; elif [ "$append" = true ]; then echo "append a line to"; else echo rotate; fi) ${target_key}"
 
 confirm "Push $branch and open a PR?" || die "left committed locally on $branch, not pushed"
 git push -u origin "$branch"
