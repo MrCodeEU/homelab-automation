@@ -174,9 +174,39 @@ listeners, de-duplicated by address and port). "All" means bound to
 | nas | 70 | 14 | 10 | 14 | 76 |
 | wd_mycloud | 40 | 2 | 6 | 6 | 1 |
 
-homeassistant was not measured yet. Its SSH (Advanced SSH & Web Terminal
-add-on) answers on `100.100.10.200:22` with ed25519 and rsa host keys, but
-no workstation key is authorized (`Permission denied (publickey,password)`). wd_mycloud runs a real OpenSSH `sshd`
+### Home Assistant (measured 2026-11-04)
+
+Home Assistant Green (aarch64), HA OS 18.4, Core 2026.10.4. LAN
+`192.168.50.31`, tailnet `100.100.10.200` via the Tailscale add-on 0.30.5.
+Measured over the Advanced SSH & Web Terminal add-on (24.2.0, protection
+mode on). Public-key login could not be made to work in the add-on, so a
+temporary password was set for this measurement and reset afterwards.
+
+Listeners (TCP and UDP, de-duplicated): **17 on all interfaces** (IPv4),
+plus their IPv6 twins, 2 tailnet-only, 5 LAN-only, 5 loopback, 6 on the
+`hassio` bridge (`172.30.32.1`). Notable ones on all interfaces:
+
+| Port | What |
+|---|---|
+| 22/tcp | Advanced SSH add-on `sshd` (host network) |
+| 8123/tcp | Home Assistant Core (no TLS; `home.mljr.eu` via Caddy) |
+| 5201/tcp+udp | iPerf3 Server add-on |
+| 4416/tcp | YT Music PO Token Generator add-on |
+| 111/tcp+udp | rpcbind |
+| 4357/tcp, 18555/tcp, 39342/tcp | HA OS / Core internals (go2rtc and others) |
+| 1900/udp, 5353/udp, 5355 | SSDP, mDNS, LLMNR (discovery) |
+
+Started add-ons: Matter Server (host network, 5580), OpenThread Border
+Router (host network, 8080/8081), Tailscale (host network), Advanced SSH
+(host network), iPerf3 Server, Claude Code, YT Music PO Token Generator.
+
+Zero trust notes:
+- Home Assistant OS cannot run a Ziti tunneler on the host; see the plan's
+  Phase 5 (nuc-hosted Ziti services forwarding to `192.168.50.31`).
+- Tailscale SSH is not available; SSH is the add-on's own `sshd`.
+- Key-based SSH login to the add-on did not work (cause unknown). This
+  blocks `ed25519-sk` break-glass for Home Assistant until solved, so
+  Phase 1 must include it. wd_mycloud runs a real OpenSSH `sshd`
 (8.4p1) on `0.0.0.0:22`, so `ed25519-sk` break-glass keys work there.
 
 ## Metrics baseline
@@ -235,8 +265,6 @@ because nuc drives them through proxy `exec`.
 ## Still open in Phase 0
 
 - Re-run the iperf3 baseline after the FRITZ!Box mesh upgrade.
-- Measure listening sockets on homeassistant, once a workstation key is in
-  the Advanced SSH add-on's `authorized_keys`.
 
 Resolved 2026-11-04: kuma, forgejo, umami, projects and glucava **stay
 public for now** (owner decision), revisited in Phase 7. No device fits the

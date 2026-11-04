@@ -144,7 +144,8 @@ rollback.
 
 - Buy and register the second YubiKey.
 - Enrol `ed25519-sk` keys from both YubiKeys on every host class; store the
-  fallback key in Bitwarden. Confirm the Bitwarden recovery copy exists
+  fallback key in Bitwarden. Home Assistant first needs working key-based
+  login in the Advanced SSH add-on (it failed in Phase 0, cause unknown). Confirm the Bitwarden recovery copy exists
   offline.
 - Lock Tailscale ACLs down towards the break-glass role it will keep.
 - Alert on break-glass key use (sshd log, then healthreport).
