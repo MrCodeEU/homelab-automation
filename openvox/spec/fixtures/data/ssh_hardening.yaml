@@ -1,2 +1,4 @@
 ---
-recovery_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAItestkeytestkeytestkeytestkeytestkeytestkeyAA homelab-recovery"
+breakglass_pubkeys:
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAItestkeytestkeytestkeytestkeytestkeytestkeyAA homelab-recovery"
+  - "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAItestkeytestkeytestkey homelab-breakglass-yk1"
