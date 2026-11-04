@@ -167,6 +167,13 @@ class roles::authelia (
         - domain: "paperless.${domain}"
           policy: two_factor
 
+        # Cockpit is root-level host administration, also reachable from
+        # the public internet, so it gets a second factor too.
+        - domain:
+            - "cockpit.${domain}"
+            - "nuc.${domain}"
+          policy: two_factor
+
         # Allow all authenticated users to access everything else
         - domain: "*.${domain}"
           policy: one_factor
