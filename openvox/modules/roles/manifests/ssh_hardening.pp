@@ -12,7 +12,8 @@
 #   2. disable_passwords: true   - after a real key login was tested by hand
 #
 # nas (Unraid) has no OpenVox agent and is NOT managed here. Done by hand on
-# 2026-10-25: the recovery key sits in /root/.ssh/authorized_keys (the same
+# 2026-10-25 (YubiKey key added 2026-11-04; keep it in step with
+# breakglass_pubkeys by hand): the keys sit in /root/.ssh/authorized_keys (the same
 # file as /boot/config/ssh/root/authorized_keys), and PasswordAuthentication /
 # KbdInteractiveAuthentication are 'no' in /etc/ssh/sshd_config AND in
 # /boot/config/ssh/sshd_config, which rc.sshd copies back over /etc/ssh at
