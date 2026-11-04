@@ -1,7 +1,7 @@
 # role::ugreen - UGreen NAS (UGOS, vendor appliance, no roles::base -
 # UGOS isn't dnf-managed). See role::mljr for the general roles/profiles
 # convention this follows. Per-host data:
-# data/nodes/ugreen.tail33930.ts.net.yaml.
+# data/nodes/ugreen.int.mljr.eu.yaml.
 class role::ugreen (
   # Set false only while recovering Ugreen's vendor-managed storage. This
   # pauses management of the SFTP write target without deleting its existing

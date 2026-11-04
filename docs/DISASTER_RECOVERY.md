@@ -89,7 +89,7 @@ and active key directory are:
 |------|------------------|------------------|
 | `mljr` | `mljr.tail33930.ts.net` | `/etc/puppetlabs/puppet/eyaml/hosts/mljr.tail33930.ts.net/` |
 | `nuc` | `nuc.int.mljr.eu` | `/etc/puppetlabs/puppet/eyaml/hosts/nuc.int.mljr.eu/` |
-| `ugreen` | `ugreen.tail33930.ts.net` | `/etc/puppetlabs/puppet/eyaml/hosts/ugreen.tail33930.ts.net/` |
+| `ugreen` | `ugreen.int.mljr.eu` | `/etc/puppetlabs/puppet/eyaml/hosts/ugreen.int.mljr.eu/` |
 
 After OpenVox itself is installed, restore the private key to that directory
 as `private_key.pkcs7.pem`, restore the matching public key from
@@ -358,7 +358,7 @@ hardware. The repeatable boundary is deliberately clear:
    is the first remote-management path after a factory reset.
 3. **Install OpenVox for Debian 12.** Add the OpenVox Debian 12 apt source
    (`https://apt.voxpupuli.org`, suite `debian12 openvox8`) and install the
-   OpenVox agent. Set its certname to `ugreen.tail33930.ts.net`. The
+   OpenVox agent. Set its certname to `ugreen.int.mljr.eu`. The
    generic `scripts/install-openvox.sh` is Rocky-only; do not run it here.
 4. **Restore Ugreen's existing EYaml key pair** as described in
    [EYaml key recovery](#eyaml-key-recovery), then sync and apply:

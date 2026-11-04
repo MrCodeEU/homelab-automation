@@ -41,7 +41,7 @@ secrets_dir="openvox/data/secrets"
 declare -A HOST_CERTNAME=(
   [mljr]="mljr.tail33930.ts.net"
   [nuc]="nuc.int.mljr.eu"
-  [ugreen]="ugreen.tail33930.ts.net"
+  [ugreen]="ugreen.int.mljr.eu"
 )
 
 # SSH transport (still Tailscale until the OpenZiti phase).

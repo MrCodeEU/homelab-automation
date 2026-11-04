@@ -16,6 +16,6 @@ node 'nuc.int.mljr.eu' {
   include role::nuc
 }
 
-node 'ugreen.tail33930.ts.net' {
+node 'ugreen.int.mljr.eu' {
   include role::ugreen
 }

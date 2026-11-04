@@ -13,7 +13,7 @@ key="${2:-}"
 case "$host" in
   mljr)   cert="mljr.tail33930.ts.net";   ssh_target="mljr.tail33930.ts.net" ;;
   nuc)    cert="nuc.int.mljr.eu";         ssh_target="nuc.tail33930.ts.net" ;;
-  ugreen) cert="ugreen.tail33930.ts.net"; ssh_target="ugreen.tail33930.ts.net" ;;
+  ugreen) cert="ugreen.int.mljr.eu";      ssh_target="ugreen.tail33930.ts.net" ;;
   *) echo "usage: $0 <mljr|nuc|ugreen> [key]" >&2; exit 2 ;;
 esac
 
