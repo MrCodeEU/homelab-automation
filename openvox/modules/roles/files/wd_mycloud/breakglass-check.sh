@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Exits 0 (no work needed) if wd-mycloud already has the break-glass keys
-# (breakglass-authorized_keys, written next to this script by
+# Exits 0 (no work needed) only if wd-mycloud already has the break-glass
+# keys (breakglass-authorized_keys, written next to this script by
 # roles::wd_mycloud_proxy) on its data disk and in root's live
-# ~/.ssh/authorized_keys, and the clamAV boot hook restores them.
+# ~/.ssh/authorized_keys, the clamAV boot hook restores them, AND the live
+# sshd config is hardened (root allowed, passwords off).
 # Read-only: safe as an exec guard under --noop.
 set -euo pipefail
 TARGET="root@wd-mycloud.tail33930.ts.net"
@@ -15,3 +16,8 @@ ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" 'cat /home/ro
   | cmp -s - "$KEYS"
 ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" \
   "grep -qF 'BEGIN OPENVOX MANAGED BLOCK - wd-mycloud-breakglass boot hook' /mnt/HD/HD_a2/Nas_Prog/clamAV/start.sh"
+ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" \
+  'cfg=$(/usr/sbin/sshd -T -f /etc/ssh/sshd_config 2>/dev/null); \
+   echo "$cfg" | grep -qx "passwordauthentication no" && \
+   echo "$cfg" | grep -qx "permitemptypasswords no" && \
+   echo "$cfg" | grep -qiE "^allowusers( .*)? root( |$)"'
