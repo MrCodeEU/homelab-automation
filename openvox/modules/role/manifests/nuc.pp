@@ -1,7 +1,7 @@
 # role::nuc - staging + misc services (Rocky), and the reach-over-SSH
 # proxy for nas/wd_mycloud (neither has a real Puppet agent). See
 # role::mljr for the general roles/profiles convention this follows.
-# Per-host data: data/nodes/nuc.tail33930.ts.net.yaml.
+# Per-host data: data/nodes/nuc.int.mljr.eu.yaml.
 class role::nuc {
   include roles::base
   include roles::ssh_hardening

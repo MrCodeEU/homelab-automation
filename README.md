@@ -169,12 +169,16 @@ host key with `scripts/bootstrap-openvox-eyaml-host-key.sh <host>`; it creates
 the private key on that host and retrieves only its public key. Edit a host's
 file through that same host:
 
+The secrets file name and the on-host key dir use the host's Puppet certname
+(`nuc.int.mljr.eu` since the Phase 2 certname migration); the SSH target stays
+the Tailscale name until the OpenZiti phase:
+
 ```bash
-scp openvox/data/secrets/nuc.tail33930.ts.net.eyaml root@nuc.tail33930.ts.net:/tmp/nuc.eyaml
+scp openvox/data/secrets/nuc.int.mljr.eu.eyaml root@nuc.tail33930.ts.net:/tmp/nuc.eyaml
 ssh root@nuc.tail33930.ts.net "/opt/puppetlabs/puppet/bin/eyaml edit /tmp/nuc.eyaml \
-  --pkcs7-public-key=/etc/puppetlabs/puppet/eyaml/hosts/nuc.tail33930.ts.net/public_key.pkcs7.pem \
-  --pkcs7-private-key=/etc/puppetlabs/puppet/eyaml/hosts/nuc.tail33930.ts.net/private_key.pkcs7.pem"
-scp root@nuc.tail33930.ts.net:/tmp/nuc.eyaml openvox/data/secrets/nuc.tail33930.ts.net.eyaml
+  --pkcs7-public-key=/etc/puppetlabs/puppet/eyaml/hosts/nuc.int.mljr.eu/public_key.pkcs7.pem \
+  --pkcs7-private-key=/etc/puppetlabs/puppet/eyaml/hosts/nuc.int.mljr.eu/private_key.pkcs7.pem"
+scp root@nuc.tail33930.ts.net:/tmp/nuc.eyaml openvox/data/secrets/nuc.int.mljr.eu.eyaml
 ssh root@nuc.tail33930.ts.net "shred -u /tmp/nuc.eyaml"
 ```
 

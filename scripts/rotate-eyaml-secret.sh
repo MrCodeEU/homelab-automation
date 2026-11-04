@@ -35,7 +35,17 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 cd "$repo_root" || exit 1
 
 secrets_dir="openvox/data/secrets"
+# Puppet certname (identity): names the openvox/data/secrets/<certname>.eyaml
+# file and the on-host eyaml key dir. Decoupled from the SSH transport below
+# for migrated hosts (Phase 2, docs/ZERO_TRUST_PLAN.md).
 declare -A HOST_CERTNAME=(
+  [mljr]="mljr.tail33930.ts.net"
+  [nuc]="nuc.int.mljr.eu"
+  [ugreen]="ugreen.tail33930.ts.net"
+)
+
+# SSH transport (still Tailscale until the OpenZiti phase).
+declare -A HOST_SSH=(
   [mljr]="mljr.tail33930.ts.net"
   [nuc]="nuc.tail33930.ts.net"
   [ugreen]="ugreen.tail33930.ts.net"
@@ -197,6 +207,7 @@ confirm "Proceed encrypting for hosts: $hosts?" || die "aborted"
 declare -A CIPHERTEXT
 for short in $hosts; do
   certname="${HOST_CERTNAME[$short]}"
+  ssh_target="${HOST_SSH[$short]}"
   step "Encrypting for $short ($certname)"
   remote_pub="/etc/puppetlabs/puppet/eyaml/hosts/${certname}/public_key.pkcs7.pem"
   value="$new_value"
@@ -211,7 +222,7 @@ for short in $hosts; do
     if [ -n "$current" ]; then value="${current}"$'\n'"${new_value}"; fi
     info "lines: $before -> $(printf '%s\n' "$value" | grep -c .)"
   fi
-  cipher="$(printf '%s' "$value" | ssh "root@${certname}" \
+  cipher="$(printf '%s' "$value" | ssh "root@${ssh_target}" \
     "/opt/puppetlabs/puppet/bin/eyaml encrypt --pkcs7-public-key='${remote_pub}' -o string --stdin" \
     2>/dev/null)" || die "eyaml encrypt failed on $short"
   # -o string prints exactly "ENC[PKCS7,...]" with a trailing newline, no
@@ -220,7 +231,7 @@ for short in $hosts; do
   [[ "$cipher" =~ ^ENC\[PKCS7, ]] || die "unexpected eyaml output for $short, refusing to write it"
   if [ "$append" = true ]; then
     # Round trip: the stored ciphertext must decrypt to exactly what was meant.
-    back="$(ssh "root@${certname}" "/opt/puppetlabs/puppet/bin/eyaml decrypt -s '${cipher}' \
+    back="$(ssh "root@${ssh_target}" "/opt/puppetlabs/puppet/bin/eyaml decrypt -s '${cipher}' \
       --pkcs7-private-key=/etc/puppetlabs/puppet/eyaml/hosts/${certname}/private_key.pkcs7.pem \
       --pkcs7-public-key=${remote_pub}" 2>/dev/null)" || die "verification decrypt failed on $short"
     [ "$(printf '%s' "$back" | sha256sum)" = "$(printf '%s' "$value" | sha256sum)" ] \

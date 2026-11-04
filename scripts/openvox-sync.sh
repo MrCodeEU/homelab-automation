@@ -35,6 +35,19 @@ host="${1:?usage: openvox-sync.sh <ssh-target> [apply]}"
 mode="${2:-noop}"
 env_dir="${OPENVOX_ENV_DIR:-/etc/puppetlabs/code/environments/production}"
 
+# Puppet identity (certname) is decoupled from the SSH transport above
+# (Phase 2, docs/ZERO_TRUST_PLAN.md): a migrated host still connects over its
+# Tailscale name but applies under its <host>.int.mljr.eu certname, which
+# drives its hiera node file, eyaml secrets file and eyaml key dir. Hosts not
+# listed here keep using their on-host default certname (no --certname),
+# so the migration rolls out one host at a time with per-host rollback.
+case "$host" in
+  nuc.tail33930.ts.net) certname='nuc.int.mljr.eu' ;;
+  *)                    certname='' ;;
+esac
+certname_arg=''
+[ -n "$certname" ] && certname_arg="--certname='${certname}' "
+
 # PR checks use a per-run tree under /tmp so proposed code never replaces the
 # live production environment. Keep the override deliberately narrow: this
 # variable reaches root SSH commands and must never accept a general path.
@@ -218,9 +231,9 @@ echo "${c_bold}==> ${label}${c_reset} (${mode}) starting..." | prefix
   fi
 
   if [ "${mode}" = "apply" ]; then
-    ssh "${ssh_opts[@]}" "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply --color=false --modulepath='${module_path}' --hiera_config='${env_dir}/hiera.yaml' '${env_dir}/manifests/site.pp'"
+    ssh "${ssh_opts[@]}" "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply ${certname_arg}--color=false --modulepath='${module_path}' --hiera_config='${env_dir}/hiera.yaml' '${env_dir}/manifests/site.pp'"
   else
-    ssh "${ssh_opts[@]}" "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply --color=false --noop --modulepath='${module_path}' --hiera_config='${env_dir}/hiera.yaml' '${env_dir}/manifests/site.pp'"
+    ssh "${ssh_opts[@]}" "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply ${certname_arg}--color=false --noop --modulepath='${module_path}' --hiera_config='${env_dir}/hiera.yaml' '${env_dir}/manifests/site.pp'"
   fi
 } 2>&1 | tee "$log_file" | prefix
 exit_code="${PIPESTATUS[0]}"
