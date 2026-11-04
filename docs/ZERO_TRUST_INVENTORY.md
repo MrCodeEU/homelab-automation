@@ -230,9 +230,9 @@ Zero trust notes:
 negotiate 2.5 Gbit/s full duplex and sit on the same /24 (direct L2 route),
 yet iperf3 tops out at about 110 Mbit/s with retransmits. Cause (owner,
 2026-11-04): the path crosses FRITZ!Box mesh hops that can't go faster.
-A hardware upgrade is planned, with no date. Until then the Phase 3
-"Ziti must not regress LAN throughput" criterion compares against this
-~100 Mbit/s ceiling, and must be re-baselined after the upgrade.
+No upgrade is expected soon, so this ~100 Mbit/s ceiling is the baseline
+the Phase 3 "Ziti must not regress LAN throughput" criterion compares
+against.
 
 ### Qualitative baseline
 
@@ -262,10 +262,8 @@ A hardware upgrade is planned, with no date. Until then the Phase 3
 nas and wd_mycloud have no agent. They depend on nuc being rebuilt first,
 because nuc drives them through proxy `exec`.
 
-## Still open in Phase 0
+## Phase 0 status
 
-- Re-run the iperf3 baseline after the FRITZ!Box mesh upgrade.
-
-Resolved 2026-11-04: kuma, forgejo, umami, projects and glucava **stay
+Complete 2026-11-04. Resolved: kuma, forgejo, umami, projects and glucava **stay
 public for now** (owner decision), revisited in Phase 7. No device fits the
 guest WLAN, so that step is dropped.
