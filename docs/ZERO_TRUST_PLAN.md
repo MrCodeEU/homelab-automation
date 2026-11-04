@@ -47,7 +47,8 @@ multi-admin workflows, new network hardware.
 | Who runs what | **Laptop:** bootstrap, Ziti enrolment, DR (OpenBolt), YubiKey. **CI** (GitHub-hosted runner): routine convergence through an ephemeral, least-privilege Ziti identity per run. Preferred mechanism: a Ziti external JWT signer trusting GitHub Actions OIDC tokens, scoped by repo and ref, so there is no enrolment step and no stored credential (unverified, PoC item). Nothing new runs permanently on hosts except the existing OpenVox agent and the Ziti tunneler. |
 | Devices | Laptop gets a Ziti identity from day one. Phone is optional and later. |
 | Host-level controls | firewalld default-deny inbound per host, per-stack Docker networks, restricted container egress. Late phase. |
-| Home LAN | The FRITZ!Box has no VLAN support, so the home LAN stays flat (accepted risk). **Optional:** the FRITZ!Box guest WLAN (internet only, isolated from the home LAN) for visitors, plus only those cloud-only IoT devices Home Assistant does not control locally. Everything else stays on the home LAN. |
+| Home LAN | The FRITZ!Box has no VLAN support, so the home LAN stays flat (accepted risk). The guest WLAN was considered and dropped: no device fits it (owner, 2026-11-04). |
+| Home Assistant | Home Assistant OS is an appliance: no tunneler install on the host. nuc's Ziti router or tunneler **hosts the Home Assistant services** (SSH, API on 8123, scrape target) and forwards them over the LAN. A Ziti tunneler packaged as a Home Assistant add-on is a possible alternative, unverified. SSH today comes from the Advanced SSH & Web Terminal add-on, reached over the Tailscale add-on's network; Tailscale SSH is not available on Home Assistant. |
 | Versions | Controller, routers and tunnelers pinned via OpenVox and Renovate. Upgrade order: controller first, then routers, then tunnelers. |
 | Visibility | Ziti metrics, policy denials, enrolments, new identities and break-glass use go to VictoriaMetrics and healthreport. Break-glass use and every new identity raise an alert. One "overlay down" alert suppresses the per-scrape alerts it would otherwise cause. |
 
@@ -67,8 +68,8 @@ Written down so they are decisions, not surprises.
 3. **Flat home LAN.** Without VLANs, every device on the home LAN (Home
    Assistant devices, the Unraid and Ugreen vendor web UIs) can reach the
    servers' LAN-side ports. Real segmentation would need a managed switch or
-   a second router, which is out of scope. The optional guest WLAN only
-   removes visitors and cloud-only IoT from this set.
+   a second router, which is out of scope. This also covers the LAN hop
+   from nuc to Home Assistant.
 4. **Tailscale stays in the trust base** as the remote break-glass path for
    the home hosts, locked down by ACL to break-glass SSH only.
 
@@ -132,8 +133,6 @@ rollback.
   Output: `docs/ZERO_TRUST_INVENTORY.md`.
 - List every place that depends on a `*.tail33930.ts.net` name (certnames,
   eyaml paths, hiera, scripts, CI, monitoring targets).
-- Note which home LAN devices fit the optional guest WLAN (visitors,
-  cloud-only IoT that Home Assistant does not control locally). No move yet.
 - Record the metrics baseline (see [Metrics](#metrics)), including an iperf3
   LAN baseline between nas and ugreen.
 - Document today's DR dependency chain end to end.
@@ -145,7 +144,8 @@ rollback.
 
 - Buy and register the second YubiKey.
 - Enrol `ed25519-sk` keys from both YubiKeys on every host class; store the
-  fallback key in Bitwarden. Confirm the Bitwarden recovery copy exists
+  fallback key in Bitwarden. Home Assistant first needs working key-based
+  login in the Advanced SSH add-on (it failed in Phase 0, cause unknown). Confirm the Bitwarden recovery copy exists
   offline.
 - Lock Tailscale ACLs down towards the break-glass role it will keep.
 - Alert on break-glass key use (sshd log, then healthreport).
@@ -223,8 +223,11 @@ scraper, backup or webhook is silently broken.
 - Enrol wd_mycloud: armv7 tunneler started from the clamAV boot hook (the
   crontab is wiped at every reboot), or a nuc-hosted hop if Phase 3 showed
   the tunneler can't run.
-- Test both with a **real reboot**; earlier work found boot races only that
-  way.
+- Home Assistant: nuc-hosted Ziti services forwarding to its LAN address
+  (SSH, 8123, scrape target), unless a Ziti add-on for Home Assistant OS
+  proved viable in Phase 3.
+- Test all three with a **real reboot**; earlier work found boot races only
+  that way.
 - Introduce OpenBolt from the laptop for bootstrap, enrolment and the
   appliance work that today runs as proxy `exec` on nuc's node block.
 - Verify whether `apply()` in OpenBolt needs an OpenVox agent on the target.
@@ -256,13 +259,14 @@ configs.
   iptables chains. Published ports must bind to `127.0.0.1` or the Ziti
   interface, or be filtered in the `DOCKER-USER` chain.
 - Per-stack Docker networks, restricted container egress.
-- Optional: enable the FRITZ!Box guest WLAN for visitors and move the
-  cloud-only IoT devices noted in Phase 0 onto it. Skip if none fit.
+- Revisit the category-2 apps that stay public for now (kuma, forgejo,
+  umami, projects, glucava): put each behind Authelia, or its Phase 6
+  replacement, where public access is no longer needed.
 - CI compliance gate lints exposure rules (extends the existing Checkov
   pattern), including "no published port on `0.0.0.0`".
 
 **Rollback:** per host, revert the firewalld zone and the compose network
-changes; move any guest-WLAN devices back to the home LAN.
+changes.
 **Gate:** no shared Docker network spans unrelated stacks, default-deny
 inbound is on every host OpenVox manages, and no container publishes on
 `0.0.0.0` unintentionally.

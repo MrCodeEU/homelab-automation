@@ -87,7 +87,7 @@ app's own login (or OIDC client) is the only gate.
 | dockhand | nas | dockhand.mljr.eu | authelia | |
 | syncthing | nas | sync.mljr.eu | authelia | |
 | paperless | nas | paperless.mljr.eu | authelia | |
-| kuma | nuc | uptime.mljr.eu | app | **(verify)** public login page |
+| kuma | nuc | uptime.mljr.eu | app | public login page; stays public for now (owner, 2026-11-04) |
 | nuc-webui | nuc | nuc.mljr.eu | app | **Confirmed 2026-11-03: Cockpit login page for nuc is reachable from the internet with no Authelia**, unlike mljr's cockpit |
 | glance | mljr | dash.mljr.eu | none | **Confirmed 2026-11-03: dashboard is public, no login** (HTTP 200, lists services) |
 | homeassistant | homeassistant | home.mljr.eu | app | |
@@ -107,10 +107,10 @@ app's own login (or OIDC client) is the only gate.
 | status | mljr | status.mljr.eu | |
 | authelia | mljr | auth.mljr.eu | IdP login must be public |
 | mailcow | mljr | mail.mljr.eu | plus SMTP/IMAP protocols |
-| glucava | nuc | glucava.mljr.eu | own login (verify: public signup?) |
-| forgejo | nuc | git/forge.mljr.eu | **(verify)** public repos or private only? |
-| umami | nuc | umami.mljr.eu | tracker endpoint public, dashboard should be cat 1 (verify) |
-| projects | nas | projects.mljr.eu | **(verify)** |
+| glucava | nuc | glucava.mljr.eu | own login; stays public for now |
+| forgejo | nuc | git/forge.mljr.eu | stays public for now |
+| umami | nuc | umami.mljr.eu | tracker endpoint public, dashboard too for now |
+| projects | nas | projects.mljr.eu | stays public for now |
 | ui-showcase, regex, cron, codec, newsletter, weather-cli | mljr | various | small public apps |
 | wordwiz, sudoku, gameoflife, cglab, godrive-demo, service-template | nuc | various | small public apps |
 
@@ -174,8 +174,39 @@ listeners, de-duplicated by address and port). "All" means bound to
 | nas | 70 | 14 | 10 | 14 | 76 |
 | wd_mycloud | 40 | 2 | 6 | 6 | 1 |
 
-homeassistant was not measured: it has no SSH access from the workstation
-(`Host key verification failed`). wd_mycloud runs a real OpenSSH `sshd`
+### Home Assistant (measured 2026-11-04)
+
+Home Assistant Green (aarch64), HA OS 18.4, Core 2026.10.4. LAN
+`192.168.50.31`, tailnet `100.100.10.200` via the Tailscale add-on 0.30.5.
+Measured over the Advanced SSH & Web Terminal add-on (24.2.0, protection
+mode on). Public-key login could not be made to work in the add-on, so a
+temporary password was set for this measurement and reset afterwards.
+
+Listeners (TCP and UDP, de-duplicated): **17 on all interfaces** (IPv4),
+plus their IPv6 twins, 2 tailnet-only, 5 LAN-only, 5 loopback, 6 on the
+`hassio` bridge (`172.30.32.1`). Notable ones on all interfaces:
+
+| Port | What |
+|---|---|
+| 22/tcp | Advanced SSH add-on `sshd` (host network) |
+| 8123/tcp | Home Assistant Core (no TLS; `home.mljr.eu` via Caddy) |
+| 5201/tcp+udp | iPerf3 Server add-on |
+| 4416/tcp | YT Music PO Token Generator add-on |
+| 111/tcp+udp | rpcbind |
+| 4357/tcp, 18555/tcp, 39342/tcp | HA OS / Core internals (go2rtc and others) |
+| 1900/udp, 5353/udp, 5355 | SSDP, mDNS, LLMNR (discovery) |
+
+Started add-ons: Matter Server (host network, 5580), OpenThread Border
+Router (host network, 8080/8081), Tailscale (host network), Advanced SSH
+(host network), iPerf3 Server, Claude Code, YT Music PO Token Generator.
+
+Zero trust notes:
+- Home Assistant OS cannot run a Ziti tunneler on the host; see the plan's
+  Phase 5 (nuc-hosted Ziti services forwarding to `192.168.50.31`).
+- Tailscale SSH is not available; SSH is the add-on's own `sshd`.
+- Key-based SSH login to the add-on did not work (cause unknown). This
+  blocks `ed25519-sk` break-glass for Home Assistant until solved, so
+  Phase 1 must include it. wd_mycloud runs a real OpenSSH `sshd`
 (8.4p1) on `0.0.0.0:22`, so `ed25519-sk` break-glass keys work there.
 
 ## Metrics baseline
@@ -199,9 +230,9 @@ homeassistant was not measured: it has no SSH access from the workstation
 negotiate 2.5 Gbit/s full duplex and sit on the same /24 (direct L2 route),
 yet iperf3 tops out at about 110 Mbit/s with retransmits. Cause (owner,
 2026-11-04): the path crosses FRITZ!Box mesh hops that can't go faster.
-A hardware upgrade is planned, with no date. Until then the Phase 3
-"Ziti must not regress LAN throughput" criterion compares against this
-~100 Mbit/s ceiling, and must be re-baselined after the upgrade.
+No upgrade is expected soon, so this ~100 Mbit/s ceiling is the baseline
+the Phase 3 "Ziti must not regress LAN throughput" criterion compares
+against.
 
 ### Qualitative baseline
 
@@ -231,11 +262,8 @@ A hardware upgrade is planned, with no date. Until then the Phase 3
 nas and wd_mycloud have no agent. They depend on nuc being rebuilt first,
 because nuc drives them through proxy `exec`.
 
-## Still open in Phase 0
+## Phase 0 status
 
-- Check the remaining entries marked **(verify)**: kuma, forgejo, umami,
-  projects, glucava. All answer publicly (HTTP 200/302/303), so the
-  question is whether they should.
-- Re-run the iperf3 baseline after the FRITZ!Box mesh upgrade.
-- Measure listening sockets on homeassistant (needs SSH access first).
-- List which home LAN devices fit the optional guest WLAN (owner input).
+Complete 2026-11-04. Resolved: kuma, forgejo, umami, projects and glucava **stay
+public for now** (owner decision), revisited in Phase 7. No device fits the
+guest WLAN, so that step is dropped.
