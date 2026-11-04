@@ -197,11 +197,11 @@ homeassistant was not measured: it has no SSH access from the workstation
 
 **Side finding, not zero trust:** nas (`eth0`) and ugreen (`eth0`) both
 negotiate 2.5 Gbit/s full duplex and sit on the same /24 (direct L2 route),
-yet iperf3 tops out at about 110 Mbit/s with retransmits. Something in
-between runs at 100 Mbit/s: likely a FRITZ!Box LAN port in "Green mode"
-(100 Mbit/s) or a 100M switch or cable. Fixing it would speed up every
-nas-to-ugreen backup roughly tenfold. It also makes the Phase 3 "Ziti must
-not regress LAN throughput" criterion meaningless until it is fixed.
+yet iperf3 tops out at about 110 Mbit/s with retransmits. Cause (owner,
+2026-11-04): the path crosses FRITZ!Box mesh hops that can't go faster.
+A hardware upgrade is planned, with no date. Until then the Phase 3
+"Ziti must not regress LAN throughput" criterion compares against this
+~100 Mbit/s ceiling, and must be re-baselined after the upgrade.
 
 ### Qualitative baseline
 
@@ -236,7 +236,6 @@ because nuc drives them through proxy `exec`.
 - Check the remaining entries marked **(verify)**: kuma, forgejo, umami,
   projects, glucava. All answer publicly (HTTP 200/302/303), so the
   question is whether they should.
-- Find the 100 Mbit/s hop between nas and ugreen (FRITZ!Box port power
-  mode, switch, cable), then re-run iperf3.
+- Re-run the iperf3 baseline after the FRITZ!Box mesh upgrade.
 - Measure listening sockets on homeassistant (needs SSH access first).
 - List which home LAN devices fit the optional guest WLAN (owner input).
