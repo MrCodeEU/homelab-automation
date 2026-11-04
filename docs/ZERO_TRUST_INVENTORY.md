@@ -19,7 +19,7 @@ live Caddy config or with the owner.
 1. **The host firewall trusts the whole tailnet.** `roles::base` puts
    `100.64.0.0/10` in the firewalld `trusted` zone on every OpenVox host
    (`openvox/modules/roles/manifests/base.pp:40`). nuc also trusts its whole
-   LAN, `192.168.50.0/24` (`openvox/data/nodes/nuc.tail33930.ts.net.yaml`).
+   LAN, `192.168.50.0/24` (`openvox/data/nodes/nuc.int.mljr.eu.yaml`).
    Any tailnet node reaches every port on these hosts. The only control left
    is the Tailscale ACL.
 2. **The Tailscale ACL allows everything and is not in the repo.**

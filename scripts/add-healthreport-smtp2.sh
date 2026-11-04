@@ -9,7 +9,8 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-certname="nuc.tail33930.ts.net"
+certname="nuc.int.mljr.eu"              # Puppet identity: secrets file + key dir
+ssh_target="nuc.tail33930.ts.net"       # SSH transport (Tailscale, until OpenZiti)
 file="openvox/data/secrets/${certname}.eyaml"
 pub="/etc/puppetlabs/puppet/eyaml/hosts/${certname}/public_key.pkcs7.pem"
 
@@ -21,7 +22,7 @@ read -rp "From address (must be verified at the provider): " from
 
 put() {
   local key="$1" val="$2" cipher
-  cipher="$(printf '%s' "$val" | ssh "root@${certname}" \
+  cipher="$(printf '%s' "$val" | ssh "root@${ssh_target}" \
     "/opt/puppetlabs/puppet/bin/eyaml encrypt --pkcs7-public-key='${pub}' -o string --stdin")"
   cipher="${cipher%$'\n'}"
   [[ "$cipher" =~ ^ENC\[PKCS7, ]] || { echo "bad eyaml output for $key" >&2; exit 1; }

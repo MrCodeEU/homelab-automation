@@ -88,7 +88,7 @@ and active key directory are:
 | Host | Certificate name | Active directory |
 |------|------------------|------------------|
 | `mljr` | `mljr.tail33930.ts.net` | `/etc/puppetlabs/puppet/eyaml/hosts/mljr.tail33930.ts.net/` |
-| `nuc` | `nuc.tail33930.ts.net` | `/etc/puppetlabs/puppet/eyaml/hosts/nuc.tail33930.ts.net/` |
+| `nuc` | `nuc.int.mljr.eu` | `/etc/puppetlabs/puppet/eyaml/hosts/nuc.int.mljr.eu/` |
 | `ugreen` | `ugreen.tail33930.ts.net` | `/etc/puppetlabs/puppet/eyaml/hosts/ugreen.tail33930.ts.net/` |
 
 After OpenVox itself is installed, restore the private key to that directory

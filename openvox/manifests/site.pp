@@ -12,7 +12,7 @@ node 'mljr.tail33930.ts.net' {
   include role::mljr
 }
 
-node 'nuc.tail33930.ts.net' {
+node 'nuc.int.mljr.eu' {
   include role::nuc
 }
 
