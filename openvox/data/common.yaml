@@ -304,6 +304,7 @@ services_catalog:
     description: "Main Dashboard"
     icon: "mdi:view-dashboard"
     skip_deploy: true
+    caddy_auth: authelia
 
   - name: nocturne
     enabled: true
@@ -668,6 +669,7 @@ services_catalog:
     staging: true
     description: "Netronome Network Monitor"
     icon: "mdi:speedometer"
+    caddy_auth: authelia
 
   - name: nas-alloy
     enabled: true
@@ -946,6 +948,7 @@ services_catalog:
     description: "NUC WebUI provided by Rocky"
     icon: "mdi:monitor-dashboard"
     https_backend: true
+    caddy_auth: authelia
 
   - name: wordwiz
     enabled: true
