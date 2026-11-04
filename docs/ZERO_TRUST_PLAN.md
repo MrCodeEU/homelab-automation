@@ -94,11 +94,9 @@ alarmed.
 | mljr | Contabo panel (console); Tailscale (break-glass ACL) | n/a |
 | nuc, ugreen, nas, wd_mycloud | Tailscale (break-glass ACL only) | LAN SSH with a YubiKey `ed25519-sk` key, Bitwarden-stored key as fallback |
 
-**SSH server check (2026-11-03):** nuc OpenSSH 9.9p1, ugreen 9.2p1,
-nas 10.3p1, wd_mycloud reports OpenSSH 8.4p1 (armv7l). All are at least
-8.2, so `-sk` keys are supported in principle. `command -v sshd` found
-nothing on wd_mycloud, so its SSH may be Tailscale SSH only. Verify
-before relying on it.
+**SSH server check (2026-11-03/04):** nuc OpenSSH 9.9p1, ugreen 9.2p1,
+nas 10.3p1, wd_mycloud OpenSSH 8.4p1 (armv7l, real `sshd` listening on
+`0.0.0.0:22`). All are at least 8.2, so `-sk` keys are supported.
 
 ### DR bootstrap order (target)
 
@@ -307,7 +305,6 @@ Baselined in Phase 0 and re-measured at every gate.
 - Whether GitHub Actions OIDC works as a Ziti external JWT signer.
 - How Caddy on mljr reaches backends over Ziti (tunneler intercept vs SDK).
 - Whether `apply()` in OpenBolt needs an agent on the target.
-- Whether wd_mycloud runs a real `sshd` or only Tailscale SSH.
 - Effort estimate per phase, filled in at each gate.
 
 ## Research sources (2026-11-03)
