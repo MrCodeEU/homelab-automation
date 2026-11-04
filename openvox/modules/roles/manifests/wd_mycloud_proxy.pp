@@ -70,6 +70,6 @@ class roles::wd_mycloud_proxy (
     unless   => "test -f ${work_dir}/breakglass-check.sh && /bin/bash ${work_dir}/breakglass-check.sh",
     provider => shell,
     path     => ['/usr/bin', '/bin'],
-    require => [File["${work_dir}/breakglass-authorized_keys"], Exec['wd-mycloud-clamav-hook']],
+    require  => [File["${work_dir}/breakglass-authorized_keys"], Exec['wd-mycloud-clamav-hook']],
   }
 }

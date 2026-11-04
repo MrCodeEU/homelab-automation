@@ -56,7 +56,20 @@ describe 'roles::unraid_backup_proxy' do
 end
 
 describe 'roles::wd_mycloud_proxy' do
+  # Provides breakglass_pubkeys, which the class looks up.
+  let(:hiera_config) { File.expand_path('../fixtures/ssh_hardening_hiera.yaml', __dir__) }
+
   it { is_expected.to compile.with_all_deps }
+
+  it 'installs the break-glass keys behind a read-only guard' do
+    is_expected.to contain_file('/usr/local/libexec/openvox-wd-mycloud/breakglass-authorized_keys')
+      .with_content(%r{homelab-recovery\n.*homelab-breakglass-yk1\n\z}m)
+    is_expected.to contain_exec('wd-mycloud-breakglass').with(
+      command: %r{breakglass-apply\.sh},
+      unless: %r{breakglass-check\.sh},
+      require: ['File[/usr/local/libexec/openvox-wd-mycloud/breakglass-authorized_keys]', 'Exec[wd-mycloud-clamav-hook]'],
+    )
+  end
 
   it 'keeps recovery actions guarded and bounds the remote update operation' do
     is_expected.to contain_exec('wd-mycloud-tailscale-update').with(
