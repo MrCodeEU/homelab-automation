@@ -11,7 +11,7 @@ usage() {
 
 host="${1:-}"
 case "$host" in
-  mljr|mljr.tail33930.ts.net) canonical_host='mljr.tail33930.ts.net'; key_name='mljr'; certname='mljr.tail33930.ts.net' ;;
+  mljr|mljr.tail33930.ts.net|mljr.int.mljr.eu) canonical_host='mljr.tail33930.ts.net'; key_name='mljr'; certname='mljr.int.mljr.eu' ;;
   nuc|nuc.tail33930.ts.net|nuc.int.mljr.eu) canonical_host='nuc.tail33930.ts.net'; key_name='nuc'; certname='nuc.int.mljr.eu' ;;
   ugreen|ugreen.tail33930.ts.net|ugreen.int.mljr.eu) canonical_host='ugreen.tail33930.ts.net'; key_name='ugreen'; certname='ugreen.int.mljr.eu' ;;
   *) usage ;;

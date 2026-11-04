@@ -39,7 +39,7 @@ secrets_dir="openvox/data/secrets"
 # file and the on-host eyaml key dir. Decoupled from the SSH transport below
 # for migrated hosts (Phase 2, docs/ZERO_TRUST_PLAN.md).
 declare -A HOST_CERTNAME=(
-  [mljr]="mljr.tail33930.ts.net"
+  [mljr]="mljr.int.mljr.eu"
   [nuc]="nuc.int.mljr.eu"
   [ugreen]="ugreen.int.mljr.eu"
 )

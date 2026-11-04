@@ -11,7 +11,7 @@ key="${2:-}"
 # decoupled from the SSH transport for migrated hosts (Phase 2,
 # docs/ZERO_TRUST_PLAN.md); transport stays Tailscale until the OpenZiti phase.
 case "$host" in
-  mljr)   cert="mljr.tail33930.ts.net";   ssh_target="mljr.tail33930.ts.net" ;;
+  mljr)   cert="mljr.int.mljr.eu";        ssh_target="mljr.tail33930.ts.net" ;;
   nuc)    cert="nuc.int.mljr.eu";         ssh_target="nuc.tail33930.ts.net" ;;
   ugreen) cert="ugreen.int.mljr.eu";      ssh_target="ugreen.tail33930.ts.net" ;;
   *) echo "usage: $0 <mljr|nuc|ugreen> [key]" >&2; exit 2 ;;
