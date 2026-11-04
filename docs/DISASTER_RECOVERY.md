@@ -24,6 +24,10 @@ have not been drilled. A scheduled restore drill is still a backlog item.
 
 ## Before any of this works at all
 
+If Tailscale itself is down or a host is unreachable through it, start
+with [BREAKGLASS.md](BREAKGLASS.md): YubiKey and Bitwarden SSH keys that
+work on every host without Tailscale.
+
 Nothing in this repo can turn a bare OS install into an OpenVox-
 controllable host by itself. These are manual, one-time, outside-Git
 prerequisites:
