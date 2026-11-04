@@ -87,7 +87,7 @@ and active key directory are:
 
 | Host | Certificate name | Active directory |
 |------|------------------|------------------|
-| `mljr` | `mljr.tail33930.ts.net` | `/etc/puppetlabs/puppet/eyaml/hosts/mljr.tail33930.ts.net/` |
+| `mljr` | `mljr.int.mljr.eu` | `/etc/puppetlabs/puppet/eyaml/hosts/mljr.int.mljr.eu/` |
 | `nuc` | `nuc.int.mljr.eu` | `/etc/puppetlabs/puppet/eyaml/hosts/nuc.int.mljr.eu/` |
 | `ugreen` | `ugreen.int.mljr.eu` | `/etc/puppetlabs/puppet/eyaml/hosts/ugreen.int.mljr.eu/` |
 

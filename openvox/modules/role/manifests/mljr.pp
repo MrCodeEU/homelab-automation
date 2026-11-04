@@ -1,7 +1,7 @@
 # role::mljr - production ingress (Rocky). One class per node archetype,
 # composing roles::* classes (this repo's technology/profile tier - see
 # docs/OPENVOX_BACKLOG.md for why there's no separate profile:: module).
-# Per-host data lives in data/nodes/mljr.tail33930.ts.net.yaml, bound
+# Per-host data lives in data/nodes/mljr.int.mljr.eu.yaml, bound
 # automatically by Puppet's class-parameter hiera lookup - every roles::*
 # class below is declared via plain `include`, never `class { }`.
 class role::mljr {

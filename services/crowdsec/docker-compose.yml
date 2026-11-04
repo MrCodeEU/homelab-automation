@@ -14,7 +14,7 @@ services:
       # 100.100.20.1 is mljr's own tailscale IP - already a hardcoded
       # non-secret literal elsewhere in this repo (see
       # openvox/data/common.yaml's tailscale_hosts and
-      # openvox/data/nodes/mljr.tail33930.ts.net.yaml).
+      # openvox/data/nodes/mljr.int.mljr.eu.yaml).
       #
       # 127.0.0.1:8088 is ALSO still required alongside the tailnet one -
       # docker's -p/ports binds only the given IP, it does not also imply

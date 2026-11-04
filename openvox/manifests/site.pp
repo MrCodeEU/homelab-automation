@@ -8,7 +8,7 @@
 # class - see docs/OPENVOX_BACKLOG.md for the roles/profiles layering
 # this replaced flat inline node blocks with.
 
-node 'mljr.tail33930.ts.net' {
+node 'mljr.int.mljr.eu' {
   include role::mljr
 }
 

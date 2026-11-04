@@ -42,6 +42,7 @@ env_dir="${OPENVOX_ENV_DIR:-/etc/puppetlabs/code/environments/production}"
 # listed here keep using their on-host default certname (no --certname),
 # so the migration rolls out one host at a time with per-host rollback.
 case "$host" in
+  mljr.tail33930.ts.net)   certname='mljr.int.mljr.eu' ;;
   nuc.tail33930.ts.net)    certname='nuc.int.mljr.eu' ;;
   ugreen.tail33930.ts.net) certname='ugreen.int.mljr.eu' ;;
   *)                       certname='' ;;
