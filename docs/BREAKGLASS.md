@@ -10,10 +10,12 @@ The keys are listed in `breakglass_pubkeys` in `openvox/data/common.yaml`.
 
 | Key | Where the private half lives | What a login needs |
 |---|---|---|
-| `homelab-breakglass-yk1` | FIDO2 resident key on YubiKey 1 (5C NFC, serial 34717587) | the YubiKey, its FIDO2 PIN, a touch |
+| `homelab-breakglass-yk1` | FIDO2 resident key on YubiKey 1 (5C NFC, serial 34717587), carried daily | the YubiKey, its FIDO2 PIN, a touch |
+| `homelab-breakglass-yk2` | FIDO2 resident key on YubiKey 2 (5C NFC, serial 26724345), kept off site | the YubiKey, its FIDO2 PIN, a touch |
 | `homelab-recovery` | software key, private half and passphrase in Bitwarden | Bitwarden access |
 
-The YubiKey key was created with:
+The YubiKey keys were created with (YubiKey 2: `yk2` and
+`application=ssh:homelab-breakglass-yk2` instead):
 
 ```
 ssh-keygen -t ed25519-sk -O resident -O verify-required \
@@ -26,9 +28,10 @@ ssh-keygen -t ed25519-sk -O resident -O verify-required \
 - `verify-required`: every login needs the PIN as well as a touch, so a
   stolen YubiKey alone is useless.
 
-Use YubiKey 1 first and the Bitwarden key only if the YubiKey is lost or
-broken. A second YubiKey, kept off site, is still to be added (see
-[Adding a key](#adding-or-replacing-a-key)).
+Use YubiKey 1 first, YubiKey 2 if YubiKey 1 is lost or broken, and the
+Bitwarden key only if both are unavailable. Keep YubiKey 2 off site, and
+never in the same bag as YubiKey 1. Every command below works with
+YubiKey 2 by swapping `yk1` for `yk2` in the key file name.
 
 ## Where each host accepts the keys
 
@@ -74,9 +77,10 @@ lack FIDO2 support, not tested here). Check first with `ssh -V`.
    cd ~/.ssh
    ssh-keygen -K
    ```
-   This writes `id_ed25519_sk_rk_homelab-breakglass` and its `.pub`
-   (named after `application=ssh:homelab-breakglass`; older OpenSSH
-   versions write `id_ed25519_sk_rk` instead).
+   This writes `id_ed25519_sk_rk_homelab-breakglass` (YubiKey 1) or
+   `id_ed25519_sk_rk_homelab-breakglass-yk2` (YubiKey 2) and its `.pub`,
+   named after the key's `application`. Older OpenSSH versions write
+   `id_ed25519_sk_rk` instead.
 3. Log in exactly as from the laptop, with the recovered file:
    ```
    ssh -i ~/.ssh/id_ed25519_sk_rk_homelab-breakglass -o IdentitiesOnly=yes -p 2299 root@157.173.97.107
@@ -93,7 +97,7 @@ To check what is stored on the YubiKey: `ykman fido credentials list`
 
 ## With the Bitwarden recovery key
 
-If the YubiKey is lost or broken:
+If both YubiKeys are lost or broken:
 
 1. Copy the private key from Bitwarden into a file, for example
    `~/.ssh/homelab-recovery`, and `chmod 600` it.
@@ -104,8 +108,10 @@ If the YubiKey is lost or broken:
 
 ## Adding or replacing a key
 
-1. Create the new key as in [Keys](#keys), with a new comment and file
-   name (for example `homelab-breakglass-yk2`).
+1. Create the new key as in [Keys](#keys), with a new comment, file name
+   and `application` (for example `homelab-breakglass-yk3`). A unique
+   `application` keeps `ssh-keygen -K` from writing two keys to the same
+   file name.
 2. Add its public key to `breakglass_pubkeys` in
    `openvox/data/common.yaml`. To revoke a lost key, remove its line.
 3. Deploy mljr, nuc and ugreen (`roles::ssh_hardening`) and nuc
@@ -123,11 +129,11 @@ If the YubiKey is lost or broken:
 
 ## Status (2026-11-04)
 
-| Host | YubiKey 1 tested | Password login |
-|---|---|---|
-| mljr | yes | off |
-| nuc | yes | off |
-| ugreen | yes | off |
-| nas | yes | off |
-| homeassistant | yes | off (empty `password` in the add-on) |
-| wd_mycloud | keys installed by OpenVox once deployed | **still on**, switched off after a tested key login |
+| Host | YubiKey 1 tested | YubiKey 2 tested | Password login |
+|---|---|---|---|
+| mljr | yes | no | off |
+| nuc | yes | no | off |
+| ugreen | yes | no | off |
+| nas | yes | no | off |
+| homeassistant | yes | no | off (empty `password` in the add-on) |
+| wd_mycloud | keys installed by OpenVox once deployed | no | **still on**, switched off after a tested key login |

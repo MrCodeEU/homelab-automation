@@ -180,9 +180,13 @@ unraid_backup_excluded:
 # - homelab-breakglass-yk1: FIDO2 resident key on YubiKey 1 (serial
 #   34717587), needs PIN + touch (verify-required). Recover the key handle
 #   on any machine with `ssh-keygen -K`.
+# - homelab-breakglass-yk2: same, on YubiKey 2 (serial 26724345), kept off
+#   site as the backup for YubiKey 1.
+# Usage, adding and revoking keys: docs/BREAKGLASS.md.
 breakglass_pubkeys:
   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDJm7rwkD/lLe3buOfiEnlV4E7TBcGT471OZPBz54NRO homelab-recovery"
   - "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIHw748oVZ7agElRw5HRxnZDED1mvRGMwFK/rsDDrcd9oAAAAFnNzaDpob21lbGFiLWJyZWFrZ2xhc3M= homelab-breakglass-yk1"
+  - "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIKRpiOpcpfhA4kRjR0Ibnq5z8mv31BFMSAAe6e5l9qcLAAAAGnNzaDpob21lbGFiLWJyZWFrZ2xhc3MteWsy homelab-breakglass-yk2"
 
 # Home connection's public IP. Keep in sync with the owner IP in
 # services/crowdsec/parsers/s02-enrich/mljr-local-allowlist.yaml (a healthreport
