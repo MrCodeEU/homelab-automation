@@ -10,8 +10,8 @@ The keys are listed in `breakglass_pubkeys` in `openvox/data/common.yaml`.
 
 | Key | Where the private half lives | What a login needs |
 |---|---|---|
-| `homelab-breakglass-yk1` | FIDO2 resident key on YubiKey 1 (5C NFC, serial 34717587), carried daily | the YubiKey, its FIDO2 PIN, a touch |
-| `homelab-breakglass-yk2` | FIDO2 resident key on YubiKey 2 (5C NFC, serial 26724345), kept off site | the YubiKey, its FIDO2 PIN, a touch |
+| `homelab-breakglass-yk1` | FIDO2 resident key on YubiKey 1 (5C NFC, serial 34717587), carried on person (off site) | the YubiKey, its FIDO2 PIN, a touch |
+| `homelab-breakglass-yk2` | FIDO2 resident key on YubiKey 2 (5C NFC, serial 26724345), kept at home | the YubiKey, its FIDO2 PIN, a touch |
 | `homelab-recovery` | software key, private half and passphrase in Bitwarden | Bitwarden access |
 
 The YubiKey keys were created with (YubiKey 2: `yk2` and
@@ -29,9 +29,10 @@ ssh-keygen -t ed25519-sk -O resident -O verify-required \
   stolen YubiKey alone is useless.
 
 Use YubiKey 1 first, YubiKey 2 if YubiKey 1 is lost or broken, and the
-Bitwarden key only if both are unavailable. Keep YubiKey 2 off site, and
-never in the same bag as YubiKey 1. Every command below works with
-YubiKey 2 by swapping `yk1` for `yk2` in the key file name.
+Bitwarden key only if both are unavailable. The two keys live apart:
+YubiKey 1 stays on person (so it is the off-site copy), YubiKey 2 stays
+at home. Every command below works with YubiKey 2 by swapping `yk1` for
+`yk2` in the key file name.
 
 ## Where each host accepts the keys
 
