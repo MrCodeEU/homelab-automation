@@ -87,7 +87,7 @@ app's own login (or OIDC client) is the only gate.
 | dockhand | nas | dockhand.mljr.eu | authelia | |
 | syncthing | nas | sync.mljr.eu | authelia | |
 | paperless | nas | paperless.mljr.eu | authelia | |
-| kuma | nuc | uptime.mljr.eu | app | **(verify)** public login page |
+| kuma | nuc | uptime.mljr.eu | app | public login page; stays public for now (owner, 2026-11-04) |
 | nuc-webui | nuc | nuc.mljr.eu | app | **Confirmed 2026-11-03: Cockpit login page for nuc is reachable from the internet with no Authelia**, unlike mljr's cockpit |
 | glance | mljr | dash.mljr.eu | none | **Confirmed 2026-11-03: dashboard is public, no login** (HTTP 200, lists services) |
 | homeassistant | homeassistant | home.mljr.eu | app | |
@@ -107,10 +107,10 @@ app's own login (or OIDC client) is the only gate.
 | status | mljr | status.mljr.eu | |
 | authelia | mljr | auth.mljr.eu | IdP login must be public |
 | mailcow | mljr | mail.mljr.eu | plus SMTP/IMAP protocols |
-| glucava | nuc | glucava.mljr.eu | own login (verify: public signup?) |
-| forgejo | nuc | git/forge.mljr.eu | **(verify)** public repos or private only? |
-| umami | nuc | umami.mljr.eu | tracker endpoint public, dashboard should be cat 1 (verify) |
-| projects | nas | projects.mljr.eu | **(verify)** |
+| glucava | nuc | glucava.mljr.eu | own login; stays public for now |
+| forgejo | nuc | git/forge.mljr.eu | stays public for now |
+| umami | nuc | umami.mljr.eu | tracker endpoint public, dashboard too for now |
+| projects | nas | projects.mljr.eu | stays public for now |
 | ui-showcase, regex, cron, codec, newsletter, weather-cli | mljr | various | small public apps |
 | wordwiz, sudoku, gameoflife, cglab, godrive-demo, service-template | nuc | various | small public apps |
 
@@ -174,8 +174,9 @@ listeners, de-duplicated by address and port). "All" means bound to
 | nas | 70 | 14 | 10 | 14 | 76 |
 | wd_mycloud | 40 | 2 | 6 | 6 | 1 |
 
-homeassistant was not measured: it has no SSH access from the workstation
-(`Host key verification failed`). wd_mycloud runs a real OpenSSH `sshd`
+homeassistant was not measured yet. Its SSH (Advanced SSH & Web Terminal
+add-on) answers on `100.100.10.200:22` with ed25519 and rsa host keys, but
+no workstation key is authorized (`Permission denied (publickey,password)`). wd_mycloud runs a real OpenSSH `sshd`
 (8.4p1) on `0.0.0.0:22`, so `ed25519-sk` break-glass keys work there.
 
 ## Metrics baseline
@@ -233,9 +234,10 @@ because nuc drives them through proxy `exec`.
 
 ## Still open in Phase 0
 
-- Check the remaining entries marked **(verify)**: kuma, forgejo, umami,
-  projects, glucava. All answer publicly (HTTP 200/302/303), so the
-  question is whether they should.
 - Re-run the iperf3 baseline after the FRITZ!Box mesh upgrade.
-- Measure listening sockets on homeassistant (needs SSH access first).
-- List which home LAN devices fit the optional guest WLAN (owner input).
+- Measure listening sockets on homeassistant, once a workstation key is in
+  the Advanced SSH add-on's `authorized_keys`.
+
+Resolved 2026-11-04: kuma, forgejo, umami, projects and glucava **stay
+public for now** (owner decision), revisited in Phase 7. No device fits the
+guest WLAN, so that step is dropped.
