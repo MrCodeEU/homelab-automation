@@ -201,15 +201,10 @@ class roles::base (
 
     # Provider cloud-init (Contabo) ships PasswordAuthentication yes and
     # PermitRootLogin yes; with the break-glass port public that is a
-    # password-guessable root login. 00- sorts before 50-cloud-init.conf.
-    file { '/etc/ssh/sshd_config.d/00-openvox-hardening.conf':
-      ensure  => file,
-      owner   => 'root',
-      group   => 'root',
-      mode    => '0600',
-      content => "PasswordAuthentication no\nPermitRootLogin prohibit-password\nKbdInteractiveAuthentication no\n",
-      notify  => Exec['base-ssh-hardening-reload'],
-    }
+    # password-guessable root login. roles::ssh_hardening (included by
+    # role::mljr with disable_passwords + permit_root_login set) owns
+    # /etc/ssh/sshd_config.d/00-openvox-hardening.conf, which sorts before
+    # 50-cloud-init.conf, together with the break-glass keys.
 
     # Contabo's cloud-init re-runs its bootcmd on every boot (it rewrites
     # PermitRootLogin and failed on Rocky 10, leaving the system degraded).
@@ -229,11 +224,6 @@ class roles::base (
     package { 'dhcpcd':
       ensure  => absent,
       require => Package['cloud-init'],
-    }
-
-    exec { 'base-ssh-hardening-reload':
-      command     => '/usr/sbin/sshd -t && /usr/bin/systemctl reload sshd',
-      refreshonly => true,
     }
 
     exec { 'base-ssh-breakglass':

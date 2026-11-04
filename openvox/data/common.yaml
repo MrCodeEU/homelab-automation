@@ -172,10 +172,17 @@ unraid_backup_excluded:
   - path: /mnt/user/system
     reason: "Unraid's own VM/docker.img system storage, not user data"
 
-# Public half of the offline recovery key (private half + passphrase in
-# Bitwarden). Installed by roles::ssh_hardening so a LAN login still works
-# when Tailscale and every other device are gone.
-recovery_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDJm7rwkD/lLe3buOfiEnlV4E7TBcGT471OZPBz54NRO homelab-recovery"
+# Break-glass SSH keys, installed by roles::ssh_hardening so a login still
+# works when Tailscale and every other device are gone
+# (docs/ZERO_TRUST_PLAN.md, Phase 1):
+# - homelab-recovery: offline software key, private half + passphrase in
+#   Bitwarden.
+# - homelab-breakglass-yk1: FIDO2 resident key on YubiKey 1 (serial
+#   34717587), needs PIN + touch (verify-required). Recover the key handle
+#   on any machine with `ssh-keygen -K`.
+breakglass_pubkeys:
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDJm7rwkD/lLe3buOfiEnlV4E7TBcGT471OZPBz54NRO homelab-recovery"
+  - "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIHw748oVZ7agElRw5HRxnZDED1mvRGMwFK/rsDDrcd9oAAAAFnNzaDpob21lbGFiLWJyZWFrZ2xhc3M= homelab-breakglass-yk1"
 
 # Home connection's public IP. Keep in sync with the owner IP in
 # services/crowdsec/parsers/s02-enrich/mljr-local-allowlist.yaml (a healthreport

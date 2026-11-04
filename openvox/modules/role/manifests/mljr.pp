@@ -6,6 +6,7 @@
 # class below is declared via plain `include`, never `class { }`.
 class role::mljr {
   include roles::base
+  include roles::ssh_hardening
   include roles::iperf3
   include roles::netronome_agent
   include roles::caddy

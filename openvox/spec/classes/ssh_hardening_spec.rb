@@ -6,16 +6,17 @@ describe 'roles::ssh_hardening' do
   context 'phase 1 (default): key installed, passwords untouched' do
     it { is_expected.to compile.with_all_deps }
 
-    it 'installs the recovery key where sshd looks for it' do
+    it 'installs every break-glass key where sshd looks for it' do
       is_expected.to contain_file('/etc/ssh/authorized_keys.d/root')
         .with(owner: 'root', mode: '0644')
-        .with_content(%r{\Assh-ed25519 \S+ homelab-recovery\n\z})
+        .with_content(%r{\Assh-ed25519 \S+ homelab-recovery\nsk-ssh-ed25519@openssh\.com \S+ homelab-breakglass-yk1\n\z})
     end
 
     it 'adds the key path but does not disable passwords' do
       is_expected.to contain_file('/etc/ssh/sshd_config.d/00-openvox-hardening.conf')
         .with_content(%r{^AuthorizedKeysFile \.ssh/authorized_keys /etc/ssh/authorized_keys\.d/%u$})
         .without_content(%r{PasswordAuthentication})
+        .without_content(%r{PermitRootLogin})
         .that_requires('File[/etc/ssh/authorized_keys.d/root]')
         .that_notifies('Exec[ssh-hardening-reload]')
     end
@@ -29,6 +30,15 @@ describe 'roles::ssh_hardening' do
       is_expected.to contain_file('/etc/ssh/sshd_config.d/00-openvox-hardening.conf')
         .with_content(%r{^PasswordAuthentication no$})
         .with_content(%r{^KbdInteractiveAuthentication no$})
+    end
+  end
+
+  context 'with permit_root_login (mljr)' do
+    let(:params) { { disable_passwords: true, permit_root_login: 'prohibit-password' } }
+
+    it 'keeps the root-login setting in the managed drop-in' do
+      is_expected.to contain_file('/etc/ssh/sshd_config.d/00-openvox-hardening.conf')
+        .with_content(%r{^PermitRootLogin prohibit-password$})
     end
   end
 end

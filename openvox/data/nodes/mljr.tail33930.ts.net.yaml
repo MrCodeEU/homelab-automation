@@ -6,6 +6,12 @@ roles::base::swap_enabled: true
 roles::base::public_ip: '157.173.97.107'
 roles::base::ssh_breakglass_port: 2299
 roles::base::tailscale_ip: '100.100.20.1'
+
+# Break-glass keys for the public port above. roles::ssh_hardening took
+# 00-openvox-hardening.conf over from roles::base and keeps its settings
+# (no passwords, root by key only).
+roles::ssh_hardening::disable_passwords: true
+roles::ssh_hardening::permit_root_login: 'prohibit-password'
 roles::base::cockpit_console_enabled: true
 roles::base::domain: 'mljr.eu'
 

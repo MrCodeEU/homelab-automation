@@ -1,9 +1,11 @@
-# Recovery SSH key + optional password-login lockout for LAN-reachable hosts.
+# Break-glass SSH keys + optional password-login lockout for hosts sshd can
+# be reached on without Tailscale (LAN, or mljr's public break-glass port).
 #
 # Daily access goes over Tailscale SSH, which does not use sshd's password
 # or key files. This class covers the case where Tailscale and every device
-# are gone: one offline recovery key (private half in Bitwarden) must still
-# open a shell over the LAN, so password login can then be switched off.
+# are gone: the keys in `breakglass_pubkeys` (an offline recovery key in
+# Bitwarden, plus FIDO2 YubiKey keys) must still open a shell, so password
+# login can then be switched off.
 #
 # Two phases, so a bad key can never lock the host out:
 #   1. disable_passwords: false  - install the key and the key lookup path
@@ -19,10 +21,11 @@
 # The key lives in /etc/ssh/authorized_keys.d/<user> because ugreen (UGOS) has
 # an immutable, empty /home and so no ~/.ssh for its admin user.
 class roles::ssh_hardening (
-  String  $recovery_user    = 'root',
-  Boolean $disable_passwords = false,
+  String           $recovery_user     = 'root',
+  Boolean          $disable_passwords = false,
+  Optional[String] $permit_root_login = undef,
 ) {
-  $recovery_pubkey = lookup('recovery_pubkey')
+  $breakglass_pubkeys = lookup('breakglass_pubkeys', Array[String, 1])
 
   file { '/etc/ssh/authorized_keys.d':
     ensure => directory,
@@ -38,7 +41,7 @@ class roles::ssh_hardening (
     owner   => 'root',
     group   => 'root',
     mode    => '0644',
-    content => "${recovery_pubkey}\n",
+    content => "${breakglass_pubkeys.join("\n")}\n",
   }
 
   $password_lines = $disable_passwords ? {
@@ -46,12 +49,18 @@ class roles::ssh_hardening (
     default => '',
   }
 
+  # mljr's pre-OpenVox drop-in set this; keep it when taking the file over.
+  $root_login_line = $permit_root_login ? {
+    undef   => '',
+    default => "PermitRootLogin ${permit_root_login}\n",
+  }
+
   file { '/etc/ssh/sshd_config.d/00-openvox-hardening.conf':
     ensure  => file,
     owner   => 'root',
     group   => 'root',
     mode    => '0600',
-    content => "# Managed by OpenVox (roles::ssh_hardening)\nAuthorizedKeysFile .ssh/authorized_keys /etc/ssh/authorized_keys.d/%u\n${password_lines}",
+    content => "# Managed by OpenVox (roles::ssh_hardening)\nAuthorizedKeysFile .ssh/authorized_keys /etc/ssh/authorized_keys.d/%u\n${password_lines}${root_login_line}",
     require => File["/etc/ssh/authorized_keys.d/${recovery_user}"],
     notify  => Exec['ssh-hardening-reload'],
   }
