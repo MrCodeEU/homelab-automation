@@ -41,7 +41,7 @@ YubiKey 2 by swapping `yk1` for `yk2` in the key file name.
 | nuc | `192.168.50.30` port 22 (home LAN) | `root` | OpenVox, `roles::ssh_hardening` |
 | ugreen | `192.168.50.86` port 22 (home LAN) | `mrcode` (root login is off) | OpenVox, `roles::ssh_hardening` |
 | nas | `192.168.50.80` port 22 (home LAN) | `root` | by hand, in `/root/.ssh/authorized_keys` (on the flash drive) |
-| wd_mycloud | `192.168.50.176` port 22 (home LAN) | `root` | OpenVox proxy on nuc (`roles::wd_mycloud_proxy`), restored at boot from the clamAV hook |
+| wd_mycloud | `192.168.50.176` port 22 (home LAN) | `root` (or `sshd`, same uid-0 account) | OpenVox proxy on nuc (`roles::wd_mycloud_proxy`), keys and sshd hardening restored at boot from the clamAV hook |
 | homeassistant | `192.168.50.31` port 22 (home LAN) | `hassio` | by hand, Advanced SSH & Web Terminal add-on config |
 
 The home LAN addresses only work on site. From outside, the home hosts
@@ -131,9 +131,9 @@ If both YubiKeys are lost or broken:
 
 | Host | YubiKey 1 tested | YubiKey 2 tested | Password login |
 |---|---|---|---|
-| mljr | yes | no | off |
-| nuc | yes | no | off |
-| ugreen | yes | no | off |
-| nas | yes | no | off |
-| homeassistant | yes | no | off (empty `password` in the add-on) |
-| wd_mycloud | keys installed by OpenVox once deployed | no | **still on**, switched off after a tested key login |
+| mljr | yes | yes | off |
+| nuc | yes | yes | off |
+| ugreen | yes | yes | off |
+| nas | yes | yes | off |
+| homeassistant | yes | yes | off (empty `password` in the add-on) |
+| wd_mycloud | yes | yes | off (set at boot by the clamAV hook) |
