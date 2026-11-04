@@ -128,6 +128,6 @@ If the YubiKey is lost or broken:
 | mljr | yes | off |
 | nuc | yes | off |
 | ugreen | yes | off |
-| nas | key installed, login not yet tested | off |
-| homeassistant | yes | check the add-on: empty `password` turns it off |
+| nas | yes | off |
+| homeassistant | yes | off (empty `password` in the add-on) |
 | wd_mycloud | keys installed by OpenVox once deployed | **still on**, switched off after a tested key login |
