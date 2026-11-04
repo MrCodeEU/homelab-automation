@@ -52,4 +52,24 @@ class roles::wd_mycloud_proxy (
     path    => ['/usr/bin', '/bin'],
     require => File[$work_dir],
   }
+
+  # Break-glass SSH keys (docs/ZERO_TRUST_PLAN.md, Phase 1). Written next
+  # to the scripts so breakglass-check/apply.sh can compare and scp it.
+  file { "${work_dir}/breakglass-authorized_keys":
+    ensure  => file,
+    mode    => '0644',
+    content => "${lookup('breakglass_pubkeys', Array[String, 1]).join("\n")}\n",
+    require => File[$work_dir],
+  }
+
+  # Shell guard so a --noop before the first real apply (scripts not on disk
+  # yet) reports "would run" instead of a "Could not find command" error,
+  # which the live-noop CI check treats as a failure.
+  exec { 'wd-mycloud-breakglass':
+    command  => "/bin/bash ${work_dir}/breakglass-apply.sh",
+    unless   => "test -f ${work_dir}/breakglass-check.sh && /bin/bash ${work_dir}/breakglass-check.sh",
+    provider => shell,
+    path     => ['/usr/bin', '/bin'],
+    require => [File["${work_dir}/breakglass-authorized_keys"], Exec['wd-mycloud-clamav-hook']],
+  }
 }
