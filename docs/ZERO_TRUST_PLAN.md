@@ -195,6 +195,13 @@ live noop and apply under the new certname.
 - Ziti gets its own public ports on mljr (for example `8441` controller,
   `8442` router edge), opened in firewalld. It does not share `443` with
   Caddy, so neither depends on the other.
+- Controller as built (`services/ziti-controller/`): `8441` public for the
+  router control channel, client API and OIDC; management and fabric API on
+  `127.0.0.1:8444` only, reached through an SSH tunnel. Admin over
+  Tailscale's IP would need that IP in the server certificate; loopback is
+  stricter and needs nothing extra. Trust domain `spiffe://ziti.mljr.eu`
+  from the intermediate (docs/ZITI_PKI.md). `ctrl.ziti.mljr.eu` is an
+  explicit DNS record with TTL 3600 (deSEC minimum).
 - One non-critical service reachable only over Ziti: nuc's node-exporter.
   The Grafana UI follows only if there is time left.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,

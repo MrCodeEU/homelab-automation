@@ -1,0 +1,35 @@
+# OpenZiti controller (docs/ZERO_TRUST_PLAN.md Phase 3, docs/ZITI_PKI.md).
+#
+# Host networking: Docker-published ports bypass firewalld, host networking
+# keeps 8441 under firewalld (roles::services) and avoids NAT.
+#
+# ./data is ZITI_HOME. Its pki/ (root cert, YubiKey-signed intermediate) is
+# placed by scripts/ziti-sign-intermediate.sh before the first start; without
+# it the container restart-loops. On every start the entrypoint re-issues the
+# controller's server/client leaf certs from that intermediate
+# (ZITI_AUTO_RENEW_CERTS, image default), so a restart renews them.
+#
+# config.yml is ours (ZITI_BOOTSTRAP_CONFIG=false), not the bootstrap's: it
+# keeps the management API off the public port. ZITI_PWD is deliberately not
+# passed: with it set the entrypoint runs the controller in the background
+# and SIGTERM no longer stops it. hooks/post-deploy.sh does the one-time
+# cluster init with the admin password instead.
+services:
+  ziti-controller:
+    image: openziti/ziti-controller:2.0.8@sha256:834cb8a784b55716a56c0aab15d8809bc553834a534dbb8986d0711cb5c34dfc
+    container_name: ziti-controller
+    restart: unless-stopped
+    network_mode: host
+    user: "2171:2171"
+    command: run config.yml
+    volumes:
+      - ./data:/ziti-controller
+      - ./config.yml:/ziti-controller/config.yml:ro
+    environment:
+      - TZ=${TZ}
+      - ZITI_BOOTSTRAP_CONFIG=false
+      - ZITI_BOOTSTRAP_CLUSTER=true
+      - ZITI_CLUSTER_NODE_NAME=mljr
+      - ZITI_CLUSTER_TRUST_DOMAIN=ziti.mljr.eu
+      - ZITI_CTRL_ADVERTISED_ADDRESS=ctrl.ziti.mljr.eu
+      - ZITI_CTRL_ADVERTISED_PORT=8441

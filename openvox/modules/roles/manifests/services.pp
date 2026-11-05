@@ -57,6 +57,7 @@ class roles::services (
     'crowdsec', 'forgejo', 'grafana', 'speedtest', 'godrive-demo',
     'healthreport', 'backup-dashboard', 'mail-archiver', 'umami', 'nocturne',
     'syncthing-ugreen', 'ntfy', 'crowdsec-nuc', 'paperless-mail-export',
+    'ziti-controller',
   ],
   Array[String] $critical_hook_services = ['crowdsec', 'forgejo', 'grafana', 'speedtest'],
   # Matches Ansible's own `cleanup_enabled | default(true)` - ugreen's own
@@ -323,6 +324,9 @@ class roles::services (
       'ntfy' => {
         'topic_whitelist' => lookup('ntfy_topic_whitelist', { 'default_value' => [] }).join(','),
       },
+      'ziti-controller' => {
+        'admin_password' => lookup('vault_ziti_admin_password', { 'default_value' => '' }),
+      },
     },
     'ugreen' => {
       'oxicloud' => {
@@ -465,6 +469,18 @@ class roles::services (
         staging   => true,
         require   => [Exec['services-dockerhub-login'], Exec['services-ghcr-login']],
       }
+    }
+  }
+
+  # The controller uses host networking (services/ziti-controller), so its
+  # public port is a plain firewalld port. 8441 carries the router control
+  # channel, client API and OIDC; the management API stays on loopback.
+  if 'ziti-controller' in $host_service_names {
+    roles::firewalld::port { 'ziti-controller':
+      ensure   => present,
+      zone     => 'public',
+      port     => 8441,
+      protocol => 'tcp',
     }
   }
 

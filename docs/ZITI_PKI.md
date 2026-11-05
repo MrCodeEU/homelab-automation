@@ -170,12 +170,39 @@ Commit `ziti/pki/root-ca.crt` and record the fingerprint in this file.
 
 ## Signing the controller intermediate
 
-Done during the Phase 3 build: the controller creates the intermediate key
-and CSR on mljr, the CSR comes to the laptop, step 5's `openssl x509 -req`
-signs it with `-extfile` setting `basicConstraints=critical,CA:TRUE,pathlen:0`
-and `keyUsage=critical,keyCertSign,cRLSign`, `-days 1095`, and the
-certificate goes back to mljr. The exact commands and the re-issue
-procedure are added here once the PoC has run them (C12).
+`scripts/ziti-sign-intermediate.sh`, run on the laptop with one YubiKey
+plugged in and networking on:
+
+1. mljr generates a P-384 key and a CSR in `/opt/ziti-controller/data/pki.new`.
+   The key never leaves mljr.
+2. The laptop checks the CSR (signature, P-384, subject
+   `O=homelab, CN=homelab Ziti Intermediate CA mljr`) and signs it with the
+   YubiKey, as in step 5: `basicConstraints=critical,CA:TRUE,pathlen:0`,
+   `keyUsage=critical,keyCertSign,cRLSign`, `subjectAltName=URI:spiffe://ziti.mljr.eu`,
+   SHA-384, 1095 days.
+3. It verifies the certificate against the root and the CSR key.
+4. mljr gets the root and intermediate certificates, the chain and the
+   index files in the layout of the image's bootstrap
+   (`pki/root/certs/root.cert`, `pki/intermediate/{certs,keys}/intermediate.*`),
+   owned by the container user (uid 2171). It restarts the controller if it
+   runs.
+
+The controller's own server and client certificates are not signed here:
+the container entrypoint issues them from the intermediate on every start
+(1 year, `spiffe://ziti.mljr.eu/controller/mljr`).
+
+The SPIFFE URI on the intermediate sets the trust domain. Ziti reads it from
+the signing CA, so the root needs none. Never change it: every enrolled
+identity and router depends on it.
+
+### Re-issue
+
+`scripts/ziti-sign-intermediate.sh --reissue` writes a CSR from the
+existing intermediate key and installs the new certificate in place (the old
+one is kept as `intermediate.cert.<timestamp>`). Same key and subject, so
+every router and identity certificate the intermediate signed stays valid.
+Re-issue well before expiry; the healthreport `pki` collector warns from
+365 days (C12).
 
 ## Status
 
@@ -187,3 +214,4 @@ procedure are added here once the PoC has run them (C12).
 | Imported and test-signed, YubiKey 1 | yes (2026-11-05) |
 | Imported and test-signed, YubiKey 2 | yes (2026-11-05) |
 | `ziti/pki/root-ca.crt` committed, fingerprint recorded | yes (2026-11-05) |
+| Controller intermediate issued on mljr | no |
