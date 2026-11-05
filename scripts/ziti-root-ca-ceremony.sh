@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Interactive ceremony for the offline Ziti root CA (docs/ZITI_PKI.md).
-# Run it yourself in a normal terminal on the laptop (it turns networking off,
-# asks for PINs, touches and a passphrase). It never prints secrets.
+# Run it yourself in a normal terminal on the laptop (you disconnect networking
+# yourself; it asks for PINs, touches and a passphrase). It never prints secrets.
 #
 # Order:
-#   1. preflight, networking off, work dir in /dev/shm
+#   1. preflight, you disconnect networking (checked), work dir in /dev/shm
 #   2. generate the P-384 root key + self-signed root certificate
 #   3. write a passphrase-encrypted copy of the key and prove it decrypts
 #   4. per YubiKey (one plugged in at a time): set PIV PIN/PUK/management key
 #      if still default, import the key into slot 9c, check the public key,
 #      test-sign a throwaway CSR through PKCS#11 and verify it
-#   5. shred the plain key, networking back on
+#   5. shred the plain key, you may reconnect
 #   6. you store the encrypted key + certificate in Bitwarden, then the copy
 #      in /dev/shm is shredded and the public certificate is put into the repo
 #
@@ -33,7 +33,7 @@ die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 confirm() { local a; read -rp "    $1 [y/N] " a; [[ "$a" =~ ^[yY] ]]; }
 
 # --- preflight --------------------------------------------------------------
-for t in ykman "$OSSL" pkcs11-tool nmcli shred; do
+for t in ykman "$OSSL" shred; do
   command -v "$t" >/dev/null || die "missing tool: $t"
 done
 [ -e "$MOD" ] || die "missing $MOD (OpenSC)"
@@ -42,10 +42,9 @@ PKCS11_PROVIDER_MODULE="$MOD" "$OSSL" list -providers -provider pkcs11 >/dev/nul
 
 say "Ziti root CA ceremony"
 info "YubiKey 1: $YK1, YubiKey 2: $YK2. Have both and Bitwarden ready."
-info "Networking is switched off until the plain key is shredded."
+info "Networking must stay off until the plain key is shredded."
 confirm "Start?" || exit 0
 
-net_off=false
 W=""
 backup_done=false
 cleanup() {
@@ -57,11 +56,16 @@ cleanup() {
     fi
     rm -rf -- "$W"
   fi
-  if [ "$net_off" = true ]; then nmcli networking on && echo "networking back on"; fi
 }
 trap cleanup EXIT
 
-nmcli networking off && net_off=true
+say "Disconnect networking"
+info "Switch off Wi-Fi/Ethernet yourself (e.g. airplane mode in the KDE applet)."
+info "The script does not toggle it: nmcli networking on did not reliably reconnect."
+read -rp "    Press Enter once disconnected "
+if [ -n "$(ip route show default 2>/dev/null)" ]; then
+  confirm "A default route still exists (still online). Continue anyway?" || exit 0
+fi
 umask 077
 W=$(mktemp -d -p /dev/shm ziti-root.XXXXXX)
 cd "$W"
@@ -104,7 +108,7 @@ wait_for_only() {
 }
 
 do_key() {
-  local name="$1" serial="$2" pinfo label
+  local name="$1" serial="$2" pinfo
   say "$name ($serial)"
   wait_for_only "$serial"
   pinfo=$(ykman --device "$serial" piv info)
@@ -130,12 +134,9 @@ do_key() {
     || die "public key in slot 9c of $name does not match the root"
   info "public key matches"
 
-  label=$(pkcs11-tool --module "$MOD" --list-objects --type privkey 2>/dev/null \
-    | awk '/label:/{sub(/^[^:]*:[ \t]*/,""); l=$0} /ID:/{if($2=="02"){print l; exit}}')
-  [ -n "$label" ] || die "no PKCS#11 private key with ID 02 (slot 9c) on $name"
-  info "Test-signing through PKCS#11 (object '$label'; PIN + touch):"
+  info "Test-signing through PKCS#11 (slot 9c = object id 02; PIN + touch):"
   PKCS11_PROVIDER_MODULE="$MOD" "$OSSL" x509 -req -in test.csr -CA root-ca.crt \
-    -CAkey "pkcs11:object=${label// /%20};type=private" \
+    -CAkey "pkcs11:id=%02;type=private" \
     -provider pkcs11 -provider default -days 1 -sha384 -out "test-$serial.crt"
   "$OSSL" verify -CAfile root-ca.crt "test-$serial.crt" >/dev/null \
     || die "test certificate from $name does not verify"
@@ -148,8 +149,7 @@ do_key "YubiKey 2" "$YK2"
 # --- shred plain key, back online -------------------------------------------
 say "Shredding the plain key"
 shred -u root.key test.key
-nmcli networking on && net_off=false
-info "networking back on"
+info "You can reconnect networking now."
 
 # --- Bitwarden --------------------------------------------------------------
 say "Store in Bitwarden item 'homelab ziti root CA'"

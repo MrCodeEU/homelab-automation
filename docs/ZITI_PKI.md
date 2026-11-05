@@ -37,10 +37,13 @@ Run on the laptop. Tools: `ykman`, `openssl`, `pkcs11-provider` and OpenSC
 (`/usr/lib64/opensc-pkcs11.so`), all already installed.
 
 `scripts/ziti-root-ca-ceremony.sh` runs steps 1-6 in order, interactively.
-Run it in your own terminal, not through an agent: it switches networking
-off until the plain key is shredded, and asks for PINs, touches and the
-passphrase. It stops on any error and always shreds the plain key. The
-manual steps below are the same thing, for reference or if the script fails.
+Run it in your own terminal, not through an agent: it asks for PINs,
+touches and the passphrase. Disconnect networking yourself when it asks
+(it checks that no default route is left); it does not toggle networking,
+because `nmcli networking on` did not reliably reconnect. Stay offline
+until it says the plain key is shredded. It stops on any error and always
+shreds the plain key. The manual steps below are the same thing, for
+reference or if the script fails.
 
 Use `/usr/bin/openssl` (system OpenSSL 3.5). A linuxbrew `openssl` earlier in
 `PATH` cannot load Fedora's `pkcs11-provider`, which step 5 needs.
@@ -62,8 +65,10 @@ PIN, so there is no extra secret to keep.
 
 ### 2. Generate the root offline
 
+Disconnect networking first (airplane mode in the KDE applet) and check
+that `ip route show default` prints nothing.
+
 ```
-nmcli networking off
 umask 077
 W=$(mktemp -d -p /dev/shm ziti-root.XXXX) && cd "$W"
 
@@ -110,17 +115,18 @@ openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:P-384 -nodes \
   -keyout test.key -subj "/CN=ceremony test" -out test.csr
 
 export PKCS11_PROVIDER_MODULE=/usr/lib64/opensc-pkcs11.so
-pkcs11-tool --module "$PKCS11_PROVIDER_MODULE" --list-objects --type privkey
 
 /usr/bin/openssl x509 -req -in test.csr -CA root-ca.crt \
-  -CAkey "pkcs11:object=SIGN%20key;type=private" \
+  -CAkey "pkcs11:id=%02;type=private" \
   -provider pkcs11 -provider default -days 1 -sha384 -out test.crt
 
 openssl verify -CAfile root-ca.crt test.crt
 ```
 
-If the object label differs, use the one `pkcs11-tool` lists for slot `9c`.
-Expect a PIN prompt and a touch.
+OpenSC maps PIV slot `9c` to PKCS#11 object id `02`. It only lists the
+private key after a PIN login, so `pkcs11-tool --list-objects` without
+`--login` shows the public key and certificate but no private key; select
+it by id rather than label. Expect a PIN prompt and a touch.
 
 ### 6. Clean up and commit the public certificate
 
@@ -128,8 +134,9 @@ Expect a PIN prompt and a touch.
 mkdir -p ~/Projekte/homelab-automation/ziti/pki
 cp root-ca.crt ~/Projekte/homelab-automation/ziti/pki/root-ca.crt
 shred -u root.key test.key && cd / && rm -rf "$W"
-nmcli networking on
 ```
+
+Reconnect networking only after the plain key is shredded.
 
 Commit `ziti/pki/root-ca.crt` and record the fingerprint in this file.
 
