@@ -40,7 +40,7 @@ multi-admin workflows, new network hardware.
 | Ziti PKI | **Root CA offline** (YubiKey or Bitwarden). Only an intermediate signing CA lives on mljr. |
 | Ziti policy | **Policy as code** generated from `services_catalog`, tag-based, default-deny. Applied with **OpenTofu** and a Ziti provider (native state encryption, key in Bitwarden). Fallback is a small Go reconciler on the management API. Replaces the open "Tailscale ACL as code" backlog item. |
 | Ziti identities | **Disposable.** On rebuild, re-enrol instead of restoring identity files, so they never need backing up. Cert expiry is monitored. |
-| Hostnames / certnames | Move OpenVox certnames, eyaml key paths, node blocks and hiera data off `*.tail33930.ts.net` to **`<host>.int.mljr.eu`**, while Tailscale still works as a safety net. |
+| Hostnames / certnames | Move OpenVox certnames, eyaml key paths, node blocks and hiera data off `*.tail33930.ts.net` to **`<host>.int.mljr.eu`**, while Tailscale still works as a safety net. `int.mljr.eu` is **identity-only**: no public DNS records (no leak of internal names, fail-closed). It becomes the Ziti intercept domain later; short names like `ssh root@mljr` then come from a client search domain `int.mljr.eu` plus a wildcard intercept `*.int.mljr.eu`, not from per-host SSH aliases. |
 | SSH auth | Plain OpenSSH keys, in git, distributed by OpenVox. Ziti authenticates the network path in front. An SSH CA is a possible later step, decided at the final gate. |
 | Identity provider | **Authelia stays the default.** Zitadel is a time-boxed PoC with written pass/fail criteria. |
 | Config management | **Working hypothesis (option B):** masterless OpenVox on mljr/nuc/ugreen (unchanged), plus **OpenBolt** as the push layer for laptop bootstrap, DR rebuilds and the appliances (nas, wd_mycloud). CFEngine stays dropped: it is a pull agent of the same class as `puppet apply`. A Go-native IaC tool was searched for again and none is mature. |
@@ -158,14 +158,27 @@ rollback.
 
 ### Phase 2: Certname decoupling
 
-- Introduce `<host>.int.mljr.eu` names (DNS-as-code).
+- Introduce `<host>.int.mljr.eu` as identity names only (no DNS records,
+  see the decision table).
 - Rename OpenVox certnames, move eyaml key paths, node blocks and hiera
   data, one host at a time, update the Bitwarden entries.
-- Update CI, monitoring targets and docs that use `*.tail33930.ts.net`.
+- `scripts/openvox-sync.sh` maps each SSH target to its certname and passes
+  `--certname` to `puppet apply`, so identity and transport are separate.
+  The eyaml helper scripts make the same split.
+- Transport references (SSH targets, CI host lists, `reverse_proxy` and
+  monitoring URLs, appliance proxy scripts) stay on `*.tail33930.ts.net`:
+  without DNS, `int.mljr.eu` only resolves once the Ziti tunneler exists.
+  They move in Phase 4.
 
-**Rollback:** per host, revert the commit and restore the old key path
-(Tailscale still provides connectivity throughout).
-**Gate:** `grep tail33930` finds no functional use left in the repo.
+**Rollback:** per host, revert the commit. The on-host eyaml key dir was
+copied, not moved, so the old one is still in place (Tailscale still
+provides connectivity throughout).
+**Gate:** `grep tail33930` finds no identity use left (node files, secrets
+files, eyaml key dirs, `node` blocks, certnames). Transport uses are
+expected until Phase 4.
+
+Done 2026-11-04 (#502 nuc, #503 ugreen, #504 mljr), each verified by a
+live noop and apply under the new certname.
 
 ### Phase 3: OpenZiti PoC (throwaway quality)
 
@@ -209,6 +222,10 @@ depends on them yet.
   service at a time.
 - CI: ephemeral Ziti identity per run. If that proves hard, keep Tailscale
   for CI until the final gate.
+- Move the transport references left on `*.tail33930.ts.net` after Phase 2
+  (SSH targets, `OPENVOX_HOSTS` and CI host lists, `reverse_proxy` and
+  monitoring URLs, appliance proxy scripts) to `<host>.int.mljr.eu` intercept
+  names, together with the service that carries them.
 - Tailscale still in place as a fallback.
 
 **Rollback:** per service, point the consumer back at the Tailscale
