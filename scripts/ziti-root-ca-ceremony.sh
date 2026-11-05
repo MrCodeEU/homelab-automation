@@ -21,6 +21,15 @@ set -euo pipefail
 YK1=34717587
 YK2=26724345
 MOD=/usr/lib64/opensc-pkcs11.so
+# pkcs11-provider config: log in before searching (OpenSC only shows PIV
+# private keys after a PIN login) and reuse the typed PIN for the extra
+# per-signature login that the "always authenticate" slot 9c key needs.
+p11_conf() {
+  printf '%s\n' 'openssl_conf = openssl_init' '[openssl_init]' 'providers = provider_sect' \
+    '[provider_sect]' 'default = default_sect' 'pkcs11 = pkcs11_sect' '[default_sect]' 'activate = 1' \
+    '[pkcs11_sect]' 'module = /usr/lib64/ossl-modules/pkcs11.so' "pkcs11-module-path = $MOD" \
+    'pkcs11-module-login-behavior = always' 'pkcs11-module-cache-pins = cache' 'activate = 1' > "$1"
+}
 # System OpenSSL: Fedora's pkcs11-provider is built for it (a linuxbrew openssl
 # earlier in PATH cannot load it).
 OSSL=/usr/bin/openssl
@@ -37,7 +46,9 @@ for t in ykman "$OSSL" shred; do
   command -v "$t" >/dev/null || die "missing tool: $t"
 done
 [ -e "$MOD" ] || die "missing $MOD (OpenSC)"
-PKCS11_PROVIDER_MODULE="$MOD" "$OSSL" list -providers -provider pkcs11 >/dev/null 2>&1 || die "OpenSSL pkcs11 provider not available"
+pc=$(mktemp -p /dev/shm p11.XXXXXX) && p11_conf "$pc"
+OPENSSL_CONF="$pc" "$OSSL" list -providers 2>/dev/null | grep -q pkcs11 || { rm -f "$pc"; die "OpenSSL pkcs11 provider not available"; }
+rm -f "$pc"
 [ -e "$CERT_DEST" ] && die "$CERT_DEST already exists; the root was created before. Move it away first if you really want a new root."
 
 say "Ziti root CA ceremony"
@@ -69,6 +80,7 @@ fi
 umask 077
 W=$(mktemp -d -p /dev/shm ziti-root.XXXXXX)
 cd "$W"
+p11_conf p11.cnf
 
 # --- generate ---------------------------------------------------------------
 say "Generating root key and certificate (offline, in $W)"
@@ -135,9 +147,9 @@ do_key() {
   info "public key matches"
 
   info "Test-signing through PKCS#11 (slot 9c = object id 02; PIN + touch):"
-  PKCS11_PROVIDER_MODULE="$MOD" "$OSSL" x509 -req -in test.csr -CA root-ca.crt \
+  OPENSSL_CONF=p11.cnf "$OSSL" x509 -req -in test.csr -CA root-ca.crt \
     -CAkey "pkcs11:id=%02;type=private" \
-    -provider pkcs11 -provider default -days 1 -sha384 -out "test-$serial.crt"
+    -days 1 -sha384 -out "test-$serial.crt"
   "$OSSL" verify -CAfile root-ca.crt "test-$serial.crt" >/dev/null \
     || die "test certificate from $name does not verify"
   info "$name signs correctly"

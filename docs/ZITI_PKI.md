@@ -114,19 +114,40 @@ the root:
 openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:P-384 -nodes \
   -keyout test.key -subj "/CN=ceremony test" -out test.csr
 
-export PKCS11_PROVIDER_MODULE=/usr/lib64/opensc-pkcs11.so
+cat > p11.cnf <<'EOF'
+openssl_conf = openssl_init
+[openssl_init]
+providers = provider_sect
+[provider_sect]
+default = default_sect
+pkcs11 = pkcs11_sect
+[default_sect]
+activate = 1
+[pkcs11_sect]
+module = /usr/lib64/ossl-modules/pkcs11.so
+pkcs11-module-path = /usr/lib64/opensc-pkcs11.so
+pkcs11-module-login-behavior = always
+pkcs11-module-cache-pins = cache
+activate = 1
+EOF
 
-/usr/bin/openssl x509 -req -in test.csr -CA root-ca.crt \
-  -CAkey "pkcs11:id=%02;type=private" \
-  -provider pkcs11 -provider default -days 1 -sha384 -out test.crt
+OPENSSL_CONF=p11.cnf /usr/bin/openssl x509 -req -in test.csr -CA root-ca.crt \
+  -CAkey "pkcs11:id=%02;type=private" -days 1 -sha384 -out test.crt
 
 openssl verify -CAfile root-ca.crt test.crt
 ```
 
-OpenSC maps PIV slot `9c` to PKCS#11 object id `02`. It only lists the
-private key after a PIN login, so `pkcs11-tool --list-objects` without
-`--login` shows the public key and certificate but no private key; select
-it by id rather than label. Expect a PIN prompt and a touch.
+Expect one PIN prompt and a touch. Why the config is needed:
+
+- OpenSC maps PIV slot `9c` to PKCS#11 object id `02`, but only shows the
+  private key after a PIN login. The provider's default
+  (`login-behavior = auto`) searches before logging in and reports
+  "Could not find CA private key"; `always` logs in first.
+- The imported key is flagged "always authenticate", so each signature
+  needs a second, context-specific PIN login. `cache-pins = cache` reuses
+  the PIN typed once.
+- Select the key by id, not label: `pkcs11-tool --list-objects` without
+  `--login` shows no private key at all.
 
 ### 6. Clean up and commit the public certificate
 
