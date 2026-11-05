@@ -4,14 +4,18 @@
 # yourself; it asks for PINs, touches and a passphrase). It never prints secrets.
 #
 # Order:
-#   1. preflight, you disconnect networking (checked), work dir in /dev/shm
-#   2. generate the P-384 root key + self-signed root certificate
-#   3. write a passphrase-encrypted copy of the key and prove it decrypts
-#   4. per YubiKey (one plugged in at a time): set PIV PIN/PUK/management key
-#      if still default, import the key into slot 9c, check the public key,
-#      test-sign a throwaway CSR through PKCS#11 and verify it
-#   5. shred the plain key, you may reconnect
-#   6. you store the encrypted key + certificate in Bitwarden, then the copy
+#   1. preflight
+#   2. per YubiKey, before any key exists: change whichever PIV PIN, PUK and
+#      management key are still factory defaults (PIN via the PUK if the PIN
+#      is unknown); stop if only one PIN try is left
+#   3. you disconnect networking (checked), work dir in /dev/shm
+#   4. generate the P-384 root key + self-signed root certificate
+#   5. write a passphrase-encrypted copy of the key and prove it decrypts
+#   6. per YubiKey (one plugged in at a time): import the key into slot 9c,
+#      check the public key, test-sign a throwaway CSR through PKCS#11 and
+#      verify it
+#   7. shred the plain key, you may reconnect
+#   8. you store the encrypted key + certificate in Bitwarden, then the copy
 #      in /dev/shm is shredded and the public certificate is put into the repo
 #
 # Any error stops the script. The plain key is always shredded on exit; rerun
@@ -70,6 +74,76 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# --- PIV access on both YubiKeys (before any key exists) ---------------------
+wait_for_only() {
+  local want="$1" s
+  while :; do
+    mapfile -t s < <(ykman list --serials 2>/dev/null)
+    if [ "${#s[@]}" -eq 1 ] && [ "${s[0]}" = "$want" ]; then return; fi
+    read -rp "    Plug in ONLY YubiKey $want (now: ${s[*]:-none}), then press Enter "
+  done
+}
+
+# Refuse to spend PIN tries when only one is left: the next wrong PIN blocks
+# PIV. Recover with the PUK (`piv access unblock-pin`) or `piv reset` (PIV only).
+pin_tries_ok() {
+  local name="$1" pinfo="$2" tries
+  tries=$(sed -n 's/^PIN tries remaining: *\([0-9]*\)\/.*/\1/p' <<<"$pinfo")
+  [ -n "$tries" ] || die "could not read PIN tries of $name"
+  if [ "$tries" -le 1 ]; then
+    die "$name has only $tries PIV PIN try left. Reset the PIN with its PUK first: ykman piv access unblock-pin"
+  fi
+  [ "$tries" -lt 3 ] && info "WARNING: $name has $tries PIN tries left."
+  return 0
+}
+
+# Changes only what is still at its factory default, each item on its own.
+prepare_key() {
+  local name="$1" serial="$2" pinfo
+  say "PIV access: $name ($serial)"
+  wait_for_only "$serial"
+  pinfo=$(ykman --device "$serial" piv info)
+
+  # Low on PIN tries but the PUK is still the default: reset the PIN with the
+  # PUK right away instead of risking the last try.
+  if grep -q "Using default PUK" <<<"$pinfo" \
+     && [ "$(sed -n 's/^PIN tries remaining: *\([0-9]*\)\/.*/\1/p' <<<"$pinfo")" -le 1 ] \
+     && confirm "$name has 1 PIN try left. Set a new PIN with the default PUK (12345678)?"; then
+    ykman --device "$serial" piv access unblock-pin
+    pinfo=$(ykman --device "$serial" piv info)
+  fi
+  pin_tries_ok "$name" "$pinfo"
+
+  if grep -q "Using default PIN" <<<"$pinfo"; then
+    info "PIN is the default (123456). Set a new one; store it in Bitwarden."
+    ykman --device "$serial" piv access change-pin
+  elif ! confirm "PIN is not the default. Do you know $name's PIV PIN?"; then
+    grep -q "Using default PUK" <<<"$pinfo" \
+      || die "PIN and PUK are both unknown. Reset PIV (wipes PIV only, not FIDO2): ykman --device $serial piv reset"
+    info "Setting a new PIN with the default PUK (12345678); no PIN tries are used."
+    ykman --device "$serial" piv access unblock-pin
+  fi
+
+  if grep -q "Using default PUK" <<<"$pinfo"; then
+    info "PUK is the default (12345678). Set a new one; store it in Bitwarden."
+    ykman --device "$serial" piv access change-puk
+  fi
+
+  if grep -q "Using default Management key" <<<"$pinfo"; then
+    info "Management key is the default. Replacing it with a random one, protected by the PIN."
+    ykman --device "$serial" piv access change-management-key --generate --protect
+  fi
+
+  pinfo=$(ykman --device "$serial" piv info)
+  if grep -q "WARNING: Using default" <<<"$pinfo"; then
+    die "$name still reports a default PIV credential: $(grep 'WARNING: Using default' <<<"$pinfo" | tr '\n' ' ')"
+  fi
+  info "$name: PIN, PUK and management key are no longer defaults."
+}
+
+prepare_key "YubiKey 1" "$YK1"
+prepare_key "YubiKey 2" "$YK2"
+
 say "Disconnect networking"
 info "Switch off Wi-Fi/Ethernet yourself (e.g. airplane mode in the KDE applet)."
 info "The script does not toggle it: nmcli networking on did not reliably reconnect."
@@ -110,30 +184,12 @@ info "backup OK"
   -keyout test.key -subj "/CN=ceremony test" -out test.csr 2>/dev/null
 
 # --- per YubiKey ------------------------------------------------------------
-wait_for_only() {
-  local want="$1" s
-  while :; do
-    mapfile -t s < <(ykman list --serials 2>/dev/null)
-    if [ "${#s[@]}" -eq 1 ] && [ "${s[0]}" = "$want" ]; then return; fi
-    read -rp "    Plug in ONLY YubiKey $want (now: ${s[*]:-none}), then press Enter "
-  done
-}
-
 do_key() {
   local name="$1" serial="$2" pinfo
   say "$name ($serial)"
   wait_for_only "$serial"
   pinfo=$(ykman --device "$serial" piv info)
-
-  if grep -qi "default" <<<"$pinfo"; then
-    info "PIV still uses a default PIN/PUK/management key. Changing them now."
-    info "Current defaults: PIN 123456, PUK 12345678. Store the new ones in Bitwarden."
-    ykman --device "$serial" piv access change-pin
-    ykman --device "$serial" piv access change-puk
-    ykman --device "$serial" piv access change-management-key --generate --protect
-  else
-    info "PIV PIN/PUK/management key already changed."
-  fi
+  pin_tries_ok "$name" "$pinfo"
 
   if grep -qi "slot 9c" <<<"$pinfo"; then
     confirm "Slot 9c on $name is not empty. Overwrite it?" || die "aborted"
