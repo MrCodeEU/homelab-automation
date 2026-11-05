@@ -36,6 +36,15 @@ The root certificate is public and lives in the repo at
 Run on the laptop. Tools: `ykman`, `openssl`, `pkcs11-provider` and OpenSC
 (`/usr/lib64/opensc-pkcs11.so`), all already installed.
 
+`scripts/ziti-root-ca-ceremony.sh` runs steps 1-6 in order, interactively.
+Run it in your own terminal, not through an agent: it switches networking
+off until the plain key is shredded, and asks for PINs, touches and the
+passphrase. It stops on any error and always shreds the plain key. The
+manual steps below are the same thing, for reference or if the script fails.
+
+Use `/usr/bin/openssl` (system OpenSSL 3.5). A linuxbrew `openssl` earlier in
+`PATH` cannot load Fedora's `pkcs11-provider`, which step 5 needs.
+
 ### 1. Set PIV PIN, PUK and management key (each YubiKey, once)
 
 Plug in one YubiKey at a time. Defaults are PIN `123456`, PUK `12345678`.
@@ -103,7 +112,7 @@ openssl req -new -newkey ec -pkeyopt ec_paramgen_curve:P-384 -nodes \
 export PKCS11_PROVIDER_MODULE=/usr/lib64/opensc-pkcs11.so
 pkcs11-tool --module "$PKCS11_PROVIDER_MODULE" --list-objects --type privkey
 
-openssl x509 -req -in test.csr -CA root-ca.crt \
+/usr/bin/openssl x509 -req -in test.csr -CA root-ca.crt \
   -CAkey "pkcs11:object=SIGN%20key;type=private" \
   -provider pkcs11 -provider default -days 1 -sha384 -out test.crt
 
