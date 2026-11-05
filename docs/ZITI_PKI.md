@@ -214,4 +214,4 @@ Re-issue well before expiry; the healthreport `pki` collector warns from
 | Imported and test-signed, YubiKey 1 | yes (2026-11-05) |
 | Imported and test-signed, YubiKey 2 | yes (2026-11-05) |
 | `ziti/pki/root-ca.crt` committed, fingerprint recorded | yes (2026-11-05) |
-| Controller intermediate issued on mljr | no |
+| Controller intermediate issued on mljr (serial `73DC5346…52C8`, valid to 2029-11-04) | yes (2026-11-05) |
