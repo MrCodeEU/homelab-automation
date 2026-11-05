@@ -185,6 +185,13 @@ live noop and apply under the new certname.
 - Controller (own container and user) and public edge router on mljr,
   private edge router on nuc, laptop identity. Offline root CA from day
   one.
+- Containers, not RPMs: the official `openziti/ziti-controller` and
+  `openziti/ziti-router` images, pinned by version and digest (2.0.8 at
+  the start; the `latest` tag follows the last release pushed, which was
+  1.6.22), deployed like every other service. `network_mode: host`, so
+  firewalld governs the Ziti ports (ports published through Docker bypass
+  it) and the data path has no NAT. RPMs would work on EL10 too, but a
+  `dnf upgrade` could move Ziti unexpectedly.
 - Ziti gets its own public ports on mljr (for example `8441` controller,
   `8442` router edge), opened in firewalld. It does not share `443` with
   Caddy, so neither depends on the other.
@@ -212,7 +219,7 @@ Phase 4; the others decide tooling or shape later phases.
 | C9 | Rocky coexistence | Tunneler and router survive `firewall-cmd --reload` and a Docker restart; Docker networking still works | must |
 | C10 | Short names (option B) | With the tunneler up, `ssh root@nuc` goes over Ziti via the `int.mljr.eu` search domain and a wildcard intercept. With it down, `nuc.int.mljr.eu` does not resolve. Resolution order next to MagicDNS during the parallel run is documented | must |
 | C11 | Visibility | Ziti metrics in VictoriaMetrics; alerts for a router or overlay going down, a new identity enrolling, and policy denials | must |
-| C12 | PKI | Root CA created offline, only the intermediate on mljr, re-issuing the intermediate documented | must |
+| C12 | PKI | Root CA created offline (done 2026-11-05, docs/ZITI_PKI.md), only the intermediate on mljr, re-issuing the intermediate documented. A healthreport `pki` collector reports days left for the root, the intermediate and router certificates: info ≤ 365 days (daily email), warn ≤ 90 (daily ntfy, high), crit ≤ 30 (daily ntfy, urgent) | must |
 | C13 | No regression | Tailscale and every existing service unchanged throughout | must |
 
 **Rollback:** remove the controller, routers and tunnelers; nothing else
