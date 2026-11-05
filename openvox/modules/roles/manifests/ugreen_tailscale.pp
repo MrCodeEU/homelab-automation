@@ -19,9 +19,35 @@ class roles::ugreen_tailscale {
     update => { frequency => 'always' },
   }
 
+  # UGOS also sets GODEBUG=tlskyber=0 for every unit
+  # (/etc/systemd/system.conf DefaultEnvironment). On 2026-11-05 a
+  # tailscale upgrade built with a newer Go made tailscaled exit with
+  # "removed GODEBUG tlskyber" at start, and ugreen stayed off the tailnet
+  # for 10h until break-glass SSH over the LAN. The drop-in clears the
+  # variable for tailscaled only; system.conf stays UGOS-owned. It is in
+  # place before the package, so the upgrade's own restart already uses
+  # it. No restart from here: this apply itself runs over tailscale SSH.
+  file { '/etc/systemd/system/tailscaled.service.d':
+    ensure => directory,
+    mode   => '0755',
+  }
+
+  file { '/etc/systemd/system/tailscaled.service.d/10-godebug.conf':
+    ensure  => file,
+    mode    => '0644',
+    content => "[Service]\nEnvironment=GODEBUG=\n",
+    require => File['/etc/systemd/system/tailscaled.service.d'],
+  }
+
+  exec { 'ugreen-tailscaled-daemon-reload':
+    command     => '/usr/bin/systemctl daemon-reload',
+    refreshonly => true,
+    subscribe   => File['/etc/systemd/system/tailscaled.service.d/10-godebug.conf'],
+  }
+
   package { 'tailscale':
     ensure  => latest,
-    require => Class['apt::update'],
+    require => [Class['apt::update'], Exec['ugreen-tailscaled-daemon-reload']],
   }
 
   # Read-only, always runs regardless of noop/real - matches the Ansible
