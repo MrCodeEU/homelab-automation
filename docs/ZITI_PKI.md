@@ -19,7 +19,14 @@ Bitwarden. Losing all three copies means a new root and re-enrolling every
 Ziti identity and router.
 
 The root certificate is public and lives in the repo at
-`ziti/pki/root-ca.crt`.
+`ziti/pki/root-ca.crt`:
+
+- Subject and issuer: `O=homelab, CN=homelab Ziti Root CA`, ECC P-384
+- Valid 2026-11-05 to 2036-11-02
+- SHA-256 fingerprint:
+  `B8:12:04:6A:A5:EE:D0:01:96:70:72:C4:4D:54:0D:69:2F:56:2D:4F:21:9C:E5:02:0D:AA:2E:28:AB:3F:B3:5B`
+
+Compare this fingerprint with the Bitwarden item before trusting a copy.
 
 ## Parameters
 
@@ -174,9 +181,9 @@ procedure are added here once the PoC has run them (C12).
 
 | Item | Done |
 |---|---|
-| PIV PIN/PUK/management key set, YubiKey 1 | no |
-| PIV PIN/PUK/management key set, YubiKey 2 | no |
-| Root generated, backed up to Bitwarden | no |
-| Imported and test-signed, YubiKey 1 | no |
-| Imported and test-signed, YubiKey 2 | no |
-| `ziti/pki/root-ca.crt` committed, fingerprint recorded | no |
+| PIV PIN/PUK/management key set, YubiKey 1 | yes (2026-11-05) |
+| PIV PIN/PUK/management key set, YubiKey 2 | yes (2026-11-05) |
+| Root generated, backed up to Bitwarden | yes (2026-11-05) |
+| Imported and test-signed, YubiKey 1 | yes (2026-11-05) |
+| Imported and test-signed, YubiKey 2 | yes (2026-11-05) |
+| `ziti/pki/root-ca.crt` committed, fingerprint recorded | yes (2026-11-05) |
