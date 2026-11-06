@@ -185,33 +185,47 @@ live noop and apply under the new certname.
 - Controller (own container and user) and public edge router on mljr,
   private edge router on nuc, laptop identity. Offline root CA from day
   one.
-- One non-critical service reachable only over Ziti, for example
-  node-exporter or the Grafana UI.
+- Containers, not RPMs: the official `openziti/ziti-controller` and
+  `openziti/ziti-router` images, pinned by version and digest (2.0.8 at
+  the start; the `latest` tag follows the last release pushed, which was
+  1.6.22), deployed like every other service. `network_mode: host`, so
+  firewalld governs the Ziti ports (ports published through Docker bypass
+  it) and the data path has no NAT. RPMs would work on EL10 too, but a
+  `dnf upgrade` could move Ziti unexpectedly.
+- Ziti gets its own public ports on mljr (for example `8441` controller,
+  `8442` router edge), opened in firewalld. It does not share `443` with
+  Caddy, so neither depends on the other.
+- One non-critical service reachable only over Ziti: nuc's node-exporter.
+  The Grafana UI follows only if there is time left.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.
+- No time box: the PoC ends when every criterion below has a result, or
+  when a must-criterion clearly fails.
 
-Exit criteria, written down before starting:
+Exit criteria, agreed 2026-11-05 before starting. **must** criteria block
+Phase 4; the others decide tooling or shape later phases.
 
-- Time to enrol a new host.
-- Controller DR: restore a snapshot onto a fresh mljr, and once in
-  degraded mode onto nuc; confirm clients reconnect via the stable DNS name.
-- Whether the OpenTofu Ziti provider (`netfoundry/ziti` 0.0.5 or community
-  `nenkoru/ziti`) can express services, service policies and edge-router
-  policies against a self-hosted controller.
-- Whether a GitHub Actions OIDC token works with a Ziti external JWT signer.
-- CPU and RAM cost on mljr.
-- LAN throughput over Ziti between nas-class and ugreen-class hosts vs the
-  iperf3 baseline; traffic must not hairpin through mljr.
-- Whether the armv7 (32-bit) tunneler runs on wd_mycloud at all.
-- Whether a tunneler on Fedora Atomic (laptop) works without layering
-  problems.
-- Interplay of the tunneler with firewalld and Docker's iptables chains on
-  Rocky.
+| # | Criterion | Pass if | Class |
+|---|---|---|---|
+| C1 | Enrol a new Linux host | ≤ 15 min from zero to a reachable service, following a written runbook | must |
+| C2 | Controller DR | Snapshot restore onto a fresh mljr in ≤ 60 min; existing identities and routers reconnect via `ctrl.ziti.mljr.eu` without re-enrolment. Degraded mode on nuc: clients reconnect ≤ 15 min after the DNS flip | must |
+| C3 | OpenTofu provider (`netfoundry/ziti` 0.0.5 or community `nenkoru/ziti`) | Services, service policies and edge-router policies can be created, updated and deleted against the self-hosted controller; `tofu plan` is empty after apply | decides tooling (fail: Go reconciler) |
+| C4 | GitHub Actions OIDC | A CI job dials a Ziti service through an external JWT signer, with no long-lived secret | nice-to-have (fail: CI stays on Tailscale) |
+| C5 | Cost on mljr | Controller and public router together use ≤ 400 MB RAM steady and ≤ 10 % of one core on average | must |
+| C6 | LAN path | nas to ugreen over Ziti through nuc's router reaches ≥ 75 Mbit/s (iperf3 baseline 99), and router metrics show no traffic through mljr | must (a hairpin is an architecture failure) |
+| C7 | WD armv7 tunneler | The 32-bit binary runs on wd_mycloud and hosts one service | informational, shapes Phase 5 |
+| C8 | Laptop (Fedora Atomic) | Tunneler runs without rpm-ostree layering, survives a reboot, DNS intercept works with systemd-resolved | must (a container or sysext counts) |
+| C9 | Rocky coexistence | Tunneler and router survive `firewall-cmd --reload` and a Docker restart; Docker networking still works | must |
+| C10 | Short names (option B) | With the tunneler up, `ssh root@nuc` goes over Ziti via the `int.mljr.eu` search domain and a wildcard intercept. With it down, `nuc.int.mljr.eu` does not resolve. Resolution order next to MagicDNS during the parallel run is documented | must |
+| C11 | Visibility | Ziti metrics in VictoriaMetrics; alerts for a router or overlay going down, a new identity enrolling, and policy denials | must |
+| C12 | PKI | Root CA created offline (done 2026-11-05, docs/ZITI_PKI.md), only the intermediate on mljr, re-issuing the intermediate documented. A healthreport `pki` collector reports days left for the root, the intermediate and router certificates: info ≤ 365 days (daily email), warn ≤ 90 (daily ntfy, high), crit ≤ 30 (daily ntfy, urgent) | must |
+| C13 | No regression | Tailscale and every existing service unchanged throughout | must |
 
 **Rollback:** remove the controller, routers and tunnelers; nothing else
 depends on them yet.
-**Gate:** go to Phase 4 or stop.
+**Gate:** every must-criterion passes: go to Phase 4. Otherwise stop, or
+change the design and repeat the failing criteria.
 
 ### Phase 4: Ziti production for mljr, nuc, ugreen
 
