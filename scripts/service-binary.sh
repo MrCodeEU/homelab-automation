@@ -14,6 +14,10 @@
 # tools/cmd/; the binary is named after <cmd>. Opt a binary in by running
 # `build` once and committing both files.
 set -euo pipefail
+# The source hash sorts file paths; without a fixed collation a de_AT or
+# en_US locale orders `_` differently than CI's C locale and every
+# binary with an underscore in a source file name looks stale.
+export LC_ALL=C
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
