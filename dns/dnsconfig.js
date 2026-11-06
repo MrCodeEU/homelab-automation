@@ -25,6 +25,12 @@ D("mljr.eu", REG_NONE, DnsProvider(DSP_DESEC),
   CAA("@", "issue", "letsencrypt.org"),
   CNAME("status", "reports.hetrixtools.com."),
 
+  // OpenZiti controller (docs/ZERO_TRUST_PLAN.md Phase 3). Explicit, not left
+  // to the wildcard: this name is baked into every enrolled identity and is
+  // what a controller DR flips (C2). deSEC's minimum TTL is 3600.
+  A("ctrl.ziti", VPS_V4),
+  AAAA("ctrl.ziti", VPS_V6),
+
   // Mail (Mailcow)
   A("mail", VPS_V4),
   A("*.mail", VPS_V4),

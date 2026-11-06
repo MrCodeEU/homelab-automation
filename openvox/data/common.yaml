@@ -420,6 +420,16 @@ services_catalog:
     description: "Push Notifications"
     icon: "mdi:bell-ring"
 
+  # docs/ZERO_TRUST_PLAN.md Phase 3. No domain: not behind Caddy, it serves
+  # its own TLS on ctrl.ziti.mljr.eu:8441 (host networking, firewalld port
+  # in roles::services).
+  - name: ziti-controller
+    enabled: true
+    port: 0
+    host: mljr
+    description: "OpenZiti controller (zero-trust overlay PoC)"
+    icon: "mdi:shield-key"
+
   - name: goaccess
     enabled: true
     domain: "logs.mljr.eu"
