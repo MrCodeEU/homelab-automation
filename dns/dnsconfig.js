@@ -34,6 +34,13 @@ D("mljr.eu", REG_NONE, DnsProvider(DSP_DESEC),
   A("router.ziti", VPS_V4),
   AAAA("router.ziti", VPS_V6),
 
+  // int.mljr.eu is identity-only (certnames, Ziti intercepts) and must not
+  // resolve publicly. Without a node of its own, the "*" wildcard above
+  // answered every <x>.int.mljr.eu with the VPS IP, and resolved took that
+  // answer over the Ziti tunneler's. An existing "int" node stops the
+  // wildcard below it (RFC 4592), so those names get NXDOMAIN publicly.
+  TXT("int", "identity-only, no public records"),
+
   // Mail (Mailcow)
   A("mail", VPS_V4),
   A("*.mail", VPS_V4),
