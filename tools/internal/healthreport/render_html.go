@@ -208,6 +208,7 @@ func buildHTMLPageData(facts *Facts, narrative *Narrative, headline, stateDir st
 		{Title: fmt.Sprintf("New today (%d)", len(diff.New)), Rows: toRows(rows(diff.New), false)},
 		{Title: fmt.Sprintf("Reopened (%d)", len(diff.Reopened)), Rows: toRows(rows(diff.Reopened), true)},
 		{Title: fmt.Sprintf("Still open (%d)", len(diff.Persisting)), Rows: toRows(rows(diff.Persisting), true)},
+		{Title: fmt.Sprintf("Notices (%d)", len(Notices(facts))), Rows: toRows(Notices(facts), false)},
 	}
 	var nonEmptySections []htmlSection
 	for _, s := range sections {

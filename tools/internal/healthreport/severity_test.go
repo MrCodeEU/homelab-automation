@@ -47,6 +47,38 @@ func TestThresholdsBelow(t *testing.T) {
 	check(t, rules, "cert_expiry", 3.0, "crit", "mljr")
 }
 
+func TestPKIExpiryLadder(t *testing.T) {
+	rules := loadTestRules(t)
+	check(t, rules, "pki_ca_expiry", 1095, "info", "intermediate")
+	check(t, rules, "pki_ca_expiry", 365, "info", "intermediate")
+	check(t, rules, "pki_ca_expiry", 91, "info", "intermediate")
+	check(t, rules, "pki_ca_expiry", 90, "warn", "intermediate")
+	check(t, rules, "pki_ca_expiry", 30, "crit", "intermediate")
+	check(t, rules, "pki_leaf_expiry", 364, "info", "router-nuc")
+	check(t, rules, "pki_leaf_expiry", 90, "warn", "router-nuc")
+	check(t, rules, "pki_fetch_failed", true, "warn", "router-nuc")
+}
+
+func TestNoticeLevel(t *testing.T) {
+	rules := loadTestRules(t)
+	for _, tc := range []struct {
+		kind   string
+		days   int
+		notice bool
+	}{
+		{"pki_ca_expiry", 366, false},
+		{"pki_ca_expiry", 365, true},
+		{"pki_ca_expiry", 90, false}, // warn, not a notice
+		{"pki_leaf_expiry", 200, false},
+	} {
+		obs := testObs(tc.kind, tc.days, "s")
+		Classify(obs, rules.Rules[tc.kind], false, nil)
+		if obs.Notice != tc.notice {
+			t.Errorf("%s=%d notice=%v, want %v", tc.kind, tc.days, obs.Notice, tc.notice)
+		}
+	}
+}
+
 func TestEqualsAndNotEquals(t *testing.T) {
 	rules := loadTestRules(t)
 	check(t, rules, "monitor_status", "up", "info", "mljr")

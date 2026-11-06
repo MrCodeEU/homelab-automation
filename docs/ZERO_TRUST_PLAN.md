@@ -254,6 +254,18 @@ live noop and apply under the new certname.
   or enrolled, failed logins, failed circuits. Policy denials have no
   event of their own: a client is never issued a session for a service it
   may not dial, so failed logins and refused circuits stand in for them.
+  Still to do in Phase 3: fire the controller-down, router-offline and
+  circuit-failure rules once on purpose, and add and test an alert for the
+  nuc-mljr link going down while both routers stay up (needs the routers'
+  latency probes, planned with C6).
+- PKI expiry (C12): healthreport's `pki` collector reads the chains the
+  controller (8441) and both routers (8442) present in a TLS handshake from
+  nuc. Root and intermediate: notice from 365 days (the email's Notices
+  section), warn 90 (daily ntfy high), crit 30 (urgent). Controller and
+  router leaves live one year and are renewed on every start, so they skip
+  the notice stage and only warn/crit. Every chain must verify against the
+  root pinned in the collector (a test keeps it equal to
+  `ziti/pki/root-ca.crt`); a chain that does not is a crit.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.

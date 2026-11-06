@@ -28,6 +28,10 @@ type Rule struct {
 	OkValues    []any    `yaml:"ok_values"`
 	Level       string   `yaml:"level"`
 	Subjects    []string `yaml:"subjects"`
+	// Notice (threshold rules only): breaching it keeps the observation
+	// info but marks it Notice, so the report lists it under "Notices"
+	// without it entering the diff, the LLM input or the ntfy priority.
+	Notice *float64 `yaml:"notice"`
 }
 
 type RulesFile struct {
@@ -120,6 +124,7 @@ func valuesContain(values []any, want string) bool {
 
 // Classify returns the severity for one observation. Unknown kinds stay info.
 func Classify(obs *Observation, rule Rule, isNew bool, now *time.Time) string {
+	obs.Notice = false
 	if rule.Type == "" {
 		return "info"
 	}
@@ -171,6 +176,12 @@ func Classify(obs *Observation, rule Rule, isNew bool, now *time.Time) string {
 			}
 			obs.Threshold = *limit
 			return level
+		}
+		if rule.Notice != nil {
+			if (direction == "above" && value > *rule.Notice) || (direction == "below" && value < *rule.Notice) {
+				obs.Notice = true
+				obs.Threshold = *rule.Notice
+			}
 		}
 		return "info"
 

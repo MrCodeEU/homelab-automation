@@ -104,6 +104,18 @@ func obsLine(obs *Observation, showAge bool, persisting map[string]bool) string 
 	return line
 }
 
+// Notices are info observations that breached a rule's notice level
+// (severity.go): worth reading, not worth a diff entry or a louder ntfy.
+func Notices(facts *Facts) []*Observation {
+	var out []*Observation
+	for _, obs := range facts.Observations {
+		if obs.Notice && obs.Severity == "info" {
+			out = append(out, obs)
+		}
+	}
+	return out
+}
+
 func dateOnly(id string) string {
 	if len(id) > 10 {
 		return id[:10]
@@ -188,6 +200,14 @@ func Render(facts *Facts, narrative *Narrative) (body string, fallback string) {
 		b.WriteString("### Possible correlations\n")
 		for _, c := range narrative.Correlations {
 			b.WriteString("- " + c + "\n")
+		}
+		b.WriteString("\n")
+	}
+
+	if notices := Notices(facts); len(notices) > 0 {
+		fmt.Fprintf(&b, "## Notices (%d)\n", len(notices))
+		for _, obs := range notices {
+			b.WriteString(obsLine(obs, false, persisting) + "\n")
 		}
 		b.WriteString("\n")
 	}
