@@ -12,12 +12,15 @@
 # Services:
 #   nuc-alloy  alloy.nuc.int.mljr.eu:12345 -> nuc 127.0.0.1:12345 (Grafana
 #              Alloy's metrics endpoint; nuc runs no node-exporter)
-#   ssh        *.int.mljr.eu:22 -> 127.0.0.1:22 on the host of that name (C10).
+#   ssh        <host>.int.mljr.eu:22 -> 127.0.0.1:22 on that host (C10).
 #              Addressable terminators: the client dials the terminator named
 #              after the intercepted hostname ($dst_hostname); each hosting
 #              router binds under its own identity name, which is the host's
-#              certname (<host>.int.mljr.eu). A name without a hosting router
-#              does not connect. Routers are named after their certname for
+#              certname (<host>.int.mljr.eu). The intercept lists only hosts
+#              that are on Ziti, not *.int.mljr.eu: a wildcard makes every
+#              name resolve while the tunneler is up, so SSH canonicalization
+#              (ziti/laptop/ssh-int-mljr-eu.conf) could never fall back for
+#              hosts still on Tailscale only. Routers are named after their certname for
 #              this: the router-embedded tunneler does not resolve
 #              $tunneler_id.tag[...] (the terminator got the literal string).
 #
@@ -83,7 +86,7 @@ service_policy nuc-alloy-bind Bind '@nuc.int.mljr.eu' '@nuc-alloy'
 
 # --- ssh (wildcard, addressable terminators) ---------------------------------
 config ssh-intercept intercept.v1 \
-  '{"protocols":["tcp"],"addresses":["*.int.mljr.eu"],"portRanges":[{"low":22,"high":22}],"dialOptions":{"identity":"$dst_hostname"}}'
+  '{"protocols":["tcp"],"addresses":["mljr.int.mljr.eu","nuc.int.mljr.eu"],"portRanges":[{"low":22,"high":22}],"dialOptions":{"identity":"$dst_hostname"}}'
 config ssh-host host.v1 \
   '{"protocol":"tcp","address":"127.0.0.1","port":22,"listenOptions":{"bindUsingEdgeIdentity":true}}'
 service ssh admin-services ssh-intercept,ssh-host

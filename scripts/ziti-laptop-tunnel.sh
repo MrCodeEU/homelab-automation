@@ -6,9 +6,9 @@
 #   1. on the controller, create identity laptop-mrcode (#admin) unless it
 #      exists; its one-time token (valid 3 h) is piped straight into
 #      /var/lib/ziti-edge-tunnel/laptop-mrcode.jwt (root, 0600)
-#   2. install the int.mljr.eu search domain for systemd-resolved (C10) and
-#      ziti/laptop/ziti-edge-tunnel.container as a root Quadlet, (re)start
-#      ziti-edge-tunnel.service
+#   2. install ziti/laptop/ziti-edge-tunnel.container as a root Quadlet,
+#      (re)start ziti-edge-tunnel.service, and the SSH short-name rule
+#      (ziti/laptop/ssh-int-mljr-eu.conf, C10) for this user
 #   3. wait for the enrolled identity, delete the token
 #   4. test: resolve alloy.nuc.int.mljr.eu and fetch its metrics over Ziti
 #
@@ -24,7 +24,7 @@ NAME=laptop-mrcode
 DIR=/var/lib/ziti-edge-tunnel
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 QUADLET="$REPO/ziti/laptop/ziti-edge-tunnel.container"
-RESOLVED_CONF="$REPO/ziti/laptop/resolved-int-mljr-eu.conf"
+SSH_CONF="$REPO/ziti/laptop/ssh-int-mljr-eu.conf"
 
 die() { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 say() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
@@ -42,7 +42,7 @@ zcli() {
     docker exec ziti-controller ziti $*"
 }
 
-[ -s "$QUADLET" ] && [ -s "$RESOLVED_CONF" ] || die "missing files under ziti/laptop/"
+[ -s "$QUADLET" ] && [ -s "$SSH_CONF" ] || die "missing files under ziti/laptop/"
 command -v podman >/dev/null || die "podman missing"
 say "sudo for the install steps"
 sudo -v
@@ -75,13 +75,23 @@ if ! $have_local; then
   sudo test -s "$DIR/$NAME.jwt" || die "token handover failed"
 fi
 
-# --- 2. search domain + Quadlet ----------------------------------------------
-# Reload (not restart) resolved: a restart drops the per-link DNS settings
-# the tunneler registered on ziti0. Before the tunneler restart anyway.
-say "Installing the int.mljr.eu search domain"
-sudo install -d -m 755 /etc/systemd/resolved.conf.d
-sudo install -m 644 "$RESOLVED_CONF" /etc/systemd/resolved.conf.d/int-mljr-eu.conf
-sudo systemctl reload systemd-resolved
+# --- 2. Quadlet + SSH short names ---------------------------------------------
+# An earlier version set int.mljr.eu as a resolved search domain; it lost
+# the race against the other links' search domains (see SSH_CONF), remove it.
+if [ -e /etc/systemd/resolved.conf.d/int-mljr-eu.conf ]; then
+  sudo rm -f /etc/systemd/resolved.conf.d/int-mljr-eu.conf
+  sudo systemctl reload systemd-resolved
+fi
+
+say "Installing the SSH short-name rule"
+install -d -m 700 "$HOME/.ssh/config.d"
+install -m 600 "$SSH_CONF" "$HOME/.ssh/config.d/int-mljr-eu.conf"
+# Canonicalization options must come before any Host block, so the Include
+# goes on the first line.
+if ! grep -qxF 'Include config.d/*.conf' "$HOME/.ssh/config" 2>/dev/null; then
+  { echo 'Include config.d/*.conf'; cat "$HOME/.ssh/config" 2>/dev/null || true; } > "$HOME/.ssh/config.new"
+  chmod 600 "$HOME/.ssh/config.new" && mv "$HOME/.ssh/config.new" "$HOME/.ssh/config"
+fi
 
 say "Installing the Quadlet and starting ziti-edge-tunnel.service"
 sudo install -m 644 "$QUADLET" /etc/containers/systemd/ziti-edge-tunnel.container
@@ -98,14 +108,15 @@ sudo test -s "$DIR/$NAME.json" || die "not enrolled; check: sudo journalctl -u z
 
 # --- 4. test ------------------------------------------------------------------
 say "Testing alloy.nuc.int.mljr.eu over Ziti"
+# The tunneler loads its services a few seconds after start.
 ok=false
-for _ in $(seq 1 15); do
+for _ in $(seq 1 30); do
   if curl -sf --max-time 5 http://alloy.nuc.int.mljr.eu:12345/metrics | grep -q '^alloy_build_info'; then
     ok=true; break
   fi
   sleep 2
 done
 resolvectl query alloy.nuc.int.mljr.eu 2>&1 | head -2 | sed 's/^/    /'
-resolvectl query nuc 2>&1 | head -1 | sed 's/^/    short name: /'
+ssh -G nuc 2>/dev/null | grep '^hostname ' | sed 's/^/    ssh nuc -> /'
 $ok || die "metrics not reachable over Ziti; check: sudo journalctl -u ziti-edge-tunnel -n 50"
 say "Tunneler up: alloy.nuc.int.mljr.eu:12345 answers over Ziti."
