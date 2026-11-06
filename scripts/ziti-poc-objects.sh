@@ -6,12 +6,23 @@
 #
 # Model (default deny, everything by role attribute):
 #   - identities with #admin may dial services with #admin-services
-#   - each service is bound (hosted) by exactly one router identity (@name)
+#   - each service is bound (hosted) by named router identities (@name)
 #   - every identity may use every router, every service every router
 #
 # Services:
 #   nuc-alloy  alloy.nuc.int.mljr.eu:12345 -> nuc 127.0.0.1:12345 (Grafana
 #              Alloy's metrics endpoint; nuc runs no node-exporter)
+#   ssh        <host>.int.mljr.eu:22 -> 127.0.0.1:22 on that host (C10).
+#              Addressable terminators: the client dials the terminator named
+#              after the intercepted hostname ($dst_hostname); each hosting
+#              router binds under its own identity name, which is the host's
+#              certname (<host>.int.mljr.eu). The intercept lists only hosts
+#              that are on Ziti, not *.int.mljr.eu: a wildcard makes every
+#              name resolve while the tunneler is up, so SSH canonicalization
+#              (ziti/laptop/ssh-int-mljr-eu.conf) could never fall back for
+#              hosts still on Tailscale only. Routers are named after their certname for
+#              this: the router-embedded tunneler does not resolve
+#              $tunneler_id.tag[...] (the terminator got the literal string).
 #
 # Usage: scripts/ziti-poc-objects.sh
 set -euo pipefail
@@ -71,7 +82,15 @@ config nuc-alloy-intercept intercept.v1 \
   '{"protocols":["tcp"],"addresses":["alloy.nuc.int.mljr.eu"],"portRanges":[{"low":12345,"high":12345}]}'
 config nuc-alloy-host host.v1 '{"protocol":"tcp","address":"127.0.0.1","port":12345}'
 service nuc-alloy admin-services nuc-alloy-intercept,nuc-alloy-host
-service_policy nuc-alloy-bind Bind '@nuc' '@nuc-alloy'
+service_policy nuc-alloy-bind Bind '@nuc.int.mljr.eu' '@nuc-alloy'
+
+# --- ssh (wildcard, addressable terminators) ---------------------------------
+config ssh-intercept intercept.v1 \
+  '{"protocols":["tcp"],"addresses":["mljr.int.mljr.eu","nuc.int.mljr.eu"],"portRanges":[{"low":22,"high":22}],"dialOptions":{"identity":"$dst_hostname"}}'
+config ssh-host host.v1 \
+  '{"protocol":"tcp","address":"127.0.0.1","port":22,"listenOptions":{"bindUsingEdgeIdentity":true}}'
+service ssh admin-services ssh-intercept,ssh-host
+service_policy ssh-bind Bind '@mljr.int.mljr.eu,@nuc.int.mljr.eu' '@ssh'
 
 z edge logout >/dev/null 2>&1 || true
 REMOTE
