@@ -242,6 +242,18 @@ live noop and apply under the new certname.
   `*.int.mljr.eu` is NXDOMAIN publicly. Non-SSH tools use the FQDN. sshd
   over Ziti sees `127.0.0.1` and needs a key in its own list (Tailscale SSH
   needs none); the everyday admin key is a Phase 4 decision.
+- Visibility (C11): the controller serves Prometheus `/metrics` on its
+  loopback admin listener; mljr's Alloy scrapes it (job `ziti-controller`).
+  It includes the metrics every router reports (`source_id` = router id),
+  which vanish while a router is offline. The controller writes an event
+  log (`entityChange`, `authentication`, `router`, `circuit`, `sdk`;
+  rotated at 10 MB, 3 kept) that Alloy tails into Loki (job `ziti-events`,
+  label `namespace`). Grafana alert rules are provisioned from
+  `services/grafana/provisioning/alerting/ziti.yml` and notify ntfy topic
+  `homelab-security`: controller down, router offline, identity created
+  or enrolled, failed logins, failed circuits. Policy denials have no
+  event of their own: a client is never issued a session for a service it
+  may not dial, so failed logins and refused circuits stand in for them.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.

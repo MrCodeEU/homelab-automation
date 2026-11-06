@@ -1,0 +1,204 @@
+# Grafana alerting as code: OpenZiti overlay (docs/ZERO_TRUST_PLAN.md C11).
+# Metrics: mljr's Alloy scrapes the controller's /metrics (job
+# ziti-controller), which also carries every router's reported metrics
+# (source_id = router id). Events: mljr's Alloy tails the controller's
+# events.log into Loki (job ziti-events, label namespace).
+#
+# Notifications go to ntfy topic homelab-security; ntfy's built-in grafana
+# template formats Grafana's webhook payload. Grafana had no alerting set up
+# before this file, so the notification policy tree below is the whole tree.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: ntfy-homelab-security
+    receivers:
+      - uid: ntfy-homelab-security
+        type: webhook
+        disableResolveMessage: false
+        settings:
+          url: https://ntfy.mljr.eu/homelab-security?template=grafana
+          httpMethod: POST
+
+policies:
+  - orgId: 1
+    receiver: ntfy-homelab-security
+    group_by: ['grafana_folder', 'alertname']
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 12h
+
+groups:
+  - orgId: 1
+    name: ziti
+    folder: Zero trust
+    interval: 1m
+    rules:
+      # Controller down, or its metrics no longer reach VictoriaMetrics.
+      - uid: ziti-controller-down
+        title: Ziti controller down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: max(up{job="ziti-controller"})
+              instant: true
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+              refId: C
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: OpenZiti controller on mljr is down or not scraped.
+          description: >-
+            Check `docker logs ziti-controller` on mljr and Alloy's
+            prometheus.scrape "ziti". Routers keep existing circuits but no
+            new sessions or enrolments work.
+        labels:
+          severity: critical
+
+      # A router's reported metrics disappear while it is disconnected from
+      # the controller; this lists routers seen in the last 24 h but not now.
+      - uid: ziti-router-offline
+        title: Ziti router offline
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: >-
+                group by (source_id) (max_over_time(ziti_edge_connections[24h]))
+                unless group by (source_id) (ziti_edge_connections)
+              instant: true
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: 'Ziti router {{ $labels.source_id }} is offline.'
+          description: >-
+            Router id {{ $labels.source_id }} stopped reporting to the
+            controller. Name: `ziti edge list edge-routers` (admin listener,
+            docs/ZERO_TRUST_PLAN.md). Services it hosts are unreachable.
+        labels:
+          severity: critical
+
+      # New identities (including a new router's) and completed enrolments
+      # (an authenticator is created when an identity enrols).
+      - uid: ziti-identity-change
+        title: Ziti identity created or enrolled
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              expr: >-
+                sum by (entityType) (count_over_time({job="ziti-events", namespace="entityChange"}
+                | json eventType="eventType", entityType="entityType"
+                | eventType="created" | entityType=~"identities|authenticators" [5m]))
+              queryType: instant
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: 'New Ziti {{ $labels.entityType }} created.'
+          description: >-
+            Expected only when you run an enrolment script. Details in Loki:
+            {job="ziti-events", namespace="entityChange"} | json.
+        labels:
+          severity: warning
+
+      # Failed logins (password or certificate) against the controller.
+      - uid: ziti-auth-failures
+        title: Ziti authentication failures
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: loki
+            model:
+              expr: >-
+                sum(count_over_time({job="ziti-events", namespace="authentication"}
+                | json event_type="event_type" | event_type="fail" [15m]))
+              queryType: instant
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [2] }
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: '{{ $values.A }} failed Ziti logins in 15 minutes.'
+          description: >-
+            Reason and remote address in Loki:
+            {job="ziti-events", namespace="authentication"} | json | event_type="fail".
+        labels:
+          severity: warning
+
+      # Circuits the fabric refused or could not build: no terminator, router
+      # not allowed for the session, hosting service down.
+      - uid: ziti-circuit-failures
+        title: Ziti circuit failures
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: loki
+            model:
+              expr: >-
+                sum(count_over_time({job="ziti-events", namespace="circuit"}
+                | json event_type="event_type" | event_type="failed" [10m]))
+              queryType: instant
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        annotations:
+          summary: '{{ $values.A }} failed Ziti circuits in 10 minutes.'
+          description: >-
+            failure_cause and service_id in Loki:
+            {job="ziti-events", namespace="circuit"} | json | event_type="failed".
+        labels:
+          severity: warning
