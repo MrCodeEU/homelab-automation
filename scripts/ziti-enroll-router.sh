@@ -35,6 +35,10 @@ case "$name" in
   *) die "usage: $0 <mljr|nuc> [--reenroll]" ;;
 esac
 data="/opt/$svc/data"
+# On the controller a router is named after its host's certname, so the
+# wildcard ssh service can address it (scripts/ziti-poc-objects.sh). The
+# local name ($name) stays the router's file and container naming.
+ctrl_name="$name.int.mljr.eu"
 
 # Run a ziti CLI command inside the controller container, logged in. The
 # password is read from .env on mljr and passed on mljr only.
@@ -48,14 +52,14 @@ say "Router $name ($svc on ${host#root@})"
 ssh -o BatchMode=yes "$host" "docker inspect $svc >/dev/null 2>&1" \
   || die "container $svc not found on ${host#root@}; deploy it first"
 
-if zcli "edge list edge-routers 'name=\"$name\"' -j" | grep -q "\"name\": *\"$name\""; then
-  $reenroll || die "router $name already exists; rerun with --reenroll to issue a new token"
+if zcli "edge list edge-routers 'name=\"$ctrl_name\"' -j" | grep -q "\"name\": *\"$ctrl_name\""; then
+  $reenroll || die "router $ctrl_name already exists; rerun with --reenroll to issue a new token"
   say "Issuing a new enrolment token"
-  zcli "edge re-enroll edge-router $name -o /tmp/$name.jwt" >/dev/null
+  zcli "edge re-enroll edge-router $ctrl_name -o /tmp/$name.jwt" >/dev/null
   ssh "$host" "f=$data/$name.cert; [ -f \$f ] && mv \$f \$f.\$(date +%Y%m%dT%H%M%S); true"
 else
-  say "Creating edge router $name (attribute #$attr)"
-  zcli "edge create edge-router $name --tunneler-enabled -a $attr -o /tmp/$name.jwt" >/dev/null
+  say "Creating edge router $ctrl_name (attribute #$attr)"
+  zcli "edge create edge-router $ctrl_name --tunneler-enabled -a $attr -o /tmp/$name.jwt" >/dev/null
 fi
 
 say "Handing the token to $svc"
@@ -71,7 +75,7 @@ ssh "$CTRL_HOST" "docker exec ziti-controller sh -c 'cat /tmp/$name.jwt && rm -f
 say "Waiting for $name to come online"
 online=false
 for _ in $(seq 1 30); do
-  if zcli "edge list edge-routers 'name=\"$name\"' -j" | grep -q '"isOnline": *true'; then
+  if zcli "edge list edge-routers 'name=\"$ctrl_name\"' -j" | grep -q '"isOnline": *true'; then
     online=true; break
   fi
   sleep 3

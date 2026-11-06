@@ -225,6 +225,18 @@ live noop and apply under the new certname.
   as `laptop-mrcode` (`#admin`). Tunneler fake IPs in `198.18.0.0/16`,
   because the default `100.64.0.0/10` overlaps Tailscale. It registers
   `~.` on its link when Tailscale already has `~.`, so resolved asks both.
+- Short names (C10): one `ssh` service intercepts `*.int.mljr.eu:22` and
+  dials the terminator named after the hostname (`$dst_hostname`); each
+  router binds under its identity name, so routers are named after their
+  certname (`nuc.int.mljr.eu`). The router-embedded tunneler does not
+  resolve `$tunneler_id.tag[...]`. Search domain `int.mljr.eu` is global
+  in resolved (`ziti/laptop/resolved-int-mljr-eu.conf`) and therefore
+  tried before Tailscale's per-link `tail33930.ts.net`: `nuc` resolves to
+  `nuc.int.mljr.eu` over Ziti while the tunneler is up and falls through
+  to MagicDNS when it is down. `TXT int` stops the public `*` wildcard,
+  so `*.int.mljr.eu` is NXDOMAIN publicly. sshd over Ziti sees
+  `127.0.0.1` and needs a key in its own list (Tailscale SSH needs none);
+  the everyday admin key is a Phase 4 decision.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.
