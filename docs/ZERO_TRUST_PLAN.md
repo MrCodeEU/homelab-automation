@@ -215,7 +215,16 @@ live noop and apply under the new certname.
 - One non-critical service reachable only over Ziti: nuc's Grafana Alloy
   metrics endpoint (`127.0.0.1:12345`; nuc runs no node-exporter, Alloy
   collects host metrics). The Grafana UI follows only if there is time
-  left.
+  left. Services and policies: `scripts/ziti-poc-objects.sh` (idempotent,
+  default deny: `#admin` identities dial `#admin-services`, each service
+  bound by one router identity). Shared policies come before services: a
+  router whose first terminator request is rejected does not retry until
+  it restarts.
+- Laptop (C8): `ziti/laptop/ziti-edge-tunnel.container`, a root Quadlet
+  (no layering), installed and enrolled by `scripts/ziti-laptop-tunnel.sh`
+  as `laptop-mrcode` (`#admin`). Tunneler fake IPs in `198.18.0.0/16`,
+  because the default `100.64.0.0/10` overlaps Tailscale. It registers
+  `~.` on its link when Tailscale already has `~.`, so resolved asks both.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.
