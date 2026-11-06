@@ -14,7 +14,7 @@
 # renovate: datasource=docker depName=caddy
 ARG CADDY_TAG=2.11.7
 ARG CADDY_BUILDER_DIGEST=sha256:c2fc374fd352439d76e1777b28d97d9f6d9c1dd86116db9227460374d46097d5
-ARG CADDY_RUNTIME_DIGEST=sha256:504a44d7d74bd2bc28a66afc4774912fc21223ca8a67734af1c54ab2f999b489
+ARG CADDY_RUNTIME_DIGEST=sha256:36c24ad91a7ff7bc4c87fe22bfa8df3c4b18da0773d73fc12ee2c52b98c0bb7e
 # renovate: datasource=github-tags depName=hslatman/caddy-crowdsec-bouncer
 ARG BOUNCER_VERSION=v0.14.1
 
