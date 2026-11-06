@@ -197,13 +197,25 @@ live noop and apply under the new certname.
   Caddy, so neither depends on the other.
 - Controller as built (`services/ziti-controller/`): `8441` public for the
   router control channel, client API and OIDC; management and fabric API on
-  `127.0.0.1:8444` only, reached through an SSH tunnel. Admin over
+  `127.0.0.1:8440` only, reached through an SSH tunnel. Admin over
   Tailscale's IP would need that IP in the server certificate; loopback is
   stricter and needs nothing extra. Trust domain `spiffe://ziti.mljr.eu`
   from the intermediate (docs/ZITI_PKI.md). `ctrl.ziti.mljr.eu` is an
   explicit DNS record with TTL 3600 (deSEC minimum).
-- One non-critical service reachable only over Ziti: nuc's node-exporter.
-  The Grafana UI follows only if there is time left.
+- Routers as built (`services/ziti-router/`, `services/ziti-router-nuc/`):
+  mljr's public router (`#public`) serves edge and link on one port,
+  `8442` (`router.ziti.mljr.eu`); the router multiplexes them, so no
+  separate link port. nuc's router (`#lan`) is outbound only (control
+  channel and link dialed to mljr), with its edge listener on
+  `192.168.50.30:8442` (LAN, trusted zone). Both run the host-mode tunnel
+  binding, so they host services themselves. Enrolment:
+  `scripts/ziti-enroll-router.sh <mljr|nuc> [--reenroll]` hands a one-time
+  token from the controller to the router over SSH; certificates (1 year)
+  are renewed at every router start (`--extend`).
+- One non-critical service reachable only over Ziti: nuc's Grafana Alloy
+  metrics endpoint (`127.0.0.1:12345`; nuc runs no node-exporter, Alloy
+  collects host metrics). The Grafana UI follows only if there is time
+  left.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.

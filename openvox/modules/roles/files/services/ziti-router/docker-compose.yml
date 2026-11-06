@@ -1,0 +1,26 @@
+# OpenZiti edge router "mljr" (docs/ZERO_TRUST_PLAN.md Phase 3). Same pattern as
+# services/ziti-controller: host networking (firewalld, no NAT), our own
+# config.yml, ./data as ZITI_HOME.
+#
+# Enrolment: scripts/ziti-enroll-router.sh mljr writes a one-time token to
+# data/enroll.jwt; the bootstrap enrols when data/mljr.cert is missing, and
+# the script deletes the token afterwards. ZITI_ROUTER_NAME must match the
+# cert file name in config.yml, otherwise the bootstrap treats the router as
+# not enrolled on every start. Every start runs with --extend, which renews
+# the router certificate.
+services:
+  ziti-router:
+    image: openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
+    container_name: ziti-router
+    restart: unless-stopped
+    network_mode: host
+    user: "2171:2171"
+    command: run config.yml
+    volumes:
+      - ./data:/ziti-router
+      - ./config.yml:/ziti-router/config.yml:ro
+    environment:
+      - TZ=${TZ}
+      - ZITI_BOOTSTRAP_CONFIG=false
+      - ZITI_ROUTER_NAME=mljr
+      - ZITI_ENROLL_TOKEN=/ziti-router/enroll.jwt
