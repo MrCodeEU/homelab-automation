@@ -277,6 +277,30 @@ live noop and apply under the new certname.
   firewalld backend and restores its rules after a reload by itself. A
   Docker restart took Docker down for 17-23 s; routers reconnected inside
   the router-offline alert's 5 minutes, so no alert fired.
+- Data path (C6), tested 2026-11-06 with `scripts/ziti-c6-iperf.sh`. C6
+  was redefined first: nas sits on the main FRITZ!Box, nuc and ugreen on a
+  mesh repeater, so reaching nas through nuc's router would cross the mesh
+  twice. Rule from this: every host that can run Ziti hosts its own
+  services (its own router or tunneler); nuc's router is for LAN devices
+  that cannot. Results (Tailscale/direct baseline measured back to back):
+  - mljr to nas (Nextcloud upload), Go tunneler on nas: 94 %, circuit
+    mljr router to nas only.
+  - nas to mljr (download), Go tunneler: 53 %; C tunneler: hangs after
+    connect; router on nas: 64 %. Plain TCP nas to mljr over the internet
+    did 194 Mbit/s, so the line was not the limit. Router metrics showed
+    the cause: the 4 MB xgress window full, ~450 retransmissions/s and
+    duplicate acks, because nas's TCP send buffer (Unraid: BBR, 16 MB
+    `tcp_wmem` max, unlimited `tcp_notsent_lowat`) queued seconds of data,
+    so xgress saw a huge RTT and retransmitted data that was not lost.
+  - Router on nas plus `net.ipv4.tcp_notsent_lowat=131072` on nas: 97-99 %
+    (161-187 Mbit/s). Larger or smaller xgress windows and slower
+    retransmit timers alone changed nothing; the Go tunneler with the same
+    sysctl reached only 61 %.
+  - LAN nas to ugreen (Go proxy on nas, Go host on ugreen, through nuc's
+    router): 6-19 Mbit/s against 47-64 direct before the sysctl, 68 % with
+    it; the mesh baseline swings 47-102 between runs. Never through mljr.
+  Consequence for Phase 4/5: nas gets a router, not a tunneler, and the
+  sysctl becomes part of nas's managed config.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.

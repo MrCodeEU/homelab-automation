@@ -29,6 +29,8 @@
 #               (`ziti-edge-tunnel run-host`, the C SDK, no tun device) or
 #               router (a temporary edge router c6-router in tunnel host
 #               mode, link to mljr, edge listener on 127.0.0.1 only)
+#   ROUTER_XGRESS  extra xgress options for that router's tunnel listener,
+#               YAML flow mapping body, e.g. "txPortalMaxSize: 1048576"
 # Remote commands are built locally on purpose (constants), hence SC2029.
 # shellcheck disable=SC2029
 set -euo pipefail
@@ -42,6 +44,7 @@ RUNS="${2:-3}"
 SECS="${3:-15}"
 IPERF_ARGS="${IPERF_ARGS:-}"
 SERVER_TUNNELER="${SERVER_TUNNELER:-go}"
+ROUTER_XGRESS="${ROUTER_XGRESS:-}"
 ROUTER_IMAGE=docker.io/openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
 EDGE_TUNNEL=docker.io/openziti/ziti-edge-tunnel@sha256:2a103bdd5d242bccd7627e7b860bd37d0c49758b3f2dcda4cc7003c027910c38
 
@@ -130,8 +133,7 @@ listeners:
     options:
       advertise: 127.0.0.1:18442
   - binding: tunnel
-    options:
-      mode: host
+    options: { mode: host${ROUTER_XGRESS:+, $ROUTER_XGRESS} }
 edge:
   csr:
     organization: homelab
