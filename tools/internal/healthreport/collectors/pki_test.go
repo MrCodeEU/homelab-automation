@@ -8,6 +8,8 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"math/big"
+	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -20,7 +22,7 @@ func testCert(t *testing.T, cn string, ca bool, notAfter time.Time, parent *x509
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(time.Now().UnixNano()), Subject: pkix.Name{CommonName: cn},
-		NotBefore: notAfter.AddDate(-1, 0, 0), NotAfter: notAfter,
+		NotBefore: time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), NotAfter: notAfter,
 		IsCA: ca, BasicConstraintsValid: true,
 	}
 	if parent == nil {
@@ -55,7 +57,7 @@ func TestCollectPKI(t *testing.T) {
 		return nil, errors.New("connection refused")
 	}
 
-	res := collectPKI(targets, fetch, now)
+	res := collectPKI(targets, fetch, root, now)
 	got := map[string]any{}
 	for _, o := range res.Observations {
 		got[o.ID] = o.Value
@@ -85,5 +87,44 @@ func TestCollectPKINothingReachablePanics(t *testing.T) {
 	}()
 	collectPKI([]pkiTarget{{Addr: "x:1", Leaf: "a"}}, func(pkiTarget) ([]*x509.Certificate, error) {
 		return nil, errors.New("down")
-	}, time.Now())
+	}, nil, time.Now())
+}
+
+func TestCollectPKIChainTrust(t *testing.T) {
+	now := time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC)
+	root, rootKey := testCert(t, "root", true, now.AddDate(10, 0, 0), nil, nil)
+	other, otherKey := testCert(t, "other root", true, now.AddDate(10, 0, 0), nil, nil)
+	expired, _ := testCert(t, "old", false, now.AddDate(0, 0, -3), root, rootKey)
+	forged, _ := testCert(t, "forged", false, now.AddDate(1, 0, 0), other, otherKey)
+
+	chains := map[string][]*x509.Certificate{
+		"router-mljr": {forged, other},
+		"router-nuc":  {expired, root},
+	}
+	res := collectPKI([]pkiTarget{{Addr: "f:1", Leaf: "router-mljr"}, {Addr: "e:2", Leaf: "router-nuc"}},
+		func(tg pkiTarget) ([]*x509.Certificate, error) { return chains[tg.Leaf], nil }, root, now)
+
+	got := map[string]any{}
+	for _, o := range res.Observations {
+		got[o.ID] = o.Value
+	}
+	// Forged: flagged, and its dates are not reported as ours.
+	if got["pki_chain_untrusted.router-mljr."] != true || got["pki_leaf_expiry.router-mljr."] != nil {
+		t.Errorf("forged chain: %v", got)
+	}
+	// Expired but ours: trusted, reported with negative days.
+	if got["pki_chain_untrusted.router-nuc."] != nil || got["pki_leaf_expiry.router-nuc."] != -3 {
+		t.Errorf("expired chain: %v", got)
+	}
+}
+
+func TestEmbeddedRootMatchesRepo(t *testing.T) {
+	raw, err := os.ReadFile("../../../../ziti/pki/root-ca.crt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(raw)) != strings.TrimSpace(zitiRootPEM) {
+		t.Fatal("zitiRootPEM differs from ziti/pki/root-ca.crt")
+	}
+	_ = zitiRoot()
 }

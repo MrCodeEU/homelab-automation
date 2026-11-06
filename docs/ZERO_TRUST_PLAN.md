@@ -263,7 +263,9 @@ live noop and apply under the new certname.
   nuc. Root and intermediate: notice from 365 days (the email's Notices
   section), warn 90 (daily ntfy high), crit 30 (urgent). Controller and
   router leaves live one year and are renewed on every start, so they skip
-  the notice stage and only warn/crit.
+  the notice stage and only warn/crit. Every chain must verify against the
+  root pinned in the collector (a test keeps it equal to
+  `ziti/pki/root-ca.crt`); a chain that does not is a crit.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.

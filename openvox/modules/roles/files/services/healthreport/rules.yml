@@ -87,6 +87,11 @@ rules:
   pki_fetch_failed:
     type: truthy
     level: warn
+  # A presented chain that does not lead to the pinned Ziti root: a
+  # substituted certificate or a router enrolled against another CA.
+  pki_chain_untrusted:
+    type: truthy
+    level: crit
 
   # Downtime summary: 24h availability per Kuma monitor, from monitor_status
   # history in VictoriaMetrics. monitor_status above only sees the state at

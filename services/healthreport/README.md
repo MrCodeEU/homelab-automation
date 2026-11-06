@@ -62,7 +62,10 @@ Most facts are HTTP calls to services already running on nuc:
   **Notices** from 365 days out (a rule's `notice` level: shown in the
   email, kept out of the diff, the LLM and the ntfy priority), warn at 90,
   crit at 30. Leaves (one year, renewed on every container start) only
-  warn/crit. An unreachable endpoint is `pki_fetch_failed` (warn)
+  warn/crit. An unreachable endpoint is `pki_fetch_failed` (warn). Each
+  chain must verify against the root pinned in the collector (checked at
+  the chain's issue time, so expired certificates stay readable); one that
+  does not is `pki_chain_untrusted` (crit) and its dates are not reported
 - **dmarc-monitor's Postgres** (`127.0.0.1:5432`, reachable directly since
   this container also runs `network_mode: host`) — DMARC aggregate report
   freshness and per-domain pass/fail counts, `HEALTHREPORT_DMARC_DB_URL`
