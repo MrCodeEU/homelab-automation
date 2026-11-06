@@ -256,8 +256,10 @@ live noop and apply under the new certname.
   may not dial, so failed logins and refused circuits stand in for them.
   Still to do in Phase 3: fire the controller-down, router-offline and
   circuit-failure rules once on purpose, and add and test an alert for the
-  nuc-mljr link going down while both routers stay up (needs the routers'
-  latency probes, planned with C6).
+  nuc-mljr link going down while both routers stay up. The controller's
+  `ziti_link_*` metrics carry `sourceRouterId`/`targetRouterId`, so it can
+  follow the router-offline rule. (`latencyProbeInterval` in the router
+  configs is not read by 2.0.8; link costs are measured anyway.)
 - PKI expiry (C12): healthreport's `pki` collector reads the chains the
   controller (8441) and both routers (8442) present in a TLS handshake from
   nuc. Root and intermediate: notice from 365 days (the email's Notices
@@ -291,7 +293,7 @@ Phase 4; the others decide tooling or shape later phases.
 | C3 | OpenTofu provider (`netfoundry/ziti` 0.0.5 or community `nenkoru/ziti`) | Services, service policies and edge-router policies can be created, updated and deleted against the self-hosted controller; `tofu plan` is empty after apply | decides tooling (fail: Go reconciler) |
 | C4 | GitHub Actions OIDC | A CI job dials a Ziti service through an external JWT signer, with no long-lived secret | nice-to-have (fail: CI stays on Tailscale) |
 | C5 | Cost on mljr | Controller and public router together use ≤ 400 MB RAM steady and ≤ 10 % of one core on average | must |
-| C6 | LAN path | nas to ugreen over Ziti through nuc's router reaches ≥ 75 Mbit/s (iperf3 baseline 99), and router metrics show no traffic through mljr | must (a hairpin is an architecture failure) |
+| C6 | Data path | External: mljr to nas over Ziti, with a Ziti endpoint on nas, reaches ≥ 90 % of the Tailscale path measured back to back, on a circuit mljr router to nas with no hop through nuc. LAN: nas to ugreen over Ziti reaches ≥ 75 % of the direct path measured back to back, with no traffic through mljr. `scripts/ziti-c6-iperf.sh` | must (a hairpin is an architecture failure) |
 | C7 | WD armv7 tunneler | The 32-bit binary runs on wd_mycloud and hosts one service | informational, shapes Phase 5 |
 | C8 | Laptop (Fedora Atomic) | Tunneler runs without rpm-ostree layering, survives a reboot, DNS intercept works with systemd-resolved | must (a container or sysext counts) |
 | C9 | Rocky coexistence | Tunneler and router survive `firewall-cmd --reload` and a Docker restart; Docker networking still works | must |
