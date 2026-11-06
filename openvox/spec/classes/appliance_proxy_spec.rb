@@ -27,6 +27,11 @@ describe 'roles::unraid_proxy' do
       unless: %r{bootstrap-script-check\.sh},
       require: 'Exec[unraid-array-started]',
     )
+    is_expected.to contain_exec('unraid-tcp-sysctl').with(
+      command: %r{sysctl-apply\.sh},
+      unless: %r{sysctl-check\.sh},
+      require: 'Exec[unraid-array-started]',
+    )
     is_expected.to contain_exec('unraid-schedule-merge').with(
       command: %r{schedule-apply\.sh},
       unless: %r{schedule-check\.sh},

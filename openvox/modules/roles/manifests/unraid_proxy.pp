@@ -48,6 +48,14 @@ class roles::unraid_proxy (
     require => Exec['unraid-array-started'],
   }
 
+  # Live value now; bootstrap-content.sh restores it after every reboot.
+  exec { 'unraid-tcp-sysctl':
+    command => "${work_dir}/sysctl-apply.sh",
+    unless  => "${work_dir}/sysctl-check.sh",
+    path    => ['/usr/bin', '/bin'],
+    require => Exec['unraid-array-started'],
+  }
+
   exec { 'unraid-schedule-merge':
     command => "${work_dir}/schedule-apply.sh",
     unless  => "${work_dir}/schedule-check.sh",
