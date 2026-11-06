@@ -256,8 +256,10 @@ live noop and apply under the new certname.
   may not dial, so failed logins and refused circuits stand in for them.
   Still to do in Phase 3: fire the controller-down, router-offline and
   circuit-failure rules once on purpose, and add and test an alert for the
-  nuc-mljr link going down while both routers stay up (needs the routers'
-  latency probes, planned with C6).
+  nuc-mljr link going down while both routers stay up. The controller's
+  `ziti_link_*` metrics carry `sourceRouterId`/`targetRouterId`, so it can
+  follow the router-offline rule. (`latencyProbeInterval` in the router
+  configs is not read by 2.0.8; link costs are measured anyway.)
 - PKI expiry (C12): healthreport's `pki` collector reads the chains the
   controller (8441) and both routers (8442) present in a TLS handshake from
   nuc. Root and intermediate: notice from 365 days (the email's Notices
@@ -275,6 +277,30 @@ live noop and apply under the new certname.
   firewalld backend and restores its rules after a reload by itself. A
   Docker restart took Docker down for 17-23 s; routers reconnected inside
   the router-offline alert's 5 minutes, so no alert fired.
+- Data path (C6), tested 2026-11-06 with `scripts/ziti-c6-iperf.sh`. C6
+  was redefined first: nas sits on the main FRITZ!Box, nuc and ugreen on a
+  mesh repeater, so reaching nas through nuc's router would cross the mesh
+  twice. Rule from this: every host that can run Ziti hosts its own
+  services (its own router or tunneler); nuc's router is for LAN devices
+  that cannot. Results (Tailscale/direct baseline measured back to back):
+  - mljr to nas (Nextcloud upload), Go tunneler on nas: 94 %, circuit
+    mljr router to nas only.
+  - nas to mljr (download), Go tunneler: 53 %; C tunneler: hangs after
+    connect; router on nas: 64 %. Plain TCP nas to mljr over the internet
+    did 194 Mbit/s, so the line was not the limit. Router metrics showed
+    the cause: the 4 MB xgress window full, ~450 retransmissions/s and
+    duplicate acks, because nas's TCP send buffer (Unraid: BBR, 16 MB
+    `tcp_wmem` max, unlimited `tcp_notsent_lowat`) queued seconds of data,
+    so xgress saw a huge RTT and retransmitted data that was not lost.
+  - Router on nas plus `net.ipv4.tcp_notsent_lowat=131072` on nas: 97-99 %
+    (161-187 Mbit/s). Larger or smaller xgress windows and slower
+    retransmit timers alone changed nothing; the Go tunneler with the same
+    sysctl reached only 61 %.
+  - LAN nas to ugreen (Go proxy on nas, Go host on ugreen, through nuc's
+    router): 6-19 Mbit/s against 47-64 direct before the sysctl, 68 % with
+    it; the mesh baseline swings 47-102 between runs. Never through mljr.
+  Consequence for Phase 4/5: nas gets a router, not a tunneler, and the
+  sysctl becomes part of nas's managed config.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.
@@ -291,7 +317,7 @@ Phase 4; the others decide tooling or shape later phases.
 | C3 | OpenTofu provider (`netfoundry/ziti` 0.0.5 or community `nenkoru/ziti`) | Services, service policies and edge-router policies can be created, updated and deleted against the self-hosted controller; `tofu plan` is empty after apply | decides tooling (fail: Go reconciler) |
 | C4 | GitHub Actions OIDC | A CI job dials a Ziti service through an external JWT signer, with no long-lived secret | nice-to-have (fail: CI stays on Tailscale) |
 | C5 | Cost on mljr | Controller and public router together use ≤ 400 MB RAM steady and ≤ 10 % of one core on average | must |
-| C6 | LAN path | nas to ugreen over Ziti through nuc's router reaches ≥ 75 Mbit/s (iperf3 baseline 99), and router metrics show no traffic through mljr | must (a hairpin is an architecture failure) |
+| C6 | Data path | External: mljr to nas over Ziti, with a Ziti endpoint on nas, reaches ≥ 90 % of the Tailscale path measured back to back, on a circuit mljr router to nas with no hop through nuc. LAN: nas to ugreen over Ziti reaches ≥ 75 % of the direct path measured back to back, with no traffic through mljr. `scripts/ziti-c6-iperf.sh` | must (a hairpin is an architecture failure) |
 | C7 | WD armv7 tunneler | The 32-bit binary runs on wd_mycloud and hosts one service | informational, shapes Phase 5 |
 | C8 | Laptop (Fedora Atomic) | Tunneler runs without rpm-ostree layering, survives a reboot, DNS intercept works with systemd-resolved | must (a container or sysext counts) |
 | C9 | Rocky coexistence | Tunneler and router survive `firewall-cmd --reload` and a Docker restart; Docker networking still works | must |
