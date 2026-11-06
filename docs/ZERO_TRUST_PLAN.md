@@ -266,6 +266,15 @@ live noop and apply under the new certname.
   the notice stage and only warn/crit. Every chain must verify against the
   root pinned in the collector (a test keeps it equal to
   `ziti/pki/root-ca.crt`); a chain that does not is a crit.
+- Rocky coexistence (C9), tested 2026-11-06 on mljr and nuc, one host at a
+  time: `firewall-cmd --reload`, then `systemctl restart docker`. After
+  each step: both routers online, the nuc-mljr link connected, Alloy and
+  sshd reachable over Ziti from the laptop, containers reach the internet,
+  Docker-published ports answer (mail 587 on mljr; Grafana, Kuma and
+  VictoriaMetrics on nuc), no container unhealthy. Docker 29 runs with its
+  firewalld backend and restores its rules after a reload by itself. A
+  Docker restart took Docker down for 17-23 s; routers reconnected inside
+  the router-offline alert's 5 minutes, so no alert fired.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.
