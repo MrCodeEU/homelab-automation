@@ -80,7 +80,21 @@ prometheus.scrape "ziti" {
     ca_file     = "/hostfs/opt/ziti-controller/data/pki/root/certs/root.cert"
     server_name = "localhost"
   }
+  forward_to = [prometheus.relabel.ziti.receiver]
+}
+
+// Ziti's *_bucket series are quantiles labelled le, not histogram buckets,
+// and the controller exposes some of them twice under the same labels
+// (Alloy logs "different value but same timestamp" every scrape). Drop them;
+// the *_count and rate series stay.
+prometheus.relabel "ziti" {
   forward_to = [prometheus.relabel.identity.receiver]
+
+  rule {
+    source_labels = ["__name__"]
+    regex         = "ziti_.*_bucket"
+    action        = "drop"
+  }
 }
 
 <% } -%>
@@ -300,6 +314,12 @@ loki.source.file "ziti_events" {
   ]
   forward_to    = [loki.process.ziti_events.receiver]
   tail_from_end = true
+
+  // The controller creates the file on its first start after this config;
+  // without file_match a path missing at Alloy's start is never retried.
+  file_match {
+    enabled = true
+  }
 }
 
 loki.process "ziti_events" {
