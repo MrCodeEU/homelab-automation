@@ -9,6 +9,9 @@ services:
       - TZ=${TZ}
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      # Public URL behind Caddy + Authelia. Grafana builds alert notification
+      # links (ntfy) and redirects from it; unset it says localhost:3000.
+      - GF_SERVER_ROOT_URL=https://grafana.mljr.eu/
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_INSTALL_PLUGINS=grafana-lokiexplore-app
