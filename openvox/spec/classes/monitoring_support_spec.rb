@@ -123,11 +123,23 @@ describe 'roles::ugreen_tailscale' do
 
   it 'updates only Tailscale and reports its version after the package' do
     is_expected.to contain_package('tailscale').with(
-      ensure: 'latest', require: 'Class[Apt::Update]',
+      ensure: 'latest',
+      require: ['Class[Apt::Update]', 'Exec[ugreen-tailscaled-daemon-reload]'],
     )
     is_expected.to contain_exec('ugreen-tailscale-version').with(
       command: '/usr/bin/tailscale version',
       require: 'Package[tailscale]',
     )
+  end
+
+  it 'clears the UGOS GODEBUG for tailscaled before the package upgrade' do
+    is_expected.to contain_file('/etc/systemd/system/tailscaled.service.d/10-godebug.conf').with(
+      content: "[Service]\nEnvironment=GODEBUG=\n",
+    )
+    is_expected.to contain_exec('ugreen-tailscaled-daemon-reload').with(
+      refreshonly: true,
+      subscribe: 'File[/etc/systemd/system/tailscaled.service.d/10-godebug.conf]',
+    )
+    is_expected.not_to contain_service('tailscaled')
   end
 end
