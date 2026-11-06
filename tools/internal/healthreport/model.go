@@ -69,6 +69,9 @@ type Observation struct {
 	Unit      any            `json:"unit"`
 	Threshold any            `json:"threshold"`
 	Evidence  map[string]any `json:"evidence"`
+	// Notice marks an info observation that breached its rule's notice
+	// level; listed in the report's Notices section only (severity.go).
+	Notice bool `json:"notice,omitempty"`
 	// PreviousValue is this observation's value on the previous run, filled
 	// in by diff.AttachPreviousValues. Lets a rule escalate on a jump rather
 	// than only on an absolute level.

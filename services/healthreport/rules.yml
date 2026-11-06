@@ -67,6 +67,27 @@ rules:
     warn: 21
     crit: 7
 
+  # OpenZiti overlay PKI (collector pki, docs/ZERO_TRUST_PLAN.md C12). Days
+  # are whole numbers and `below` is strict, so 366/91/31 mean <= 365/90/30.
+  # CA certificates: notice (Notices section of the daily email) from a
+  # year out, then the daily ntfy goes high (warn) and urgent (crit).
+  pki_ca_expiry:
+    type: threshold
+    direction: below
+    notice: 366
+    warn: 91
+    crit: 31
+  # Router and controller leaves live one year and are renewed on every
+  # container start, so they would always sit inside a one-year notice.
+  pki_leaf_expiry:
+    type: threshold
+    direction: below
+    warn: 91
+    crit: 31
+  pki_fetch_failed:
+    type: truthy
+    level: warn
+
   # Downtime summary: 24h availability per Kuma monitor, from monitor_status
   # history in VictoriaMetrics. monitor_status above only sees the state at
   # run time; this catches outages that began and ended between two runs.

@@ -53,6 +53,26 @@ func TestRenderMarkdownProducesExpectedSections(t *testing.T) {
 	}
 }
 
+func TestRenderListsNotices(t *testing.T) {
+	facts := sampleFacts()
+	notice := &Observation{
+		ID: "pki_ca_expiry.intermediate.", Kind: "pki_ca_expiry", Severity: "info", Notice: true,
+		Message: "Ziti intermediate CA certificate expires in 300 days", Evidence: map[string]any{},
+	}
+	facts.Observations = append(facts.Observations, notice)
+	body, _ := Render(facts, nil)
+	if !strings.Contains(body, "## Notices (1)") || !strings.Contains(body, "pki_ca_expiry.intermediate.") {
+		t.Errorf("notice missing from body\n---\n%s", body)
+	}
+	html, err := RenderHTML(facts, nil, "headline", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(html, "Notices (1)") {
+		t.Error("notice missing from HTML")
+	}
+}
+
 func TestHeadlineFallsBackToFirstFallbackLine(t *testing.T) {
 	facts := sampleFacts()
 	_, fallback := Render(facts, nil)

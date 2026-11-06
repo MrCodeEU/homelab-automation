@@ -55,6 +55,14 @@ Most facts are HTTP calls to services already running on nuc:
 - **CrowdSec AppSec** — `appsec` reports how many requests the WAF rules
   matched in 24h (`cs_appsec_block_total`, warn above 2000) and how often Caddy
   could not reach AppSec and failed open (Loki, warn above 1000)
+- **OpenZiti PKI** — `pki` reads the certificate chains the overlay presents
+  in a TLS handshake (`ctrl.ziti.mljr.eu:8441`, `router.ziti.mljr.eu:8442`,
+  nuc's router on `192.168.50.30:8442`) and reports days left for the root,
+  the intermediate and each leaf. CA certificates are listed under
+  **Notices** from 365 days out (a rule's `notice` level: shown in the
+  email, kept out of the diff, the LLM and the ntfy priority), warn at 90,
+  crit at 30. Leaves (one year, renewed on every container start) only
+  warn/crit. An unreachable endpoint is `pki_fetch_failed` (warn)
 - **dmarc-monitor's Postgres** (`127.0.0.1:5432`, reachable directly since
   this container also runs `network_mode: host`) — DMARC aggregate report
   freshness and per-domain pass/fail counts, `HEALTHREPORT_DMARC_DB_URL`
