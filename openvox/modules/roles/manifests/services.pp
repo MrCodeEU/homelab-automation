@@ -57,7 +57,7 @@ class roles::services (
     'crowdsec', 'forgejo', 'grafana', 'speedtest', 'godrive-demo',
     'healthreport', 'backup-dashboard', 'mail-archiver', 'umami', 'nocturne',
     'syncthing-ugreen', 'ntfy', 'crowdsec-nuc', 'paperless-mail-export',
-    'ziti-controller',
+    'ziti-controller', 'ziti-router', 'ziti-router-nuc',
   ],
   Array[String] $critical_hook_services = ['crowdsec', 'forgejo', 'grafana', 'speedtest'],
   # Matches Ansible's own `cleanup_enabled | default(true)` - ugreen's own
@@ -474,12 +474,23 @@ class roles::services (
 
   # The controller uses host networking (services/ziti-controller), so its
   # public port is a plain firewalld port. 8441 carries the router control
-  # channel, client API and OIDC; the management API stays on loopback.
+  # channel, client API and OIDC; the management API stays on loopback 8440.
   if 'ziti-controller' in $host_service_names {
     roles::firewalld::port { 'ziti-controller':
       ensure   => present,
       zone     => 'public',
       port     => 8441,
+      protocol => 'tcp',
+    }
+  }
+
+  # Public router, edge and link listener on one port. nuc's router needs no
+  # rule: its LAN listener is covered by the trusted zone's 192.168.50.0/24.
+  if 'ziti-router' in $host_service_names {
+    roles::firewalld::port { 'ziti-router':
+      ensure   => present,
+      zone     => 'public',
+      port     => 8442,
       protocol => 'tcp',
     }
   }
