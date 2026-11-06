@@ -62,6 +62,27 @@ prometheus.scrape "security" {
   forward_to = [prometheus.relabel.identity.receiver]
 }
 
+// OpenZiti controller /metrics on its loopback admin listener (C11). Also
+// carries every router's reported metrics (source_id = router id); a router's
+// series disappear while it is offline. TLS verified against the overlay's own
+// root CA, read from the controller's data dir.
+prometheus.scrape "ziti" {
+  targets = [
+    {
+      "__address__" = "127.0.0.1:8440",
+      "job"         = "ziti-controller",
+      "instance"    = "<%= $hostname %>",
+    },
+  ]
+  scheme          = "https"
+  scrape_interval = "30s"
+  tls_config {
+    ca_file     = "/hostfs/opt/ziti-controller/data/pki/root/certs/root.cert"
+    server_name = "localhost"
+  }
+  forward_to = [prometheus.relabel.identity.receiver]
+}
+
 <% } -%>
 <% if $hostname in ['ugreen', 'nuc'] { -%>
 // mljr (Contabo VPS, virtio-only block storage, no real SMART data behind
@@ -264,6 +285,36 @@ loki.source.file "system_logs" {
   }
 }
 
+<% if $hostname == 'mljr' { -%>
+// OpenZiti controller events (C11): JSON lines, rotated by the controller.
+// Only the namespace becomes a label; event fields are parsed at query time
+// (`| json`), so cardinality stays flat.
+loki.source.file "ziti_events" {
+  targets = [
+    {
+      "__path__" = "/hostfs/opt/ziti-controller/data/events.log",
+      "job"      = "ziti-events",
+      "instance" = "<%= $hostname %>",
+      "host"     = "<%= $hostname %>",
+    },
+  ]
+  forward_to    = [loki.process.ziti_events.receiver]
+  tail_from_end = true
+}
+
+loki.process "ziti_events" {
+  forward_to = [loki.write.homelab.receiver]
+
+  stage.json {
+    expressions = { namespace = "" }
+  }
+
+  stage.labels {
+    values = { namespace = "" }
+  }
+}
+
+<% } -%>
 loki.write "homelab" {
   endpoint {
     url = "<%= $loki_push_url %>"

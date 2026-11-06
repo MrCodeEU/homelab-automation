@@ -66,3 +66,10 @@ create_datasource '{
 }'
 
 echo "SUCCESS: Grafana datasources converged to stable UIDs."
+
+# Alert rules, contact points and the notification policy are file-provisioned
+# (provisioning/alerting/), but Grafana reads them only at startup. Reload so a
+# changed file applies without a container restart.
+curl -fsS -u "${GRAFANA_USER}:${GRAFANA_ADMIN_PASSWORD}" \
+  -X POST "${GRAFANA_URL}/api/admin/provisioning/alerting/reload" >/dev/null
+echo "SUCCESS: Grafana alerting provisioning reloaded."
