@@ -74,6 +74,8 @@ describe 'roles::authelia' do
       '        token_endpoint_auth_method: none',
       '        authorization_policy: two_factor',
     )
+    expect(cli).to include("        audience:\n          - 'cli-api'")
+    expect(config.scan('audience:').length).to eq(1)
     expect(cli).not_to include('client_secret')
     expect(config.scan('client_secret:').length).to eq(2)
   end

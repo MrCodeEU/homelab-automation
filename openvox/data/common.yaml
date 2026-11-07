@@ -274,6 +274,8 @@ authelia_oidc_clients:
     public: true
     authorization_policy: two_factor
     claims_policy: id-token-claims
+    # The SDK sends audience=ziti; the controller's signer expects it.
+    audience: [ziti]
     redirect_uris:
       - http://localhost:20314/auth/callback
     scopes: [openid, profile, email, groups]
