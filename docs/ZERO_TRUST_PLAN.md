@@ -427,6 +427,19 @@ live noop and apply under the new certname.
   Caddy on mljr cannot rotate its logs (`can't rename log file ...
   permission denied`), so `actual-budget.log` has been stuck at 100 MB
   since 2026-11-06.
+- WD armv7 tunneler (C7), tested 2026-11-07 on wd_mycloud (My Cloud EX2
+  Ultra, ARMv7 with NEON, glibc 2.31, 1 GB RAM, BusyBox):
+  `ziti-edge-tunnel-Linux_arm.zip` v1.18.7.2 (sha256 `18075d1a...`,
+  dynamically linked, needs glibc 2.25 and `libz.so.1`, both present)
+  runs unmodified. Enrolment took 1 s; `run-host` (no tun device needed)
+  connected to all three routers and hosted node_exporter as
+  `exporter.wd-mycloud.int.mljr.eu:9100`, which the laptop scraped over
+  Ziti. Footprint: 7.9 MB RSS; 100 scrapes (9 MB) cost 1.2 s CPU, about
+  12 ms per scrape; a scrape takes 0.17 s over Ziti against 0.10 to
+  0.14 s over Tailscale. Test identity, service and files removed
+  afterwards. Shapes Phase 5: wd_mycloud gets the tunneler in `run-host`
+  mode from the same clamAV boot hook as Tailscale, and node_exporter
+  must listen on `127.0.0.1` instead of its Tailscale address.
 - OpenTofu (C3), tested 2026-11-07 with `scripts/ziti-c3-tofu.sh`
   (fixture `ziti/tofu-c3/main.tf`, OpenTofu 1.13.9, `netfoundry/ziti`
   2.2.1; the 0.0.5 named in the criterion is long gone). Passed: intercept
