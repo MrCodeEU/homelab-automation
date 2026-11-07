@@ -266,7 +266,7 @@ authelia_oidc_clients:
     scopes: [openid, email, profile]
   # Ziti network login through the IdP (docs/ZERO_TRUST_PLAN.md C15): the
   # tunneler signs in here and the controller's ext-jwt signer `authelia`
-  # (scripts/ziti-poc-objects.sh) trusts the ID token. The groups in the ID
+  # (ziti/tofu/identity.tf) trusts the ID token. The groups in the ID
   # token become the attributes of an identity enrolled this way. The
   # redirect URI is the Ziti SDK's fixed loopback callback.
   - id: ziti

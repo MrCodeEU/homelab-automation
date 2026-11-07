@@ -215,7 +215,8 @@ live noop and apply under the new certname.
 - One non-critical service reachable only over Ziti: nuc's Grafana Alloy
   metrics endpoint (`127.0.0.1:12345`; nuc runs no node-exporter, Alloy
   collects host metrics). The Grafana UI follows only if there is time
-  left. Services and policies: `scripts/ziti-poc-objects.sh` (idempotent,
+  left. Services and policies: `scripts/ziti-poc-objects.sh` (idempotent;
+  replaced in Phase 4 by OpenTofu, `ziti/tofu/` and `scripts/ziti-tofu.sh`;
   default deny: `#admin` identities dial `#admin-services`, each service
   bound by one router identity). Shared policies come before services: a
   router whose first terminator request is rejected does not retry until

@@ -43,8 +43,8 @@ specifically (firewalld zone, "outbound to mljr") may need a word changed.
   `ziti-router-<h>` in `post_deploy_hook_services`.
 - `scripts/ziti-enroll-router.sh`: a `case` line for `<h>` (host, service,
   attribute `lan`, base path).
-- `scripts/ziti-poc-objects.sh`: `<h>.int.mljr.eu` in the `ssh-intercept`
-  addresses and `@<h>.int.mljr.eu` in `ssh-bind`.
+- `ziti/tofu/routers.tf`: `<h>.int.mljr.eu` in the router list;
+  `ziti/tofu/services.tf`: `<h>` in `ssh_hosts` (intercept and bind).
 - `tools/internal/healthreport/collectors/pki.go`: a `pkiTargets` entry
   `<ip>:8442` / `router-<h>` (rebuild the binary:
   `scripts/service-binary.sh`).
@@ -62,7 +62,7 @@ If the host filters loopback (UGOS does for port 22, see
 
 ```sh
 scripts/ziti-enroll-router.sh <h>    # token from mljr straight into the container's data dir
-scripts/ziti-poc-objects.sh          # ssh service now also on <h>
+scripts/ziti-tofu.sh apply          # ssh service now also on <h>
 ```
 
 ## 4. Check
