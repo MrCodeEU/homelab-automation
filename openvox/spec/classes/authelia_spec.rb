@@ -62,4 +62,19 @@ describe 'roles::authelia' do
     expect(config.scan('token_endpoint_auth_method: client_secret_post').length).to eq(1)
     expect(config.index('claims_policies:')).to be < config.index('    clients:')
   end
+
+  it 'renders a public client with PKCE and without a secret' do
+    config = rendered_file('/opt/authelia/configuration.yml')
+    cli = config[config.index("      - client_id: 'cli-app'")..]
+
+    expect(cli).to include(
+      '        public: true',
+      '        require_pkce: true',
+      '        pkce_challenge_method: S256',
+      '        token_endpoint_auth_method: none',
+      '        authorization_policy: two_factor',
+    )
+    expect(cli).not_to include('client_secret')
+    expect(config.scan('client_secret:').length).to eq(2)
+  end
 end

@@ -252,6 +252,18 @@ ntfy_topic_whitelist:
 # high-entropy secret, so it is safe in git; the plaintext secret lives only in
 # the client host's eyaml (see vault_actual_oidc_client_secret on nuc).
 authelia_oidc_clients:
+  # SSH login through the IdP (roles::opkssh, docs/ZERO_TRUST_PLAN.md C14).
+  # Public: opkssh runs on the user's device and cannot keep a secret. The
+  # redirect URIs are opkssh's fixed loopback callbacks.
+  - id: opkssh
+    name: SSH login (opkssh)
+    public: true
+    authorization_policy: two_factor
+    redirect_uris:
+      - http://localhost:3000/login-callback
+      - http://localhost:10001/login-callback
+      - http://localhost:11110/login-callback
+    scopes: [openid, email, profile]
   - id: actual-budget
     name: Actual Budget
     secret_digest: '$pbkdf2-sha512$310000$74Fp11OUInI57u5Wof13kg$F1Cn9dH/a44DQzH/hoDouEmxroCT7O9bLnvE1aRdNH8SjoR2R8FS/V/lleYN8iltLKwdEObvxbRehb/mbyXQKw'
