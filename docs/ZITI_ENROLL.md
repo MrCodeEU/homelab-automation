@@ -54,6 +54,10 @@ sync only fills existing destinations), `scripts/sync-openvox-service-files.sh s
 make test`, PR, merge, `gh workflow run deploy.yml -f limit=<h>`. The
 router container restart-loops until it is enrolled; that is expected.
 
+Host firewall: the router dials the host's own services on `127.0.0.1`.
+If the host filters loopback (UGOS does for port 22, see
+`roles::ugreen_ssh_loopback`), allow it before the check in step 4.
+
 ## 3. Enrol
 
 ```sh
