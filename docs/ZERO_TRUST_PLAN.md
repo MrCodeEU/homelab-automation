@@ -403,6 +403,30 @@ live noop and apply under the new certname.
     browser login again after every tunneler restart.
   - The laptop's tunneler must load an identity directory (#536), else
     `add` refuses with "add command requires an identity-dir".
+- Cost on mljr (C5), measured 2026-11-07 from cAdvisor in
+  VictoriaMetrics: controller 120 MiB average (183 MiB max, 19 h before
+  the C2 drill), router 51 MiB average (70 MiB max, 28 h), together
+  about 171 MiB of the 400 MiB limit. CPU: router 1.7 % of one core on
+  average over 28 h including the C6 iperf runs, controller 1.2 % since
+  its last start (cgroup `cpu.stat`, 0.4 h including the C15 logins),
+  together about 3 % of the 10 % limit. Passed. Gap: cAdvisor has not
+  reported `ziti-controller` since the C2 restore recreated the container
+  (2026-11-07 10:10 UTC), not even after an Alloy restart; every other
+  container on mljr is reported. Open item for Phase 4 monitoring.
+- No regression (C13), assessed 2026-11-07 for 2026-11-05 to 2026-11-07
+  against the 7 days before. Uptime Kuma: outages outside the backup
+  window (00:00 to 01:59) went from 25 to 37 down beats a day, but the
+  multi-monitor clusters fell from 8 to 3 (2026-11-05 18:13 and
+  2026-11-06 19:45: the C9 firewalld reload and Docker restart, both
+  deliberate), and the single ones are the same Caddy `502`s as before:
+  a 3 s dial timeout from mljr to a home host over Tailscale. Caddy logs
+  those at about 1,400 a day before Phase 3 and 850 to 1,400 during it,
+  almost all to nas (`100.100.10.2`). Tailscale was never interrupted
+  except where a test switched it off on the laptop. Passed. Side
+  findings, not caused by Phase 3: the nas dial timeouts themselves, and
+  Caddy on mljr cannot rotate its logs (`can't rename log file ...
+  permission denied`), so `actual-budget.log` has been stuck at 100 MB
+  since 2026-11-06.
 - OpenTofu (C3), tested 2026-11-07 with `scripts/ziti-c3-tofu.sh`
   (fixture `ziti/tofu-c3/main.tf`, OpenTofu 1.13.9, `netfoundry/ziti`
   2.2.1; the 0.0.5 named in the criterion is long gone). Passed: intercept
