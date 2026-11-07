@@ -301,6 +301,22 @@ live noop and apply under the new certname.
     it; the mesh baseline swings 47-102 between runs. Never through mljr.
   Consequence for Phase 4/5: nas gets a router, not a tunneler, and the
   sysctl becomes part of nas's managed config.
+  Retest 2026-11-07, sysctl now permanent (`roles::unraid_proxy`):
+  external with a router on nas 101 % both ways (download 179-187,
+  upload 146-157 Mbit/s). LAN with a router on nas as ingress
+  (`CLIENT_TUNNELER=router`, link listener on nas's LAN IP, nuc's router
+  links to it, measured link costs nas-nuc 13, nas-mljr 44): 53-67 Mbit/s
+  against 79-107 direct (about 65 %), and 2 of 3 runs routed nas -> mljr
+  -> ugreen even after the costs were measured. Smart routing's terminator
+  costs outweigh a 30-point link difference, and every policy is `#all`,
+  so nothing keeps a LAN-only service off mljr. Also seen: mljr linked to
+  nas's LAN listener, over Tailscale's subnet route. Phase 4/5 needs
+  attribute-based service-edge-router and edge-router policies (LAN-only
+  services on `#lan` routers only) and link groups, before LAN traffic can
+  be trusted to stay local. Decision 2026-11-07: C6 external passes; C6
+  LAN is not passed with its root cause known, and the fix moves to
+  Phase 4 (attribute-based policies, link groups) and Phase 5 (router on
+  nas).
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.
@@ -344,6 +360,15 @@ change the design and repeat the failing criteria.
   (SSH targets, `OPENVOX_HOSTS` and CI host lists, `reverse_proxy` and
   monitoring URLs, appliance proxy scripts) to `<host>.int.mljr.eu` intercept
   names, together with the service that carries them.
+- Router placement and LAN locality (from C6): every host that can run
+  Ziti hosts its own services; nuc's router serves LAN devices that cannot.
+  Replace the shared `#all` edge-router and service-edge-router policies
+  with attribute-based ones, so LAN-only services can use `#lan` routers
+  only, and use link groups so routers link only where intended (no
+  mljr-to-LAN link over Tailscale's subnet route). Gate for any LAN-only
+  service on Ziti: C6 LAN (`scripts/ziti-c6-iperf.sh lan`, with
+  `CLIENT_TUNNELER=router`) never routes via mljr, and reaches >= 75 % of
+  the direct path or the shortfall is accepted for that service.
 - Tailscale still in place as a fallback.
 
 **Rollback:** per service, point the consumer back at the Tailscale
@@ -353,8 +378,11 @@ scraper, backup or webhook is silently broken.
 
 ### Phase 5: Appliances and OpenBolt push layer
 
-- Enrol nas: tunneler (likely in Docker on Unraid) with identity and start
-  hook on the flash drive, because the root filesystem is tmpfs.
+- Enrol nas: a router (Docker on Unraid, host-mode tunnel; C6 showed a
+  tunneler reaches only ~55-60 % of Tailscale when nas sends), its data
+  and start hook on the array/flash because the root filesystem is tmpfs,
+  plus `net.ipv4.tcp_notsent_lowat=131072` (already managed by
+  `roles::unraid_proxy`).
 - Enrol wd_mycloud: armv7 tunneler started from the clamAV boot hook (the
   crontab is wiped at every reboot), or a nuc-hosted hop if Phase 3 showed
   the tunneler can't run.
