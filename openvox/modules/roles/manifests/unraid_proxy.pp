@@ -49,13 +49,14 @@ class roles::unraid_proxy (
   }
 
   # Live value now; bootstrap-content.sh restores it after every reboot.
-  # Through bash: in a noop run before the first apply the scripts are not
-  # on disk yet, and Puppet cannot evaluate a missing command.
+  # In a noop run before the first apply the scripts are not on disk yet;
+  # a missing check must read as "not in sync", not as an evaluation error.
   exec { 'unraid-tcp-sysctl':
-    command => "/bin/bash ${work_dir}/sysctl-apply.sh",
-    unless  => "/bin/bash ${work_dir}/sysctl-check.sh",
-    path    => ['/usr/bin', '/bin'],
-    require => Exec['unraid-array-started'],
+    command  => "${work_dir}/sysctl-apply.sh",
+    unless   => "test -f ${work_dir}/sysctl-check.sh && ${work_dir}/sysctl-check.sh",
+    provider => 'shell',
+    path     => ['/usr/bin', '/bin'],
+    require  => Exec['unraid-array-started'],
   }
 
   exec { 'unraid-schedule-merge':
