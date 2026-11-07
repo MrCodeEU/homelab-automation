@@ -131,6 +131,37 @@ describe 'roles::backup' do
     end
   end
 
+  context 'with the ziti controller (sensitive paths)' do
+    let(:recipient) { 'age1' + ('q' * 58) }
+    let(:params) { super().merge(services: ['ziti-controller'], sensitive_age_recipient: recipient) }
+    let(:backup) { catalogue.resource('File', '/opt/backups/scripts/backup.sh')[:content] }
+
+    it { is_expected.to compile.with_all_deps }
+    it { is_expected.to contain_package('age') }
+
+    it 'sends the plain copy to ugreen only and an encrypted one to pCloud' do
+      expect(backup).to match(%r{^AGE_RECIPIENT="#{recipient}"$})
+      expect(backup).to match(%r{^    backup_sensitive_path "ziti-controller" "/opt/backups/ziti-controller" \|\| service_failed=true$})
+      expect(backup).not_to match(%r{backup_path "/opt/backups/ziti-controller"})
+      expect(backup).to match(%r{sync_to_ugreen "\$source_path" "sensitive/\$\{backup_name\}"})
+      expect(backup).to match(%r{\| age -r "\$AGE_RECIPIENT" -o "\$encrypted"})
+    end
+
+    it 'takes a cold copy and always starts the controller again' do
+      expect(backup).to match(%r{docker stop ziti-controller})
+      expect(backup).to match(%r{docker start ziti-controller > /dev/null \|\| rc=1})
+      expect(backup).to match(%r{rm -rf /opt/backups/ziti-controller})
+    end
+
+    context 'without an age recipient' do
+      let(:params) { super().merge(sensitive_age_recipient: '') }
+
+      it { is_expected.to compile.and_raise_error(%r{sensitive_age_recipient must be an age public key}) }
+    end
+  end
+
+  it { is_expected.not_to contain_package('age') }
+
   context 'when backup CPU quota is configured' do
     let(:params) do
       super().merge(cpu_quota: '35%')
