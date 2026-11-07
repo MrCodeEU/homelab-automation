@@ -1,0 +1,59 @@
+# Verbatim from https://github.com/openpubkey/opkssh/blob/v0.19.2/opkssh.te
+# (roles::opkssh compiles and loads it; keep in step with roles::opkssh::version).
+module opkssh 2.1;
+
+require {
+    type sshd_t;
+    attribute file_type;
+    attribute non_security_file_type;
+    attribute non_auth_file_type;
+    type var_log_t;
+    type http_port_t;
+    type sudo_exec_t;
+    type sudo_log_t;
+    type squid_port_t;
+    type http_cache_port_t;
+    class file { append create execute execute_no_trans getattr map open read rename setattr unlink write };
+    class dir { add_name create getattr open read remove_name search setattr write };
+    class tcp_socket name_connect;
+}
+
+# 1. Allow TCP connections to http_port_t (always needed)
+allow sshd_t http_port_t:tcp_socket name_connect;
+
+# 2. Allow writing to log files (always needed)
+allow sshd_t var_log_t:file { open append };
+allow sshd_t sudo_log_t:file { open };
+
+# 3. Boolean: enable home access via sudo
+bool opkssh_enable_home false;
+
+if (opkssh_enable_home) {
+    allow sshd_t sudo_exec_t:file { execute execute_no_trans open read map };
+}
+
+# 4. Boolean: enable Squid proxy connections
+bool opkssh_enable_squid false;
+
+if (opkssh_enable_squid) {
+    allow sshd_t squid_port_t:tcp_socket name_connect;
+}
+
+# 5. Boolean: enable proxy support (dynamic ports via http_cache_port_t)
+bool opkssh_enable_proxy false;
+if (opkssh_enable_proxy) {
+    allow sshd_t http_cache_port_t:tcp_socket name_connect;
+}
+
+# 6. Persistent JWKS cache (cache.base_dir in /etc/opk/config.yml)
+#
+# The installer labels the cache directory opkssh_cache_t with
+# semanage fcontext and restorecon. opkssh verify creates the per-provider
+# subdirectories and writes, renames, touches and deletes cache files in it.
+# file_type lets administrators and system services (the cache clean timer)
+# manage the directory as they would any other file.
+type opkssh_cache_t;
+typeattribute opkssh_cache_t file_type, non_security_file_type, non_auth_file_type;
+
+allow sshd_t opkssh_cache_t:dir { add_name create getattr open read remove_name search setattr write };
+allow sshd_t opkssh_cache_t:file { create getattr open read rename setattr unlink write };

@@ -41,8 +41,8 @@ multi-admin workflows, new network hardware.
 | Ziti policy | **Policy as code** generated from `services_catalog`, tag-based, default-deny. Applied with **OpenTofu** and a Ziti provider (native state encryption, key in Bitwarden). Fallback is a small Go reconciler on the management API. Replaces the open "Tailscale ACL as code" backlog item. |
 | Ziti identities | **Disposable.** On rebuild, re-enrol instead of restoring identity files, so they never need backing up. Cert expiry is monitored. |
 | Hostnames / certnames | Move OpenVox certnames, eyaml key paths, node blocks and hiera data off `*.tail33930.ts.net` to **`<host>.int.mljr.eu`**, while Tailscale still works as a safety net. `int.mljr.eu` is **identity-only**: no public DNS records (no leak of internal names, fail-closed). It becomes the Ziti intercept domain later; short names like `ssh root@mljr` then come from a client search domain `int.mljr.eu` plus a wildcard intercept `*.int.mljr.eu`, not from per-host SSH aliases. |
-| SSH auth | Plain OpenSSH keys, in git, distributed by OpenVox. Ziti authenticates the network path in front. An SSH CA is a possible later step, decided at the final gate. |
-| Identity provider | **Authelia stays the default.** Zitadel is a time-boxed PoC with written pass/fail criteria. |
+| SSH auth | **Login through the IdP, no per-device keys** (decision 2026-11-07, replaces "plain OpenSSH keys in git"). **opkssh** (OpenPubkey SSH): `opkssh login` signs in at the IdP in the browser and creates a short-lived SSH key bound to the ID token; sshd checks it with `AuthorizedKeysCommand` against the IdP's public keys and an OpenVox-managed map of login to account. A new or borrowed device needs only the IdP login, as with Tailscale SSH today. Fallback if opkssh fails its PoC: an SSH CA with an OIDC provisioner (step-ca). The YubiKey `-sk` keys stay as break-glass only. |
+| Identity provider | **One IdP for everything human**: web apps (Caddy + OIDC), the Ziti network login (external JWT signer), SSH (opkssh). **Authelia stays the default**; it is public at `auth.mljr.eu` on mljr, so none of this depends on Tailscale. Zitadel is a time-boxed PoC (Phase 6) with written pass/fail criteria. The IdP becomes critical for admin access: when it is down, only break-glass gets in, so it needs the same DR care as the Ziti controller. |
 | Config management | **Working hypothesis (option B):** masterless OpenVox on mljr/nuc/ugreen (unchanged), plus **OpenBolt** as the push layer for laptop bootstrap, DR rebuilds and the appliances (nas, wd_mycloud). CFEngine stays dropped: it is a pull agent of the same class as `puppet apply`. A Go-native IaC tool was searched for again and none is mature. |
 | Who runs what | **Laptop:** bootstrap, Ziti enrolment, DR (OpenBolt), YubiKey. **CI** (GitHub-hosted runner): routine convergence through an ephemeral, least-privilege Ziti identity per run. Preferred mechanism: a Ziti external JWT signer trusting GitHub Actions OIDC tokens, scoped by repo and ref, so there is no enrolment step and no stored credential (unverified, PoC item). Nothing new runs permanently on hosts except the existing OpenVox agent and the Ziti tunneler. |
 | Devices | Laptop gets a Ziti identity from day one. Phone is optional and later. |
@@ -241,7 +241,8 @@ live noop and apply under the new certname.
   and blocks that fallback. `TXT int` stops the public `*` wildcard, so
   `*.int.mljr.eu` is NXDOMAIN publicly. Non-SSH tools use the FQDN. sshd
   over Ziti sees `127.0.0.1` and needs a key in its own list (Tailscale SSH
-  needs none); the everyday admin key is a Phase 4 decision.
+  needs none). Decided 2026-11-07: no everyday admin key, SSH logs in
+  through the IdP with opkssh (C14).
 - Visibility (C11): the controller serves Prometheus `/metrics` on its
   loopback admin listener; mljr's Alloy scrapes it (job `ziti-controller`).
   It includes the metrics every router reports (`source_id` = router id),
@@ -408,6 +409,8 @@ Phase 4; the others decide tooling or shape later phases.
 | C11 | Visibility | Ziti metrics in VictoriaMetrics; alerts for a router or overlay going down, a new identity enrolling, and policy denials | must |
 | C12 | PKI | Root CA created offline (done 2026-11-05, docs/ZITI_PKI.md), only the intermediate on mljr, re-issuing the intermediate documented. A healthreport `pki` collector reports days left for the root, the intermediate and router certificates: info ≤ 365 days (daily email), warn ≤ 90 (daily ntfy, high), crit ≤ 30 (daily ntfy, urgent) | must |
 | C13 | No regression | Tailscale and every existing service unchanged throughout | must |
+| C14 | SSH through the IdP (added 2026-11-07) | On nuc, `opkssh login` against Authelia, then `ssh root@nuc` over Ziti, with no key file on the laptop beyond the short-lived opkssh key. Works with Tailscale down on the laptop and with the host verifying against `auth.mljr.eu` over the public internet. A second device needs only the IdP login | must for the SSH-auth decision (fail: SSH CA with OIDC, then keys) |
+| C15 | Ziti network login through the IdP (added 2026-11-07) | The laptop tunneler logs in to Ziti through Authelia (external JWT signer), and a new device gets on the overlay without a one-time enrolment token file. Logging out or token expiry takes it off the overlay | decides Phase 6 criteria (fail: enrolment files, IdP question goes to Phase 6) |
 
 **Rollback:** remove the controller, routers and tunnelers; nothing else
 depends on them yet.
@@ -473,8 +476,12 @@ scraper, backup or webhook is silently broken.
 
 ### Phase 6: Identity provider PoC (Zitadel vs Authelia)
 
-- Write pass/fail criteria first. Candidate wins: SCIM, passkeys, audit
-  log, acting as Ziti's external JWT signer.
+- Write pass/fail criteria first. Must serve all three human logins: web
+  apps (OIDC at Caddy), the Ziti network login (external JWT signer,
+  C15) and SSH (opkssh as an OIDC client, C14). Candidate wins: SCIM,
+  passkey-first login, device-code login for headless devices, audit log.
+  Authelia stays unless it fails one of the three logins or Zitadel wins
+  clearly.
 - Costs to weigh: Postgres in the DR chain, migrating the existing OIDC
   clients (Unraid, Sure, Actual, DefectDojo and others), AGPL-3.0.
 
@@ -504,7 +511,8 @@ inbound is on every host OpenVox manages, and no container publishes on
 ### Phase 8: Final gate
 
 - Confirm Tailscale's final role: break-glass only (expected), or remove it.
-- Decide on an SSH CA (short-lived certs, `ziti-ssh`, or neither).
+- Confirm SSH through the IdP (opkssh, C14), or move to an SSH CA with an
+  OIDC provisioner if opkssh did not hold up in Phases 4 to 7.
 - Re-measure every metric against the Phase 0 baseline.
 - Remove the proxy `exec` pattern and any Tailscale-only code paths that are
   no longer used.

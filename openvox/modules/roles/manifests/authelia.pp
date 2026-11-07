@@ -74,11 +74,25 @@ class roles::authelia (
         join([
           "      - client_id: '${c['id']}'",
           "        client_name: '${c['name']}'",
-          "        client_secret: '${c['secret_digest']}'",
-          '        public: false',
+          # Public clients (CLI tools on the user's device, e.g. opkssh) have
+          # no secret: PKCE (S256) binds the code to the client instead.
+          $c['public'] ? {
+            true    => join([
+              '        public: true',
+              '        require_pkce: true',
+              '        pkce_challenge_method: S256',
+            ], "\n"),
+            default => join([
+              "        client_secret: '${c['secret_digest']}'",
+              '        public: false',
+            ], "\n"),
+          },
           "        authorization_policy: ${pick($c['authorization_policy'], 'one_factor')}",
           '        consent_mode: implicit',
-          "        token_endpoint_auth_method: ${pick($c['token_endpoint_auth_method'], 'client_secret_basic')}",
+          $c['public'] ? {
+            true    => '        token_endpoint_auth_method: none',
+            default => "        token_endpoint_auth_method: ${pick($c['token_endpoint_auth_method'], 'client_secret_basic')}",
+          },
           $c['claims_policy'] ? {
             undef   => [],
             default => "        claims_policy: '${c['claims_policy']}'",
