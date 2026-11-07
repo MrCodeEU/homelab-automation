@@ -12,7 +12,7 @@
 #   4. restart the router container, wait until the controller reports it
 #      online, then delete the token
 #
-# Usage: scripts/ziti-enroll-router.sh <mljr|nuc> [--reenroll]
+# Usage: scripts/ziti-enroll-router.sh <mljr|nuc|ugreen> [--reenroll]
 # Deploy the router service first (the container restart-loops until the
 # token is there; that is expected).
 # Remote commands are built locally on purpose (names and paths are local
@@ -30,11 +30,13 @@ name="${1:-}"
 reenroll=false
 [ "${2:-}" = --reenroll ] && reenroll=true
 case "$name" in
-  mljr) host=root@mljr.tail33930.ts.net; svc=ziti-router;     attr=public ;;
-  nuc)  host=root@nuc.tail33930.ts.net;  svc=ziti-router-nuc; attr=lan ;;
-  *) die "usage: $0 <mljr|nuc> [--reenroll]" ;;
+  mljr) host=root@mljr.tail33930.ts.net; svc=ziti-router;     attr=public; base=/opt ;;
+  nuc)  host=root@nuc.tail33930.ts.net;  svc=ziti-router-nuc; attr=lan;    base=/opt ;;
+  ugreen) host=root@ugreen.tail33930.ts.net; svc=ziti-router-ugreen; attr=lan; base=/volume1/homelab ;;
+  *) die "usage: $0 <mljr|nuc|ugreen> [--reenroll]" ;;
 esac
-data="/opt/$svc/data"
+# base: roles::services::base_path of that host (docs/ZITI_ENROLL.md).
+data="$base/$svc/data"
 # On the controller a router is named after its host's certname, so the
 # wildcard ssh service can address it (scripts/ziti-poc-objects.sh). The
 # local name ($name) stays the router's file and container naming.

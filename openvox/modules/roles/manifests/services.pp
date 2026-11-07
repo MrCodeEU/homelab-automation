@@ -57,7 +57,7 @@ class roles::services (
     'crowdsec', 'forgejo', 'grafana', 'speedtest', 'godrive-demo',
     'healthreport', 'backup-dashboard', 'mail-archiver', 'umami', 'nocturne',
     'syncthing-ugreen', 'ntfy', 'crowdsec-nuc', 'paperless-mail-export',
-    'ziti-controller', 'ziti-router', 'ziti-router-nuc',
+    'ziti-controller', 'ziti-router', 'ziti-router-nuc', 'ziti-router-ugreen',
   ],
   Array[String] $critical_hook_services = ['crowdsec', 'forgejo', 'grafana', 'speedtest'],
   # Matches Ansible's own `cleanup_enabled | default(true)` - ugreen's own
