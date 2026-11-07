@@ -42,6 +42,9 @@ set -euo pipefail
 
 CTRL_HOST=root@mljr.tail33930.ts.net
 IMAGE=docker.io/openziti/ziti-cli:2.0.8@sha256:82d76e9b4c15742ac4370529caddd125d30f300ce6a05a500064aa0a80122fdf
+# The ziti-cli and ziti-router images run as ziggy (2171); the per-test dirs
+# hold one-time tokens and identity keys, so they are 0700 and owned by it.
+ZUID=2171
 ALPINE=docker.io/library/alpine:3.24@sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a
 
 MODE="${1:-}"
@@ -119,7 +122,8 @@ zcli "edge create service-policy c6-dial Dial --identity-roles $DIALER --service
 # Enrol on the host itself; the token goes mljr -> this shell -> host.
 enrol() { # host name
   ssh "$CTRL_HOST" "docker exec ziti-controller cat /tmp/$2.jwt" \
-    | ssh "$1" "set -e; mkdir -p /tmp/c6; chmod 777 /tmp/c6; cat > /tmp/c6/$2.jwt
+    | ssh "$1" "set -e; umask 077; install -d -m 700 -o $ZUID -g $ZUID /tmp/c6
+        cat > /tmp/c6/$2.jwt; chown $ZUID:$ZUID /tmp/c6/$2.jwt
         docker run --rm -v /tmp/c6:/z $IMAGE edge enroll -j /z/$2.jwt -o /z/$2.json >/dev/null 2>&1
         rm -f /tmp/c6/$2.jwt; test -s /tmp/c6/$2.json"
 }
@@ -129,7 +133,8 @@ if [ "$SERVER_TUNNELER" = router ]; then
   # Same shape as services/ziti-router-nuc/config.yml, minus the LAN edge
   # listener: this router only hosts, so clients never pick it.
   ssh "$CTRL_HOST" "docker exec ziti-controller cat /tmp/c6-router.jwt" \
-    | ssh "$SERVER" "set -e; mkdir -p /tmp/c6; chmod 777 /tmp/c6; cat > /tmp/c6/enroll.jwt; chmod 644 /tmp/c6/enroll.jwt
+    | ssh "$SERVER" "set -e; umask 077; install -d -m 700 -o $ZUID -g $ZUID /tmp/c6
+        cat > /tmp/c6/enroll.jwt
         cat > /tmp/c6/config.yml <<'YML'
 v: 3
 identity:
@@ -156,7 +161,7 @@ edge:
       ip:
         - \"127.0.0.1\"
 YML
-        chmod 644 /tmp/c6/config.yml"
+        chown $ZUID:$ZUID /tmp/c6/enroll.jwt /tmp/c6/config.yml"
   host_cmd="-v /tmp/c6:/ziti-router -e ZITI_BOOTSTRAP_CONFIG=false -e ZITI_ROUTER_NAME=c6 -e ZITI_ENROLL_TOKEN=/ziti-router/enroll.jwt $ROUTER_IMAGE run config.yml"
 elif [ "$SERVER_TUNNELER" = c ]; then
   enrol "$SERVER" c6-server || die "enrolment on ${SERVER#root@} failed"
@@ -171,7 +176,8 @@ ssh "$SERVER" "iperf3 -s -B 127.0.0.1 -p 5299 -D
 if [ "$CLIENT_TUNNELER" = router ]; then
   say "${CLIENT#root@}: router c6c, tunnel proxy on 127.0.0.1:15299, link listener $CLIENT_LAN:18443"
   ssh "$CTRL_HOST" "docker exec ziti-controller cat /tmp/c6-crouter.jwt" \
-    | ssh "$CLIENT" "set -e; mkdir -p /tmp/c6c; chmod 777 /tmp/c6c; cat > /tmp/c6c/enroll.jwt; chmod 644 /tmp/c6c/enroll.jwt
+    | ssh "$CLIENT" "set -e; umask 077; install -d -m 700 -o $ZUID -g $ZUID /tmp/c6c
+        cat > /tmp/c6c/enroll.jwt
         cat > /tmp/c6c/config.yml <<'YML'
 v: 3
 identity:
@@ -206,7 +212,7 @@ edge:
         - \"127.0.0.1\"
         - \"$CLIENT_LAN\"
 YML
-        chmod 644 /tmp/c6c/config.yml
+        chown $ZUID:$ZUID /tmp/c6c/enroll.jwt /tmp/c6c/config.yml
         docker run -d --name c6-crouter --network host -v /tmp/c6c:/ziti-router -e ZITI_BOOTSTRAP_CONFIG=false -e ZITI_ROUTER_NAME=c6c -e ZITI_ENROLL_TOKEN=/ziti-router/enroll.jwt $ROUTER_IMAGE run config.yml >/dev/null"
   say "Waiting for the LAN link nuc <-> c6-crouter"
   for _ in $(seq 1 30); do
