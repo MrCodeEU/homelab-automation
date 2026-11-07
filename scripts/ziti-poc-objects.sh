@@ -5,7 +5,13 @@
 # over.
 #
 # Model (default deny, everything by role attribute):
-#   - identities with #admin may dial services with #admin-services
+#   - identities with #admin may dial services with #admin-services, and so
+#     may identities in the Authelia group admins (#admins, C15)
+#   - ext-jwt signer authelia (C15): the tunneler logs in through Authelia
+#     (client ziti) and a new device enrols with that login alone
+#     (enroll-to-cert or enroll-to-token, no enrolment file). The identity
+#     is named after preferred_username, gets the Authelia groups as
+#     attributes and is matched by the OIDC sub (external id).
 #   - each service is bound (hosted) by named router identities (@name)
 #   - every identity may use every router, every service every router
 #
@@ -54,6 +60,14 @@ service_policy() { # name Bind|Dial identity-roles service-roles
     z edge create service-policy "$1" "$2" --identity-roles "$3" --service-roles "$4" >/dev/null; echo "service-policy $1: created"
   fi
 }
+ext_jwt_signer() { # name, then the options shared by create and update
+  local name=$1; shift
+  if exists ext-jwt-signers "$name"; then
+    z edge update ext-jwt-signer "$name" "$@" >/dev/null; echo "ext-jwt-signer $name: updated"
+  else
+    z edge create ext-jwt-signer "$name" "https://auth.mljr.eu" "$@" >/dev/null; echo "ext-jwt-signer $name: created"
+  fi
+}
 edge_router_policy() { # name identity-roles router-roles
   if exists edge-router-policies "$1"; then
     z edge update edge-router-policy "$1" --identity-roles "$2" --edge-router-roles "$3" >/dev/null; echo "edge-router-policy $1: updated"
@@ -73,7 +87,16 @@ serp() { # name service-roles router-roles
 # Before any service: a router whose first terminator request is rejected
 # ("invalid edge router for session", no router policy yet) does not retry
 # until it restarts. Seen 2026-11-06.
-service_policy admin-dial Dial '#admin' '#admin-services'
+service_policy admin-dial Dial '#admin,#admins' '#admin-services'
+# The controller fetches Authelia's keys over the public internet (it runs
+# on mljr, next to Authelia). Audience and client id are the Authelia
+# client; the ID token is used because Authelia's access tokens are opaque.
+ext_jwt_signer authelia -u https://auth.mljr.eu/jwks.json -a ziti \
+  --client-id ziti --scopes profile,email,groups --target-token ID \
+  -c sub -x -y https://auth.mljr.eu \
+  --enroll-to-cert --enroll-to-token \
+  --enroll-name-claims-selector /preferred_username \
+  --enroll-attr-claims-selector /groups
 edge_router_policy all-identities-all-routers '#all' '#all'
 serp all-services-all-routers '#all' '#all'
 

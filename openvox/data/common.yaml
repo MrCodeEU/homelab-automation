@@ -264,6 +264,19 @@ authelia_oidc_clients:
       - http://localhost:10001/login-callback
       - http://localhost:11110/login-callback
     scopes: [openid, email, profile]
+  # Ziti network login through the IdP (docs/ZERO_TRUST_PLAN.md C15): the
+  # tunneler signs in here and the controller's ext-jwt signer `authelia`
+  # (scripts/ziti-poc-objects.sh) trusts the ID token. The groups in the ID
+  # token become the attributes of an identity enrolled this way. The
+  # redirect URI is the Ziti SDK's fixed loopback callback.
+  - id: ziti
+    name: Ziti network login
+    public: true
+    authorization_policy: two_factor
+    claims_policy: id-token-claims
+    redirect_uris:
+      - http://localhost:20314/auth/callback
+    scopes: [openid, profile, email, groups]
   - id: actual-budget
     name: Actual Budget
     secret_digest: '$pbkdf2-sha512$310000$74Fp11OUInI57u5Wof13kg$F1Cn9dH/a44DQzH/hoDouEmxroCT7O9bLnvE1aRdNH8SjoR2R8FS/V/lleYN8iltLKwdEObvxbRehb/mbyXQKw'
