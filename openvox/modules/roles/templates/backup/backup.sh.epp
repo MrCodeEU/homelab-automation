@@ -14,6 +14,7 @@
       Integer $history_weekly,
       Integer $history_monthly,
       String $ntfy_url,
+      String $age_recipient,
 | -%>
 #!/bin/bash
 # Homelab Backup Script
@@ -39,6 +40,7 @@ HISTORY_DAILY=<%= $history_daily %>
 HISTORY_WEEKLY=<%= $history_weekly %>
 HISTORY_MONTHLY=<%= $history_monthly %>
 NTFY_URL="<%= $ntfy_url %>"
+AGE_RECIPIENT="<%= $age_recipient %>"
 <% if $bwlimit == '' { -%>
 PCLOUD_BWLIMIT_ARGS=()
 <% } else { -%>
@@ -241,6 +243,57 @@ backup_path() {
     return 0
 }
 
+# backup_sensitive_path: for data that must never reach a third party in
+# the clear (the Ziti controller's PKI holds the intermediate CA key). The
+# plain copy goes to ugreen only, for the simple restore; pCloud gets one
+# age-encrypted tarball (private key in Bitwarden only) plus its history,
+# for when ugreen is lost too. Never to wd-cloud. A missing ugreen leg is
+# a warning like everywhere else; the encrypted pCloud copy is the part
+# that must succeed.
+backup_sensitive_path() {
+    local service="$1" source_path="$2"
+    local backup_name encrypted
+    backup_name=$(basename "$source_path")
+    encrypted="${LOCAL_PATH}/sensitive/${backup_name}.tar.age"
+
+    if [ ! -d "$source_path" ]; then
+        log_warn "Sensitive path $source_path not found"
+        return 1
+    fi
+    if [ -z "$AGE_RECIPIENT" ]; then
+        log_error "No age recipient configured; refusing to upload $source_path anywhere"
+        return 1
+    fi
+
+    log "Backing up sensitive path: $source_path (plain to ugreen, encrypted to pCloud)"
+    if [ "$UGREEN_AVAILABLE" = "1" ]; then
+        sync_to_ugreen "$source_path" "sensitive/${backup_name}" || true
+    else
+        log_warn "ugreen unavailable: only the encrypted pCloud copy of $source_path exists for this run"
+    fi
+
+    install -d -m 700 "${LOCAL_PATH}/sensitive"
+    rm -f "$encrypted"
+    ( umask 077; tar -C "$(dirname "$source_path")" -cf - "$backup_name" \
+        | age -r "$AGE_RECIPIENT" -o "$encrypted" ) 2>> "$LOG_FILE" || {
+        log_error "Failed to encrypt $source_path"
+        rm -f "$encrypted"
+        return 1
+    }
+    timeout "$ITEM_TIMEOUT" rclone copyto "$encrypted" "${REMOTE}/sensitive/${backup_name}.tar.age" \
+        "${PCLOUD_BWLIMIT_ARGS[@]}" \
+        --timeout 60s --contimeout 20s --low-level-retries 3 \
+        --log-file="$LOG_FILE" --log-level INFO || {
+        log_error "Failed to upload the encrypted copy of $source_path"
+        return 1
+    }
+    record_stats "$encrypted"
+    history_path "$service" "sensitive-${backup_name}.tar.age" "$encrypted" || return 1
+
+    log_success "Sensitive path $source_path backed up (encrypted copy on pCloud)"
+    return 0
+}
+
 # Historical copies are deliberately limited to the explicit DB-dump,
 # configuration and recovery-key entries below. They never include mail,
 # general Docker-volume data, photos, media or Borg repositories.
@@ -346,6 +399,7 @@ main() {
    $paths = $cfg['paths'] ? { undef => [], default => $cfg['paths'] }
    $history_paths = $cfg['history_paths'] ? { undef => [], default => $cfg['history_paths'] }
    $history_volumes = $cfg['history_volumes'] ? { undef => [], default => $cfg['history_volumes'] }
+   $sensitive_paths = $cfg['sensitive_paths'] ? { undef => [], default => $cfg['sensitive_paths'] }
 -%>
 <% if $cfg['pre_hook'] { -%>
     run_pre_hook "<%= $name %>" '<%= $cfg['pre_hook'].regsubst("'", "'\\\\''", 'G') %>' || service_failed=true
@@ -355,6 +409,9 @@ main() {
 <% } -%>
 <% $paths.each |$p| { -%>
     backup_path "<%= $p %>" "false" "true" || service_failed=true
+<% } -%>
+<% $sensitive_paths.each |$p| { -%>
+    backup_sensitive_path "<%= $name %>" "<%= $p %>" || service_failed=true
 <% } -%>
 <% $history_paths.each |$h| { -%>
     history_path "<%= $name %>" "<%= $h['label'] %>" "<%= $h['path'] %>" || service_failed=true

@@ -105,6 +105,10 @@ class roles::backup (
   # role's noop-rendered backup.sh against the real deployed one before
   # ever applying for real - see the migration memory for the full story.
   String        $hostname       = $facts['networking']['hostname'],
+  # age public key (age1...) for services with 'sensitive_paths'; the
+  # private key exists only in Bitwarden (docs/ZITI_DR.md). Without it
+  # those services' backups fail instead of uploading in the clear.
+  String        $sensitive_age_recipient = '',
 ) {
 
   $pcloud_token      = Sensitive(lookup('vault_pcloud_token', { 'default_value' => '' }))
@@ -224,6 +228,20 @@ class roles::backup (
       'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" "$POSTGRES_DB"' \
       < /opt/backups/nocturne-dumps/nocturne.sql
     | NOCTURNE_RESTORE
+
+  # Cold copy of the controller (docs/ZITI_DR.md): stopped for under a
+  # second so pki/ and raft/ are consistent. `ziti fabric db snapshot`
+  # plus restore-from-db is not usable (C2). Started again even if tar
+  # fails.
+  $ziti_controller_pre_hook = @(ZITI_PRE)
+    install -d -m 700 /opt/backups/ziti-controller
+    docker stop ziti-controller > /dev/null
+    rc=0
+    ( umask 077; tar -C /opt/ziti-controller/data --exclude='events*.log' \
+        -czf /opt/backups/ziti-controller/ziti-controller.tgz pki raft ) || rc=$?
+    docker start ziti-controller > /dev/null || rc=1
+    exit $rc
+    | ZITI_PRE
 
   $backup_service_configs = {
     'authelia' => {
@@ -376,6 +394,13 @@ class roles::backup (
       'volumes'  => ['canarytokens_redis-data', 'canarytokens_canarytokens-uploads'],
       'critical' => false,
     },
+    'ziti-controller' => {
+      'volumes'         => [],
+      'pre_hook'        => $ziti_controller_pre_hook,
+      'sensitive_paths' => ['/opt/backups/ziti-controller'],
+      'post_hook'       => 'rm -rf /opt/backups/ziti-controller',
+      'critical'        => true,
+    },
   }
 
   $host_configs = $backup_service_configs.filter |$k, $v| { $k in $services }
@@ -418,6 +443,7 @@ class roles::backup (
     'history_weekly'  => $history_weekly,
     'history_monthly' => $history_monthly,
     'ntfy_url'        => $ntfy_url,
+    'age_recipient'   => $sensitive_age_recipient,
   })
 
   $restore_sh_content = epp('roles/backup/restore.sh.epp', {
@@ -448,6 +474,16 @@ class roles::backup (
   # ==========================================================================
   package { 'rclone':
     ensure => installed,
+  }
+
+  if $host_configs.any |$name, $cfg| { $cfg['sensitive_paths'] } {
+    if $sensitive_age_recipient !~ /^age1[0-9a-z]{58}$/ {
+      fail('roles::backup::sensitive_age_recipient must be an age public key (age1...) for services with sensitive_paths')
+    }
+    # EPEL on the EL hosts.
+    package { 'age':
+      ensure => installed,
+    }
   }
 
   # /root/.config does not exist on a fresh install (puppet file does not

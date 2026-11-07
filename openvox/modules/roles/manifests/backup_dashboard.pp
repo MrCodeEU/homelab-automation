@@ -84,6 +84,8 @@ class roles::backup_dashboard (
     { 'name' => 'crowdsec', 'host' => 'mljr', 'source' => ['crowdsec-config', 'crowdsec-data', 'crowdsec-web-ui-data'] },
     { 'name' => 'newsletter', 'host' => 'mljr', 'source' => ['newsletter_newsletter-data'] },
     { 'name' => 'canarytokens', 'host' => 'mljr', 'source' => ['canarytokens_redis-data', 'canarytokens_canarytokens-uploads'] },
+    # sensitive_paths: plain to ugreen, age-encrypted to pCloud (docs/ZITI_DR.md).
+    { 'name' => 'ziti-controller', 'host' => 'mljr', 'source' => ['/opt/ziti-controller/data'] },
     { 'name' => 'kuma', 'host' => 'nuc', 'source' => ['kuma_uptime-kuma-sqlite'] },
     { 'name' => 'forgejo', 'host' => 'nuc', 'source' => ['forgejo-data', 'forgejo-db-data', '/opt/backups/forgejo-dumps'] },
     { 'name' => 'mail-archiver', 'host' => 'nuc', 'source' => ['mail-archiver_mail-archiver-dp-keys', '/opt/backups/mail-archiver-dumps'] },

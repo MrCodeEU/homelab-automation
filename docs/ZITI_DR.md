@@ -23,12 +23,45 @@ The bundle holds the intermediate CA's private key
 routers and identities for the overlay. Store it only where the eyaml
 keys may go, never on an unencrypted cloud remote.
 
+The nightly backup on mljr (`roles::backup`, service `ziti-controller`,
+`sensitive_paths`) does exactly this in its pre-hook and then keeps two
+copies:
+
+| Copy | Where | For |
+|---|---|---|
+| plain | `ugreen:mljr/sensitive/ziti-controller/ziti-controller.tgz` | the normal restore |
+| age-encrypted | pCloud `homelab-backups/sensitive/ziti-controller.tar.age`, plus daily/weekly/monthly history under `homelab-backups-history/mljr/<timestamp>/ziti-controller/` | when ugreen is lost too |
+
+The age private key is only in Bitwarden (`homelab ziti backup age key`);
+the public key is `roles::backup::sensitive_age_recipient`. wd-cloud gets
+no copy.
+
 Do not use `ziti fabric db snapshot` with `ziti agent cluster
 restore-from-db`. A controller restored that way works until its leaf
 certificate is re-issued, which the container does on every start
 (`ZITI_AUTO_RENEW_CERTS`, image default). From then on it rejects its own
 OIDC access tokens: SDK and CLI logins fail with `UNAUTHORIZED`, only the
 legacy `zt-session` login still works. Seen on nuc and on mljr.
+
+## Getting the bundle
+
+From ugreen (normal case), on mljr:
+
+```sh
+rclone copyto --sftp-key-file /opt/backup-remote/ssh/id_ed25519 \
+  ugreen:mljr/sensitive/ziti-controller/ziti-controller.tgz /root/ziti-controller-restore.tgz
+```
+
+From pCloud (ugreen lost): on the laptop, with the age key from Bitwarden
+in a file that is deleted afterwards:
+
+```sh
+rclone copyto pcloud:homelab-backups/sensitive/ziti-controller.tar.age ./zc.tar.age
+age -d -i ziti-backup.age.key zc.tar.age | tar -xf -   # gives ziti-controller/ziti-controller.tgz
+```
+
+Copy `ziti-controller.tgz` to mljr as root, mode 0600, and delete every
+local copy afterwards.
 
 ## Restore onto a rebuilt mljr
 
@@ -42,7 +75,7 @@ legacy `zt-session` login still works. Seen on nuc and on mljr.
    cd /opt/ziti-controller
    docker compose down
    rm -rf data && install -d -m 700 -o 2171 -g 2171 data
-   tar -xzf /root/ziti-controller-<date>.tgz -C data && chown -R 2171:2171 data
+   tar -xzf /root/ziti-controller-restore.tgz -C data && chown -R 2171:2171 data
    docker compose up -d
    ```
 
