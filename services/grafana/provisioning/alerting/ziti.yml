@@ -87,6 +87,9 @@ groups:
                   or
                   label_replace(vector(1) unless on() group(ziti_edge_connections{source_id="9UoZxNDzp"}),
                     "router", "nuc.int.mljr.eu", "", "")
+                  or
+                  label_replace(vector(1) unless on() group(ziti_edge_connections{source_id="6mzqty60F"}),
+                    "router", "ugreen.int.mljr.eu", "", "")
                 )
                 and on() (max(up{job="ziti-controller"}) == 1)
               instant: true
@@ -111,7 +114,7 @@ groups:
         labels:
           severity: critical
 
-      # The nuc -> mljr link (nuc dials, mljr listens on 8442) while both
+      # The home routers' links to mljr (they dial, mljr listens on 8442) while both
       # routers stay up, e.g. 8442 blocked or the home uplink dropping TCP
       # while the control channel (8441) survives. Its metrics vanish when
       # the link closes. Same id pinning and controller guard as above.
@@ -124,9 +127,15 @@ groups:
             datasourceUid: prometheus
             model:
               expr: >-
-                label_replace(
-                  vector(1) unless on() group(ziti_link_tx_msgrate{sourceRouterId="9UoZxNDzp",targetRouterId="TxITxNDzp"}),
-                  "link", "nuc.int.mljr.eu -> mljr.int.mljr.eu", "", "")
+                (
+                  label_replace(
+                    vector(1) unless on() group(ziti_link_tx_msgrate{sourceRouterId="9UoZxNDzp",targetRouterId="TxITxNDzp"}),
+                    "link", "nuc.int.mljr.eu -> mljr.int.mljr.eu", "", "")
+                  or
+                  label_replace(
+                    vector(1) unless on() group(ziti_link_tx_msgrate{sourceRouterId="6mzqty60F",targetRouterId="TxITxNDzp"}),
+                    "link", "ugreen.int.mljr.eu -> mljr.int.mljr.eu", "", "")
+                )
                 and on() (max(up{job="ziti-controller"}) == 1)
               instant: true
               refId: A

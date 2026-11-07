@@ -343,9 +343,21 @@ live noop and apply under the new certname.
   - Docker containers in host networking keep the `/etc/hosts` copy
     made at creation, so a local DNS override must also go into each
     container's hosts file.
-  - Open: the controller is in no backup yet. Its data holds the
-    intermediate CA key, and `roles::backup` sends every service to
-    pCloud unencrypted, so it cannot simply be added there.
+  - Backup since #527: the cold copy goes plain to ugreen and
+    age-encrypted to pCloud (`sensitive_paths` in `roles::backup`); the
+    age key is offline in Bitwarden. Decrypting the pCloud copy was
+    tested 2026-11-07.
+- Enrol a new host (C1), tested 2026-11-07 on ugreen with the runbook
+  [ZITI_ENROLL.md](ZITI_ENROLL.md): about 14 min of work from an empty
+  service directory to an online router with a connected link and an ssh
+  terminator (repo 1 min, CI and merge 6 min, deploy 6 min, enrolment
+  9 s), waits for approval not counted. The service check failed at
+  first: UGOS's `UG_SSH_INPUT` drops port 22 from loopback, so the router
+  timed out dialing `127.0.0.1:22`. Fixed with
+  `roles::ugreen_ssh_loopback` (#530, loopback accept, re-added by a
+  timer after boot and UGOS firewall rebuilds); then sshd answered over
+  Ziti with ugreen's known host key. Passed, with the caveat that a
+  host's own loopback filtering is a runbook step now.
 - OpenTofu (C3), tested 2026-11-07 with `scripts/ziti-c3-tofu.sh`
   (fixture `ziti/tofu-c3/main.tf`, OpenTofu 1.13.9, `netfoundry/ziti`
   2.2.1; the 0.0.5 named in the criterion is long gone). Passed: intercept
