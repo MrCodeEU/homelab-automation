@@ -11,8 +11,12 @@
 # - --dns-ip-range: the default 100.64.0.1/10 overlaps Tailscale's CGNAT
 #   addresses; 198.18.0.0/16 (RFC 2544 benchmarking) does not. Its first
 #   address is the tunneler's DNS server.
-# - Identity: /var/lib/ziti-edge-tunnel/laptop-mrcode.json; the entrypoint
-#   enrols laptop-mrcode.jwt from the same dir on first start.
+# - Identities: every *.json in /var/lib/ziti-edge-tunnel (the entrypoint
+#   runs with --identity-dir when ZITI_IDENTITY_BASENAME is unset). Needed
+#   for `ziti-edge-tunnel add` (enrolment through Authelia, C15), which
+#   refuses without an identity dir. scripts/ziti-laptop-tunnel.sh enrols
+#   laptop-mrcode.jwt itself, since the entrypoint ignores tokens in this
+#   mode.
 [Unit]
 Description=OpenZiti tunneler (ziti-edge-tunnel)
 Wants=network-online.target
@@ -28,7 +32,6 @@ AddCapability=NET_ADMIN
 SecurityLabelDisable=true
 Volume=/var/lib/ziti-edge-tunnel:/ziti-edge-tunnel
 Volume=/run/dbus/system_bus_socket:/run/dbus/system_bus_socket
-Environment=ZITI_IDENTITY_BASENAME=laptop-mrcode
 Exec=run --dns-ip-range 198.18.0.1/16
 
 [Service]
