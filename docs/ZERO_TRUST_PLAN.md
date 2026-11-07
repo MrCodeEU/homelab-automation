@@ -512,6 +512,23 @@ depends on them yet.
 **Gate:** every must-criterion passes: go to Phase 4. Otherwise stop, or
 change the design and repeat the failing criteria.
 
+**Gate result, 2026-11-07: go to Phase 4.** Every criterion has a
+result. Must: C1, C2, C5, C8, C9, C10, C11, C12, C13 and C14 passed. C6
+passed for the external path (mljr to nas, 101 % both ways with a router
+on nas); C6 on the LAN did not (about 65 %, and traffic routed through
+mljr), with the root cause known: the shared `#all` policies and missing
+link groups. Accepted as a design change, not a stop: the fix is part of
+Phase 4 (attribute-based policies, link groups) and Phase 5 (router on
+nas), and C6 LAN is the gate for any LAN-only service on Ziti. Deciding:
+C3 passed, so policy as code uses OpenTofu; C15 passed, so a device joins
+the overlay through Authelia without an enrolment file. Nice-to-have and
+informational: C4 passed (CI uses its OIDC token), C7 passed (armv7
+tunneler on wd_mycloud). Carried into Phase 4: the controller's public
+certificate for the client API (URL-only enrolment needs it, C15), the
+laptop DNS gotcha while Tailscale is in parallel (C14), cAdvisor no
+longer reporting the controller container (C5), and an upstream report
+of the `restore-from-db` OIDC bug (C2).
+
 ### Phase 4: Ziti production for mljr, nuc, ugreen
 
 - Policy as code from `services_catalog` (OpenTofu, or the Go reconciler
