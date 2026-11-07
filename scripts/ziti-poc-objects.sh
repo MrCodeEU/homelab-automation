@@ -86,11 +86,11 @@ service_policy nuc-alloy-bind Bind '@nuc.int.mljr.eu' '@nuc-alloy'
 
 # --- ssh (wildcard, addressable terminators) ---------------------------------
 config ssh-intercept intercept.v1 \
-  '{"protocols":["tcp"],"addresses":["mljr.int.mljr.eu","nuc.int.mljr.eu"],"portRanges":[{"low":22,"high":22}],"dialOptions":{"identity":"$dst_hostname"}}'
+  '{"protocols":["tcp"],"addresses":["mljr.int.mljr.eu","nuc.int.mljr.eu","ugreen.int.mljr.eu"],"portRanges":[{"low":22,"high":22}],"dialOptions":{"identity":"$dst_hostname"}}'
 config ssh-host host.v1 \
   '{"protocol":"tcp","address":"127.0.0.1","port":22,"listenOptions":{"bindUsingEdgeIdentity":true}}'
 service ssh admin-services ssh-intercept,ssh-host
-service_policy ssh-bind Bind '@mljr.int.mljr.eu,@nuc.int.mljr.eu' '@ssh'
+service_policy ssh-bind Bind '@mljr.int.mljr.eu,@nuc.int.mljr.eu,@ugreen.int.mljr.eu' '@ssh'
 
 z edge logout >/dev/null 2>&1 || true
 REMOTE

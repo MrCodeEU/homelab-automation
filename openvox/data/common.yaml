@@ -446,6 +446,14 @@ services_catalog:
     description: "OpenZiti private edge router (LAN)"
     icon: "mdi:router-network"
 
+  # ugreen hosts its own services (docs/ZITI_ENROLL.md).
+  - name: ziti-router-ugreen
+    enabled: true
+    port: 0
+    host: ugreen
+    description: "OpenZiti private edge router (LAN)"
+    icon: "mdi:router-network"
+
   - name: goaccess
     enabled: true
     domain: "logs.mljr.eu"
