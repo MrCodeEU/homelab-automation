@@ -1,0 +1,3 @@
+---
+# Fake value: only checks that roles::backup writes the ugreen key.
+vault_backup_remote_ssh_key: "spec-only-not-a-key"

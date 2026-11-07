@@ -30,7 +30,7 @@ copies:
 | Copy | Where | For |
 |---|---|---|
 | plain | `ugreen:mljr/sensitive/ziti-controller/ziti-controller.tgz` | the normal restore |
-| age-encrypted | pCloud `homelab-backups/sensitive/ziti-controller.tar.age`, plus daily/weekly/monthly history under `homelab-backups-history/mljr/<timestamp>/ziti-controller/` | when ugreen is lost too |
+| age-encrypted | pCloud `homelab-backups/sensitive/ziti-controller.tar.age` (latest only: history is off on mljr) | when ugreen is lost too |
 
 The age private key is only in Bitwarden (`homelab ziti backup age key`);
 the public key is `roles::backup::sensitive_age_recipient`. wd-cloud gets

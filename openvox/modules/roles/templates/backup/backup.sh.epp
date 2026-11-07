@@ -96,7 +96,13 @@ send_notification() {
 
 UGREEN_AVAILABLE=0
 probe_ugreen() {
-    [ -f "$UGREEN_KEY" ] || return 0
+    # A missing key used to skip ugreen silently (mljr, 2026-10-25 to
+    # 2026-11-07): say so, loudly, every run.
+    if [ ! -f "$UGREEN_KEY" ]; then
+        log_error "ugreen key $UGREEN_KEY is missing - no on-prem copy this run"
+        send_notification "ugreen key missing on <%= $hostname %>: backups go to pCloud only (vault_backup_remote_ssh_key)" "high"
+        return 0
+    fi
     if timeout 60s rclone mkdir "${UGREEN_REMOTE}-probe-$$" \
             --sftp-key-file "$UGREEN_KEY" \
             --timeout 20s --contimeout 20s --retries 1 >/dev/null 2>&1; then
