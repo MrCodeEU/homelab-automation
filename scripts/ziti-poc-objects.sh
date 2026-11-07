@@ -12,6 +12,11 @@
 #     (enroll-to-cert or enroll-to-token, no enrolment file). The identity
 #     is named after preferred_username, gets the Authelia groups as
 #     attributes and is matched by the OIDC sub (external id).
+#   - ext-jwt signer github-actions (C4): a workflow logs in with the job's
+#     own OIDC token (audience ziti-homelab), matched by job_workflow_ref,
+#     so one identity belongs to one workflow file on one branch. Such an
+#     identity gets auth policy ci-github: that signer only, no
+#     certificate, no password.
 #   - each service is bound (hosted) by named router identities (@name)
 #   - every identity may use every router, every service every router
 #
@@ -60,19 +65,30 @@ service_policy() { # name Bind|Dial identity-roles service-roles
     z edge create service-policy "$1" "$2" --identity-roles "$3" --service-roles "$4" >/dev/null; echo "service-policy $1: created"
   fi
 }
-ext_jwt_signer() { # name, then the options shared by create and update
-  local name=$1; shift
+ext_jwt_signer() { # name issuer, then the options shared by create and update
+  local name=$1 issuer=$2; shift 2
   if exists ext-jwt-signers "$name"; then
     z edge update ext-jwt-signer "$name" "$@" >/dev/null; echo "ext-jwt-signer $name: updated"
   else
-    z edge create ext-jwt-signer "$name" "https://auth.mljr.eu" "$@" >/dev/null; echo "ext-jwt-signer $name: created"
+    z edge create ext-jwt-signer "$name" "$issuer" "$@" >/dev/null; echo "ext-jwt-signer $name: created"
   fi
 }
-idp_identity() { # name external-id(OIDC sub) attrs
-  if exists identities "$1"; then
-    z edge update identity "$1" --external-id "$2" -a "$3" >/dev/null; echo "identity $1: updated"
+signer_only_auth_policy() { # name ext-jwt-signer-name
+  local signer
+  signer=$(z edge list ext-jwt-signers "name=\"$2\"" -j | jq -r '.data[0].id')
+  if exists auth-policies "$1"; then
+    z edge update auth-policy "$1" --primary-cert-allowed=false --primary-updb-allowed=false \
+      --primary-ext-jwt-allowed --primary-ext-jwt-allowed-signers "$signer" >/dev/null; echo "auth-policy $1: updated"
   else
-    z edge create identity "$1" --external-id "$2" -a "$3" -P Default >/dev/null; echo "identity $1: created"
+    z edge create auth-policy "$1" \
+      --primary-ext-jwt-allowed --primary-ext-jwt-allowed-signers "$signer" >/dev/null; echo "auth-policy $1: created"
+  fi
+}
+idp_identity() { # name external-id attrs [auth-policy]
+  if exists identities "$1"; then
+    z edge update identity "$1" --external-id "$2" -a "$3" -P "${4:-Default}" >/dev/null; echo "identity $1: updated"
+  else
+    z edge create identity "$1" --external-id "$2" -a "$3" -P "${4:-Default}" >/dev/null; echo "identity $1: created"
   fi
 }
 edge_router_policy() { # name identity-roles router-roles
@@ -98,7 +114,7 @@ service_policy admin-dial Dial '#admin,#admins' '#admin-services'
 # The controller fetches Authelia's keys over the public internet (it runs
 # on mljr, next to Authelia). Audience and client id are the Authelia
 # client; the ID token is used because Authelia's access tokens are opaque.
-ext_jwt_signer authelia -u https://auth.mljr.eu/jwks.json -a ziti \
+ext_jwt_signer authelia https://auth.mljr.eu -u https://auth.mljr.eu/jwks.json -a ziti \
   --client-id ziti --scopes profile,email,groups --target-token ID \
   -c sub -x -y https://auth.mljr.eu \
   --enroll-to-cert --enroll-to-token \
@@ -109,6 +125,14 @@ ext_jwt_signer authelia -u https://auth.mljr.eu/jwks.json -a ziti \
 # Needed because enroll-to-cert/-token fetches /network-jwts with the OS
 # trust store, and the client API's certificate is from our private CA (C15).
 idp_identity idp-admin 4a76133b-3e28-4917-b53e-5f46367f23bc admins
+# GitHub's issuer and keys are public; the audience is ours, so a token a
+# job requested for any other service is refused.
+ext_jwt_signer github-actions https://token.actions.githubusercontent.com \
+  -u https://token.actions.githubusercontent.com/.well-known/jwks \
+  -a ziti-homelab -c job_workflow_ref -x
+signer_only_auth_policy ci-github github-actions
+# .github/workflows/ziti-c4.yml on main, and nothing else (C4).
+idp_identity ci-ziti-c4 'MrCodeEU/homelab-automation/.github/workflows/ziti-c4.yml@refs/heads/main' ci ci-github
 edge_router_policy all-identities-all-routers '#all' '#all'
 serp all-services-all-routers '#all' '#all'
 
@@ -118,6 +142,7 @@ config nuc-alloy-intercept intercept.v1 \
 config nuc-alloy-host host.v1 '{"protocol":"tcp","address":"127.0.0.1","port":12345}'
 service nuc-alloy admin-services nuc-alloy-intercept,nuc-alloy-host
 service_policy nuc-alloy-bind Bind '@nuc.int.mljr.eu' '@nuc-alloy'
+service_policy nuc-alloy-ci-dial Dial '@ci-ziti-c4' '@nuc-alloy'
 
 # --- ssh (wildcard, addressable terminators) ---------------------------------
 config ssh-intercept intercept.v1 \
