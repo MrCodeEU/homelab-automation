@@ -161,6 +161,23 @@ describe 'roles::backup' do
   end
 
   it { is_expected.not_to contain_package('age') }
+  it { is_expected.not_to contain_file('/opt/backup-remote/ssh/id_ed25519') }
+
+  context 'with the ugreen key in eyaml' do
+    let(:hiera_config) { File.expand_path('../fixtures/backup_hiera.yaml', __dir__) }
+
+    it do
+      is_expected.to contain_file('/opt/backup-remote/ssh/id_ed25519').with(
+        mode: '0600', owner: 'root', show_diff: false,
+      )
+    end
+    it { is_expected.to contain_file('/opt/backup-remote/ssh').with(mode: '0700') }
+  end
+
+  it 'alerts when the ugreen key is missing instead of skipping silently' do
+    expect(catalogue.resource('File', '/opt/backups/scripts/backup.sh')[:content])
+      .to match(%r{send_notification "ugreen key missing on spec-host: .*" "high"})
+  end
 
   context 'when backup CPU quota is configured' do
     let(:params) do

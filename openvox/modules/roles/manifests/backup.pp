@@ -507,6 +507,29 @@ class roles::backup (
     "# rclone configuration for pCloud\n# Managed by OpenVox - do not edit manually\n\n[${remote_name}]\ntype = pcloud\nhostname = eapi.pcloud.com\ntoken = ${pcloud_token.unwrap}\n\n[ugreen]\ntype = sftp\nhost = 100.100.10.4\nuser = rclone-backup\nkey_file = /opt/backup-remote/ssh/id_ed25519\nshell_type = unix\nmd5sum_command = none\nsha1sum_command = none\n${wd_cloud_block}"
   )
 
+  # The ugreen leg's key. Generated on nuc (roles::backup_remote_key); any
+  # other backup host gets the same private key from its own eyaml
+  # (vault_backup_remote_ssh_key), so a rebuild restores it. mljr ran
+  # without it from its EL10 rebuild (2026-10-25) to 2026-11-07, because it
+  # had only ever been copied by hand.
+  $backup_remote_ssh_key = Sensitive(lookup('vault_backup_remote_ssh_key', { 'default_value' => '' }))
+  if $backup_remote_ssh_key.unwrap != '' {
+    file { ['/opt/backup-remote', '/opt/backup-remote/ssh']:
+      ensure => directory,
+      owner  => 'root',
+      group  => 'root',
+      mode   => '0700',
+    }
+    file { '/opt/backup-remote/ssh/id_ed25519':
+      ensure    => file,
+      owner     => 'root',
+      group     => 'root',
+      mode      => '0600',
+      content   => Sensitive("${backup_remote_ssh_key.unwrap}\n"),
+      show_diff => false,
+    }
+  }
+
   file { "${rclone_config_path}/rclone.conf":
     ensure    => file,
     mode      => '0600',
