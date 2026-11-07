@@ -68,6 +68,13 @@ ext_jwt_signer() { # name, then the options shared by create and update
     z edge create ext-jwt-signer "$name" "https://auth.mljr.eu" "$@" >/dev/null; echo "ext-jwt-signer $name: created"
   fi
 }
+idp_identity() { # name external-id(OIDC sub) attrs
+  if exists identities "$1"; then
+    z edge update identity "$1" --external-id "$2" -a "$3" >/dev/null; echo "identity $1: updated"
+  else
+    z edge create identity "$1" --external-id "$2" -a "$3" -P Default >/dev/null; echo "identity $1: created"
+  fi
+}
 edge_router_policy() { # name identity-roles router-roles
   if exists edge-router-policies "$1"; then
     z edge update edge-router-policy "$1" --identity-roles "$2" --edge-router-roles "$3" >/dev/null; echo "edge-router-policy $1: updated"
@@ -97,6 +104,11 @@ ext_jwt_signer authelia -u https://auth.mljr.eu/jwks.json -a ziti \
   --enroll-to-cert --enroll-to-token \
   --enroll-name-claims-selector /preferred_username \
   --enroll-attr-claims-selector /groups
+# One identity per Authelia user, matched by the OIDC sub; every device of
+# that user logs in as it (ext-jwt-login after `add` with the network JWT).
+# Needed because enroll-to-cert/-token fetches /network-jwts with the OS
+# trust store, and the client API's certificate is from our private CA (C15).
+idp_identity idp-admin 4a76133b-3e28-4917-b53e-5f46367f23bc admins
 edge_router_policy all-identities-all-routers '#all' '#all'
 serp all-services-all-routers '#all' '#all'
 

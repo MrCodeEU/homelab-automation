@@ -379,6 +379,30 @@ live noop and apply under the new certname.
   `*.int.mljr.eu` and the Ziti names stop resolving. Workaround while
   both run: `sudo systemctl restart ziti-edge-tunnel` after switching
   Tailscale. Without Tailscale the problem does not exist.
+- Ziti login through the IdP (C15), tested 2026-11-07 on the laptop with
+  Tailscale down: `ziti-edge-tunnel add -j <network JWT>` (public: only
+  the controller URL and CA, from `ziti edge list network-jwts`), then
+  `ext-jwt-login -p authelia`, browser login at Authelia as `admin`. The
+  controller logged `authentication success` for identity `idp-admin`,
+  then a circuit to `ssh`, and nuc's sshd accepted the opkssh key from
+  `127.0.0.1`. Passed: a device gets on the overlay with the IdP login
+  and a public file, no one-time token. Findings:
+  - Enrolment with only the controller URL (`add -u ... -m cert|token`,
+    the identity created at first login) does not work yet: the SDK
+    fetches `/network-jwts` with the OS trust store, and the client
+    API's certificate is from our private CA. Phase 4: a publicly
+    trusted certificate for `ctrl.ziti.mljr.eu`'s client API (alternate
+    server certificate), then a device needs nothing but the URL.
+  - Until then, one identity per Authelia user (`idp-admin`, external
+    id = OIDC `sub`, created by `scripts/ziti-poc-objects.sh`); every
+    device of that user logs in as it.
+  - The Ziti SDK sends `audience=ziti`; Authelia needs the audience on
+    the client (#537), otherwise `invalid_target`.
+  - `ext-jwt-login` returns the URL and exits; the login only counts once
+    the browser page reports success. A token-only identity needs the
+    browser login again after every tunneler restart.
+  - The laptop's tunneler must load an identity directory (#536), else
+    `add` refuses with "add command requires an identity-dir".
 - OpenTofu (C3), tested 2026-11-07 with `scripts/ziti-c3-tofu.sh`
   (fixture `ziti/tofu-c3/main.tf`, OpenTofu 1.13.9, `netfoundry/ziti`
   2.2.1; the 0.0.5 named in the criterion is long gone). Passed: intercept
