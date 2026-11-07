@@ -324,6 +324,32 @@ live noop and apply under the new certname.
   LAN is not passed with its root cause known, and the fix moves to
   Phase 4 (attribute-based policies, link groups) and Phase 5 (router on
   nas).
+- OpenTofu (C3), tested 2026-11-07 with `scripts/ziti-c3-tofu.sh`
+  (fixture `ziti/tofu-c3/main.tf`, OpenTofu 1.13.9, `netfoundry/ziti`
+  2.2.1; the 0.0.5 named in the criterion is long gone). Passed: intercept
+  and host configs, a service, Bind and Dial service policies, an
+  edge-router and a service-edge-router policy were created (7), updated
+  (port, roles, attributes: 5 changed) and deleted (one by dropping it from
+  the config, the rest by destroy), with an empty `tofu plan` after every
+  apply and the controller showing each change. Importing the live `ssh`
+  objects and the shared `#all` policies works
+  (`plan -generate-config-out`); the generated config still needs the
+  computed defaults (`config_type_id`, host `listen_options` cost 0,
+  `max_connections` 65535, precedence `default`) added by hand, and it
+  writes roles as `@<id>`. Phase 4 therefore uses OpenTofu, not the Go
+  reconciler, with these constraints:
+  - The provider skips TLS verification on every management API call
+    (`internal/provider/common.go`; a configured `ca` is used only for
+    the mTLS login). Run it only where the path to the controller cannot
+    be intercepted: on mljr against `127.0.0.1:8440` as the test does, or
+    later through a Ziti service for the management API. Never over the
+    internet or a LAN.
+  - Write every role list sorted. The controller returns them sorted and
+    the provider compares ordered lists, so `["#c3-routers", "#c3-lan"]`
+    never converged (perpetual diff).
+  - The OpenTofu registry has no GPG key for the provider ("Signature
+    validation was skipped"): commit `.terraform.lock.hcl` so the provider
+    hashes are pinned.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.
@@ -337,7 +363,7 @@ Phase 4; the others decide tooling or shape later phases.
 |---|---|---|---|
 | C1 | Enrol a new Linux host | ≤ 15 min from zero to a reachable service, following a written runbook | must |
 | C2 | Controller DR | Snapshot restore onto a fresh mljr in ≤ 60 min; existing identities and routers reconnect via `ctrl.ziti.mljr.eu` without re-enrolment. Degraded mode on nuc: clients reconnect ≤ 15 min after the DNS flip | must |
-| C3 | OpenTofu provider (`netfoundry/ziti` 0.0.5 or community `nenkoru/ziti`) | Services, service policies and edge-router policies can be created, updated and deleted against the self-hosted controller; `tofu plan` is empty after apply | decides tooling (fail: Go reconciler) |
+| C3 | OpenTofu provider (`netfoundry/ziti`, tested 2.2.1, or community `nenkoru/ziti`) | Services, service policies and edge-router policies can be created, updated and deleted against the self-hosted controller; `tofu plan` is empty after apply | decides tooling (fail: Go reconciler) |
 | C4 | GitHub Actions OIDC | A CI job dials a Ziti service through an external JWT signer, with no long-lived secret | nice-to-have (fail: CI stays on Tailscale) |
 | C5 | Cost on mljr | Controller and public router together use ≤ 400 MB RAM steady and ≤ 10 % of one core on average | must |
 | C6 | Data path | External: mljr to nas over Ziti, with a Ziti endpoint on nas, reaches ≥ 90 % of the Tailscale path measured back to back, on a circuit mljr router to nas with no hop through nuc. LAN: nas to ugreen over Ziti reaches ≥ 75 % of the direct path measured back to back, with no traffic through mljr. `scripts/ziti-c6-iperf.sh` | must (a hairpin is an architecture failure) |
@@ -475,7 +501,8 @@ Baselined in Phase 0 and re-measured at every gate.
 ## Open items, deferred to PoC exit criteria on purpose
 
 - Whether the wd_mycloud armv7 tunneler runs at all, and how nas enrols.
-- Whether the Ziti OpenTofu provider covers the needed resources.
+- Whether the Ziti OpenTofu provider covers the needed resources. (C3:
+  yes, with the constraints above.)
 - Whether GitHub Actions OIDC works as a Ziti external JWT signer.
 - How Caddy on mljr reaches backends over Ziti (tunneler intercept vs SDK).
 - Whether `apply()` in OpenBolt needs an agent on the target.
