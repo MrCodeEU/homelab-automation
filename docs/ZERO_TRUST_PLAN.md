@@ -324,6 +324,28 @@ live noop and apply under the new certname.
   LAN is not passed with its root cause known, and the fix moves to
   Phase 4 (attribute-based policies, link groups) and Phase 5 (router on
   nas).
+- Controller DR (C2), tested 2026-11-07, runbook
+  [ZITI_DR.md](ZITI_DR.md). Degraded mode: the controller restored on
+  nuc, `ctrl.ziti.mljr.eu` pointed at it on nuc, the mljr controller
+  stopped. nuc's router was online 8 s after the flip, and an identity
+  enrolled before the backup logged in fresh and connected after 13 s
+  (target 15 min). Restore onto an empty data directory on mljr: 15 s,
+  routers back 9 s later, no re-enrolment anywhere. Not measured: the OS
+  reinstall and OpenVox run before it (Phase 7 DR drill). Findings:
+  - The backup is a cold copy of `data/pki` and `data/raft` (controller
+    stopped for 452 ms). `ziti fabric db snapshot` with `ziti agent
+    cluster restore-from-db` is unusable: the restored controller
+    rejects its own OIDC access tokens (SDK and CLI logins
+    `UNAUTHORIZED`) once its leaf certificate is re-issued, which the
+    container does on every start. Keeping the old leaf
+    (`ZITI_AUTO_RENEW_CERTS=false`) hides it only until the next
+    restart. Seen on nuc and on mljr; worth an upstream report.
+  - Docker containers in host networking keep the `/etc/hosts` copy
+    made at creation, so a local DNS override must also go into each
+    container's hosts file.
+  - Open: the controller is in no backup yet. Its data holds the
+    intermediate CA key, and `roles::backup` sends every service to
+    pCloud unencrypted, so it cannot simply be added there.
 - OpenTofu (C3), tested 2026-11-07 with `scripts/ziti-c3-tofu.sh`
   (fixture `ziti/tofu-c3/main.tf`, OpenTofu 1.13.9, `netfoundry/ziti`
   2.2.1; the 0.0.5 named in the criterion is long gone). Passed: intercept
