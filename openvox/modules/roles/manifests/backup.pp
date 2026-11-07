@@ -230,15 +230,20 @@ class roles::backup (
     | NOCTURNE_RESTORE
 
   # Cold copy of the controller (docs/ZITI_DR.md): stopped for under a
-  # second so pki/ and raft/ are consistent. `ziti fabric db snapshot`
-  # plus restore-from-db is not usable (C2). Started again even if tar
-  # fails.
+  # second so pki/ and raft/ are consistent, and with them the OpenTofu
+  # state in tofu/ (scripts/ziti-tofu.sh; encrypted, the provider cache is
+  # left out). `ziti fabric db snapshot` plus restore-from-db is not usable
+  # (C2). Started again even if tar fails.
   $ziti_controller_pre_hook = @(ZITI_PRE)
     install -d -m 700 /opt/backups/ziti-controller
+    tofu=
+    [ -d /opt/ziti-controller/tofu ] && tofu=tofu
     docker stop ziti-controller > /dev/null
     rc=0
-    ( umask 077; tar -C /opt/ziti-controller/data --exclude='events*.log' \
-        -czf /opt/backups/ziti-controller/ziti-controller.tgz pki raft ) || rc=$?
+    # shellcheck disable=SC2086  # $tofu is empty or one word
+    ( umask 077; tar --exclude='events*.log' --exclude='tofu/.terraform' \
+        -czf /opt/backups/ziti-controller/ziti-controller.tgz \
+        -C /opt/ziti-controller/data pki raft -C /opt/ziti-controller $tofu ) || rc=$?
     docker start ziti-controller > /dev/null || rc=1
     exit $rc
     | ZITI_PRE

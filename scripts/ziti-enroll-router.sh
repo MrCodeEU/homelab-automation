@@ -38,7 +38,7 @@ esac
 # base: roles::services::base_path of that host (docs/ZITI_ENROLL.md).
 data="$base/$svc/data"
 # On the controller a router is named after its host's certname, so the
-# wildcard ssh service can address it (scripts/ziti-poc-objects.sh). The
+# wildcard ssh service can address it (ziti/tofu/services.tf). The
 # local name ($name) stays the router's file and container naming.
 ctrl_name="$name.int.mljr.eu"
 
