@@ -22,6 +22,13 @@ if [ ! -d "$BASE" ]; then
     exit 1
 fi
 
+# 0. TCP: cap unsent data per socket. Unraid ships tcp_wmem max 16 MB and
+#    no notsent limit, so one connection can queue seconds of data; Ziti's
+#    xgress then sees a huge RTT and retransmits data that was never lost
+#    (docs/ZERO_TRUST_PLAN.md C6: nas -> mljr over a Ziti router went from
+#    ~64 % to 97-99 % of Tailscale). Also kept live by sysctl-apply.sh.
+sysctl -qw net.ipv4.tcp_notsent_lowat=131072 && log "set net.ipv4.tcp_notsent_lowat=131072"
+
 # 1. Re-link helper binaries into PATH (/usr/local/bin is tmpfs).
 if [ -d "$BASE/bin" ]; then
     for src in "$BASE"/bin/*; do

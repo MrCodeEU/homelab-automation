@@ -48,6 +48,17 @@ class roles::unraid_proxy (
     require => Exec['unraid-array-started'],
   }
 
+  # Live value now; bootstrap-content.sh restores it after every reboot.
+  # In a noop run before the first apply the scripts are not on disk yet;
+  # a missing check must read as "not in sync", not as an evaluation error.
+  exec { 'unraid-tcp-sysctl':
+    command  => "${work_dir}/sysctl-apply.sh",
+    unless   => "test -f ${work_dir}/sysctl-check.sh && ${work_dir}/sysctl-check.sh",
+    provider => 'shell',
+    path     => ['/usr/bin', '/bin'],
+    require  => Exec['unraid-array-started'],
+  }
+
   exec { 'unraid-schedule-merge':
     command => "${work_dir}/schedule-apply.sh",
     unless  => "${work_dir}/schedule-check.sh",
