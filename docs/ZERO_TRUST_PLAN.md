@@ -440,6 +440,20 @@ live noop and apply under the new certname.
   afterwards. Shapes Phase 5: wd_mycloud gets the tunneler in `run-host`
   mode from the same clamAV boot hook as Tailscale, and node_exporter
   must listen on `127.0.0.1` instead of its Tailscale address.
+- GitHub Actions OIDC (C4), tested 2026-11-07 (#541): the workflow
+  `.github/workflows/ziti-c4.yml` logs in to the controller with the
+  job's own OIDC token, then dials `nuc-alloy` with the Go SDK
+  (`ziti/c4/`). Nothing is stored in GitHub: no secret, no enrolled
+  identity. The ext-jwt signer `github-actions` checks GitHub's issuer
+  and keys and the audience `ziti-homelab`, and matches the identity by
+  `job_workflow_ref`. Identity `ci-ziti-c4` is bound to that file on
+  `main`; its auth policy `ci-github` allows only that signer, and it
+  may dial only `nuc-alloy`. Run 42410917827 on `main`: authenticated
+  in 2.2 s, HTTP 200 from Alloy. Run 42411014562, the same file from a
+  throwaway branch: refused with `401` (`externalId ...@refs/heads/test/c4-negative`
+  has no identity). Passed. The Phase 4 deploy path can use the same
+  pattern, one identity per workflow, in place of the Tailscale OAuth
+  client.
 - OpenTofu (C3), tested 2026-11-07 with `scripts/ziti-c3-tofu.sh`
   (fixture `ziti/tofu-c3/main.tf`, OpenTofu 1.13.9, `netfoundry/ziti`
   2.2.1; the 0.0.5 named in the criterion is long gone). Passed: intercept
