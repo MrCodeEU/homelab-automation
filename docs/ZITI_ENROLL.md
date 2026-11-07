@@ -71,6 +71,10 @@ scripts/ziti-poc-objects.sh          # ssh service now also on <h>
 ssh <h>.int.mljr.eu true             # from the laptop, with the tunneler up: over Ziti
 ```
 
+The first connection asks for the host key: compare it with the one
+already known for the host (`ssh-keygen -F <h>.tail33930.ts.net -l`)
+before accepting.
+
 `ziti edge list edge-routers` shows `<h>.int.mljr.eu` online, `ziti
 fabric list links` a connected link `<h> -> mljr`.
 
