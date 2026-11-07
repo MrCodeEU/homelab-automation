@@ -1,0 +1,3 @@
+# staged by scripts/ziti-tofu.sh on mljr only
+openvox-data/
+.terraform/
