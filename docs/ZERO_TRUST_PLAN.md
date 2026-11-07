@@ -301,6 +301,19 @@ live noop and apply under the new certname.
     it; the mesh baseline swings 47-102 between runs. Never through mljr.
   Consequence for Phase 4/5: nas gets a router, not a tunneler, and the
   sysctl becomes part of nas's managed config.
+  Retest 2026-11-07, sysctl now permanent (`roles::unraid_proxy`):
+  external with a router on nas 101 % both ways (download 179-187,
+  upload 146-157 Mbit/s). LAN with a router on nas as ingress
+  (`CLIENT_TUNNELER=router`, link listener on nas's LAN IP, nuc's router
+  links to it, measured link costs nas-nuc 13, nas-mljr 44): 53-67 Mbit/s
+  against 79-107 direct (about 65 %), and 2 of 3 runs routed nas -> mljr
+  -> ugreen even after the costs were measured. Smart routing's terminator
+  costs outweigh a 30-point link difference, and every policy is `#all`,
+  so nothing keeps a LAN-only service off mljr. Also seen: mljr linked to
+  nas's LAN listener, over Tailscale's subnet route. Phase 4/5 needs
+  attribute-based service-edge-router and edge-router policies (LAN-only
+  services on `#lan` routers only) and link groups, before LAN traffic can
+  be trusted to stay local.
 - Visibility wired up: metrics, denials, enrolments, new-identity alert,
   "overlay down" alert.
 - Tailscale fully unchanged.
