@@ -74,3 +74,10 @@ roles::vuln_scan::remote_docker_scans:
 
 # Recovery key login tested from the LAN 2026-10-25; password login is now off.
 roles::ssh_hardening::disable_passwords: true
+
+# SSH login through Authelia (roles::opkssh, C14): the OIDC sub of the
+# Authelia user `admin` (owner's choice 2026-11-07) may log in as root.
+roles::opkssh::auth_ids:
+  - user: root
+    identity: '4a76133b-3e28-4917-b53e-5f46367f23bc'
+    issuer: 'https://auth.mljr.eu'
