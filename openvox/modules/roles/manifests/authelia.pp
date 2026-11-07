@@ -97,6 +97,13 @@ class roles::authelia (
             undef   => [],
             default => "        claims_policy: '${c['claims_policy']}'",
           },
+          # Audiences a client may request with the `audience` parameter
+          # (the Ziti SDK sends audience=ziti); anything else is
+          # invalid_target.
+          $c['audience'] ? {
+            undef   => [],
+            default => join(['        audience:'] + $c['audience'].map |$a| { "          - '${a}'" }, "\n"),
+          },
           '        redirect_uris:',
           $c['redirect_uris'].map |$u| { "          - '${u}'" }.join("\n"),
           '        scopes:',
