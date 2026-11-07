@@ -359,6 +359,26 @@ live noop and apply under the new certname.
   timer after boot and UGOS firewall rebuilds); then sshd answered over
   Ziti with ugreen's known host key. Passed, with the caveat that a
   host's own loopback filtering is a runbook step now.
+- SSH through the IdP (C14), tested 2026-11-07 on nuc: `opkssh login`
+  against Authelia (client `opkssh`, two factors), then a plain
+  `ssh root@nuc` over Ziti, with no `-i` and no YubiKey; sshd logs
+  `Accepted publickey ... ECDSA-CERT`. Passed with Tailscale down on the
+  laptop. `roles::opkssh` maps the OIDC `sub` of the Authelia user `admin`
+  to `root` (Authelia's ID token carries no email claim, and two users
+  share the address anyway). Client: one binary (GitHub release for
+  Linux, macOS, Windows, Android, or Homebrew) and
+  `scripts/opkssh-laptop.sh`; the key lasts 24 h. Considered and not
+  taken: `netfoundry/ziti-ssh` (SSH CA as a Ziti service, own client;
+  v0.2.2, very young), kept as a Phase 8 option once C15 is done.
+  Parallel-run finding: the tunneler puts the `~.` routing domain on
+  `ziti0` only while another link (`tailscale0`) has one, and it only
+  re-checks on its own events. After `tailscale down`, the stale `~.`
+  sends every lookup to Ziti's DNS, which answers `REFUSED` for names it
+  does not intercept: no DNS at all, the tunneler cannot even resolve
+  `ctrl.ziti.mljr.eu`. After `tailscale up`, Tailscale's `~.` takes
+  `*.int.mljr.eu` and the Ziti names stop resolving. Workaround while
+  both run: `sudo systemctl restart ziti-edge-tunnel` after switching
+  Tailscale. Without Tailscale the problem does not exist.
 - OpenTofu (C3), tested 2026-11-07 with `scripts/ziti-c3-tofu.sh`
   (fixture `ziti/tofu-c3/main.tf`, OpenTofu 1.13.9, `netfoundry/ziti`
   2.2.1; the 0.0.5 named in the criterion is long gone). Passed: intercept
