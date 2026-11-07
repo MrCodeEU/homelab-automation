@@ -67,7 +67,11 @@ groups:
           severity: critical
 
       # A router's reported metrics disappear while it is disconnected from
-      # the controller; this lists routers seen in the last 24 h but not now.
+      # the controller. Routers are listed by id (stable across
+      # --reenroll; a recreated router gets a new id, update it here):
+      # "seen in the last 24 h" also caught every deleted test router.
+      # Only while the controller itself is scraped, so a dead controller
+      # raises one alert, not three.
       - uid: ziti-router-offline
         title: Ziti router offline
         condition: C
@@ -77,8 +81,14 @@ groups:
             datasourceUid: prometheus
             model:
               expr: >-
-                group by (source_id) (max_over_time(ziti_edge_connections[24h]))
-                unless group by (source_id) (ziti_edge_connections)
+                (
+                  label_replace(vector(1) unless on() group(ziti_edge_connections{source_id="TxITxNDzp"}),
+                    "router", "mljr.int.mljr.eu", "", "")
+                  or
+                  label_replace(vector(1) unless on() group(ziti_edge_connections{source_id="9UoZxNDzp"}),
+                    "router", "nuc.int.mljr.eu", "", "")
+                )
+                and on() (max(up{job="ziti-controller"}) == 1)
               instant: true
               refId: A
           - refId: C
@@ -93,11 +103,50 @@ groups:
         execErrState: Error
         for: 5m
         annotations:
-          summary: 'Ziti router {{ $labels.source_id }} is offline.'
+          summary: 'Ziti router {{ $labels.router }} is offline.'
           description: >-
-            Router id {{ $labels.source_id }} stopped reporting to the
-            controller. Name: `ziti edge list edge-routers` (admin listener,
-            docs/ZERO_TRUST_PLAN.md). Services it hosts are unreachable.
+            {{ $labels.router }} stopped reporting to the controller. Check
+            `docker logs` of its ziti-router container. Services it hosts
+            are unreachable over Ziti.
+        labels:
+          severity: critical
+
+      # The nuc -> mljr link (nuc dials, mljr listens on 8442) while both
+      # routers stay up, e.g. 8442 blocked or the home uplink dropping TCP
+      # while the control channel (8441) survives. Its metrics vanish when
+      # the link closes. Same id pinning and controller guard as above.
+      - uid: ziti-link-down
+        title: Ziti link down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: >-
+                label_replace(
+                  vector(1) unless on() group(ziti_link_tx_msgrate{sourceRouterId="9UoZxNDzp",targetRouterId="TxITxNDzp"}),
+                  "link", "nuc.int.mljr.eu -> mljr.int.mljr.eu", "", "")
+                and on() (max(up{job="ziti-controller"}) == 1)
+              instant: true
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+              refId: C
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: 'Ziti link {{ $labels.link }} is down.'
+          description: >-
+            No link between the home router and mljr: services hosted at
+            home are unreachable from mljr over Ziti. Check
+            `ziti fabric list links` and nuc's router log.
         labels:
           severity: critical
 
