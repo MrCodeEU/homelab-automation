@@ -250,16 +250,23 @@ live noop and apply under the new certname.
   rotated at 10 MB, 3 kept) that Alloy tails into Loki (job `ziti-events`,
   label `namespace`). Grafana alert rules are provisioned from
   `services/grafana/provisioning/alerting/ziti.yml` and notify ntfy topic
-  `homelab-security`: controller down, router offline, identity created
-  or enrolled, failed logins, failed circuits. Policy denials have no
-  event of their own: a client is never issued a session for a service it
+  `homelab-security`: controller down, router offline, link down,
+  identity created or enrolled, failed logins, failed circuits. Policy
+  denials have no event of their own: a client is never issued a session for a service it
   may not dial, so failed logins and refused circuits stand in for them.
-  Still to do in Phase 3: fire the controller-down, router-offline and
-  circuit-failure rules once on purpose, and add and test an alert for the
-  nuc-mljr link going down while both routers stay up. The controller's
-  `ziti_link_*` metrics carry `sourceRouterId`/`targetRouterId`, so it can
-  follow the router-offline rule. (`latencyProbeInterval` in the router
-  configs is not read by 2.0.8; link costs are measured anyway.)
+  Router offline and link down list the production routers and the
+  nuc -> mljr link by router id (a recreated router gets a new id: update
+  the rule); the first version's "seen in the last 24 h" fired for every
+  deleted test router. Both stay silent while the controller is not
+  scraped. Fire-tested 2026-11-07, all delivered to ntfy and resolved:
+  failed circuits (dial to a temporary service on a closed port, 3
+  `ROUTER_ERR_CONN_REFUSED`, alert after 53 s); nuc router stopped (router
+  offline and link down after 7 min); nuc -> mljr:8442 dropped on nuc, v4
+  and v6, since the link runs over IPv6 (link down after 8 min, router
+  offline silent: the control channel on 8441 stayed up); controller
+  stopped (controller down after 7 min, the router and link rules silent).
+  (`latencyProbeInterval` in the router configs is not read by 2.0.8;
+  link costs are measured anyway.)
 - PKI expiry (C12): healthreport's `pki` collector reads the chains the
   controller (8441) and both routers (8442) present in a TLS handshake from
   nuc. Root and intermediate: notice from 365 days (the email's Notices
