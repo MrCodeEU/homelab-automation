@@ -41,6 +41,11 @@ roles::backup::services:
   - crowdsec
   - newsletter
   - canarytokens
+  - ziti-controller
+# Public half of the age key for sensitive_paths (ziti-controller's PKI);
+# the private key is only in Bitwarden: "homelab ziti backup age key"
+# (docs/ZITI_DR.md).
+roles::backup::sensitive_age_recipient: 'age18uzzj6whg55jteq03xf7wxph0swrj4t8lu9qkjwxhqtqra45ffkqukj0z0'
 roles::backup::hostname: 'mljr'
 # This 4vCPU/7.5GB VPS also runs every service it backs up - the default
 # 8/16 pCloud concurrency saturated it enough that Kuma's 48s timeout
