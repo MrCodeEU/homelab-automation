@@ -73,6 +73,15 @@ if ! $have_local; then
     | sudo tee "$DIR/$NAME.jwt" >/dev/null
   sudo chmod 600 "$DIR/$NAME.jwt"
   sudo test -s "$DIR/$NAME.jwt" || die "token handover failed"
+  # The Quadlet loads the whole identity dir, and in that mode the image's
+  # entrypoint does not enrol tokens: enrol here, with the same image.
+  say "Enrolling $NAME"
+  image=$(sed -n 's/^Image=//p' "$QUADLET")
+  sudo podman run --rm --security-opt label=disable -v "$DIR:/ziti-edge-tunnel" \
+    --entrypoint ziti-edge-tunnel "$image" \
+    enroll --jwt "/ziti-edge-tunnel/$NAME.jwt" --identity "/ziti-edge-tunnel/$NAME.json" >/dev/null \
+    || die "enrolment failed"
+  sudo rm -f "$DIR/$NAME.jwt"
 fi
 
 # --- 2. Quadlet + SSH short names ---------------------------------------------
