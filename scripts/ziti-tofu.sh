@@ -5,7 +5,9 @@
 # verification on every management call (C3), so it must never talk to
 # the controller over a network path.
 #
-# The *.tf files and the lock file are copied to $WORK on mljr; state stays
+# The *.tf files and the lock file are copied to $WORK on mljr, and
+# openvox/data/common.yaml plus the node files to $WORK/openvox-data/
+# (ziti/tofu/catalog.tf generates services from them); state stays
 # there (encrypted with ZITI_TOFU_KEY from /opt/ziti-controller/.env, eyaml
 # vault_ziti_tofu_key) and is part of the controller's cold backup. .tf
 # files that are no longer in the repo are removed from $WORK, so a
@@ -25,12 +27,16 @@ WORK=${ZITI_TOFU_WORK:-/opt/ziti-controller/tofu}
 
 die() { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
-# Copy the config to $WORK, dropping .tf files the repo no longer has.
+# Copy the config and catalog data to $WORK, dropping .tf files the repo
+# no longer has. Node files only, no secrets (those are in secrets/).
 sync_config() {
-  ssh "$CTRL_HOST" "install -d -m 700 $WORK && find $WORK -maxdepth 1 -name '*.tf' -delete"
+  ssh "$CTRL_HOST" "install -d -m 700 $WORK && find $WORK -maxdepth 1 -name '*.tf' -delete \
+    && rm -rf $WORK/openvox-data && install -d -m 700 $WORK/openvox-data/nodes"
   local files=("$SRC"/*.tf)
   [ -f "$SRC/.terraform.lock.hcl" ] && files+=("$SRC/.terraform.lock.hcl")
   scp -q "${files[@]}" "$CTRL_HOST:$WORK/"
+  scp -q "$REPO/openvox/data/common.yaml" "$CTRL_HOST:$WORK/openvox-data/"
+  scp -q "$REPO"/openvox/data/nodes/*.int.mljr.eu.yaml "$CTRL_HOST:$WORK/openvox-data/nodes/"
 }
 
 # tofu <args>: one OpenTofu run in $WORK. Secrets go from .env into the

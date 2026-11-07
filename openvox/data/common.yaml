@@ -401,6 +401,8 @@ services_catalog:
     description: "Uptime Monitoring"
     icon: "mdi:heart-pulse"
     backup_critical: true
+    # Ziti service kuma.nuc.int.mljr.eu:3001 (ziti/tofu/catalog.tf)
+    ziti: true
 
   - name: healthreport
     enabled: true
