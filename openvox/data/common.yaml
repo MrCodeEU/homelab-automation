@@ -429,6 +429,11 @@ services_catalog:
     caddy_auth: "authelia"
     # Over Ziti from Caddy on mljr; first one behind Authelia forward auth
     ziti_via_caddy: true
+    # VictoriaMetrics (remote_write, PromQL) and Loki (push) in the same
+    # compose project, for Alloy on other hosts (ziti/tofu/m2m.tf)
+    ziti_ports:
+      victoriametrics: 19090
+      loki: 3100
 
   - name: ntfy
     enabled: true
@@ -470,6 +475,15 @@ services_catalog:
     port: 0
     host: ugreen
     description: "OpenZiti private edge router (LAN)"
+    icon: "mdi:router-network"
+
+  # Ziti client for mljr's apps that cannot dial Ziti themselves (Alloy):
+  # `ziti tunnel proxy` as identity m2m-mljr, ports on 127.0.0.1 only.
+  - name: ziti-proxy
+    enabled: true
+    port: 0
+    host: mljr
+    description: "OpenZiti proxy for machine-to-machine traffic"
     icon: "mdi:router-network"
 
   - name: goaccess
