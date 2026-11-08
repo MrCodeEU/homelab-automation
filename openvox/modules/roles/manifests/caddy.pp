@@ -53,6 +53,10 @@
 # Caddy sets X-Appsec-Mode: block for `block`, strips it for `log`; the
 # homelab/poc AppSec config only enforces when the header is `block`.
 #
+# $log_rotate_* : logrotate, not Caddy, rotates /var/log/caddy (see the
+# caddy-logrotate block): size, rotated copies kept, their maximum age in
+# days, and gzip. Uncompressed by default, as Caddy's roll_uncompressed was.
+#
 # $ziti_transport (needs $custom_build): catalog entries with
 # `ziti_via_caddy: true` are proxied over OpenZiti instead of Tailscale,
 # with the ziti reverse_proxy transport built into the custom Caddy
@@ -67,10 +71,10 @@ class roles::caddy (
   String $log_path                = '/var/log',
   String $base_path              = '/opt',
   String $domain                 = 'mljr.eu',
-  String $roll_size              = '100mb',
-  Integer $roll_keep             = 3,
-  String $roll_keep_for          = '168h',
-  Boolean $roll_uncompressed     = true,
+  String $log_rotate_size        = '100M',
+  Integer $log_rotate_keep       = 3,
+  Integer $log_rotate_max_days   = 7,
+  Boolean $log_rotate_compress   = false,
   Boolean $is_staging_deployment = true,
   String $staging_domain_prefix  = 'dev',
   String $staging_host           = 'nuc',
@@ -314,10 +318,6 @@ class roles::caddy (
         'service'               => $svc,
         'target_host'           => $svc_target_host,
         'log_path'              => $log_path,
-        'roll_size'             => $roll_size,
-        'roll_keep'             => $roll_keep,
-        'roll_keep_for'         => $roll_keep_for,
-        'roll_uncompressed'     => $roll_uncompressed,
         'is_staging_deployment' => $is_staging_deployment,
         'staging_domain_prefix' => $staging_domain_prefix,
         'staging_target'        => $staging_target,
@@ -328,19 +328,90 @@ class roles::caddy (
     }
   }
 
+  # Caddy's own roll_size rotation renames the log, and SELinux lets httpd_t
+  # only create and append in httpd_log_t (no remove_name): every roll failed
+  # with "permission denied" and the logs stopped growing at 100 MB, so
+  # CrowdSec and Loki saw nothing new for those sites (found 2026-11-08,
+  # some stuck since 2026-10-27). logrotate runs as logrotate_t, which may
+  # manage these logs, with copytruncate: Caddy keeps its open file and the
+  # tailers (CrowdSec, Alloy, GoAccess's caddylog) keep the inode. Rotated
+  # copies are <name>.log-<date>, outside the *.log globs the tailers read.
+  # The list is explicit so the access-*-size.log files Caddy rotated before
+  # this are left to age out.
+  $staging_log_names = $is_staging_deployment ? {
+    true    => $caddy_services.filter |$svc| { pick($svc['staging'], false) }.map |$svc| { "${svc['name']}-staging" },
+    default => [],
+  }
+  $log_names = ['access', 'deploy'] + $caddy_services.map |$svc| { $svc['name'] } + $staging_log_names
+  $log_compress = $log_rotate_compress ? { true => 'compress', default => 'nocompress' }
+  $logrotate_paths = $log_names.unique.sort.map |$n| { "${log_path}/caddy/${n}.log" }.join("\n")
+
+  file { '/etc/caddy/logrotate.conf':
+    ensure  => file,
+    owner   => 'root',
+    group   => 'root',
+    mode    => '0644',
+    content => @("LOGROTATE"),
+      # Managed by OpenVox (roles::caddy). Run hourly by caddy-logrotate.timer.
+      ${logrotate_paths} {
+          su caddy caddy
+          size ${log_rotate_size}
+          rotate ${log_rotate_keep}
+          maxage ${log_rotate_max_days}
+          copytruncate
+          missingok
+          notifempty
+          dateext
+          dateformat -%Y%m%d-%s
+          ${log_compress}
+      }
+      | LOGROTATE
+    require => Exec['caddy-dirs'],
+  }
+
+  file { '/etc/systemd/system/caddy-logrotate.service':
+    ensure  => file,
+    owner   => 'root',
+    group   => 'root',
+    mode    => '0644',
+    content => "[Unit]\nDescription=Rotate Caddy logs (roles::caddy)\n\n[Service]\nType=oneshot\nExecStart=/usr/sbin/logrotate -s /var/lib/logrotate/caddy.status /etc/caddy/logrotate.conf\n",
+    notify  => Exec['caddy-logrotate-systemd-reload'],
+  }
+
+  file { '/etc/systemd/system/caddy-logrotate.timer':
+    ensure  => file,
+    owner   => 'root',
+    group   => 'root',
+    mode    => '0644',
+    content => "[Unit]\nDescription=Hourly Caddy log rotation\n\n[Timer]\nOnCalendar=hourly\nPersistent=true\nUnit=caddy-logrotate.service\n\n[Install]\nWantedBy=timers.target\n",
+    notify  => Exec['caddy-logrotate-systemd-reload'],
+  }
+
+  exec { 'caddy-logrotate-systemd-reload':
+    command     => '/usr/bin/systemctl daemon-reload',
+    refreshonly => true,
+  }
+
+  service { 'caddy-logrotate.timer':
+    ensure  => running,
+    enable  => true,
+    require => [
+      File['/etc/caddy/logrotate.conf'],
+      File['/etc/systemd/system/caddy-logrotate.service'],
+      File['/etc/systemd/system/caddy-logrotate.timer'],
+      Exec['caddy-logrotate-systemd-reload'],
+    ],
+  }
+
   file { '/etc/caddy/Caddyfile.openvox-staging':
     ensure  => file,
     mode    => '0644',
     content => epp('roles/caddy/Caddyfile.epp', {
-      'email'             => $email,
-      'log_path'          => $log_path,
-      'base_path'         => $base_path,
-      'domain'            => $domain,
-      'roll_size'         => $roll_size,
-      'roll_keep'         => $roll_keep,
-      'roll_keep_for'     => $roll_keep_for,
-      'roll_uncompressed' => $roll_uncompressed,
-      'appsec_enabled'    => $appsec_enabled,
+      'email'          => $email,
+      'log_path'       => $log_path,
+      'base_path'      => $base_path,
+      'domain'         => $domain,
+      'appsec_enabled' => $appsec_enabled,
     }),
     require => Exec['caddy-dirs'],
   }

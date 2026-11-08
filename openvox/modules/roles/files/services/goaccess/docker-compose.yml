@@ -12,11 +12,13 @@ services:
       - ./caddylog:/app/caddylog:ro
     working_dir: /app
     # On startup: process all rotated access logs (oldest first) for full history,
-    # then follow the current access.log for real-time updates.
+    # then follow the current access.log for real-time updates. Rotated logs
+    # are access.log-<date> (logrotate, roles::caddy); access-*.log are the
+    # older ones rotated by Caddy itself.
     command: >
       sh -c "touch /goaccess/access.goaccess.log &&
              echo 'Processing historical rotated logs...' &&
-             for f in $$(ls /logs/access-*.log 2>/dev/null | sort); do
+             for f in $$(ls -1tr /logs/access.log-* /logs/access-*.log 2>/dev/null); do
                ./caddylog -i \"$$f\" -t 0 -g /goaccess/access.goaccess.log || true;
              done &&
              echo 'Following current access.log for real-time updates...' &&
