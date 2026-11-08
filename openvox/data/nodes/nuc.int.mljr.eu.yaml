@@ -22,7 +22,6 @@ roles::backup::services:
   - umami
   - grafana
   - nocturne
-  - actual-budget
   - glucava
   - sure
   - defectdojo
@@ -81,3 +80,5 @@ roles::opkssh::auth_ids:
   - user: root
     identity: '4a76133b-3e28-4917-b53e-5f46367f23bc'
     issuer: 'https://auth.mljr.eu'
+# Cockpit (OS default on *:9090) is unused since nuc-webui was removed
+roles::base::cockpit_disabled: true

@@ -279,12 +279,6 @@ authelia_oidc_clients:
     redirect_uris:
       - http://localhost:20314/auth/callback
     scopes: [openid, profile, email, groups]
-  - id: actual-budget
-    name: Actual Budget
-    secret_digest: '$pbkdf2-sha512$310000$74Fp11OUInI57u5Wof13kg$F1Cn9dH/a44DQzH/hoDouEmxroCT7O9bLnvE1aRdNH8SjoR2R8FS/V/lleYN8iltLKwdEObvxbRehb/mbyXQKw'
-    redirect_uris:
-      - https://budget.mljr.eu/openid/callback
-    scopes: [openid, profile, email, groups]
   - id: sure
     name: Sure
     secret_digest: '$pbkdf2-sha512$310000$Zu5b8EHw1vN3/.j4Nkjt6w$FXEddbndFdia0mODUA9O1fz.vPkoCWOVGk0F0stV42bA4vknqdl.aYhiz594xuUn97UxyeSsZHcIhTnHCUuXIw'
@@ -361,25 +355,12 @@ services_catalog:
     icon: "mdi:water-percent"
     backup_critical: true
 
-  - name: actual-budget
-    enabled: true
-    domain: ["budget.mljr.eu", "actual.mljr.eu"]
-    port: 8096
-    host: nuc
-    description: "Personal finance / budgeting"
-    icon: "mdi:piggy-bank"
-    backup_critical: true
-    # actual.mljr.eu is an alias; the OIDC redirect URI is bound to budget.mljr.eu.
-    caddy_extra_config: |
-      @alias host actual.mljr.eu
-      redir @alias https://budget.mljr.eu{uri} permanent
-
   - name: sure
     enabled: true
     domain: "sure.mljr.eu"
     port: 8097
     host: nuc
-    description: "Personal finance (trial, alongside actual-budget)"
+    description: "Personal finance"
     icon: "mdi:finance"
     backup_critical: true
 
@@ -1013,26 +994,6 @@ services_catalog:
     icon: "mdi:file-document-multiple"
     caddy_auth: authelia
     backup_critical: true
-
-  - name: homeserver-ui
-    enabled: false
-    managed: false
-    domain: "nuc.mljr.eu"
-    port: 80
-    host: nuc
-    description: "Home Server (deprecated - use nuc-webui)"
-    icon: "mdi:server"
-
-  - name: nuc-webui
-    enabled: true
-    managed: false
-    domain: "nuc.mljr.eu"
-    port: 9090
-    host: nuc
-    description: "NUC WebUI provided by Rocky"
-    icon: "mdi:monitor-dashboard"
-    https_backend: true
-    caddy_auth: authelia
 
   - name: wordwiz
     enabled: true

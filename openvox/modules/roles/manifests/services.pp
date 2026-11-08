@@ -180,9 +180,6 @@ class roles::services (
       'ar_deterministic_key' => lookup('vault_sure_ar_deterministic_key', { 'default_value' => '' }),
       'ar_key_derivation_salt' => lookup('vault_sure_ar_key_derivation_salt', { 'default_value' => '' }),
     },
-    'actual-budget' => {
-      'oidc_client_secret' => lookup('vault_actual_oidc_client_secret', { 'default_value' => '' }),
-    },
     'defectdojo' => {
       'postgres_password' => lookup('vault_defectdojo_postgres_password', { 'default_value' => '' }),
       'secret_key'        => lookup('vault_defectdojo_secret_key', { 'default_value' => '' }),
