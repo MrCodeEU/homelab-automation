@@ -10,7 +10,9 @@
 #              roles::services::tailscale_ip from the host's node file, or
 #              127.0.0.1 where that is empty (mljr, Caddy is co-located).
 #   attributes catalog, catalog-<host>, admin-services (admins may dial
-#              every catalog service, as over Tailscale today)
+#              every catalog service, as over Tailscale today), and caddy
+#              for entries with `ziti_via_caddy: true` (implies ziti):
+#              mljr's Caddy dials them (caddy.tf)
 # Consumers get Dial policies by attribute, added with the consumer.
 
 locals {
@@ -18,7 +20,7 @@ locals {
 
   ziti_catalog = {
     for s in local.catalog : s.name => s
-    if try(s.ziti, false) && try(s.enabled, true)
+    if(try(s.ziti, false) || try(s.ziti_via_caddy, false)) && try(s.enabled, true)
   }
 
   # Hosts with a router on Ziti; a catalog service on any other host fails
@@ -58,10 +60,13 @@ resource "ziti_host_v1_config" "catalog" {
 }
 
 resource "ziti_service" "catalog" {
-  for_each        = local.ziti_catalog
-  name            = each.key
-  configs         = sort([ziti_intercept_v1_config.catalog[each.key].id, ziti_host_v1_config.catalog[each.key].id])
-  role_attributes = sort(["admin-services", "catalog", "catalog-${each.value.host}"])
+  for_each = local.ziti_catalog
+  name     = each.key
+  configs  = sort([ziti_intercept_v1_config.catalog[each.key].id, ziti_host_v1_config.catalog[each.key].id])
+  role_attributes = sort(concat(
+    ["admin-services", "catalog", "catalog-${each.value.host}"],
+    try(each.value.ziti_via_caddy, false) ? ["caddy"] : [],
+  ))
 }
 
 # One Bind policy per host: its router hosts that host's catalog services.
