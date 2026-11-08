@@ -398,6 +398,14 @@ services_catalog:
     description: "Daily homelab health report (collect, triage, ntfy + email)"
     icon: "mdi:clipboard-pulse"
 
+  - name: speedtest-metrics
+    enabled: true
+    port: 0
+    host: nuc
+    build_from_source: true
+    description: "Hourly internet speedtest into VictoriaMetrics"
+    icon: "mdi:speedometer"
+
   - name: crowdsec-nuc
     enabled: true
     port: 0

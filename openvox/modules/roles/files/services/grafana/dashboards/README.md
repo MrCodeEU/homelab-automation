@@ -29,6 +29,9 @@ Provisioned datasources use stable UIDs:
 - `homelab-dmarc.json`: DMARC pass rate, message volume by disposition, top
   sending sources and top failing sources - from dmarc-monitor's parsedmarc
   Postgres database, not Prometheus/Loki like the others.
+- `homelab-speedtest.json`: hourly internet speedtest from nuc (download,
+  upload, latency, jitter, failed runs), written by services/speedtest-metrics
+  straight into VictoriaMetrics.
 
 ## NAS / Unraid
 

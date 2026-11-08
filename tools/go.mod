@@ -5,6 +5,7 @@ go 1.26.0
 require (
 	github.com/breml/go-uptime-kuma-client v0.4.2
 	github.com/lib/pq v1.12.3
+	github.com/showwin/speedtest-go v1.8.3
 	golang.org/x/text v0.43.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -13,6 +14,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/maldikhan/go.socket.io v0.1.1 // indirect
 	github.com/maniartech/signals v1.3.1 // indirect
+	github.com/stretchr/testify v1.10.0 // indirect
 	golang.org/x/net v0.61.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 )
