@@ -14,14 +14,35 @@
 #              for entries with `ziti_via_caddy: true` (implies ziti):
 #              mljr's Caddy dials them (caddy.tf)
 # Consumers get Dial policies by attribute, added with the consumer.
+#
+# `ziti_ports: {<key>: <port>}` adds Ziti-only services for an entry's
+# other ports (no Caddy): <name>-<key>.<host>.int.mljr.eu:<port>, same
+# host, bind address and attributes, never caddy. Example: forgejo's SSH,
+# `ziti_ports: {ssh: 2222}` -> forgejo-ssh.nuc.int.mljr.eu:2222.
 
 locals {
   catalog = yamldecode(file("${path.module}/openvox-data/common.yaml")).services_catalog
 
-  ziti_catalog = {
-    for s in local.catalog : s.name => s
-    if(try(s.ziti, false) || try(s.ziti_via_caddy, false)) && try(s.enabled, true)
-  }
+  ziti_catalog = merge(
+    {
+      for s in local.catalog : s.name => {
+        host  = s.host
+        port  = try(s.port, 0)
+        caddy = try(s.ziti_via_caddy, false)
+      }
+      if(try(s.ziti, false) || try(s.ziti_via_caddy, false)) && try(s.enabled, true)
+    },
+    merge([
+      for s in local.catalog : {
+        for k, p in try(s.ziti_ports, {}) : "${s.name}-${k}" => {
+          host  = s.host
+          port  = p
+          caddy = false
+        }
+      }
+      if try(s.enabled, true)
+    ]...),
+  )
 
   # Hosts with a router on Ziti; a catalog service on any other host fails
   # the plan (precondition below) instead of getting a dead service.
@@ -45,7 +66,7 @@ resource "ziti_intercept_v1_config" "catalog" {
 
   lifecycle {
     precondition {
-      condition     = contains(keys(local.router), each.value.host) && try(each.value.port, 0) > 0
+      condition     = contains(keys(local.router), each.value.host) && each.value.port > 0
       error_message = "services_catalog ${each.key}: ziti needs a host with a router (${join(", ", keys(local.router))}) and a port > 0."
     }
   }
@@ -65,7 +86,7 @@ resource "ziti_service" "catalog" {
   configs  = sort([ziti_intercept_v1_config.catalog[each.key].id, ziti_host_v1_config.catalog[each.key].id])
   role_attributes = sort(concat(
     ["admin-services", "catalog", "catalog-${each.value.host}"],
-    try(each.value.ziti_via_caddy, false) ? ["caddy"] : [],
+    each.value.caddy ? ["caddy"] : [],
   ))
 }
 

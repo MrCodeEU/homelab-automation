@@ -13,7 +13,9 @@ services:
       FORGEJO__database__USER: forgejo
       FORGEJO__database__PASSWD: ${POSTGRES_PASSWORD}
       FORGEJO__server__DOMAIN: git.mljr.eu
-      FORGEJO__server__SSH_DOMAIN: git.mljr.eu
+      # SSH only over Ziti (forgejo-ssh, ziti_ports in services_catalog):
+      # git.mljr.eu is mljr, which forwards no SSH port
+      FORGEJO__server__SSH_DOMAIN: forgejo-ssh.nuc.int.mljr.eu
       FORGEJO__server__ROOT_URL: https://git.mljr.eu/
       FORGEJO__server__HTTP_PORT: 3000
       FORGEJO__server__SSH_PORT: 2222
