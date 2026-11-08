@@ -1,7 +1,8 @@
-# Machine-to-machine consumers that cannot dial Ziti themselves (Grafana
-# Alloy) go through `ziti tunnel proxy` on their host (services/ziti-proxy),
-# one identity per host, enrolled on that host by scripts/ziti-enroll-proxy.sh
-# so the key never leaves it. Each identity may dial only the services
+# Machine-to-machine consumers that cannot dial Ziti themselves go through
+# `ziti tunnel proxy`: one per host for host-network apps (Alloy,
+# services/ziti-proxy*), one inside the compose project for a bridged app
+# (homepage). Each has its own identity, enrolled on its host by
+# scripts/ziti-enroll-proxy.sh so the key never leaves it. Each identity may dial only the services
 # listed here, by name; it hosts nothing.
 locals {
   m2m = {
@@ -9,6 +10,8 @@ locals {
     "m2m-mljr" = ["grafana-victoriametrics", "grafana-loki"]
     # Alloy on ugreen -> the same
     "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki"]
+    # homepage on mljr (live homelab panel) -> VictoriaMetrics, PromQL
+    "homepage-mljr" = ["grafana-victoriametrics"]
   }
 }
 

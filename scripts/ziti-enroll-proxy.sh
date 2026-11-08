@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Enrol a machine-to-machine proxy identity (ziti/tofu/m2m.tf) on the host
-# that runs it, into <base_path>/<service>/data/<name>.json for
-# services/<service> (base_path: roles::services::base_path of that host).
+# that runs it, into <base_path>/<service>/<dir>/<name>.json, where <dir> is
+# the host side of the `./<dir>:/identity` volume in services/<service>'s
+# compose file (base_path: roles::services::base_path of that host).
 # The identity itself is created by OpenTofu (scripts/ziti-tofu.sh apply);
 # this only turns its one-time token into a certificate and key.
 #
@@ -13,6 +14,7 @@
 # Usage: scripts/ziti-enroll-proxy.sh <identity> <host> <service> [--reenroll]
 #   e.g. scripts/ziti-enroll-proxy.sh m2m-mljr mljr ziti-proxy
 #        scripts/ziti-enroll-proxy.sh m2m-ugreen ugreen ziti-proxy-ugreen
+#        scripts/ziti-enroll-proxy.sh homepage-mljr mljr homepage
 #   --reenroll  replace an existing enrolment (lost or broken file): drops
 #               the identity's certificate authenticator, issues a new token
 # shellcheck disable=SC2029  # remote commands are built locally on purpose
@@ -34,7 +36,7 @@ case "${4:-}" in
 esac
 [[ $NAME =~ ^[a-z0-9-]+$ ]] || die "bad identity name: $NAME"
 [[ $HOST =~ ^[a-z0-9-]+$ ]] || die "bad host: $HOST"
-[[ $SERVICE =~ ^ziti-proxy(-[a-z0-9]+)?$ ]] || die "bad service: $SERVICE"
+[[ $SERVICE =~ ^[a-z0-9-]+$ ]] || die "bad service: $SERVICE"
 
 repo=$(cd "$(dirname "$0")/.." && pwd)
 compose=$repo/services/$SERVICE/docker-compose.yml
@@ -42,11 +44,13 @@ node=$repo/openvox/data/nodes/$HOST.int.mljr.eu.yaml
 [ -f "$compose" ] || die "no $compose"
 [ -f "$node" ] || die "no $node"
 grep -q -- "/identity/$NAME.json" "$compose" || die "$compose does not use identity $NAME"
+iddir=$(sed -n 's|^ *- *\./\([a-z0-9_-]*\):/identity$|\1|p' "$compose" | head -1)
+[ -n "$iddir" ] || die "$compose has no ./<dir>:/identity volume"
 base=$(sed -n "s/^roles::services::base_path: *['\"]\{0,1\}\([^'\"]*\).*/\1/p" "$node")
 
 CTRL_HOST=root@mljr.tail33930.ts.net
 TARGET=root@$HOST.tail33930.ts.net
-DIR=${base:-/opt}/$SERVICE/data
+DIR=${base:-/opt}/$SERVICE/$iddir
 DEST=$DIR/$NAME.json
 IMAGE=$(sed -n 's/^ *image: *//p' "$compose" | head -1)
 [ -n "$IMAGE" ] || die "no image in $compose"
