@@ -441,6 +441,8 @@ services_catalog:
     description: "Metrics, Logs & Monitoring"
     icon: "mdi:chart-areaspline"
     caddy_auth: "authelia"
+    # Over Ziti from Caddy on mljr; first one behind Authelia forward auth
+    ziti_via_caddy: true
 
   - name: ntfy
     enabled: true
