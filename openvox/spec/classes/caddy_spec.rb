@@ -103,6 +103,7 @@ describe 'roles::caddy' do
           'CADDY_CUSTOM_BIN=/usr/local/bin/caddy-crowdsec',
           'CADDY_CUSTOM_TAG=caddy-v2.11.7-crowdsec-v0.14.1-b38ae651',
           "CADDY_CUSTOM_SHA256=#{sha}",
+          'CADDY_CUSTOM_ZITI=false',
         ],
       )
       is_expected.not_to contain_file('/usr/local/bin/caddy-crowdsec')
@@ -173,6 +174,10 @@ describe 'roles::caddy' do
         other = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/appsec-log.caddy')[:content]
         expect(other).to include('reverse_proxy nuc.tail33930.ts.net:7001')
         expect(other).not_to include('transport ziti')
+      end
+
+      it 'makes the binary install require the ziti transport' do
+        expect(catalogue.resource('exec', 'caddy-custom-binary')[:environment]).to include('CADDY_CUSTOM_ZITI=true')
       end
 
       it 'keeps the identity directory root:caddy 0750' do
