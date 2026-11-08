@@ -3,22 +3,16 @@
 # agents report host metrics, iperf3 handles mesh bandwidth tests; both
 # run alongside each other on the same hosts.
 #
-# Tailscale integration mirrors the speedtest server's own piece: method
-# host bind-mounts the HOST's own already-authenticated system tailscaled
-# socket rather than minting a separate tsnet identity, so no per-host
-# auth key is needed. Confirmed live: unlike the server, the `agent`
-# subcommand does NOT read NETRONOME__TAILSCALE_ENABLED/_METHOD - it only
-# picks up Tailscale via its own --tailscale/--tailscale-method CLI flags
-# (verified by /netronome/info reporting using_tailscale:false with only
-# the env vars set).
-#
-# No NETRONOME__AGENT_API_KEY here on purpose: auto-discovered Tailscale
-# agents get created with a blank key by Netronome's own discovery code,
-# and the "Edit Monitoring Settings" dialog for a Tailscale-connected
-# agent has no field to set one at all ("Connection details are managed
-# by Tailscale. Only monitoring can be toggled." - confirmed live).
-# Tailnet membership is the trust boundary in this mode; setting a key
-# here just makes every discovered agent 401 forever.
+# Reached over OpenZiti, not Tailscale (docs/ZERO_TRUST_PLAN.md Phase 4):
+# the agent listens on $host only (the host's catalog bind address:
+# 127.0.0.1 on mljr, the Tailscale IP elsewhere), the host's router
+# publishes it as netronome-agent-<host> (ziti/tofu/netronome.tf), and only
+# the speedtest server's proxy (identity netronome-nuc) may dial it. The
+# server adds it as a manual agent (http://127.0.0.1:820x), no Tailscale
+# discovery. Until 2026-11 the agent ran with --tailscale (host method,
+# the host's tailscaled socket); that mode created agents with a blank
+# API key that could not be edited, hence still no API key: the Ziti
+# dial policy is the boundary now.
 #
 # Historical bandwidth export needs a real vnstatd running continuously
 # with a persisted db - confirmed live that the agent's own bundled
@@ -35,6 +29,7 @@ class roles::netronome_agent (
   String  $base_path       = '/opt',
   Boolean $manage_firewall = true,
   String  $interface       = '',
+  String  $host            = '127.0.0.1',
 ) {
   file { "${base_path}/netronome-agent":
     ensure => directory,
@@ -59,14 +54,11 @@ class roles::netronome_agent (
         container_name: netronome-agent
         restart: unless-stopped
         network_mode: host
-        command: ["agent", "--tailscale", "--tailscale-method", "host"]
+        command: ["agent"]
         environment:
-          NETRONOME__AGENT_HOST: 0.0.0.0
+          NETRONOME__AGENT_HOST: ${host}
           NETRONOME__AGENT_PORT: 8200${agent_interface_env}
-        dns:
-          - 100.100.100.100
         volumes:
-          - /var/run/tailscale:/var/run/tailscale:ro
           - ${base_path}/netronome-agent/vnstat-db:/var/lib/vnstat:ro
         logging:
           driver: "json-file"
@@ -101,10 +93,11 @@ class roles::netronome_agent (
   }
 
   # Same posture as roles::iperf3: ugreen manages no firewalld anywhere
-  # else in this repo, Tailscale-only there too.
+  # else in this repo, Tailscale-only there too. Absent: only the host's
+  # own router connects now, locally.
   if $manage_firewall {
     roles::firewalld::port { 'netronome-agent-tcp':
-      ensure   => present,
+      ensure   => absent,
       zone     => 'trusted',
       port     => 8200,
       protocol => 'tcp',

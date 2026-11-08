@@ -9,9 +9,13 @@ services:
       NETRONOME__HOST: 0.0.0.0
       NETRONOME__PORT: 8090
       NETRONOME__SESSION_SECRET: ${NETRONOME_SESSION_SECRET:-}
+      # Agents on mljr, nuc, ugreen are manual agents over Ziti
+      # (http://127.0.0.1:8201/8202/8203, ziti-proxy below). Tailscale stays
+      # enabled for nas's agent only, until nas is on Ziti (Phase 5);
+      # discovery is off so it does not re-add the others.
       NETRONOME__TAILSCALE_ENABLED: "true"
       NETRONOME__TAILSCALE_METHOD: host
-      NETRONOME__TAILSCALE_AUTO_DISCOVER: "true"
+      NETRONOME__TAILSCALE_AUTO_DISCOVER: "false"
       NETRONOME__TAILSCALE_DISCOVERY_INTERVAL: 5m
       NETRONOME__TAILSCALE_DISCOVERY_PORT: 8200
     dns:
@@ -32,6 +36,34 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # Ziti client for the agents: `ziti tunnel proxy` as identity netronome-nuc
+  # (ziti/tofu/m2m.tf), which may dial the netronome agents only. Ports on
+  # 127.0.0.1 only (speedtest runs with host networking).
+  # Enrolment: scripts/ziti-enroll-proxy.sh netronome-nuc nuc speedtest
+  # writes ziti/netronome-nuc.json (uid 2171, 0600).
+  ziti-proxy:
+    image: openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
+    container_name: ${COMPOSE_PROJECT_NAME:-speedtest}-ziti-proxy
+    restart: unless-stopped
+    user: "2171:2171"
+    entrypoint: ["ziti"]
+    command:
+      - tunnel
+      - proxy
+      - netronome-agent-mljr:8201
+      - netronome-agent-nuc:8202
+      - netronome-agent-ugreen:8203
+      - --identity
+      - /identity/netronome-nuc.json
+    ports:
+      - "127.0.0.1:8201:8201"
+      - "127.0.0.1:8202:8202"
+      - "127.0.0.1:8203:8203"
+    volumes:
+      - ./ziti:/identity
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
 
 volumes:
   netronome-data:

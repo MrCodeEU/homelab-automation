@@ -9,6 +9,8 @@ roles::iperf3::manage_firewall: false
 roles::netronome_agent::base_path: '/volume1/homelab'
 roles::netronome_agent::manage_firewall: false
 roles::netronome_agent::interface: 'eth0'
+# Listen address = the catalog bind address (ziti/tofu/catalog.tf)
+roles::netronome_agent::host: '100.100.10.4'
 
 roles::services::hostname: 'ugreen'
 roles::services::base_path: '/volume1/homelab'

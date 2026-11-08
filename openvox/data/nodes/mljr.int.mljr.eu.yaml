@@ -34,6 +34,8 @@ roles::iperf3::base_path: '/opt'
 
 roles::netronome_agent::base_path: '/opt'
 roles::netronome_agent::interface: 'eth0'
+# Listen address = the catalog bind address (ziti/tofu/catalog.tf)
+roles::netronome_agent::host: '127.0.0.1'
 
 # Must match ansible/inventory's inventory_hostname exactly, not this
 # VPS's real OS hostname - see roles::backup's own $hostname param doc.

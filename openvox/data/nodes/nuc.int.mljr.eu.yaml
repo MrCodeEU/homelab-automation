@@ -14,6 +14,8 @@ roles::iperf3::base_path: '/opt'
 
 roles::netronome_agent::base_path: '/opt'
 roles::netronome_agent::interface: 'enp2s0'
+# Listen address = the catalog bind address (ziti/tofu/catalog.tf)
+roles::netronome_agent::host: '100.100.10.1'
 
 roles::backup::services:
   - kuma

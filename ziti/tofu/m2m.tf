@@ -15,7 +15,12 @@ locals {
     # CrowdSec agent on nuc -> mljr's LAPI (crowdsec-nas stays on the
     # tailnet until nas is on Ziti, Phase 5)
     "crowdsec-nuc" = ["crowdsec-lapi"]
+    # Netronome server (speedtest on nuc) -> its agents (netronome.tf)
+    "netronome-nuc" = ["netronome-agent-mljr", "netronome-agent-nuc", "netronome-agent-ugreen"]
   }
+
+  # Dialable by name: catalog services plus the netronome agents
+  m2m_services = merge(ziti_service.catalog, local.ziti_service_netronome_by_name)
 }
 
 resource "ziti_identity" "m2m" {
@@ -33,5 +38,5 @@ resource "ziti_service_policy" "m2m_dial" {
   type          = "Dial"
   semantic      = "AnyOf"
   identityroles = ["@${ziti_identity.m2m[each.key].id}"]
-  serviceroles  = sort([for s in each.value : "@${ziti_service.catalog[s].id}"])
+  serviceroles  = sort([for s in each.value : "@${local.m2m_services[s].id}"])
 }
