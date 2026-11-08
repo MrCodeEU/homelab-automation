@@ -6,6 +6,7 @@
 //
 // Port of services/goaccess/caddyLog.py - argv parsing, log-rotation
 // detection, and the readline()-at-EOF tailing behavior are kept 1:1.
+// Added since: truncation detection, for logrotate's copytruncate.
 package main
 
 import (
@@ -173,6 +174,20 @@ func run(inputPath string, timeInterval int, outputPath string) error {
 				currentInode = inode(j)
 				reader = bufio.NewReader(j)
 				continue
+			}
+			// logrotate's copytruncate keeps the inode and empties the file
+			// (roles::caddy): read from the start again once the file is
+			// shorter than the offset already read. At EOF the reader's
+			// buffer is empty, so the file offset is the read position.
+			if pos, seekErr := j.Seek(0, io.SeekCurrent); seekErr == nil {
+				if fi, statErr := os.Stat(inputPath); statErr == nil && fi.Size() < pos {
+					fmt.Printf("%s - log truncation detected, rereading %s from the start\n", stamp(), inputPath)
+					if _, err := j.Seek(0, io.SeekStart); err != nil {
+						return err
+					}
+					reader.Reset(j)
+					continue
+				}
 			}
 			fmt.Printf("%s - sleeping for %d seconds before checking for additional log entries\n", stamp(), timeInterval)
 			time.Sleep(time.Duration(timeInterval) * time.Second)

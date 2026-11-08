@@ -1,10 +1,6 @@
 <%- | Hash $service,
       String $target_host,
       String $log_path,
-      String $roll_size,
-      Integer $roll_keep,
-      String $roll_keep_for,
-      Boolean $roll_uncompressed,
       Boolean $is_staging_deployment,
       String $staging_domain_prefix,
       String $staging_target,
@@ -34,12 +30,8 @@
 <% } -%>
     log {
         output file <%= $log_path %>/caddy/<%= $name %>.log {
-            roll_size <%= $roll_size %>
-            roll_keep <%= $roll_keep %>
-            roll_keep_for <%= $roll_keep_for %>
-<% if $roll_uncompressed { -%>
-            roll_uncompressed
-<% } -%>
+            # Rotated by logrotate (roles::caddy), not Caddy: SELinux blocks the rename
+            roll_disabled
         }
     }
     import security_headers
@@ -150,12 +142,8 @@
 <%= $rendered_staging_domains.join(', ') %> {
     log {
         output file <%= $log_path %>/caddy/<%= $name %>-staging.log {
-            roll_size <%= $roll_size %>
-            roll_keep <%= $roll_keep %>
-            roll_keep_for <%= $roll_keep_for %>
-<% if $roll_uncompressed { -%>
-            roll_uncompressed
-<% } -%>
+            # Rotated by logrotate (roles::caddy), not Caddy: SELinux blocks the rename
+            roll_disabled
         }
     }
     import security_headers

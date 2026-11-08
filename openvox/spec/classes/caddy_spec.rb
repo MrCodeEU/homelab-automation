@@ -72,6 +72,40 @@ describe 'roles::caddy' do
     )
   end
 
+  context 'log rotation' do
+    let(:conf) { catalogue.resource('file', '/etc/caddy/logrotate.conf')[:content] }
+
+    it 'leaves rotation to logrotate: SELinux lets httpd_t append, not rename' do
+      snippet = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/ziti-upstream.caddy')[:content]
+      caddyfile = catalogue.resource('file', '/etc/caddy/Caddyfile.openvox-staging')[:content]
+      [snippet, caddyfile].each do |c|
+        expect(c).to include('roll_disabled')
+        expect(c).not_to match(%r{roll_size|roll_keep})
+      end
+    end
+
+    it 'rotates every Caddy log by copytruncate as caddy, uncompressed' do
+      expect(conf).to match(%r{^/var/log/caddy/access\.log( \{)?$})
+      expect(conf).to match(%r{^/var/log/caddy/deploy\.log( \{)?$})
+      expect(conf).to match(%r{^/var/log/caddy/ziti-upstream\.log( \{)?$})
+      expect(conf).to match(%r{^/var/log/caddy/local-authelia-staging\.log( \{)?$})
+      expect(conf).to match(%r{^    su caddy caddy$})
+      expect(conf).to match(%r{^    size 100M$})
+      expect(conf).to match(%r{^    rotate 3$})
+      expect(conf).to match(%r{^    maxage 7$})
+      expect(conf).to match(%r{^    copytruncate$})
+      expect(conf).to match(%r{^    nocompress$})
+      expect(conf).not_to include('*')
+    end
+
+    it 'runs logrotate hourly with its own state file' do
+      is_expected.to contain_file('/etc/systemd/system/caddy-logrotate.service')
+        .with_content(%r{ExecStart=/usr/sbin/logrotate -s /var/lib/logrotate/caddy.status /etc/caddy/logrotate.conf})
+      is_expected.to contain_file('/etc/systemd/system/caddy-logrotate.timer').with_content(%r{OnCalendar=hourly})
+      is_expected.to contain_service('caddy-logrotate.timer').with(ensure: 'running', enable: true)
+    end
+  end
+
   context 'without a custom build (the default)' do
     it 'runs the packaged binary and removes any leftover custom one' do
       is_expected.not_to contain_exec('caddy-custom-binary')
