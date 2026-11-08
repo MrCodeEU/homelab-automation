@@ -36,8 +36,8 @@ jobs:
 
       - name: Install Caddy (custom CrowdSec/AppSec build) for config validation
         env:
-          CADDY_RELEASE: caddy-v2.11.7-crowdsec-v0.14.1-b38ae651
-          CADDY_SHA256: ebd5a88596a13c4aa6148e679fa08e1814789131e0349a53631219884b0431c9
+          CADDY_RELEASE: caddy-v2.11.7-crowdsec-v0.14.1-17a1e5a5
+          CADDY_SHA256: c67e050c3fc66ece9c39332ea2f963b8edfa3e44444b0ff38391ffcfd1a7e6c6
         run: |
           curl -fsSL -o caddy \
             "https://github.com/MrCodeEU/homelab-automation/releases/download/${CADDY_RELEASE}/caddy-linux-amd64"
