@@ -581,6 +581,30 @@ Progress:
 - 2026-11-08, CI (#551): release downloads for this repo answered 503/504
   from github.com for about an hour. The custom Caddy download now retries
   (bounded, 5xx and timeouts only) and is cached per PR.
+- 2026-11-08, all of nuc's Caddy upstreams over Ziti (#553-#566), one
+  service or batch per PR, each tested end to end: sudoku (first behind
+  AppSec), grafana (first behind Authelia), forgejo (first with large
+  transfers), the demos, the plain upstreams (godrive-demo, csp-reports,
+  umami, nocturne, sure, glucava), the Authelia batch (defectdojo,
+  backup-dashboard, mail-archiver, speedtest), and service-template.
+  - `ziti_ports: {<key>: <port>}` adds Ziti-only services for an entry's
+    other ports. Forgejo SSH is `forgejo-ssh.nuc.int.mljr.eu:2222`, only
+    over Ziti; `SSH_DOMAIN` points at it (#560).
+  - Staging vhosts (`dev.<domain>`, port + 10000 on nuc) dial
+    `<name>-staging.nuc.int.mljr.eu` (#565). `ziti_staging: true` does that
+    for entries whose prod runs on mljr itself (homepage, ui-showcase),
+    and `reverse_proxy catalog:<name>` in `caddy_extra_config` resolves to
+    an entry's upstream, over Ziti when it is (homepage's `/umami`, #566).
+  - Fixes found on the way: tofu `role_attributes` perpetual diff (#554);
+    controller and routers restarted on every deploy, now only on a config
+    change or a certificate within 30 days of expiry (#557); Caddy's own
+    log roll is denied by SELinux on EL10 (`httpd_t` may only append to
+    `httpd_log_t`), so logs rotate with logrotate, copytruncate, from
+    `/etc/logrotate-caddy.conf` (#556, #558).
+  - Removed instead of moved: actual-budget (replaced by Sure) and
+    nuc-webui; Cockpit on nuc is off and its firewall service closed (#563).
+  - Left on Tailscale: every nas upstream, syncthing and Home Assistant
+    (Phase 5: no router there yet).
 
 **Rollback:** per service, point the consumer back at the Tailscale
 address.

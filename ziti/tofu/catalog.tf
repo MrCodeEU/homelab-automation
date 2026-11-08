@@ -23,6 +23,8 @@
 # `staging: true` with `ziti_via_caddy` adds <name>-staging on the staging
 # host (roles::caddy::staging_host, nuc) at <port + 10000>: the
 # dev.<domain> vhost Caddy renders for it dials that, with caddy.
+# `ziti_staging: true` does the same for an entry whose prod vhost stays
+# off Ziti (homepage, ui-showcase: prod runs on mljr next to Caddy).
 
 locals {
   catalog = yamldecode(file("${path.module}/openvox-data/common.yaml")).services_catalog
@@ -55,7 +57,7 @@ locals {
         port  = try(s.port, 0) + 10000
         caddy = true
       }
-      if try(s.ziti_via_caddy, false) && try(s.staging, false) && try(s.enabled, true)
+      if(try(s.ziti_via_caddy, false) || try(s.ziti_staging, false)) && try(s.staging, false) && try(s.enabled, true)
     },
   )
 

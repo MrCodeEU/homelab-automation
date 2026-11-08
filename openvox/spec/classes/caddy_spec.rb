@@ -182,6 +182,15 @@ describe 'roles::caddy' do
         expect(snippet).not_to include('transport ziti')
         is_expected.not_to contain_file('/etc/caddy/ziti')
       end
+
+      it 'resolves catalog: references and ziti_staging over Tailscale' do
+        ref = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/catalog-ref.caddy')[:content]
+        expect(ref).to include("    handle_path /zu* {\n        reverse_proxy nuc.tail33930.ts.net:3001\n    }\n")
+        stage = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/ziti-staging-only.caddy')[:content]
+        expect(stage).to include('reverse_proxy localhost:3002')
+        expect(stage).to include('reverse_proxy nuc.tail33930.ts.net:13002')
+        expect(stage).not_to include('transport ziti')
+      end
     end
 
     context 'enabled without a custom build' do
@@ -217,6 +226,27 @@ describe 'roles::caddy' do
           "        }\n" \
           "    }\n",
         )
+      end
+
+      it 'resolves a catalog: reference to the Ziti upstream' do
+        ref = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/catalog-ref.caddy')[:content]
+        expect(ref).to include(
+          "    handle_path /zu* {\n" \
+          "        reverse_proxy ziti-upstream.nuc.int.mljr.eu:3001 {\n" \
+          "            transport ziti {\n" \
+          "                identity /etc/caddy/ziti/caddy-mljr.json\n" \
+          "            }\n" \
+          "        }\n" \
+          "    }\n",
+        )
+        expect(ref).to include('reverse_proxy localhost:3003')
+      end
+
+      it 'puts only the staging vhost of a ziti_staging entry on Ziti' do
+        stage = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/ziti-staging-only.caddy')[:content]
+        expect(stage).to include('reverse_proxy localhost:3002')
+        expect(stage).to include('reverse_proxy ziti-staging-only-staging.nuc.int.mljr.eu:13002 {')
+        expect(stage).not_to include('tail33930')
       end
 
       it 'leaves entries without the flag on Tailscale' do

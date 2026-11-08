@@ -610,6 +610,7 @@ services_catalog:
     port: 8082
     host: mljr
     staging: true
+    ziti_staging: true
     # services/homepage/dev/docker-compose.yml exists - Caddy also stages a
     # dev.<domain> vhost pointing at staging_host:<port+10000> for this
     # service. Mirrors ansible/roles/caddy/templates/service_snippet.caddy.j2's
@@ -621,7 +622,7 @@ services_catalog:
     icon: "mdi:account-circle"
     caddy_extra_config: |
       handle_path /umami* {
-          reverse_proxy nuc.tail33930.ts.net:3606
+          reverse_proxy catalog:umami
       }
 
       # robots.txt disallows a handful of decoy paths that no real route on
@@ -685,6 +686,7 @@ services_catalog:
     port: 8083
     host: mljr
     staging: true
+    ziti_staging: true
     description: "mljr-ui Component Showcase"
     icon: "mdi:palette-swatch"
 

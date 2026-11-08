@@ -7,6 +7,9 @@
       String $staging_host = '',
       Boolean $appsec_enabled = false,
       String $ziti_identity = '',
+      String $staging_ziti_identity = '',
+      Hash $catalog_upstreams = {},
+      String $caddy_ziti_identity = '',
 | -%>
 <%
   $name = $service['name']
@@ -96,6 +99,20 @@
 <% $extra_config.split("\n").each |$line| { -%>
 <% if $line == '' { -%>
 
+<% } elsif $line =~ /^( *)reverse_proxy catalog:([a-z0-9-]+)$/ {
+  $indent = "    ${1}"
+  $ref = $catalog_upstreams[$2]
+  if $ref == undef { fail("caddy_extra_config of ${name}: no catalog entry ${2} with host and port") }
+-%>
+<% if $ref['ziti'] { -%>
+<%= $indent %>reverse_proxy <%= $ref['address'] %> {
+<%= $indent %>    transport ziti {
+<%= $indent %>        identity <%= $caddy_ziti_identity %>
+<%= $indent %>    }
+<%= $indent %>}
+<% } else { -%>
+<%= $indent %>reverse_proxy <%= $ref['address'] %>
+<% } -%>
 <% } else { -%>
     <%= $line %>
 <% } -%>
@@ -153,11 +170,11 @@
 <% } elsif $auth_type == 'authelia' { -%>
     import authelia_auth
 <% } -%>
-<% if $ziti_identity != '' { -%>
+<% if $staging_ziti_identity != '' { -%>
     # Over OpenZiti as caddy-mljr; the staging container runs on staging_host
     reverse_proxy <%= $name %>-staging.<%= $staging_host %>.int.mljr.eu:<%= $staging_port %> {
         transport ziti {
-            identity <%= $ziti_identity %>
+            identity <%= $staging_ziti_identity %>
         }
     }
 <% } else { -%>
