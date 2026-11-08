@@ -7,6 +7,8 @@ locals {
   m2m = {
     # Alloy on mljr -> VictoriaMetrics and Loki on nuc
     "m2m-mljr" = ["grafana-victoriametrics", "grafana-loki"]
+    # Alloy on ugreen -> the same
+    "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki"]
   }
 }
 

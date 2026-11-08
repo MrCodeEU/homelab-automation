@@ -28,7 +28,7 @@
 
 .PHONY: test test-quick test-services test-services-verbose test-healthreport test-openvox-unit test-openvox-caddy-render \
         help \
-        _check-validate _check-syntax _check-compose _check-binaries \
+        _check-validate _check-syntax _check-compose _check-binaries _check-exec-bits \
         openvox-check openvox-deploy openvox-recovery openvox-rollback \
         rotate-secret rotate-secret-dry-run add-secret add-secret-line
 
@@ -36,7 +36,7 @@
 # DEFAULT: fast local tests (no Docker)
 ################################################################################
 
-test: _check-validate _check-syntax _check-compose _check-binaries
+test: _check-validate _check-syntax _check-compose _check-binaries _check-exec-bits
 	@echo ""
 	@echo "All fast tests passed."
 
@@ -76,6 +76,12 @@ _check-syntax:
 _check-binaries:
 	@echo "==> [4/4] Committed Go binaries vs source"
 	bash ./scripts/service-binary.sh check
+
+## 5. Scripts with a shebang are executable in git (core.fileMode=false
+##    clones silently commit them as 100644)
+_check-exec-bits:
+	@echo "==> [5/5] Executable bits of scripts/"
+	bash ./scripts/check-exec-bits.sh
 
 _check-compose:
 	@echo "==> [3/3] docker-compose.yml syntax"

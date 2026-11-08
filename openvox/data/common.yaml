@@ -486,6 +486,14 @@ services_catalog:
     description: "OpenZiti proxy for machine-to-machine traffic"
     icon: "mdi:router-network"
 
+  # Same for ugreen's Alloy, as identity m2m-ugreen.
+  - name: ziti-proxy-ugreen
+    enabled: true
+    port: 0
+    host: ugreen
+    description: "OpenZiti proxy for machine-to-machine traffic"
+    icon: "mdi:router-network"
+
   - name: goaccess
     enabled: true
     domain: "logs.mljr.eu"

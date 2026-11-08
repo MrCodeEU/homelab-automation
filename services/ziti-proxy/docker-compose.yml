@@ -3,7 +3,7 @@
 # 127.0.0.1 only, as identity m2m-mljr (ziti/tofu/m2m.tf). That identity may
 # dial only the services listed there.
 #
-# Enrolment: scripts/ziti-enroll-proxy.sh m2m-mljr mljr writes
+# Enrolment: scripts/ziti-enroll-proxy.sh m2m-mljr mljr ziti-proxy writes
 # data/m2m-mljr.json (uid 2171, 0600). Without it the container restarts
 # until the file exists; Alloy buffers in its WAL meanwhile.
 services:

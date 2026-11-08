@@ -24,6 +24,10 @@ roles::host_facts_endpoint::dest_dir: '/volume1/homelab/bin'
 roles::host_facts_endpoint::base_path: '/volume1/homelab'
 
 roles::grafana_alloy::hostname: 'ugreen'
+# To VictoriaMetrics and Loki on nuc over Ziti, through
+# services/ziti-proxy-ugreen (127.0.0.1 only). Rollback: drop both lines.
+roles::grafana_alloy::prometheus_remote_write_url: 'http://127.0.0.1:19090/api/v1/write'
+roles::grafana_alloy::loki_push_url: 'http://127.0.0.1:3100/loki/api/v1/push'
 roles::grafana_alloy::docker_root: '/volume1/@docker'
 
 roles::canary_decoys::hostname: 'ugreen'
