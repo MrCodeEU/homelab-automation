@@ -12,6 +12,9 @@ locals {
     "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki"]
     # homepage on mljr (live homelab panel) -> VictoriaMetrics, PromQL
     "homepage-mljr" = ["grafana-victoriametrics"]
+    # CrowdSec agent on nuc -> mljr's LAPI (crowdsec-nas stays on the
+    # tailnet until nas is on Ziti, Phase 5)
+    "crowdsec-nuc" = ["crowdsec-lapi"]
   }
 }
 
