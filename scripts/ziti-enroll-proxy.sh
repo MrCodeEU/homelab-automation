@@ -52,8 +52,10 @@ CTRL_HOST=root@mljr.tail33930.ts.net
 TARGET=root@$HOST.tail33930.ts.net
 DIR=${base:-/opt}/$SERVICE/$iddir
 DEST=$DIR/$NAME.json
-IMAGE=$(sed -n 's/^ *image: *//p' "$compose" | head -1)
-[ -n "$IMAGE" ] || die "no image in $compose"
+# The OpenZiti image, not the first one: homepage's compose file lists the
+# app's own image first.
+IMAGE=$(sed -n 's|^ *image: *\(openziti/[^ ]*\)$|\1|p' "$compose" | head -1)
+[ -n "$IMAGE" ] || die "no openziti/ image in $compose"
 
 zcli() {
   ssh "$CTRL_HOST" "set -a; . /opt/ziti-controller/.env; set +a
@@ -88,10 +90,10 @@ say "Enrolling on $HOST into $DEST"
 printf '%s' "$jwt" | ssh "$TARGET" "set -eu; umask 077
   install -d -m 0700 -o 2171 -g 2171 $DIR
   cat > $DIR/$NAME.jwt; chown 2171:2171 $DIR/$NAME.jwt
-  docker run --rm --network host --entrypoint ziti -v $DIR:/w -w /w $IMAGE \
-    edge enroll --jwt $NAME.jwt --out $NAME.json.new >/dev/null 2>&1 || true
+  out=\$(docker run --rm --network host --entrypoint ziti -v $DIR:/w -w /w $IMAGE \
+    edge enroll --jwt $NAME.jwt --out $NAME.json.new 2>&1) || true
   rm -f $DIR/$NAME.jwt
-  [ -s $DIR/$NAME.json.new ] || { rm -f $DIR/$NAME.json.new; echo 'enrolment produced no identity file' >&2; exit 1; }
+  [ -s $DIR/$NAME.json.new ] || { rm -f $DIR/$NAME.json.new; printf '%s\n' \"\$out\" | tail -5 >&2; echo 'enrolment produced no identity file' >&2; exit 1; }
   chown 2171:2171 $DIR/$NAME.json.new; chmod 0600 $DIR/$NAME.json.new
   mv $DIR/$NAME.json.new $DEST
   restorecon -R $DIR 2>/dev/null || true" \
