@@ -1,0 +1,23 @@
+# Hourly internet speedtest from nuc (tools/cmd/speedtest-metrics), written
+# to VictoriaMetrics on this host; Grafana dashboard "Internet speed"
+# (services/grafana/dashboards/homelab-speedtest.json). Replaces netronome's
+# speedtests.
+services:
+  speedtest-metrics:
+    build: .
+    image: speedtest-metrics:local
+    container_name: speedtest-metrics
+    restart: unless-stopped
+    # VictoriaMetrics publishes on nuc's own interfaces; the test itself
+    # goes out through nuc's normal uplink, like netronome's did.
+    network_mode: host
+    environment:
+      - TZ=${TZ}
+      - SPEEDTEST_VM_URL=http://127.0.0.1:19090
+      - SPEEDTEST_INTERVAL=1h
+      - SPEEDTEST_HOST=nuc
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
