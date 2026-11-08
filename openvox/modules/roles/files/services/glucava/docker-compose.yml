@@ -23,8 +23,13 @@ services:
       GLUCAVA_ADMIN_PASSWORD: ${GLUCAVA_ADMIN_PASSWORD:?}
       GLUCAVA_SECRET_KEY: ${GLUCAVA_SECRET_KEY:?}
       GLUCAVA_PUBLIC_URL: https://glucava.${DOMAIN:-mljr.eu}
-      # Caddy on mljr reaches this container over the tailnet.
-      GLUCAVA_TRUSTED_PROXIES: 100.100.20.1
+      # Caddy on mljr reaches this container over Ziti (#562): the peer is
+      # nuc's router, which dials the published port on nuc's Tailscale IP.
+      # 100.100.20.1 (Caddy over the tailnet) stays for a rollback of
+      # ziti_via_caddy. Caddy sets X-Forwarded-For/-Proto; only identities
+      # allowed to dial glucava over Ziti (caddy-mljr, admins) or processes on
+      # nuc reach the container from 100.100.10.1.
+      GLUCAVA_TRUSTED_PROXIES: 100.100.10.1,100.100.20.1
       GLUCAVA_DEXCOM_USERNAME: ${GLUCAVA_DEXCOM_USERNAME:-}
       GLUCAVA_DEXCOM_PASSWORD: ${GLUCAVA_DEXCOM_PASSWORD:-}
       GLUCAVA_DEXCOM_REGION: ous
