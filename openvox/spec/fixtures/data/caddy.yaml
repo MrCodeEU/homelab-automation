@@ -55,4 +55,5 @@ services_catalog:
     domain: ziti.example.test
     port: 3001
     host: nuc
+    staging: true
     ziti_via_caddy: true

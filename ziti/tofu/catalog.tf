@@ -19,9 +19,16 @@
 # other ports (no Caddy): <name>-<key>.<host>.int.mljr.eu:<port>, same
 # host, bind address and attributes, never caddy. Example: forgejo's SSH,
 # `ziti_ports: {ssh: 2222}` -> forgejo-ssh.nuc.int.mljr.eu:2222.
+#
+# `staging: true` with `ziti_via_caddy` adds <name>-staging on the staging
+# host (roles::caddy::staging_host, nuc) at <port + 10000>: the
+# dev.<domain> vhost Caddy renders for it dials that, with caddy.
 
 locals {
   catalog = yamldecode(file("${path.module}/openvox-data/common.yaml")).services_catalog
+
+  # roles::caddy::staging_host (its default; no host overrides it)
+  staging_host = "nuc"
 
   ziti_catalog = merge(
     {
@@ -42,6 +49,14 @@ locals {
       }
       if try(s.enabled, true)
     ]...),
+    {
+      for s in local.catalog : "${s.name}-staging" => {
+        host  = local.staging_host
+        port  = try(s.port, 0) + 10000
+        caddy = true
+      }
+      if try(s.ziti_via_caddy, false) && try(s.staging, false) && try(s.enabled, true)
+    },
   )
 
   # Hosts with a router on Ziti; a catalog service on any other host fails
