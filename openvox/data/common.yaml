@@ -1042,6 +1042,8 @@ services_catalog:
     host: nuc
     description: "Sudoku Generator"
     icon: "mdi:grid"
+    # Over Ziti from Caddy on mljr, like kuma; first one behind AppSec
+    ziti_via_caddy: true
 
   - name: gameoflife
     enabled: true
