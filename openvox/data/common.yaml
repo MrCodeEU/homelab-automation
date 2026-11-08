@@ -681,6 +681,9 @@ services_catalog:
     description: "Git Hosting"
     icon: "mdi:git"
     backup_critical: true
+    # Over Ziti from Caddy on mljr; first one with large transfers (git
+    # over HTTPS)
+    ziti_via_caddy: true
 
   - name: ui-showcase
     enabled: true
