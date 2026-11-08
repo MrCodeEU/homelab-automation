@@ -304,10 +304,33 @@ class roles::caddy (
     require => File['/etc/caddy/conf.d.openvox-staging'],
   }
 
+  # `reverse_proxy catalog:<name>` in caddy_extra_config proxies to that
+  # entry's upstream, over Ziti when the entry is ziti_via_caddy (homepage's
+  # /umami path), so no extra_config names a transport address itself.
+  $catalog_upstreams = $services_catalog.filter |$s| {
+    pick($s['enabled'], true) and 'host' in $s and 'port' in $s
+  }.reduce({}) |$acc, $s| {
+    $s_ziti = $ziti_transport and pick($s['ziti_via_caddy'], false)
+    $s_address = $s_ziti ? {
+      true    => "${s['name']}.${s['host']}.int.mljr.eu:${s['port']}",
+      default => $s['host'] ? {
+        'mljr'  => "localhost:${s['port']}",
+        default => "${s['host']}.tail33930.ts.net:${s['port']}",
+      },
+    }
+    $acc + { $s['name'] => { 'address' => $s_address, 'ziti' => $s_ziti } }
+  }
+
   $service_files = $caddy_services.map |$svc| {
     $svc_is_local = $svc['host'] == 'mljr'
     $svc_target_host = $svc_is_local ? { true => 'localhost', default => "${svc['host']}.tail33930.ts.net" }
     $svc_ziti_identity = ($ziti_transport and pick($svc['ziti_via_caddy'], false)) ? {
+      true    => $ziti_identity,
+      default => '',
+    }
+    # ziti_staging: only the dev.<domain> vhost goes over Ziti (prod on mljr)
+    $svc_staging_ziti = $ziti_transport and (pick($svc['ziti_via_caddy'], false) or pick($svc['ziti_staging'], false))
+    $svc_staging_ziti_identity = $svc_staging_ziti ? {
       true    => $ziti_identity,
       default => '',
     }
@@ -324,6 +347,9 @@ class roles::caddy (
         'staging_host'          => $staging_host,
         'appsec_enabled'        => $appsec_enabled,
         'ziti_identity'         => $svc_ziti_identity,
+        'staging_ziti_identity' => $svc_staging_ziti_identity,
+        'catalog_upstreams'     => $catalog_upstreams,
+        'caddy_ziti_identity'   => $ziti_identity,
       }),
       require => File['/etc/caddy/conf.d.openvox-staging'],
     }

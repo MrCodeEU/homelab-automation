@@ -57,3 +57,21 @@ services_catalog:
     host: nuc
     staging: true
     ziti_via_caddy: true
+  # Prod next to Caddy on mljr; only the staging vhost goes over Ziti.
+  - name: ziti-staging-only
+    enabled: true
+    domain: zstage.example.test
+    port: 3002
+    host: mljr
+    staging: true
+    ziti_staging: true
+  # `reverse_proxy catalog:<name>` resolves to that entry's upstream.
+  - name: catalog-ref
+    enabled: true
+    domain: ref.example.test
+    port: 3003
+    host: mljr
+    caddy_extra_config: |
+      handle_path /zu* {
+          reverse_proxy catalog:ziti-upstream
+      }
