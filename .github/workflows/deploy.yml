@@ -113,7 +113,10 @@ jobs:
           CADDY_RELEASE: caddy-v2.11.7-crowdsec-v0.14.1-17a1e5a5
           CADDY_SHA256: c67e050c3fc66ece9c39332ea2f963b8edfa3e44444b0ff38391ffcfd1a7e6c6
         run: |
-          curl -fsSL -o caddy \
+          # Bounded retries: release downloads have returned 503/504 from
+          # github.com for minutes at a time (2026-11-08). 5xx and timeouts
+          # are retried, a 404 is not; the sha256 check below still decides.
+          curl -fsSL --retry 4 --retry-delay 10 --retry-max-time 90 --max-time 120 -o caddy \
             "https://github.com/MrCodeEU/homelab-automation/releases/download/${CADDY_RELEASE}/caddy-linux-amd64"
           echo "${CADDY_SHA256}  caddy" | sha256sum -c -
           install -m 755 caddy /usr/local/bin/caddy

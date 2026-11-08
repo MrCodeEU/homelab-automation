@@ -24,6 +24,9 @@ concurrency:
 jobs:
   offline-validation:
     runs-on: ubuntu-latest
+    env:
+      CADDY_RELEASE: caddy-v2.11.7-crowdsec-v0.14.1-17a1e5a5
+      CADDY_SHA256: c67e050c3fc66ece9c39332ea2f963b8edfa3e44444b0ff38391ffcfd1a7e6c6
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -34,13 +37,24 @@ jobs:
           sudo gem install --no-document openvox --version 8.28.1
           pip install --quiet pyyaml jinja2
 
+      # Cached per release and checksum, so PR runs reach GitHub releases
+      # only once per new build. A restored binary still goes through the
+      # sha256 check in the next step.
+      - name: Restore cached Caddy build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: caddy
+          key: ${{ env.CADDY_RELEASE }}-${{ env.CADDY_SHA256 }}
+
       - name: Install Caddy (custom CrowdSec/AppSec build) for config validation
-        env:
-          CADDY_RELEASE: caddy-v2.11.7-crowdsec-v0.14.1-17a1e5a5
-          CADDY_SHA256: c67e050c3fc66ece9c39332ea2f963b8edfa3e44444b0ff38391ffcfd1a7e6c6
         run: |
-          curl -fsSL -o caddy \
-            "https://github.com/MrCodeEU/homelab-automation/releases/download/${CADDY_RELEASE}/caddy-linux-amd64"
+          if [ ! -s caddy ]; then
+            # Bounded retries: release downloads have returned 503/504 from
+            # github.com for minutes at a time (2026-11-08). 5xx and timeouts
+            # are retried, a 404 is not; the sha256 check below still decides.
+            curl -fsSL --retry 4 --retry-delay 10 --retry-max-time 90 --max-time 120 -o caddy \
+              "https://github.com/MrCodeEU/homelab-automation/releases/download/${CADDY_RELEASE}/caddy-linux-amd64"
+          fi
           echo "${CADDY_SHA256}  caddy" | sha256sum -c -
           sudo install -m 755 caddy /usr/local/bin/caddy
           caddy version

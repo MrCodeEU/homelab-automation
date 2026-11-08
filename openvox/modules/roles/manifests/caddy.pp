@@ -186,11 +186,13 @@ class roles::caddy (
         "CADDY_CUSTOM_BIN=${custom_bin}",
         "CADDY_CUSTOM_TAG=${custom_build['tag']}",
         "CADDY_CUSTOM_SHA256=${custom_build['sha256']}",
+        "CADDY_CUSTOM_ZITI=${ziti_transport}",
       ],
       require     => [File[$work_dir], Exec['caddy-package'], Exec['caddy-selinux']],
       before      => File['/etc/systemd/system/caddy.service.d/override.conf'],
       notify      => Exec['caddy-restart-on-override'],
-      timeout     => 400,
+      # curl retries for up to 120 s, plus one attempt of up to 300 s.
+      timeout     => 600,
     }
     $exec_override = @("EXEC")
       # Custom build with the CrowdSec bouncer and AppSec (roles::caddy::custom_build).
