@@ -1,5 +1,7 @@
 # Caddy with the CrowdSec bouncer + AppSec plugins, for the AppSec proof of
-# concept (docs/APPSEC_POC_PLAN.md). Not used by production Caddy, which is
+# concept (docs/APPSEC_POC_PLAN.md), and the OpenZiti reverse-proxy
+# transport from ./ziti-caddy (kept in this repo with a lazy-login fix,
+# see its README). Not used by production Caddy, which is
 # still the COPR package.
 #
 # The arg is CADDY_TAG, not CADDY_VERSION: the official builder image sets its
@@ -21,11 +23,14 @@ ARG BOUNCER_VERSION=v0.14.1
 FROM docker.io/library/caddy:${CADDY_TAG}-builder@${CADDY_BUILDER_DIGEST} AS builder
 ARG CADDY_TAG
 ARG BOUNCER_VERSION
+COPY ziti-caddy /src/ziti-caddy
 # http = the bouncer handler (IP decisions from the LAPI), appsec = the
-# per-route WAF handler. layer4 is deliberately not built in.
+# per-route WAF handler, ziti = reverse_proxy transport over OpenZiti
+# (its go.mod pins sdk-golang). layer4 is deliberately not built in.
 RUN xcaddy build "v${CADDY_TAG}" \
       --with "github.com/hslatman/caddy-crowdsec-bouncer/http@${BOUNCER_VERSION}" \
-      --with "github.com/hslatman/caddy-crowdsec-bouncer/appsec@${BOUNCER_VERSION}"
+      --with "github.com/hslatman/caddy-crowdsec-bouncer/appsec@${BOUNCER_VERSION}" \
+      --with "github.com/openziti-test-kitchen/ziti-caddy=/src/ziti-caddy"
 
 FROM docker.io/library/caddy:${CADDY_TAG}@${CADDY_RUNTIME_DIGEST}
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
