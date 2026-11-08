@@ -346,7 +346,13 @@ class roles::caddy (
   $log_compress = $log_rotate_compress ? { true => 'compress', default => 'nocompress' }
   $logrotate_paths = $log_names.unique.sort.map |$n| { "${log_path}/caddy/${n}.log" }.join("\n")
 
+  # Not in /etc/caddy: that is httpd_config_t, and logrotate_t may read but
+  # not map it ("Error mapping config file", first run 2026-11-08).
   file { '/etc/caddy/logrotate.conf':
+    ensure => absent,
+  }
+
+  file { '/etc/logrotate-caddy.conf':
     ensure  => file,
     owner   => 'root',
     group   => 'root',
@@ -374,7 +380,7 @@ class roles::caddy (
     owner   => 'root',
     group   => 'root',
     mode    => '0644',
-    content => "[Unit]\nDescription=Rotate Caddy logs (roles::caddy)\n\n[Service]\nType=oneshot\nExecStart=/usr/sbin/logrotate -s /var/lib/logrotate/caddy.status /etc/caddy/logrotate.conf\n",
+    content => "[Unit]\nDescription=Rotate Caddy logs (roles::caddy)\n\n[Service]\nType=oneshot\nExecStart=/usr/sbin/logrotate -s /var/lib/logrotate/caddy.status /etc/logrotate-caddy.conf\n",
     notify  => Exec['caddy-logrotate-systemd-reload'],
   }
 
@@ -396,7 +402,7 @@ class roles::caddy (
     ensure  => running,
     enable  => true,
     require => [
-      File['/etc/caddy/logrotate.conf'],
+      File['/etc/logrotate-caddy.conf'],
       File['/etc/systemd/system/caddy-logrotate.service'],
       File['/etc/systemd/system/caddy-logrotate.timer'],
       Exec['caddy-logrotate-systemd-reload'],

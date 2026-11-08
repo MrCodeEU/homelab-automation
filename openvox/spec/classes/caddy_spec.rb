@@ -73,7 +73,7 @@ describe 'roles::caddy' do
   end
 
   context 'log rotation' do
-    let(:conf) { catalogue.resource('file', '/etc/caddy/logrotate.conf')[:content] }
+    let(:conf) { catalogue.resource('file', '/etc/logrotate-caddy.conf')[:content] }
 
     it 'leaves rotation to logrotate: SELinux lets httpd_t append, not rename' do
       snippet = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/ziti-upstream.caddy')[:content]
@@ -100,9 +100,10 @@ describe 'roles::caddy' do
 
     it 'runs logrotate hourly with its own state file' do
       is_expected.to contain_file('/etc/systemd/system/caddy-logrotate.service')
-        .with_content(%r{ExecStart=/usr/sbin/logrotate -s /var/lib/logrotate/caddy.status /etc/caddy/logrotate.conf})
+        .with_content(%r{ExecStart=/usr/sbin/logrotate -s /var/lib/logrotate/caddy.status /etc/logrotate-caddy.conf})
       is_expected.to contain_file('/etc/systemd/system/caddy-logrotate.timer').with_content(%r{OnCalendar=hourly})
       is_expected.to contain_service('caddy-logrotate.timer').with(ensure: 'running', enable: true)
+      is_expected.to contain_file('/etc/caddy/logrotate.conf').with_ensure('absent')
     end
   end
 
