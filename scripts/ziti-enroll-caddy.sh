@@ -48,7 +48,8 @@ if $reenroll; then
 fi
 
 say "One-time token for $NAME"
-jwt=$(zcli "edge list enrollments 'identity=\"$id\" and method=\"ott\"' -j" | jq -r '.data[0].jwt // empty')
+# The enrollments filter has no `method` field: pick the ott one here.
+jwt=$(zcli "edge list enrollments 'identity=\"$id\"' -j" | jq -r '[.data[] | select(.method == "ott")][0].jwt // empty')
 if [ -z "$jwt" ]; then
   zcli "edge create enrollment ott $NAME -o /tmp/$NAME.jwt" >/dev/null
 else

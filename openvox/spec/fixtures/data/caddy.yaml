@@ -48,3 +48,11 @@ services_catalog:
     domain: block.example.test
     appsec: block
     appsec_exclude_paths: ['/upload/*', '/dav/*']
+  # Over Ziti only when roles::caddy::ziti_transport is true; otherwise the
+  # usual Tailscale upstream (so the stock-Caddy render test validates it).
+  - name: ziti-upstream
+    enabled: true
+    domain: ziti.example.test
+    port: 3001
+    host: nuc
+    ziti_via_caddy: true
