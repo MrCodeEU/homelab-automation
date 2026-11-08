@@ -37,9 +37,10 @@ jobs:
           sudo gem install --no-document openvox --version 8.28.1
           pip install --quiet pyyaml jinja2
 
-      # Cached per release and checksum, so PR runs reach GitHub releases
-      # only once per new build. A restored binary still goes through the
-      # sha256 check in the next step.
+      # Cached per release and checksum. The cache is per PR (this workflow
+      # never runs on main, so there is no main cache to share): the first
+      # run of a PR downloads, its re-runs and later pushes restore. A
+      # restored binary still goes through the sha256 check in the next step.
       - name: Restore cached Caddy build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
