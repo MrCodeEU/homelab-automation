@@ -5,9 +5,12 @@
 # attribute caddy (catalog entries with ziti_via_caddy, catalog.tf). It
 # hosts nothing.
 resource "ziti_identity" "caddy_mljr" {
-  name            = "caddy-mljr"
+  name           = "caddy-mljr"
   type           = "Default"
   auth_policy_id = "default"
+  # Explicitly empty: the controller stores [], and an unset list plans
+  # [] -> null on every run.
+  role_attributes = []
 }
 
 resource "ziti_service_policy" "caddy_dial" {
