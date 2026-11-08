@@ -71,6 +71,10 @@ roles::host_facts_endpoint::hostname: 'mljr'
 roles::host_facts_endpoint::dest: '/usr/local/bin/homelab-facts'
 
 roles::grafana_alloy::hostname: 'mljr'
+# To VictoriaMetrics and Loki on nuc over Ziti, through services/ziti-proxy
+# (127.0.0.1 only). Rollback: drop both lines, back to nuc's Tailscale IP.
+roles::grafana_alloy::prometheus_remote_write_url: 'http://127.0.0.1:19090/api/v1/write'
+roles::grafana_alloy::loki_push_url: 'http://127.0.0.1:3100/loki/api/v1/push'
 
 roles::canary_decoys::hostname: 'mljr'
 
