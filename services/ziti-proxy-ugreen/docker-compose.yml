@@ -1,0 +1,29 @@
+# Ziti client for apps on ugreen that cannot dial Ziti themselves (Grafana
+# Alloy): `ziti tunnel proxy` opens one listener per service, published on
+# 127.0.0.1 only, as identity m2m-ugreen (ziti/tofu/m2m.tf). That identity may
+# dial only the services listed there.
+#
+# Enrolment: scripts/ziti-enroll-proxy.sh m2m-ugreen ugreen ziti-proxy-ugreen writes
+# data/m2m-ugreen.json (uid 2171, 0600). Without it the container restarts
+# until the file exists; Alloy buffers in its WAL meanwhile.
+services:
+  ziti-proxy-ugreen:
+    image: openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
+    container_name: ziti-proxy-ugreen
+    restart: unless-stopped
+    user: "2171:2171"
+    entrypoint: ["ziti"]
+    command:
+      - tunnel
+      - proxy
+      - grafana-victoriametrics:19090
+      - grafana-loki:3100
+      - --identity
+      - /identity/m2m-ugreen.json
+    ports:
+      - "127.0.0.1:19090:19090"
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./data:/identity
+    environment:
+      - TZ=${TZ}

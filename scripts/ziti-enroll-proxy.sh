@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Enrol a machine-to-machine proxy identity (ziti/tofu/m2m.tf) on the host
-# that runs it, into /opt/ziti-proxy/data/<name>.json for services/ziti-proxy.
+# that runs it, into <base_path>/<service>/data/<name>.json for
+# services/<service> (base_path: roles::services::base_path of that host).
 # The identity itself is created by OpenTofu (scripts/ziti-tofu.sh apply);
 # this only turns its one-time token into a certificate and key.
 #
@@ -9,8 +10,9 @@
 # the private key never leaves that host. The file is 2171:2171 0600 (the
 # image's user).
 #
-# Usage: scripts/ziti-enroll-proxy.sh <identity> <host> [--reenroll]
-#   e.g. scripts/ziti-enroll-proxy.sh m2m-mljr mljr
+# Usage: scripts/ziti-enroll-proxy.sh <identity> <host> <service> [--reenroll]
+#   e.g. scripts/ziti-enroll-proxy.sh m2m-mljr mljr ziti-proxy
+#        scripts/ziti-enroll-proxy.sh m2m-ugreen ugreen ziti-proxy-ugreen
 #   --reenroll  replace an existing enrolment (lost or broken file): drops
 #               the identity's certificate authenticator, issues a new token
 # shellcheck disable=SC2029  # remote commands are built locally on purpose
@@ -19,24 +21,35 @@ set -euo pipefail
 say() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
-[ $# -ge 2 ] || die "usage: $0 <identity> <host> [--reenroll]"
+usage="usage: $0 <identity> <host> <service> [--reenroll]"
+[ $# -ge 3 ] || die "$usage"
 NAME=$1
 HOST=$2
+SERVICE=$3
 reenroll=false
-case "${3:-}" in
+case "${4:-}" in
   "") ;;
   --reenroll) reenroll=true ;;
-  *) die "usage: $0 <identity> <host> [--reenroll]" ;;
+  *) die "$usage" ;;
 esac
 [[ $NAME =~ ^[a-z0-9-]+$ ]] || die "bad identity name: $NAME"
 [[ $HOST =~ ^[a-z0-9-]+$ ]] || die "bad host: $HOST"
+[[ $SERVICE =~ ^ziti-proxy(-[a-z0-9]+)?$ ]] || die "bad service: $SERVICE"
+
+repo=$(cd "$(dirname "$0")/.." && pwd)
+compose=$repo/services/$SERVICE/docker-compose.yml
+node=$repo/openvox/data/nodes/$HOST.int.mljr.eu.yaml
+[ -f "$compose" ] || die "no $compose"
+[ -f "$node" ] || die "no $node"
+grep -q -- "/identity/$NAME.json" "$compose" || die "$compose does not use identity $NAME"
+base=$(sed -n "s/^roles::services::base_path: *['\"]\{0,1\}\([^'\"]*\).*/\1/p" "$node")
 
 CTRL_HOST=root@mljr.tail33930.ts.net
 TARGET=root@$HOST.tail33930.ts.net
-DIR=/opt/ziti-proxy/data
+DIR=${base:-/opt}/$SERVICE/data
 DEST=$DIR/$NAME.json
-IMAGE=$(sed -n 's/^ *image: *//p' "$(dirname "$0")/../services/ziti-proxy/docker-compose.yml" | head -1)
-[ -n "$IMAGE" ] || die "no image in services/ziti-proxy/docker-compose.yml"
+IMAGE=$(sed -n 's/^ *image: *//p' "$compose" | head -1)
+[ -n "$IMAGE" ] || die "no image in $compose"
 
 zcli() {
   ssh "$CTRL_HOST" "set -a; . /opt/ziti-controller/.env; set +a
