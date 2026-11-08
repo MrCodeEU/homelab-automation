@@ -376,6 +376,7 @@ services_catalog:
     caddy_auth: authelia
     icon: "mdi:shield-search"
     backup_critical: true
+    ziti_via_caddy: true
 
   - name: kuma
     enabled: true
@@ -414,6 +415,7 @@ services_catalog:
     caddy_auth: "authelia"
     description: "Backup system dashboard"
     icon: "mdi:cloud-sync"
+    ziti_via_caddy: true
 
   - name: grafana
     enabled: true
@@ -498,6 +500,7 @@ services_catalog:
     backup_critical: true
     description: "Mail Archiver"
     icon: "mdi:email"
+    ziti_via_caddy: true
 
   - name: paperless-mail-export
     enabled: true
@@ -740,6 +743,7 @@ services_catalog:
     description: "Netronome Network Monitor"
     icon: "mdi:speedometer"
     caddy_auth: authelia
+    ziti_via_caddy: true
 
   - name: nas-alloy
     enabled: true
