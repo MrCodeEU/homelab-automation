@@ -101,6 +101,22 @@ describe 'roles::base' do
     end
   end
 
+  context 'with Cockpit disabled' do
+    let(:params) { { cockpit_disabled: true } }
+
+    it 'stops the socket and closes the firewall service' do
+      is_expected.to contain_service('cockpit.socket').with(ensure: 'stopped', enable: false)
+      is_expected.to contain_roles__firewalld__service('cockpit-public').with(ensure: 'absent', zone: 'public', service: 'cockpit')
+      is_expected.not_to contain_file('/etc/systemd/system/cockpit.socket.d/override.conf')
+    end
+  end
+
+  context 'with both Cockpit switches on' do
+    let(:params) { { cockpit_disabled: true, cockpit_console_enabled: true } }
+
+    it { is_expected.to compile.and_raise_error(%r{exclusive}) }
+  end
+
   context 'with the opt-in Cockpit console' do
     let(:params) { { cockpit_console_enabled: true } }
 

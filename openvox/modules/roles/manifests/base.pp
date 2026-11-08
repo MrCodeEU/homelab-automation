@@ -24,6 +24,7 @@ class roles::base (
   Optional[Integer] $ssh_breakglass_port = undef,
   String  $tailscale_ip           = '',
   Boolean $cockpit_console_enabled = false,
+  Boolean $cockpit_disabled       = false,
   String  $domain                 = 'mljr.eu',
   # Self-computed from the fact CI's weekly-maintenance run sets
   # (FACTER_openvox_weekly_maintenance=true, see .github/workflows/deploy.yml)
@@ -274,6 +275,25 @@ class roles::base (
       ensure  => running,
       enable  => true,
       require => File['/etc/systemd/system/cockpit.socket.d/override.conf'],
+    }
+
+    roles::firewalld::service { 'cockpit-public':
+      ensure  => absent,
+      zone    => 'public',
+      service => 'cockpit',
+    }
+  }
+
+  # Hosts where the OS ships Cockpit on *:9090 and nothing uses it (nuc:
+  # its nuc.mljr.eu vhost was removed 2026-11-08): stop the socket and
+  # close the firewall service, so 9090 is not reachable at all.
+  if $cockpit_disabled {
+    if $cockpit_console_enabled {
+      fail('roles::base: cockpit_console_enabled and cockpit_disabled are exclusive')
+    }
+    service { 'cockpit.socket':
+      ensure => stopped,
+      enable => false,
     }
 
     roles::firewalld::service { 'cockpit-public':

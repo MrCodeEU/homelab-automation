@@ -78,7 +78,7 @@ class roles::backup (
   },
   # SQLite volumes: copied back from the remote and PRAGMA integrity_check
   # run on every *.db / *.sqlite file inside.
-  Array[String] $verification_restore_sqlite_volumes = ['kuma_uptime-kuma-sqlite', 'actual-budget-data', 'glucava-data'],
+  Array[String] $verification_restore_sqlite_volumes = ['kuma_uptime-kuma-sqlite', 'glucava-data'],
   Integer       $verification_restore_max_mib = 1024,
   Integer       $verification_dump_max_age_hours = 72,
   Boolean       $history_enabled = false,
@@ -322,14 +322,6 @@ class roles::backup (
       'restore_post_hook' => $nocturne_restore_hook,
       'recovery_skip_volumes' => ['nocturne_nocturne-postgres-data'],
       'critical'          => false,
-    },
-    # SQLite (account + per-budget sync files) is copied live like kuma's;
-    # history_volumes keeps dated copies so a torn snapshot is never the only one.
-    'actual-budget' => {
-      'volumes'         => ['actual-budget-data'],
-      'critical'        => true,
-      'history_paths'   => [{'label' => 'service-config', 'path' => '/opt/actual-budget'}],
-      'history_volumes' => ['actual-budget-data'],
     },
     # PocketBase: data.db and auxiliary.db (SQLite, WAL mode) in one volume,
     # backed up as a plain volume copy like kuma and authelia. glucava has no

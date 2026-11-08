@@ -98,7 +98,7 @@ describe 'roles::backup' do
     end
 
     it 'checks only SQLite volumes that are in the contract' do
-      # neither kuma, actual-budget nor glucava is selected here
+      # neither kuma nor glucava is selected here
       expect(verify).not_to match(%r{^  restore_sqlite })
     end
 
@@ -126,7 +126,6 @@ describe 'roles::backup' do
       it do
         expect(verify).to match(%r{^  restore_sqlite 'kuma_uptime-kuma-sqlite'$})
         expect(verify).to match(%r{^  restore_sqlite 'glucava-data'$})
-        expect(verify).not_to match(%r{restore_sqlite 'actual-budget-data'})
       end
     end
   end

@@ -117,7 +117,7 @@ var pages = []page{
 		Slug: "all", Title: "MLJR",
 		Groups: []group{{Name: "Dienste", Monitors: []string{
 			"authelia", "cglab", "gameoflife", "glance", "goaccess", "homeassistant", "homepage",
-			"immich", "kuma", "mailcow", "nas", "nextcloud", "ntfy", "nuc-webui", "projects",
+			"immich", "kuma", "mailcow", "nas", "nextcloud", "ntfy", "projects",
 			smtpPrefix + mailcowSMTPHost, "sudoku", "syncthing", "ui-showcase", "wordwiz",
 		}}},
 	},
@@ -129,7 +129,7 @@ var pages = []page{
 				pingPrefix + "wd-mycloud", pingPrefix + "homeassistant",
 			}},
 			{Name: "Netzwerk", Monitors: []string{
-				tcpPrefix + "crowdsec LAPI (mljr)", tcpPrefix + "defectdojo (nuc)", "cockpit", "nuc-webui", "nas",
+				tcpPrefix + "crowdsec LAPI (mljr)", tcpPrefix + "defectdojo (nuc)", "cockpit", "nas",
 			}},
 		},
 	},
@@ -137,7 +137,7 @@ var pages = []page{
 		Slug: "apps", Title: "MLJR Apps",
 		Groups: []group{
 			{Name: "Cloud und Medien", Monitors: []string{"nextcloud", "immich", "syncthing", "opencloud", "dawarich", "projects"}},
-			{Name: "Alltag", Monitors: []string{"actual-budget", "sure", "glucava", "homeassistant", "homepage", "glance", "weather-cli", "newsletter"}},
+			{Name: "Alltag", Monitors: []string{"sure", "glucava", "homeassistant", "homepage", "glance", "weather-cli", "newsletter"}},
 			{Name: "Entwicklung", Monitors: []string{"forgejo", "wordwiz", "cglab", "codec", "regex", "cron", "ui-showcase", "gameoflife", "sudoku"}},
 		},
 	},
