@@ -178,6 +178,7 @@ describe 'roles::caddy' do
     context 'disabled (the default)' do
       it 'proxies a ziti_via_caddy entry over Tailscale' do
         expect(snippet).to include('reverse_proxy nuc.tail33930.ts.net:3001')
+        expect(snippet).to include('reverse_proxy nuc.tail33930.ts.net:13001')
         expect(snippet).not_to include('transport ziti')
         is_expected.not_to contain_file('/etc/caddy/ziti')
       end
@@ -203,6 +204,19 @@ describe 'roles::caddy' do
           "    }\n",
         )
         expect(snippet).not_to include('tail33930')
+      end
+
+      it 'dials the staging vhost over Ziti on the staging host' do
+        expect(snippet).to include(
+          "ziti.dev.example.test {\n",
+        )
+        expect(snippet).to include(
+          "    reverse_proxy ziti-upstream-staging.nuc.int.mljr.eu:13001 {\n" \
+          "        transport ziti {\n" \
+          "            identity /etc/caddy/ziti/caddy-mljr.json\n" \
+          "        }\n" \
+          "    }\n",
+        )
       end
 
       it 'leaves entries without the flag on Tailscale' do

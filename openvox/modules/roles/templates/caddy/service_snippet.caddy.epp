@@ -4,6 +4,7 @@
       Boolean $is_staging_deployment,
       String $staging_domain_prefix,
       String $staging_target,
+      String $staging_host = '',
       Boolean $appsec_enabled = false,
       String $ziti_identity = '',
 | -%>
@@ -152,6 +153,15 @@
 <% } elsif $auth_type == 'authelia' { -%>
     import authelia_auth
 <% } -%>
+<% if $ziti_identity != '' { -%>
+    # Over OpenZiti as caddy-mljr; the staging container runs on staging_host
+    reverse_proxy <%= $name %>-staging.<%= $staging_host %>.int.mljr.eu:<%= $staging_port %> {
+        transport ziti {
+            identity <%= $ziti_identity %>
+        }
+    }
+<% } else { -%>
     reverse_proxy <%= $staging_target %>:<%= $staging_port %>
+<% } -%>
 }
 <% } -%>

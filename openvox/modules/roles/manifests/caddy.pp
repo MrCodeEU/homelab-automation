@@ -321,6 +321,7 @@ class roles::caddy (
         'is_staging_deployment' => $is_staging_deployment,
         'staging_domain_prefix' => $staging_domain_prefix,
         'staging_target'        => $staging_target,
+        'staging_host'          => $staging_host,
         'appsec_enabled'        => $appsec_enabled,
         'ziti_identity'         => $svc_ziti_identity,
       }),
