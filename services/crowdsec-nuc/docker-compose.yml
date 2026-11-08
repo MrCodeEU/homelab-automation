@@ -23,6 +23,28 @@ services:
       # grant for mailcow/authelia.
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
+  # Ziti client for LOCAL_API_URL: `ziti tunnel proxy` as identity
+  # crowdsec-nuc (ziti/tofu/m2m.tf), which may dial mljr's LAPI only.
+  # Reachable from this compose network only, no published port.
+  # Enrolment: scripts/ziti-enroll-proxy.sh crowdsec-nuc nuc crowdsec-nuc
+  # writes ziti/crowdsec-nuc.json (uid 2171, 0600).
+  ziti-proxy:
+    image: openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
+    container_name: crowdsec-nuc-ziti-proxy
+    restart: unless-stopped
+    user: "2171:2171"
+    entrypoint: ["ziti"]
+    command:
+      - tunnel
+      - proxy
+      - crowdsec-lapi:8088
+      - --identity
+      - /identity/crowdsec-nuc.json
+    volumes:
+      - ./ziti:/identity
+    environment:
+      - TZ=${TZ}
+
 volumes:
   crowdsec-nuc-config:
     name: crowdsec-nuc-config

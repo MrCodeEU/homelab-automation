@@ -562,6 +562,10 @@ services_catalog:
     description: "CrowdSec Security Intelligence"
     icon: "mdi:shield-search"
     caddy_auth: "authelia"
+    # LAPI for remote agents (crowdsec-nuc), hosted by mljr's router on
+    # 127.0.0.1:8088 -> crowdsec-lapi.mljr.int.mljr.eu:8088
+    ziti_ports:
+      lapi: 8088
 
   - name: csp-reports
     enabled: true
