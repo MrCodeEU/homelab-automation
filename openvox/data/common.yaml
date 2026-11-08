@@ -1042,6 +1042,7 @@ services_catalog:
     host: nuc
     description: "Word Wizard App"
     icon: "mdi:alphabetical-variant"
+    ziti_via_caddy: true
 
   - name: sudoku
     enabled: true
@@ -1062,6 +1063,7 @@ services_catalog:
     host: nuc
     description: "Game of Life (Kotlin/WASM)"
     icon: "mdi:grain"
+    ziti_via_caddy: true
 
   - name: cglab
     enabled: true
@@ -1071,6 +1073,7 @@ services_catalog:
     host: nuc
     description: "CG Lab WebGL Project"
     icon: "mdi:cube-outline"
+    ziti_via_caddy: true
 
   - name: godrive-demo
     enabled: true
