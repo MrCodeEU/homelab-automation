@@ -132,6 +132,55 @@ describe 'roles::caddy' do
     end
   end
 
+  context 'Ziti transport' do
+    let(:custom) do
+      { 'tag' => 'caddy-v2.11.7-crowdsec-v0.14.1-17a1e5a5',
+        'sha256' => 'c67e050c3fc66ece9c39332ea2f963b8edfa3e44444b0ff38391ffcfd1a7e6c6' }
+    end
+    let(:snippet) { catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/ziti-upstream.caddy')[:content] }
+
+    context 'disabled (the default)' do
+      it 'proxies a ziti_via_caddy entry over Tailscale' do
+        expect(snippet).to include('reverse_proxy nuc.tail33930.ts.net:3001')
+        expect(snippet).not_to include('transport ziti')
+        is_expected.not_to contain_file('/etc/caddy/ziti')
+      end
+    end
+
+    context 'enabled without a custom build' do
+      let(:params) { { ziti_transport: true } }
+
+      it { is_expected.to compile.and_raise_error(%r{needs roles::caddy::custom_build}) }
+    end
+
+    context 'enabled with a custom build' do
+      let(:params) { { custom_build: custom, ziti_transport: true } }
+
+      it { is_expected.to compile.with_all_deps }
+
+      it 'dials the Ziti intercept address as caddy-mljr' do
+        expect(snippet).to include(
+          "    reverse_proxy ziti-upstream.nuc.int.mljr.eu:3001 {\n" \
+          "        transport ziti {\n" \
+          "            identity /etc/caddy/ziti/caddy-mljr.json\n" \
+          "        }\n" \
+          "    }\n",
+        )
+        expect(snippet).not_to include('tail33930')
+      end
+
+      it 'leaves entries without the flag on Tailscale' do
+        other = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/appsec-log.caddy')[:content]
+        expect(other).to include('reverse_proxy nuc.tail33930.ts.net:7001')
+        expect(other).not_to include('transport ziti')
+      end
+
+      it 'keeps the identity directory root:caddy 0750' do
+        is_expected.to contain_file('/etc/caddy/ziti').with(ensure: 'directory', owner: 'root', group: 'caddy', mode: '0750')
+      end
+    end
+  end
+
   context 'AppSec' do
     let(:sha) { 'ebd5a88596a13c4aa6148e679fa08e1814789131e0349a53631219884b0431c9' }
     let(:custom) { { 'tag' => 'caddy-v2.11.7-crowdsec-v0.14.1-b38ae651', 'sha256' => sha } }

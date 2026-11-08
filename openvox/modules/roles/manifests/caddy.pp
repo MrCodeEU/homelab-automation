@@ -52,6 +52,15 @@
 # `appsec: log|block` (+ `appsec_exclude_paths`). Mode is chosen per vhost:
 # Caddy sets X-Appsec-Mode: block for `block`, strips it for `log`; the
 # homelab/poc AppSec config only enforces when the header is `block`.
+#
+# $ziti_transport (needs $custom_build): catalog entries with
+# `ziti_via_caddy: true` are proxied over OpenZiti instead of Tailscale,
+# with the ziti reverse_proxy transport built into the custom Caddy
+# (services/caddy-poc/ziti-caddy), dialing <name>.<host>.int.mljr.eu:<port>
+# as identity caddy-mljr ($ziti_identity, enrolled by
+# scripts/ziti-enroll-caddy.sh; services and policy in ziti/tofu/). Off
+# switch for all of them at once: false, and those entries go back to
+# Tailscale on the next apply. Per entry: drop the catalog flag.
 class roles::caddy (
   String $work_dir               = '/usr/local/libexec/openvox-caddy',
   String $email                  = 'admin@mljr.eu',
@@ -70,9 +79,14 @@ class roles::caddy (
     sha256 => Pattern[/\A[0-9a-f]{64}\z/],
   }]] $custom_build              = undef,
   Boolean $appsec_enabled        = false,
+  Boolean $ziti_transport        = false,
+  String[1] $ziti_identity          = '/etc/caddy/ziti/caddy-mljr.json',
 ) {
   if $appsec_enabled and !$custom_build {
     fail('roles::caddy::appsec_enabled needs roles::caddy::custom_build (the packaged Caddy has no AppSec module)')
+  }
+  if $ziti_transport and !$custom_build {
+    fail('roles::caddy::ziti_transport needs roles::caddy::custom_build (the packaged Caddy has no ziti transport)')
   }
   $appsec_key = Sensitive(lookup('vault_crowdsec_caddy_bouncer_key', { 'default_value' => '' }))
   $custom_bin = '/usr/local/bin/caddy-crowdsec'
@@ -194,6 +208,19 @@ class roles::caddy (
     }
   }
 
+  # The identity file itself is written by scripts/ziti-enroll-caddy.sh, not
+  # managed here. If it is missing, validate.sh refuses the staged config
+  # (the transport checks the file while provisioning), so the running
+  # config stays.
+  if $ziti_transport {
+    file { dirname($ziti_identity):
+      ensure => directory,
+      owner  => 'root',
+      group  => 'caddy',
+      mode   => '0750',
+    }
+  }
+
   if $appsec_enabled {
     file { '/etc/caddy/crowdsec.env':
       ensure    => file,
@@ -274,6 +301,10 @@ class roles::caddy (
   $service_files = $caddy_services.map |$svc| {
     $svc_is_local = $svc['host'] == 'mljr'
     $svc_target_host = $svc_is_local ? { true => 'localhost', default => "${svc['host']}.tail33930.ts.net" }
+    $svc_ziti_identity = ($ziti_transport and pick($svc['ziti_via_caddy'], false)) ? {
+      true    => $ziti_identity,
+      default => '',
+    }
     file { "/etc/caddy/conf.d.openvox-staging/${svc['name']}.caddy":
       ensure  => file,
       mode    => '0644',
@@ -289,6 +320,7 @@ class roles::caddy (
         'staging_domain_prefix' => $staging_domain_prefix,
         'staging_target'        => $staging_target,
         'appsec_enabled'        => $appsec_enabled,
+        'ziti_identity'         => $svc_ziti_identity,
       }),
       require => File['/etc/caddy/conf.d.openvox-staging'],
     }

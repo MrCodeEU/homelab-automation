@@ -9,6 +9,7 @@
       String $staging_domain_prefix,
       String $staging_target,
       Boolean $appsec_enabled = false,
+      String $ziti_identity = '',
 | -%>
 <%
   $name = $service['name']
@@ -116,6 +117,13 @@
             tls_insecure_skip_verify
         }
         header_up Host {http.request.host}
+    }
+<% } elsif $ziti_identity != '' { -%>
+    # Over OpenZiti as caddy-mljr (roles::caddy::ziti_transport)
+    reverse_proxy <%= $name %>.<%= $service['host'] %>.int.mljr.eu:<%= $target_port %> {
+        transport ziti {
+            identity <%= $ziti_identity %>
+        }
     }
 <% } else { -%>
     reverse_proxy <%= $target_host %>:<%= $target_port %>
