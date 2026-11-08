@@ -74,3 +74,49 @@ func TestPushError(t *testing.T) {
 		t.Fatalf("want error with body, got %v", err)
 	}
 }
+
+func TestParseIperfTargets(t *testing.T) {
+	got, err := parseIperfTargets(" mljr=127.0.0.1:15201, ugreen=127.0.0.1:15202,")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0] != (IperfTarget{"mljr", "127.0.0.1:15201"}) || got[1].Name != "ugreen" {
+		t.Errorf("got %+v", got)
+	}
+	if ts, err := parseIperfTargets(""); err != nil || len(ts) != 0 {
+		t.Errorf("empty: %v %v", ts, err)
+	}
+	if _, err := parseIperfTargets("mljr"); err == nil {
+		t.Error("want error without =host:port")
+	}
+}
+
+func TestParseIperf(t *testing.T) {
+	bps, rt, err := parseIperf([]byte(`{"start":{},"end":{"sum_sent":{"bits_per_second":9e8,"retransmits":12},"sum_received":{"bits_per_second":8.8e8}}}`))
+	if err != nil || bps != 8.8e8 || rt != 12 {
+		t.Errorf("got %g %g %v", bps, rt, err)
+	}
+	if _, _, err := parseIperf([]byte(`{"start":{},"end":{},"error":"the server is busy running a test. try again later"}`)); err == nil || !strings.Contains(err.Error(), "busy") {
+		t.Errorf("want server error, got %v", err)
+	}
+	if _, _, err := parseIperf([]byte(`not json`)); err == nil {
+		t.Error("want parse error")
+	}
+}
+
+func TestRenderIperf(t *testing.T) {
+	got := renderIperf([]IperfResult{
+		{Src: "nuc", Dst: "mljr", Bps: 1.5e8, Retransmits: 3},
+		{Src: "mljr", Dst: "nuc", Err: errors.New("timeout")},
+	}, now)
+	want := strings.Join([]string{
+		`iperf_up{src="nuc",dst="mljr",path="ziti"} 1 1794168000000`,
+		`iperf_bits_per_second{src="nuc",dst="mljr",path="ziti"} 1.5e+08 1794168000000`,
+		`iperf_retransmits{src="nuc",dst="mljr",path="ziti"} 3 1794168000000`,
+		`iperf_up{src="mljr",dst="nuc",path="ziti"} 0 1794168000000`,
+		`iperf_last_run_timestamp_seconds 1.794168e+09 1794168000000`,
+	}, "\n") + "\n"
+	if got != want {
+		t.Errorf("renderIperf:\n got: %s\nwant: %s", got, want)
+	}
+}

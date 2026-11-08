@@ -30,7 +30,8 @@ Provisioned datasources use stable UIDs:
   sending sources and top failing sources - from dmarc-monitor's parsedmarc
   Postgres database, not Prometheus/Loki like the others.
 - `homelab-speedtest.json`: hourly internet speedtest from nuc (download,
-  upload, latency, jitter, failed runs), written by services/speedtest-metrics
+  upload, latency, jitter, failed runs) and iperf3 between nuc and
+  mljr/ugreen over Ziti every 2h, written by services/speedtest-metrics
   straight into VictoriaMetrics.
 
 ## NAS / Unraid
