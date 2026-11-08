@@ -684,6 +684,10 @@ services_catalog:
     # Over Ziti from Caddy on mljr; first one with large transfers (git
     # over HTTPS)
     ziti_via_caddy: true
+    # Git over SSH as Ziti-only service forgejo-ssh.nuc.int.mljr.eu:2222
+    # (ziti/tofu/catalog.tf), dialable by admins; nothing public on mljr
+    ziti_ports:
+      ssh: 2222
 
   - name: ui-showcase
     enabled: true
