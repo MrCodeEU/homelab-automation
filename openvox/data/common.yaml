@@ -351,6 +351,7 @@ services_catalog:
     host: nuc
     description: "Diabetes Management (Next-Gen)"
     icon: "mdi:moon-waning-crescent"
+    ziti_via_caddy: true
 
   - name: glucava
     enabled: true
@@ -360,6 +361,7 @@ services_catalog:
     description: "Glucose stats for Strava activities"
     icon: "mdi:water-percent"
     backup_critical: true
+    ziti_via_caddy: true
 
   - name: actual-budget
     enabled: true
@@ -382,6 +384,7 @@ services_catalog:
     description: "Personal finance (trial, alongside actual-budget)"
     icon: "mdi:finance"
     backup_critical: true
+    ziti_via_caddy: true
 
   - name: defectdojo
     enabled: true
@@ -564,6 +567,7 @@ services_catalog:
     build_from_source: true
     description: "CSP violation report collector (fleet-wide, fed by Caddy's security_headers snippet)"
     icon: "mdi:shield-alert-outline"
+    ziti_via_caddy: true
 
   - name: cockpit
     enabled: true
@@ -669,6 +673,7 @@ services_catalog:
     host: nuc
     description: "Umami Analytics"
     icon: "mdi:chart-bar"
+    ziti_via_caddy: true
 
   - name: forgejo
     enabled: true
@@ -1082,6 +1087,7 @@ services_catalog:
     host: nuc
     description: "GoDrive File Management Demo"
     icon: "mdi:folder-network-outline"
+    ziti_via_caddy: true
 
   - name: service-template
     enabled: true
