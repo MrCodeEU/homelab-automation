@@ -554,6 +554,34 @@ of the `restore-from-db` OIDC bug (C2).
   the direct path or the shortfall is accepted for that service.
 - Tailscale still in place as a fallback.
 
+Progress:
+
+- 2026-11-07, policy as code (#544-#546): OpenTofu in `ziti/tofu/`, run
+  on mljr by `scripts/ziti-tofu.sh plan|apply`, encrypted state in
+  `/opt/ziti-controller/tofu` (key `vault_ziti_tofu_key`, copy in
+  Bitwarden), part of the controller's cold backup. The 17 objects of the
+  PoC were imported; the plan after import was empty. Apply only from
+  `main`.
+- 2026-11-07, services from the catalog (#547): `ziti: true` on a
+  `services_catalog` entry makes `<name>.<host>.int.mljr.eu:<port>`,
+  hosted by the host's router on its bind address, dialable by
+  `#admin-services`.
+- 2026-11-08, Caddy upstreams over Ziti (#548-#551): Caddy on mljr dials
+  entries with `ziti_via_caddy: true` over Ziti, as identity `caddy-mljr`
+  (`ziti/tofu/caddy.tf`, dial on `#caddy`), enrolled by
+  `scripts/ziti-enroll-caddy.sh` into `/etc/caddy/ziti/caddy-mljr.json`.
+  The transport is the ziti-caddy plugin, kept in
+  `services/caddy-poc/ziti-caddy` with a lazy-login patch: upstream logs in
+  while Caddy starts, so an unreachable controller would take every site
+  down, not just the Ziti upstreams. With the patch, a Ziti upstream
+  answers 502 after `dial_timeout` and recovers without a restart. Switch:
+  `roles::caddy::ziti_transport` on mljr. First service: kuma
+  (`uptime.mljr.eu`), 200 through Ziti. Per-service rollback: drop
+  `ziti_via_caddy`. Open: renewal of the `caddy-mljr` certificate.
+- 2026-11-08, CI (#551): release downloads for this repo answered 503/504
+  from github.com for about an hour. The custom Caddy download now retries
+  (bounded, 5xx and timeouts only) and is cached per PR.
+
 **Rollback:** per service, point the consumer back at the Tailscale
 address.
 **Gate:** all category-3 services work over Ziti with default-deny, and no
