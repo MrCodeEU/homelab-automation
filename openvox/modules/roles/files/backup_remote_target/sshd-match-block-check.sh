@@ -16,7 +16,7 @@ expected=$(cat <<'BLOCK'
 # BEGIN OPENVOX MANAGED BLOCK - backup-remote-target
 Match User rclone-backup
   ChrootDirectory /volume1/homelab-backups
-  ForceCommand internal-sftp
+  ForceCommand internal-sftp -d /data
   AllowTcpForwarding no
   AllowAgentForwarding no
   X11Forwarding no

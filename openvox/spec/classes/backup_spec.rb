@@ -59,7 +59,7 @@ describe 'roles::backup' do
 
     it 'dials the proxy port and pins the host key' do
       expect(rclone_conf).to match(
-        %r{\[ugreen\]\ntype = sftp\nhost = 127\.0\.0\.1\nport = 2422\nknown_hosts_file = /root/\.config/rclone/ugreen_known_hosts\nuser = rclone-backup\n},
+        %r{\[ugreen\]\ntype = sftp\nhost = 127\.0\.0\.1\nport = 2422\nknown_hosts_file = /root/\.config/rclone/ugreen_known_hosts\nhost_key_algorithms = ssh-ed25519\nuser = rclone-backup\n},
       )
       is_expected.to contain_file('/root/.config/rclone/ugreen_known_hosts').with_content(
         "[127.0.0.1]:2422 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHostKey\n",
