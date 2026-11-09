@@ -53,6 +53,10 @@ roles::backup::services:
 # (docs/ZITI_DR.md).
 roles::backup::sensitive_age_recipient: 'age18uzzj6whg55jteq03xf7wxph0swrj4t8lu9qkjwxhqtqra45ffkqukj0z0'
 roles::backup::hostname: 'mljr'
+# SFTP to ugreen over Ziti: services/ziti-proxy on 127.0.0.1:2422.
+# Rollback: drop both lines, back to Tailscale SSH on 100.100.10.4:22.
+roles::backup::ugreen_host: '127.0.0.1'
+roles::backup::ugreen_port: 2422
 # This 4vCPU/7.5GB VPS also runs every service it backs up - the default
 # 8/16 pCloud concurrency saturated it enough that Kuma's 48s timeout
 # tripped on nearly every container during its own nightly backup

@@ -28,6 +28,10 @@ roles::backup::services:
   - sure
   - defectdojo
 roles::backup::hostname: 'nuc'
+# SFTP to ugreen over Ziti: services/ziti-proxy-nuc on 127.0.0.1:2422.
+# Rollback: drop both lines, back to Tailscale SSH on 100.100.10.4:22.
+roles::backup::ugreen_host: '127.0.0.1'
+roles::backup::ugreen_port: 2422
 roles::backup::verification_integrity_schedule: 'Sun *-*-* 06:30:00'
 roles::backup::verification_restore_schedule: 'Sun *-*-01..07 10:30:00'
 

@@ -39,6 +39,9 @@ backup_remote_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIALssUfIl9WG9DUjrTg2M
 # nothing but the forced homelab-facts command). Not secret, same
 # reasoning as backup_remote_pubkey above. Real value, read directly off
 # nuc's already-generated /var/lib/healthreport/ssh/id_ed25519.pub.
+# ugreen sshd's ed25519 host key (public), pinned by roles::backup for the
+# SFTP leg over Ziti (rclone otherwise accepts any host key).
+backup_sftp_ugreen_hostkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIF5h16ge9X6yR3agVwsrGgECfDsbcIgqzHDOeJD864Rk"
 healthreport_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ05smfpoR5Rtfi9/deS+4/D9/OI/IMrScvQqX6mZge7 homelab-healthreport"
 
 # nas's top-level watch dirs for the facts endpoint's "recently changed"
@@ -499,6 +502,14 @@ services_catalog:
     enabled: true
     port: 0
     host: ugreen
+    description: "OpenZiti proxy for machine-to-machine traffic"
+    icon: "mdi:router-network"
+
+  # Same for host processes on nuc (rclone's SFTP to ugreen), as m2m-nuc.
+  - name: ziti-proxy-nuc
+    enabled: true
+    port: 0
+    host: nuc
     description: "OpenZiti proxy for machine-to-machine traffic"
     icon: "mdi:router-network"
 
