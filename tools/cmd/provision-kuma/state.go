@@ -129,7 +129,7 @@ var pages = []page{
 				pingPrefix + "wd-mycloud", pingPrefix + "homeassistant",
 			}},
 			{Name: "Netzwerk", Monitors: []string{
-				tcpPrefix + "crowdsec LAPI (mljr)", tcpPrefix + "defectdojo (nuc)", "cockpit", "nas",
+				crowdsecLAPIName, defectdojoName, "cockpit", "nas",
 			}},
 		},
 	},
@@ -151,7 +151,7 @@ var pages = []page{
 		Slug: "security", Title: "MLJR Sicherheit",
 		Groups: []group{{Name: "Sicherheit", Monitors: []string{
 			"authelia", "crowdsec", "crowdsec-nuc", "crowdsec-nas", "canarytokens", "defectdojo", "csp-reports",
-			tcpPrefix + "crowdsec LAPI (mljr)", tcpPrefix + "defectdojo (nuc)",
+			crowdsecLAPIName, defectdojoName,
 		}}},
 	},
 }
@@ -191,9 +191,12 @@ func monitorIDs(ctx context.Context, client *kuma.Client) (map[string]int64, err
 	if err != nil {
 		return nil, err
 	}
-	ids := make(map[string]int64, len(monitors))
+	// Indexed by the Kuma name and by the logical name without " [host]",
+	// which is what pages and maintenance windows list.
+	ids := make(map[string]int64, 2*len(monitors))
 	for _, m := range monitors {
 		ids[m.Name] = m.ID
+		ids[logicalName(m.Name)] = m.ID
 	}
 	return ids, nil
 }
