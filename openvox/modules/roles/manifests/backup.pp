@@ -510,7 +510,10 @@ class roles::backup (
 
   $ugreen_known_hosts = "${rclone_config_path}/ugreen_known_hosts"
   $ugreen_pin = $ugreen_host ? {
-    '127.0.0.1' => "port = ${ugreen_port}\nknown_hosts_file = ${ugreen_known_hosts}\n",
+    # host_key_algorithms: Go's SSH client prefers ECDSA, sshd then shows
+    # its ECDSA key and rclone reports a mismatch against the pinned
+    # ed25519 one ("knownhosts: key mismatch", 2026-11-09).
+    '127.0.0.1' => "port = ${ugreen_port}\nknown_hosts_file = ${ugreen_known_hosts}\nhost_key_algorithms = ssh-ed25519\n",
     default     => '',
   }
   if $ugreen_host == '127.0.0.1' {

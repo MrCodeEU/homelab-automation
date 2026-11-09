@@ -4,6 +4,10 @@
 # block, validates with sshd -t before installing, restarts sshd only on
 # a real change - reload was confirmed (during the spot port) to not
 # fully re-evaluate Match-block state for already-listening connections.
+#
+# internal-sftp -d /data: start in the data directory inside the chroot,
+# so a client's relative paths (rclone's ugreen:<host>) land where they did
+# over Tailscale SSH, which started in the user's home (= data/) unjailed.
 set -euo pipefail
 CONF=/etc/ssh/sshd_config
 TMP=/etc/ssh/.sshd_config.openvox-tmp
@@ -18,7 +22,7 @@ cat >> "$TMP" <<'BLOCK'
 # BEGIN OPENVOX MANAGED BLOCK - backup-remote-target
 Match User rclone-backup
   ChrootDirectory /volume1/homelab-backups
-  ForceCommand internal-sftp
+  ForceCommand internal-sftp -d /data
   AllowTcpForwarding no
   AllowAgentForwarding no
   X11Forwarding no
