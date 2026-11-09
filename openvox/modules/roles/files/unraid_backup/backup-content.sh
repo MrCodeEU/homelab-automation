@@ -17,6 +17,11 @@ LOG_FILE="${LOG_DIR}/backup-$(date +%Y%m%d).log"
 mkdir -p "$LOG_DIR"
 
 UGREEN_CONFIG="/mnt/user/appdata/homelab/backup-remote/rclone-ugreen.conf"
+# pCloud is the only destination behind the home uplink (~80 Mbit/s up;
+# ugreen and wd-cloud are on the LAN). Unlimited, the Monday upload of the
+# weekly appdata archive (60+ GB) filled it for 3h on 2026-11-09: 3s latency,
+# every service checked through mljr timed out. 4 MiB/s ~ 34 Mbit/s.
+PCLOUD_BWLIMIT="4M"
 UGREEN_AVAILABLE=0
 # A present config file does not mean a writable target. When ugreen's btrfs
 # failed on 2026-07-31 the SFTP login still succeeded, so this leg was still
@@ -67,6 +72,7 @@ BACKUP_DATE="$(date +%Y%m%d)"
 total_count=$((total_count + 1))
 log "Backing up /mnt/user/Fotos/Fotos -> pcloud:Fotos (pCloud)"
 if rclone sync "/mnt/user/Fotos/Fotos" "pcloud:Fotos" \
+    --bwlimit "$PCLOUD_BWLIMIT" \
     --backup-dir "pcloud:.deleted/fotos/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
@@ -111,6 +117,7 @@ fi
 total_count=$((total_count + 1))
 log "Backing up /mnt/user/Fotos/Videos -> pcloud:Fotos-Videos (pCloud)"
 if rclone sync "/mnt/user/Fotos/Videos" "pcloud:Fotos-Videos" \
+    --bwlimit "$PCLOUD_BWLIMIT" \
     --backup-dir "pcloud:.deleted/fotos-videos/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
@@ -155,6 +162,7 @@ fi
 total_count=$((total_count + 1))
 log "Backing up /mnt/user/Fotos/Wichtiges Scans Adressen -> pcloud:Fotos-Wichtiges-Scans-Adressen (pCloud)"
 if rclone sync "/mnt/user/Fotos/Wichtiges Scans Adressen" "pcloud:Fotos-Wichtiges-Scans-Adressen" \
+    --bwlimit "$PCLOUD_BWLIMIT" \
     --backup-dir "pcloud:.deleted/fotos-wichtiges-scans-adressen/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
@@ -179,6 +187,7 @@ fi
 total_count=$((total_count + 1))
 log "Backing up /mnt/user/Fotos/Musik -> pcloud:Musik (pCloud)"
 if rclone sync "/mnt/user/Fotos/Musik" "pcloud:Musik" \
+    --bwlimit "$PCLOUD_BWLIMIT" \
     --backup-dir "pcloud:.deleted/musik/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
@@ -223,6 +232,7 @@ fi
 total_count=$((total_count + 1))
 log "Backing up /mnt/user/Fotos/SB -> pcloud:Fotos-SB (pCloud)"
 if rclone sync "/mnt/user/Fotos/SB" "pcloud:Fotos-SB" \
+    --bwlimit "$PCLOUD_BWLIMIT" \
     --backup-dir "pcloud:.deleted/fotos-sb/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
@@ -247,6 +257,7 @@ fi
 total_count=$((total_count + 1))
 log "Backing up /mnt/user/borgbackup/borg -> pcloud:Nextcloud-Borg (pCloud)"
 if rclone sync "/mnt/user/borgbackup/borg" "pcloud:Nextcloud-Borg" \
+    --bwlimit "$PCLOUD_BWLIMIT" \
     --backup-dir "pcloud:.deleted/nextcloud-borg/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
@@ -271,6 +282,7 @@ fi
 total_count=$((total_count + 1))
 log "Backing up /boot -> pcloud:unraid-flash (pCloud)"
 if rclone sync "/boot" "pcloud:unraid-flash" \
+    --bwlimit "$PCLOUD_BWLIMIT" \
     --backup-dir "pcloud:.deleted/unraid-flash/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
@@ -295,6 +307,7 @@ fi
 total_count=$((total_count + 1))
 log "Backing up /mnt/user/backup/appdata -> pcloud:unraid-appdata-backup (pCloud)"
 if rclone sync "/mnt/user/backup/appdata" "pcloud:unraid-appdata-backup" \
+    --bwlimit "$PCLOUD_BWLIMIT" \
     --backup-dir "pcloud:.deleted/appdata-backup/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
@@ -319,6 +332,7 @@ fi
 total_count=$((total_count + 1))
 log "Backing up /mnt/user/backup/origami -> pcloud:origami (pCloud)"
 if rclone sync "/mnt/user/backup/origami" "pcloud:origami" \
+    --bwlimit "$PCLOUD_BWLIMIT" \
     --backup-dir "pcloud:.deleted/origami/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --transfers 4 --checkers 8 --log-file="$LOG_FILE" --log-level INFO; then
@@ -343,6 +357,7 @@ fi
 total_count=$((total_count + 1))
 log "Backing up /mnt/user/Sync -> pcloud:Sync (pCloud)"
 if rclone sync "/mnt/user/Sync" "pcloud:Sync" \
+    --bwlimit "$PCLOUD_BWLIMIT" \
     --backup-dir "pcloud:.deleted/sync/${BACKUP_DATE}" \
     --exclude "**/.stfolder/**" \
     --exclude "**/node_modules/**" \
