@@ -18,10 +18,14 @@ ctrl:
   endpoint:      tls:ctrl.ziti.mljr.eu:8441
   endpointsFile: /ziti-router/endpoints.yml
 
-# Dial-only: links go out to mljr's router, nothing listens for links here.
+# Dial-only. Groups default (mljr's router) and lan (nuc's LAN link
+# listener, 192.168.50.30:8442): nuc <-> ugreen traffic stays on the LAN.
 link:
   dialers:
     - binding: transport
+      groups:
+        - default
+        - lan
 
 listeners:
   - binding: edge
