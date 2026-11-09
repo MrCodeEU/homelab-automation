@@ -32,16 +32,44 @@ const (
 
 	// Mail ports besides 587. The HTTP monitor only proves Caddy and the
 	// webmail; each of these proves the port itself answers.
-	mailSMTPInName = tcpPrefix + "mail SMTP 25 (mljr)"
+	mailSMTPInName = tcpPrefix + "mail SMTP 25"
 	mailSMTPSName  = tcpPrefix + "mail SMTPS 465"
 	mailIMAPSName  = tcpPrefix + "mail IMAPS 993"
+
+	crowdsecLAPIName = tcpPrefix + "crowdsec LAPI"
+	defectdojoName   = tcpPrefix + "defectdojo"
+
+	// A single failed check is not an outage: Kuma reports DOWN only after
+	// this many failed retries (RetryInterval apart), PENDING until then.
+	maxRetries = 3
 )
+
+// displayName is a monitor's name in Kuma: the logical name plus the
+// catalog host in brackets ("nextcloud [nas]"), so a run of alerts shows at
+// a glance whether one host or several are affected. Status pages and
+// maintenance windows keep using the logical name (monitorIDs indexes both).
+func displayName(name, host string) string {
+	if host == "" {
+		return name
+	}
+	return name + " [" + host + "]"
+}
+
+// logicalName strips displayName's " [host]" suffix.
+func logicalName(display string) string {
+	if i := strings.LastIndex(display, " ["); i > 0 && strings.HasSuffix(display, "]") {
+		return display[:i]
+	}
+	return display
+}
 
 // tcpTarget is a plain TCP-port monitor that is not derived from services.yml.
 type tcpTarget struct {
-	name string
-	host string
-	port int
+	name   string // logical name
+	on     string // host running it, shown as " [on]"
+	host   string
+	port   int
+	legacy string // name before " [host]" was added, renamed in place
 }
 
 // tcpTargets lists the fixed TCP checks. The CrowdSec LAPI is bound to mljr's
@@ -50,17 +78,17 @@ type tcpTarget struct {
 // only proves Caddy + the web UI) stayed green. A TCP check on the bind itself
 // catches exactly that.
 var tcpTargets = []tcpTarget{
-	{name: smtpPrefix + mailcowSMTPHost, host: mailcowSMTPHost, port: mailcowSMTPPort},
-	{name: tcpPrefix + "crowdsec LAPI (mljr)", host: "100.100.20.1", port: 8088},
+	{name: smtpPrefix + mailcowSMTPHost, on: "mljr", host: mailcowSMTPHost, port: mailcowSMTPPort, legacy: smtpPrefix + mailcowSMTPHost},
+	{name: crowdsecLAPIName, on: "mljr", host: "100.100.20.1", port: 8088, legacy: tcpPrefix + "crowdsec LAPI (mljr)"},
 	// Port 25 goes over the tailnet: Kuma runs on nuc, whose home network
 	// cannot reach port 25 on the public IP (checked 2026-10-24 from three
 	// outside networks: fine), so a public check would be permanently red.
-	{name: mailSMTPInName, host: "100.100.20.1", port: 25},
-	{name: mailSMTPSName, host: mailcowSMTPHost, port: 465},
-	{name: mailIMAPSName, host: mailcowSMTPHost, port: 993},
+	{name: mailSMTPInName, on: "mljr", host: "100.100.20.1", port: 25, legacy: tcpPrefix + "mail SMTP 25 (mljr)"},
+	{name: mailSMTPSName, on: "mljr", host: mailcowSMTPHost, port: 465, legacy: mailSMTPSName},
+	{name: mailIMAPSName, on: "mljr", host: mailcowSMTPHost, port: 993, legacy: mailIMAPSName},
 	// DefectDojo has no Caddy route (tailnet-only), so no HTTP monitor is derived
 	// from the catalog. nginx publishes on nuc's Tailscale IP.
-	{name: tcpPrefix + "defectdojo (nuc)", host: "100.100.10.1", port: 8101},
+	{name: defectdojoName, on: "nuc", host: "100.100.10.1", port: 8101, legacy: tcpPrefix + "defectdojo (nuc)"},
 }
 
 type service struct {
@@ -115,6 +143,11 @@ type catalog struct {
 }
 
 type stats struct {
+	// claimed holds the IDs of existing monitors a sync matched, by their
+	// current or their legacy name. A monitor renamed in place this run
+	// still has its old name in the fetched list; it is not an orphan.
+	claimed map[int64]bool
+
 	created []string
 	updated []string
 	deleted []string
@@ -126,7 +159,7 @@ func getExpectedMonitorNames(services []service, hosts []host) map[string]bool {
 	expected := map[string]bool{}
 	for _, svc := range services {
 		if svc.isMonitored() && firstDomain(svc.Domain) != "" {
-			expected[svc.Name] = true
+			expected[displayName(svc.Name, svc.Host)] = true
 		}
 	}
 	for _, h := range hosts {
@@ -135,7 +168,7 @@ func getExpectedMonitorNames(services []service, hosts []host) map[string]bool {
 		}
 	}
 	for _, t := range tcpTargets {
-		expected[t.name] = true
+		expected[displayName(t.name, t.on)] = true
 	}
 	return expected
 }
@@ -161,6 +194,23 @@ func createAndStart(ctx context.Context, client *kuma.Client, m monitor.Monitor)
 	return nil
 }
 
+// lookup finds a monitor by its display name, or by its name from before
+// the " [host]" suffix (it is then renamed in place, keeping its history).
+func lookup(existing map[string]monitor.Base, name, legacy string) (monitor.Base, bool) {
+	if b, ok := existing[name]; ok {
+		return b, true
+	}
+	b, ok := existing[legacy]
+	return b, ok
+}
+
+func (st *stats) claim(id int64) {
+	if st.claimed == nil {
+		st.claimed = map[int64]bool{}
+	}
+	st.claimed[id] = true
+}
+
 func syncServiceMonitors(ctx context.Context, client *kuma.Client, services []service, existing map[string]monitor.Base, st *stats) {
 	for _, svc := range services {
 		if !svc.isMonitored() {
@@ -171,32 +221,35 @@ func syncServiceMonitors(ctx context.Context, client *kuma.Client, services []se
 			continue
 		}
 		targetURL := targetURLFor(domain) + svc.MonitorPath
+		name := displayName(svc.Name, svc.Host)
 
-		if base, ok := existing[svc.Name]; ok {
+		if base, ok := lookup(existing, name, svc.Name); ok {
+			st.claim(base.ID)
 			var httpMon monitor.HTTP
 			_ = base.As(&httpMon)
-			if httpMon.URL != targetURL {
-				fmt.Printf("  Updating %s: %s -> %s\n", svc.Name, httpMon.URL, targetURL)
+			if httpMon.URL != targetURL || base.Name != name || base.MaxRetries != maxRetries {
+				fmt.Printf("  Updating %s: %s -> %s, maxretries=%d\n", base.Name, httpMon.URL, targetURL, maxRetries)
 				httpMon.Base = base
 				httpMon.URL = targetURL
-				httpMon.Base.Name = svc.Name
+				httpMon.Base.Name = name
+				httpMon.Base.MaxRetries = maxRetries
 				if err := client.UpdateMonitor(ctx, &httpMon); err != nil {
-					fmt.Printf("  Failed to update %s: %v\n", svc.Name, err)
-					st.failed = append(st.failed, svc.Name)
+					fmt.Printf("  Failed to update %s: %v\n", name, err)
+					st.failed = append(st.failed, name)
 				} else {
-					st.updated = append(st.updated, svc.Name)
+					st.updated = append(st.updated, name)
 				}
 			} else {
 				st.skipped++
 			}
 		} else {
-			fmt.Printf("  Creating %s (%s)\n", svc.Name, targetURL)
+			fmt.Printf("  Creating %s (%s)\n", name, targetURL)
 			// Kuma v2 (2.5.6) rejects the client's zero values: nil
 			// AcceptedStatusCodes marshals to null ("Cannot read properties
 			// of null (reading 'every')"), so every create failed and
 			// services added since the upgrade had no monitor.
 			m := &monitor.HTTP{
-				Base: monitor.Base{Name: svc.Name, Interval: 60, RetryInterval: 60},
+				Base: monitor.Base{Name: name, Interval: 60, RetryInterval: 60, MaxRetries: maxRetries},
 				HTTPDetails: monitor.HTTPDetails{
 					URL:                 targetURL,
 					Timeout:             48,
@@ -206,10 +259,10 @@ func syncServiceMonitors(ctx context.Context, client *kuma.Client, services []se
 				},
 			}
 			if err := createAndStart(ctx, client, m); err != nil {
-				fmt.Printf("  Failed to create %s: %v\n", svc.Name, err)
-				st.failed = append(st.failed, svc.Name)
+				fmt.Printf("  Failed to create %s: %v\n", name, err)
+				st.failed = append(st.failed, name)
 			} else {
-				st.created = append(st.created, svc.Name)
+				st.created = append(st.created, name)
 			}
 		}
 	}
@@ -225,12 +278,12 @@ func syncPingMonitors(ctx context.Context, client *kuma.Client, hosts []host, ex
 		if base, ok := existing[monitorName]; ok {
 			var pingMon monitor.Ping
 			_ = base.As(&pingMon)
-			if pingMon.Hostname != h.NodeHost || pingMon.MaxRetries != 3 {
-				fmt.Printf("  Updating %s: hostname=%s, maxretries=3\n", monitorName, h.NodeHost)
+			if pingMon.Hostname != h.NodeHost || pingMon.MaxRetries != maxRetries {
+				fmt.Printf("  Updating %s: hostname=%s, maxretries=%d\n", monitorName, h.NodeHost, maxRetries)
 				pingMon.Base = base
 				pingMon.Hostname = h.NodeHost
 				pingMon.Base.Name = monitorName
-				pingMon.Base.MaxRetries = 3
+				pingMon.Base.MaxRetries = maxRetries
 				if err := client.UpdateMonitor(ctx, &pingMon); err != nil {
 					fmt.Printf("  Failed to update %s: %v\n", monitorName, err)
 					st.failed = append(st.failed, monitorName)
@@ -245,7 +298,7 @@ func syncPingMonitors(ctx context.Context, client *kuma.Client, hosts []host, ex
 			// Kuma v2: a nil Timeout is sent as NULL into a NOT NULL column.
 			pingTimeout := int64(10)
 			m := &monitor.Ping{
-				Base:        monitor.Base{Name: monitorName, Interval: 60, RetryInterval: 60, MaxRetries: 3},
+				Base:        monitor.Base{Name: monitorName, Interval: 60, RetryInterval: 60, MaxRetries: maxRetries},
 				PingDetails: monitor.PingDetails{Hostname: h.NodeHost, Timeout: &pingTimeout},
 			}
 			if err := createAndStart(ctx, client, m); err != nil {
@@ -269,42 +322,45 @@ func syncTCPMonitors(ctx context.Context, client *kuma.Client, existing map[stri
 }
 
 func syncTCPMonitor(ctx context.Context, client *kuma.Client, t tcpTarget, existing map[string]monitor.Base, st *stats) {
-	if base, ok := existing[t.name]; ok {
+	name := displayName(t.name, t.on)
+	if base, ok := lookup(existing, name, t.legacy); ok {
+		st.claim(base.ID)
 		var tcpMon monitor.TCPPort
 		_ = base.As(&tcpMon)
-		if tcpMon.Hostname != t.host || tcpMon.Port != t.port {
-			fmt.Printf("  Updating %s\n", t.name)
+		if tcpMon.Hostname != t.host || tcpMon.Port != t.port || base.Name != name || base.MaxRetries != maxRetries {
+			fmt.Printf("  Updating %s -> %s, maxretries=%d\n", base.Name, name, maxRetries)
 			tcpMon.Base = base
 			tcpMon.Hostname = t.host
 			tcpMon.Port = t.port
-			tcpMon.Base.Name = t.name
+			tcpMon.Base.Name = name
+			tcpMon.Base.MaxRetries = maxRetries
 			if err := client.UpdateMonitor(ctx, &tcpMon); err != nil {
-				fmt.Printf("  Failed to update %s: %v\n", t.name, err)
-				st.failed = append(st.failed, t.name)
+				fmt.Printf("  Failed to update %s: %v\n", name, err)
+				st.failed = append(st.failed, name)
 			} else {
-				st.updated = append(st.updated, t.name)
+				st.updated = append(st.updated, name)
 			}
 		} else {
 			st.skipped++
 		}
 		return
 	}
-	fmt.Printf("  Creating %s (TCP port %d)\n", t.name, t.port)
+	fmt.Printf("  Creating %s (TCP port %d)\n", name, t.port)
 	m := &monitor.TCPPort{
-		Base:           monitor.Base{Name: t.name, Interval: 60, RetryInterval: 60},
+		Base:           monitor.Base{Name: name, Interval: 60, RetryInterval: 60, MaxRetries: maxRetries},
 		TCPPortDetails: monitor.TCPPortDetails{Hostname: t.host, Port: t.port},
 	}
 	if err := createAndStart(ctx, client, m); err != nil {
-		fmt.Printf("  Failed to create %s: %v\n", t.name, err)
-		st.failed = append(st.failed, t.name)
+		fmt.Printf("  Failed to create %s: %v\n", name, err)
+		st.failed = append(st.failed, name)
 	} else {
-		st.created = append(st.created, t.name)
+		st.created = append(st.created, name)
 	}
 }
 
 func deleteOrphanedMonitors(ctx context.Context, client *kuma.Client, expected map[string]bool, existing map[string]monitor.Base, st *stats) {
 	for name, base := range existing {
-		if !expected[name] {
+		if !expected[name] && !st.claimed[base.ID] {
 			fmt.Printf("  Deleting orphaned monitor: %s\n", name)
 			if err := client.DeleteMonitor(ctx, base.ID); err != nil {
 				fmt.Printf("  Failed to delete %s: %v\n", name, err)

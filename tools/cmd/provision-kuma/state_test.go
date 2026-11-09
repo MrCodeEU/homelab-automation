@@ -86,3 +86,38 @@ func TestMonitorOptOut(t *testing.T) {
 		}
 	}
 }
+
+func TestDisplayAndLogicalName(t *testing.T) {
+	cases := []struct{ name, host, display string }{
+		{"nextcloud", "nas", "nextcloud [nas]"},
+		{"TCP: crowdsec LAPI", "mljr", "TCP: crowdsec LAPI [mljr]"},
+		{"Ping: nuc", "", "Ping: nuc"},
+	}
+	for _, c := range cases {
+		if got := displayName(c.name, c.host); got != c.display {
+			t.Errorf("displayName(%q, %q) = %q, want %q", c.name, c.host, got, c.display)
+		}
+		if got := logicalName(c.display); got != c.name {
+			t.Errorf("logicalName(%q) = %q, want %q", c.display, got, c.name)
+		}
+	}
+	// Brackets in the middle are not a host suffix.
+	if got := logicalName("a [b] c"); got != "a [b] c" {
+		t.Errorf("logicalName kept-name case = %q", got)
+	}
+}
+
+func TestExpectedNamesCarryHost(t *testing.T) {
+	got := getExpectedMonitorNames([]service{
+		{Name: "nextcloud", Domain: "c.example", Host: "nas"},
+		{Name: "off", Domain: "o.example", Host: "nas", Monitor: bptr(false)},
+	}, []host{{NodeName: "nuc", NodeHost: "100.100.10.1"}})
+	for _, want := range []string{"nextcloud [nas]", "Ping: nuc", "TCP: crowdsec LAPI [mljr]", "SMTP: mail.mljr.eu [mljr]"} {
+		if !got[want] {
+			t.Errorf("missing %q in %v", want, got)
+		}
+	}
+	if got["nextcloud"] || got["off [nas]"] {
+		t.Errorf("unexpected names in %v", got)
+	}
+}
