@@ -6,8 +6,9 @@ FROM alpine:3.24
 
 ARG APP_UID=10002
 
-# ca-certificates for speedtest.net's server list (HTTPS).
-RUN apk add --no-cache ca-certificates \
+# ca-certificates for speedtest.net's server list (HTTPS); iperf3 for the
+# tests between hosts (SPEEDTEST_IPERF_TARGETS).
+RUN apk add --no-cache ca-certificates iperf3 \
     && addgroup -g ${APP_UID} speedtest \
     && adduser -D -H -u ${APP_UID} -G speedtest speedtest
 

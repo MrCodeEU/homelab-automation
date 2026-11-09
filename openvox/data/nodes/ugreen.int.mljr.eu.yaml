@@ -4,6 +4,8 @@
 # ugreen has no roles::base (UGOS, not dnf-managed) - see role::ugreen.
 ---
 roles::iperf3::base_path: '/volume1/homelab'
+# Loopback only: the local Ziti router (host network) publishes it
+roles::iperf3::bind: '127.0.0.1'
 roles::iperf3::manage_firewall: false
 
 roles::netronome_agent::base_path: '/volume1/homelab'

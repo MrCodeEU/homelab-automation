@@ -1,7 +1,7 @@
-# Hourly internet speedtest from nuc (tools/cmd/speedtest-metrics), written
-# to VictoriaMetrics on this host; Grafana dashboard "Internet speed"
-# (services/grafana/dashboards/homelab-speedtest.json). Replaces netronome's
-# speedtests.
+# Hourly internet speedtest from nuc (tools/cmd/speedtest-metrics), plus
+# iperf3 to mljr and ugreen over Ziti every 2h, written to VictoriaMetrics
+# on this host; Grafana dashboard "Internet speed"
+# (services/grafana/dashboards/homelab-speedtest.json). Replaces netronome.
 services:
   speedtest-metrics:
     build: .
@@ -16,6 +16,40 @@ services:
       - SPEEDTEST_VM_URL=http://127.0.0.1:19090
       - SPEEDTEST_INTERVAL=1h
       - SPEEDTEST_HOST=nuc
+      - SPEEDTEST_IPERF_TARGETS=mljr=127.0.0.1:15201,ugreen=127.0.0.1:15202
+      - SPEEDTEST_IPERF_INTERVAL=2h
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # Ziti client for the iperf3 tests: `ziti tunnel proxy` as identity
+  # speedtest-nuc (ziti/tofu/m2m.tf), which may dial iperf3-mljr and
+  # iperf3-ugreen only (ziti/tofu/iperf3.tf). Ports on 127.0.0.1 only
+  # (speedtest-metrics runs with host networking).
+  # Enrolment: scripts/ziti-enroll-proxy.sh speedtest-nuc nuc speedtest-metrics
+  # writes ziti/speedtest-nuc.json (uid 2171, 0600).
+  ziti-proxy:
+    image: openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
+    container_name: speedtest-metrics-ziti-proxy
+    restart: unless-stopped
+    user: "2171:2171"
+    entrypoint: ["ziti"]
+    command:
+      - tunnel
+      - proxy
+      - iperf3-mljr:15201
+      - iperf3-ugreen:15202
+      - --identity
+      - /identity/speedtest-nuc.json
+    ports:
+      - "127.0.0.1:15201:15201"
+      - "127.0.0.1:15202:15202"
+    volumes:
+      - ./ziti:/identity
+    environment:
+      - TZ=${TZ}
     logging:
       driver: json-file
       options:

@@ -5,6 +5,10 @@
 // Tailscale and could be configured only in its web UI, and its host
 // metrics duplicate Alloy's (docs/ZERO_TRUST_PLAN.md, Phase 4).
 //
+// It also runs iperf3 (the binary) against other hosts' iperf3 servers
+// through the compose project's Ziti proxy, both directions, every
+// SPEEDTEST_IPERF_INTERVAL. Speedtest and iperf3 runs never overlap.
+//
 // Runs on nuc next to VictoriaMetrics (services/speedtest-metrics), so the
 // push stays on the host. Environment:
 //
@@ -12,8 +16,11 @@
 //	SPEEDTEST_INTERVAL   time between tests (default 1h)
 //	SPEEDTEST_SERVER_ID  Ookla server id; empty picks the lowest-latency server
 //	SPEEDTEST_HOST       value of the host label (default nuc)
+//	SPEEDTEST_IPERF_TARGETS   name=host:port,... iperf3 servers; empty: none
+//	SPEEDTEST_IPERF_INTERVAL  time between iperf3 rounds (default 2h)
 //
-// --once runs one test, prints the metrics and pushes them, then exits.
+// --once runs one speedtest and one iperf3 round, prints the metrics and
+// pushes them, then exits.
 package main
 
 import (
@@ -51,6 +58,15 @@ func main() {
 		serverIDs = []int{id}
 	}
 
+	targets, err := parseIperfTargets(os.Getenv("SPEEDTEST_IPERF_TARGETS"))
+	if err != nil {
+		fatal(err)
+	}
+	iperfInterval, err := time.ParseDuration(envOr("SPEEDTEST_IPERF_INTERVAL", "2h"))
+	if err != nil || iperfInterval < 30*time.Minute {
+		fatal(fmt.Errorf("SPEEDTEST_IPERF_INTERVAL must be a duration of at least 30m: %q", os.Getenv("SPEEDTEST_IPERF_INTERVAL")))
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -73,18 +89,48 @@ func main() {
 			"latency", r.Latency, "duration", r.Duration.Round(time.Second))
 	}
 
+	runIperf := func() {
+		if len(targets) == 0 {
+			return
+		}
+		rs := iperfAll(ctx, host, targets)
+		body := renderIperf(rs, time.Now())
+		if once {
+			fmt.Print(body)
+		}
+		if err := push(ctx, vmURL, body); err != nil {
+			slog.Error("push to VictoriaMetrics failed", "err", err)
+			return
+		}
+		for _, r := range rs {
+			if r.Err != nil {
+				slog.Warn("iperf3 failed", "src", r.Src, "dst", r.Dst, "err", r.Err)
+				continue
+			}
+			slog.Info("iperf3 done", "src", r.Src, "dst", r.Dst,
+				"mbps", fmt.Sprintf("%.1f", r.Bps/1e6), "retransmits", r.Retransmits)
+		}
+	}
+
 	run()
+	runIperf()
 	if once {
 		return
 	}
+	// One goroutine for both, so a speedtest and an iperf3 round never
+	// share the uplink.
 	t := time.NewTicker(interval)
 	defer t.Stop()
+	it := time.NewTicker(iperfInterval)
+	defer it.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 			run()
+		case <-it.C:
+			runIperf()
 		}
 	}
 }

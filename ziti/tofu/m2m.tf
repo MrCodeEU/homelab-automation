@@ -1,7 +1,7 @@
 # Machine-to-machine consumers that cannot dial Ziti themselves go through
 # `ziti tunnel proxy`: one per host for host-network apps (Alloy,
 # services/ziti-proxy*), one inside the compose project for a bridged app
-# (homepage). Each has its own identity, enrolled on its host by
+# (homepage, crowdsec-nuc, speedtest-metrics). Each has its own identity, enrolled on its host by
 # scripts/ziti-enroll-proxy.sh so the key never leaves it. Each identity may dial only the services
 # listed here, by name; it hosts nothing.
 locals {
@@ -15,7 +15,12 @@ locals {
     # CrowdSec agent on nuc -> mljr's LAPI (crowdsec-nas stays on the
     # tailnet until nas is on Ziti, Phase 5)
     "crowdsec-nuc" = ["crowdsec-lapi"]
+    # speedtest-metrics on nuc -> iperf3 on mljr and ugreen (iperf3.tf)
+    "speedtest-nuc" = ["iperf3-mljr", "iperf3-ugreen"]
   }
+
+  # Dialable by name: catalog services plus the iperf3 servers
+  m2m_services = merge(ziti_service.catalog, local.iperf3_services)
 }
 
 resource "ziti_identity" "m2m" {
@@ -33,5 +38,5 @@ resource "ziti_service_policy" "m2m_dial" {
   type          = "Dial"
   semantic      = "AnyOf"
   identityroles = ["@${ziti_identity.m2m[each.key].id}"]
-  serviceroles  = sort([for s in each.value : "@${ziti_service.catalog[s].id}"])
+  serviceroles  = sort([for s in each.value : "@${local.m2m_services[s].id}"])
 }

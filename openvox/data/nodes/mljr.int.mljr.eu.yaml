@@ -31,6 +31,8 @@ roles::caddy::appsec_enabled: true
 roles::caddy::ziti_transport: true
 
 roles::iperf3::base_path: '/opt'
+# Loopback only: the local Ziti router (host network) publishes it
+roles::iperf3::bind: '127.0.0.1'
 
 roles::netronome_agent::base_path: '/opt'
 roles::netronome_agent::interface: 'eth0'
