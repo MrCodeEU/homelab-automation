@@ -41,6 +41,14 @@ class roles::backup (
   String        $base_path      = '/opt',
   String        $rclone_config_path = '/root/.config/rclone',
   String        $remote_name    = 'pcloud',
+  # The [ugreen] SFTP remote. Default: ugreen over the tailnet, where
+  # Tailscale SSH answers. Hosts with a Ziti proxy set 127.0.0.1 and the
+  # proxy port (backup-sftp-ugreen, ziti/tofu/backup-sftp.tf); there ugreen's
+  # real sshd answers, so its host key is pinned (backup_sftp_ugreen_hostkey
+  # in common.yaml).
+  String        $ugreen_host    = '100.100.10.4',
+  Integer       $ugreen_port    = 22,
+  String        $ugreen_hostkey = lookup('backup_sftp_ugreen_hostkey', { 'default_value' => '' }),
   # Role default in ansible/roles/backup is "homelab-backup/{{ inventory_hostname }}"
   # (per-host); real production overrides this globally in
   # ansible/inventory/group_vars/all/all.yml to one shared flat path
@@ -500,8 +508,25 @@ class roles::backup (
     default => "\n[wd-cloud]\ntype = smb\nhost = 192.168.50.176\nuser = ${wd_cloud_user.unwrap}\npass = ${wd_cloud_password.unwrap}\n",
   }
 
+  $ugreen_known_hosts = "${rclone_config_path}/ugreen_known_hosts"
+  $ugreen_pin = $ugreen_host ? {
+    '127.0.0.1' => "port = ${ugreen_port}\nknown_hosts_file = ${ugreen_known_hosts}\n",
+    default     => '',
+  }
+  if $ugreen_host == '127.0.0.1' {
+    if $ugreen_hostkey == '' {
+      fail('roles::backup: ugreen_host 127.0.0.1 needs ugreen_hostkey (backup_sftp_ugreen_hostkey) to pin')
+    }
+    file { $ugreen_known_hosts:
+      ensure  => file,
+      mode    => '0644',
+      content => "[127.0.0.1]:${ugreen_port} ${ugreen_hostkey}\n",
+      require => File[$rclone_config_path],
+    }
+  }
+
   $rclone_conf_content = Sensitive(
-    "# rclone configuration for pCloud\n# Managed by OpenVox - do not edit manually\n\n[${remote_name}]\ntype = pcloud\nhostname = eapi.pcloud.com\ntoken = ${pcloud_token.unwrap}\n\n[ugreen]\ntype = sftp\nhost = 100.100.10.4\nuser = rclone-backup\nkey_file = /opt/backup-remote/ssh/id_ed25519\nshell_type = unix\nmd5sum_command = none\nsha1sum_command = none\n${wd_cloud_block}"
+    "# rclone configuration for pCloud\n# Managed by OpenVox - do not edit manually\n\n[${remote_name}]\ntype = pcloud\nhostname = eapi.pcloud.com\ntoken = ${pcloud_token.unwrap}\n\n[ugreen]\ntype = sftp\nhost = ${ugreen_host}\n${ugreen_pin}user = rclone-backup\nkey_file = /opt/backup-remote/ssh/id_ed25519\nshell_type = unix\nmd5sum_command = none\nsha1sum_command = none\n${wd_cloud_block}"
   )
 
   # The ugreen leg's key. Generated on nuc (roles::backup_remote_key); any

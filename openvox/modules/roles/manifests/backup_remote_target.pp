@@ -16,6 +16,11 @@
 # leaked private key used from off the tailnet, where the real sshd
 # (which does honor ChrootDirectory) is what answers port 22.
 #
+# Since 2026-11 mljr and nuc reach this over OpenZiti instead
+# (backup-sftp-ugreen -> 127.0.0.1:22): there the real sshd answers, so the
+# Match block, ChrootDirectory and the key's from="127.0.0.1" are the
+# boundary for them. Only nas still comes in over Tailscale SSH (Phase 5).
+#
 # Consequence: the user's real home directory must be a genuine,
 # absolute, writable path, not a chroot-relative one - Tailscale SSH's
 # sftp mode uses it directly (`--home-dir=<passwd home>`). ChrootDirectory
@@ -32,6 +37,11 @@ class roles::backup_remote_target (
   Integer $snapshot_retention_monthly    = 12,
   String $snapshot_schedule              = '*-*-* 05:30:00',
   String $pubkey       = lookup('backup_remote_pubkey'),
+  # from= on the key: only connections from ugreen itself, i.e. from the
+  # Ziti router (backup-sftp-ugreen -> 127.0.0.1:22). Tailscale SSH (nas until
+  # Phase 5) does not read authorized_keys at all, so it is unaffected; a
+  # leaked key from the LAN or the internet is refused by sshd.
+  String $key_from     = '127.0.0.1',
 ) {
   $work_dir = '/usr/local/libexec/openvox-backup-remote-target'
   $snapshot_work_dir = '/usr/local/libexec/openvox-backup-history'
@@ -188,7 +198,7 @@ class roles::backup_remote_target (
     owner   => $backup_user,
     group   => $backup_user,
     mode    => '0600',
-    content => "${regsubst($pubkey, '^(\\S+\\s+\\S+).*$', '\\1')} \n",
+    content => "from=\"${key_from}\" ${regsubst($pubkey, '^(\\S+\\s+\\S+).*$', '\\1')} \n",
     require => File["${data_dir}/.ssh"],
   }
 

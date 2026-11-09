@@ -44,7 +44,7 @@ describe 'roles::backup_remote_target' do
       owner: 'rclone-backup',
       group: 'rclone-backup',
       mode: '0600',
-      content: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey \n",
+      content: "from=\"127.0.0.1\" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey \n",
     )
   end
 

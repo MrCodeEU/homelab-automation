@@ -1,0 +1,30 @@
+# Ziti client for host processes on nuc that cannot dial Ziti themselves
+# (rclone in roles::backup): `ziti tunnel proxy` opens one listener per
+# service, published on 127.0.0.1 only, as identity m2m-nuc
+# (ziti/tofu/m2m.tf). That identity may dial only the services listed there.
+# Apps in their own compose project have their own proxy (speedtest-metrics,
+# crowdsec-nuc).
+#
+# Enrolment: scripts/ziti-enroll-proxy.sh m2m-nuc nuc ziti-proxy-nuc writes
+# data/m2m-nuc.json (uid 2171, 0600). Without it the container restarts
+# until the file exists.
+services:
+  ziti-proxy:
+    image: openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
+    container_name: ziti-proxy-nuc
+    restart: unless-stopped
+    user: "2171:2171"
+    entrypoint: ["ziti"]
+    command:
+      - tunnel
+      - proxy
+      - backup-sftp-ugreen:2422
+      - --identity
+      - /identity/m2m-nuc.json
+    ports:
+      # SFTP to ugreen for roles::backup (2222 is taken on nuc)
+      - "127.0.0.1:2422:2422"
+    volumes:
+      - ./data:/identity
+    environment:
+      - TZ=${TZ}
