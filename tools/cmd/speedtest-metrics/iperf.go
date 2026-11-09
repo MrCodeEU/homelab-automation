@@ -28,6 +28,16 @@ type IperfResult struct {
 // One iperf3 run (-t 10 plus connection setup) must finish within this.
 const iperfTimeout = 45 * time.Second
 
+// Through Ziti a run sometimes fails although the server is fine: the data
+// stream stalls for seconds (seen 2026-11-09 on both targets, mostly with
+// -R), and a stall during iperf3's control exchange ends the run with
+// "control socket has closed unexpectedly" or leaves the next run with
+// "server is busy". Runs are spaced out, and a failed run is retried once.
+var (
+	iperfGap   = 10 * time.Second
+	iperfRetry = 15 * time.Second
+)
+
 // parseIperfTargets reads "mljr=127.0.0.1:15201,ugreen=127.0.0.1:15202".
 func parseIperfTargets(s string) ([]IperfTarget, error) {
 	var ts []IperfTarget
@@ -50,21 +60,45 @@ func parseIperfTargets(s string) ([]IperfTarget, error) {
 // nuc's uplink.
 func iperfAll(ctx context.Context, self string, targets []IperfTarget) []IperfResult {
 	var rs []IperfResult
+	first := true
 	for _, t := range targets {
 		for _, reverse := range []bool{false, true} {
+			if !first && !sleepCtx(ctx, iperfGap) {
+				return rs
+			}
+			first = false
 			r := IperfResult{Src: self, Dst: t.Name}
 			if reverse {
 				r.Src, r.Dst = t.Name, self
 			}
-			out, err := runIperf(ctx, t.Addr, reverse)
-			if err == nil {
-				r.Bps, r.Retransmits, err = parseIperf(out)
+			r.Bps, r.Retransmits, r.Err = iperfOnce(ctx, t.Addr, reverse)
+			if r.Err != nil && sleepCtx(ctx, iperfRetry) {
+				r.Bps, r.Retransmits, r.Err = iperfOnce(ctx, t.Addr, reverse)
 			}
-			r.Err = err
 			rs = append(rs, r)
 		}
 	}
 	return rs
+}
+
+func iperfOnce(ctx context.Context, addr string, reverse bool) (bps, retransmits float64, err error) {
+	out, err := runIperf(ctx, addr, reverse)
+	if err != nil {
+		return 0, 0, err
+	}
+	return parseIperf(out)
+}
+
+// sleepCtx waits d; false if ctx ended first.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
+	}
 }
 
 func runIperf(parent context.Context, addr string, reverse bool) ([]byte, error) {
