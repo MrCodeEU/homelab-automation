@@ -47,15 +47,17 @@ func run() int {
 		send        = flag.Bool("send", false, "deliver via ntfy and email")
 		dryRun      = flag.Bool("dry-run", false, "collect and render, deliver nothing, do not rotate state")
 		collectOnly = flag.Bool("collect-only", false, "print raw collector output and exit")
-		diffOnly    = flag.Bool("diff-only", false, "diff two facts files, no network access")
-		factsPath   = flag.String("facts", "", "facts file for --diff-only")
-		factsPrev   = flag.String("facts-previous", "", "previous facts file for --diff-only")
-		llmFixture  = flag.String("llm-fixture", "", "read the LLM response from this file")
-		ollamaURL   = flag.String("ollama-url", "", "override the Ollama endpoint")
-		ntfyTopic   = flag.String("ntfy-topic", "", "override the ntfy topic")
-		emailTo     = flag.String("email-to", "", "override the email recipient")
-		stateDirOv  = flag.String("state-dir", "", "override the state directory")
-		noop        = flag.Bool("noop", false, "print the resolved configuration and exit; the compose "+
+		metricsOnly = flag.Bool("metrics-only", false, "collect, classify and push to VictoriaMetrics; "+
+			"no narrative, no delivery, state not rotated (the runs between the daily reports)")
+		diffOnly   = flag.Bool("diff-only", false, "diff two facts files, no network access")
+		factsPath  = flag.String("facts", "", "facts file for --diff-only")
+		factsPrev  = flag.String("facts-previous", "", "previous facts file for --diff-only")
+		llmFixture = flag.String("llm-fixture", "", "read the LLM response from this file")
+		ollamaURL  = flag.String("ollama-url", "", "override the Ollama endpoint")
+		ntfyTopic  = flag.String("ntfy-topic", "", "override the ntfy topic")
+		emailTo    = flag.String("email-to", "", "override the email recipient")
+		stateDirOv = flag.String("state-dir", "", "override the state directory")
+		noop       = flag.Bool("noop", false, "print the resolved configuration and exit; the compose "+
 			"default command, so a deploy never sends a report")
 		htmlOut = flag.String("html-out", "", "also write the HTML email body here, for inspecting "+
 			"the render without sending mail")
@@ -118,6 +120,18 @@ func run() int {
 
 	now := time.Now()
 	facts, seen := hr.Assemble(cfg, rules, results, now)
+
+	// --- metrics only ----------------------------------------------------
+	// Assemble only reads the state, so the daily diff ("new since
+	// yesterday") is untouched by these runs.
+	if *metricsOnly {
+		if err := hr.PushMetrics(cfg, hr.RenderMetrics(facts, "metrics", now)); err != nil {
+			log.Printf("healthreport: could not push metrics: %v", err)
+			return 1
+		}
+		log.Printf("healthreport: metrics pushed: %d crit, %d warn", facts.Summary.Crit, facts.Summary.Warn)
+		return 0
+	}
 
 	// --- narrative ---------------------------------------------------------
 	var narrative *hr.Narrative
@@ -192,6 +206,9 @@ func run() int {
 		facts.DeliveryErrors = errs
 		for _, e := range errs {
 			log.Printf("healthreport: delivery problem: %s", e)
+		}
+		if err := hr.PushMetrics(cfg, hr.RenderMetrics(facts, "report", now)); err != nil {
+			log.Printf("healthreport: could not push metrics: %v", err)
 		}
 	} else {
 		fmt.Print(body)

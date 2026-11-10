@@ -10,6 +10,10 @@ set -euo pipefail
 SERVICE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UNIT_NAME="homelab-healthreport"
 SCHEDULE="${HEALTHREPORT_SCHEDULE:-*-*-* 06:15:00}"
+# The runs between the daily reports: push to VictoriaMetrics only
+# (--metrics-only), for the Grafana dashboard. 06:15 is the report itself,
+# which pushes too.
+METRICS_SCHEDULE="${HEALTHREPORT_METRICS_SCHEDULE:-*-*-* 00,12,18:15:00}"
 
 cd "$SERVICE_DIR"
 
@@ -52,8 +56,33 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
+cat > /etc/systemd/system/${UNIT_NAME}-metrics.service <<EOF
+[Unit]
+Description=Homelab health checks, metrics only
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=${SERVICE_DIR}
+ExecStart=/usr/bin/docker compose run --rm healthreport --metrics-only
+TimeoutStartSec=1800
+EOF
+
+cat > /etc/systemd/system/${UNIT_NAME}-metrics.timer <<EOF
+[Unit]
+Description=Homelab health checks every 6 hours, metrics only
+
+[Timer]
+OnCalendar=${METRICS_SCHEDULE}
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
+EOF
+
 systemctl daemon-reload
-systemctl enable --now ${UNIT_NAME}.timer
+systemctl enable --now ${UNIT_NAME}.timer ${UNIT_NAME}-metrics.timer
 
 echo "==> ${UNIT_NAME}.timer active; next run:"
-systemctl list-timers ${UNIT_NAME}.timer --no-pager || true
+systemctl list-timers ${UNIT_NAME}.timer ${UNIT_NAME}-metrics.timer --no-pager || true
