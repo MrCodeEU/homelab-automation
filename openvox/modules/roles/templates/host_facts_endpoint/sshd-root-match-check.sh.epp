@@ -1,0 +1,23 @@
+<%- | String $bin_path | -%>
+#!/usr/bin/env bash
+# unless-guard for host-facts-sshd-root-match: exit 0 (skip) only if the
+# OpenVox block is present verbatim.
+set -euo pipefail
+CONF=/etc/ssh/sshd_config
+
+expected=$(cat <<'BLOCK'
+# BEGIN OPENVOX MANAGED BLOCK - host-facts-endpoint
+Match User root Address 127.0.0.1
+  PermitRootLogin prohibit-password
+  ForceCommand <%= $bin_path %>
+  AllowTcpForwarding no
+  AllowAgentForwarding no
+  X11Forwarding no
+  PermitTTY no
+  PasswordAuthentication no
+# END OPENVOX MANAGED BLOCK - host-facts-endpoint
+BLOCK
+)
+
+current=$(sed -n '/# BEGIN OPENVOX MANAGED BLOCK - host-facts-endpoint/,/# END OPENVOX MANAGED BLOCK - host-facts-endpoint/p' "$CONF")
+[ "$current" = "$expected" ]

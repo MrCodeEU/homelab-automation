@@ -8,8 +8,9 @@ locals {
   m2m = {
     # Alloy on mljr -> VictoriaMetrics and Loki on nuc; backups -> ugreen
     "m2m-mljr" = ["grafana-victoriametrics", "grafana-loki", "backup-sftp-ugreen"]
-    # Backups on nuc -> ugreen (services/ziti-proxy-nuc)
-    "m2m-nuc" = ["backup-sftp-ugreen"]
+    # Backups on nuc -> ugreen; healthreport and backup-dashboard facts
+    # over SSH -> mljr, ugreen (services/ziti-proxy-nuc)
+    "m2m-nuc" = ["backup-sftp-ugreen", "facts-ssh-mljr", "facts-ssh-ugreen"]
     # Alloy on ugreen -> the same
     "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki"]
     # homepage on mljr (live homelab panel) -> VictoriaMetrics, PromQL
@@ -21,8 +22,8 @@ locals {
     "speedtest-nuc" = ["iperf3-mljr", "iperf3-ugreen"]
   }
 
-  # Dialable by name: catalog services, the iperf3 servers, backup SFTP
-  m2m_services = merge(ziti_service.catalog, local.iperf3_services, {
+  # Dialable by name: catalog services, iperf3, SSH, backup SFTP
+  m2m_services = merge(ziti_service.catalog, local.iperf3_services, local.facts_ssh_services, {
     (ziti_service.backup_sftp.name) = ziti_service.backup_sftp
   })
 }

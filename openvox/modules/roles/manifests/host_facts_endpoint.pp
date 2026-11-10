@@ -19,6 +19,15 @@
 # this key. The forced command only applies to connections that reach a
 # host's own real sshd (public IP, breakglass port); it's defense in
 # depth, not the primary control.
+#
+# Since 2026-11 healthreport and backup-dashboard reach mljr and ugreen
+# over OpenZiti (facts-ssh-<host> -> 127.0.0.1:22, ziti/tofu/facts-ssh.tf) and nuc on
+# its own loopback, so the real sshd answers and this key is the control:
+# restrict, the forced command and from="127.0.0.1" (the local Ziti
+# router, or nuc itself). On ugreen UGOS's global ForceCommand
+# (/etc/ssh/force_command.sh runs any command for root) would override the
+# key's command=, so $root_match adds a Match block forcing homelab-facts
+# for root from 127.0.0.1.
 class roles::host_facts_endpoint (
   String  $os_family,
   String  $hostname,
@@ -36,9 +45,12 @@ class roles::host_facts_endpoint (
   # available in this stdlib version to derive it from $dest itself.
   Optional[String] $dest_dir  = undef,
   String  $bin_path            = '/usr/local/bin/homelab-facts',
-  # This is $host_facts_client_host's own Tailscale IP (nuc), pinned
-  # into the authorized_keys `from=` restriction - not this host's own.
-  String  $client_tailscale_ip = '100.100.10.1',
+  # Pinned into the key's `from=`: where the facts client's connections
+  # arrive from. 127.0.0.1: the local Ziti router (mljr, ugreen) or nuc's
+  # own loopback. Was nuc's Tailscale IP (100.100.10.1).
+  String  $client_from         = '127.0.0.1',
+  # ugreen only: the sshd Match block for root from 127.0.0.1 (see above).
+  Boolean $root_match          = false,
   String  $base_path           = '/opt',
   String  $backup_local_path   = '/opt/backups',
   # Only ever non-empty on nas (roles::unraid_host_facts_proxy passes
@@ -114,7 +126,34 @@ class roles::host_facts_endpoint (
     user    => 'root',
     type    => 'ssh-ed25519',
     key     => regsubst($pubkey, '^\S+\s+(\S+).*$', '\1'),
-    options => ['restrict', "from=\"${client_tailscale_ip}\"", "command=\"${bin_path}\""],
+    options => ['restrict', "from=\"${client_from}\"", "command=\"${bin_path}\""],
     target  => '/root/.ssh/authorized_keys',
+  }
+
+  if $root_match {
+    $match_dir = '/usr/local/libexec/openvox-host-facts'
+    file { $match_dir:
+      ensure => directory,
+      mode   => '0755',
+    }
+    ['apply', 'check'].each |$mode| {
+      file { "${match_dir}/sshd-root-match-${mode}.sh":
+        ensure  => file,
+        mode    => '0755',
+        content => epp("roles/host_facts_endpoint/sshd-root-match-${mode}.sh.epp", { 'bin_path' => $bin_path }),
+        require => File[$match_dir],
+      }
+    }
+    # The guard tests for the script first: in a noop run it is not on disk
+    # yet, and Puppet fails a missing command (also bash's exit 127) instead
+    # of reporting the change.
+    exec { 'host-facts-sshd-root-match':
+      command => "/bin/bash ${match_dir}/sshd-root-match-apply.sh",
+      unless  => "/bin/sh -c 'test -f ${match_dir}/sshd-root-match-check.sh && exec /bin/bash ${match_dir}/sshd-root-match-check.sh'",
+      require => [
+        File["${match_dir}/sshd-root-match-apply.sh"],
+        File["${match_dir}/sshd-root-match-check.sh"],
+      ],
+    }
   }
 }

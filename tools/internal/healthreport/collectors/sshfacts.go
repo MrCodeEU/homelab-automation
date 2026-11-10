@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"sort"
@@ -57,6 +58,17 @@ func verificationStale(updatedAt any, maxAge time.Duration) (bool, string) {
 	return false, stamp
 }
 
+// sshTarget splits an address from the SSH host list, "host" or
+// "host:port", into ssh's destination host and, for a port, its -p flag.
+// Hosts reached over Ziti are 127.0.0.1:<port> (services/ziti-proxy-nuc).
+func sshTarget(address string) (string, []string) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return address, nil
+	}
+	return host, []string{"-p", port}
+}
+
 func fetchFacts(cfg hr.Config, host, address string) (map[string]any, error) {
 	var args []string
 	if host == cfg.LocalHost {
@@ -70,8 +82,10 @@ func fetchFacts(cfg hr.Config, host, address string) (map[string]any, error) {
 		// login shell that returns nothing. Naming it is correct in both
 		// worlds: where real sshd does handle the connection, the forced
 		// command overrides whatever is requested here.
+		sshHost, portArgs := sshTarget(address)
 		args = append([]string{"ssh"}, sshOptions...)
-		args = append(args, "-i", cfg.SSHKeyPath, "root@"+address, cfg.LocalFactsBin)
+		args = append(args, portArgs...)
+		args = append(args, "-i", cfg.SSHKeyPath, "root@"+sshHost, cfg.LocalFactsBin)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)

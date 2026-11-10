@@ -1,5 +1,6 @@
 # Ziti client for host processes on nuc that cannot dial Ziti themselves
-# (rclone in roles::backup): `ziti tunnel proxy` opens one listener per
+# (rclone in roles::backup; ssh in healthreport and backup-dashboard, both
+# host-network containers): `ziti tunnel proxy` opens one listener per
 # service, published on 127.0.0.1 only, as identity m2m-nuc
 # (ziti/tofu/m2m.tf). That identity may dial only the services listed there.
 # Apps in their own compose project have their own proxy (speedtest-metrics,
@@ -19,11 +20,16 @@ services:
       - tunnel
       - proxy
       - backup-sftp-ugreen:2422
+      - facts-ssh-mljr:2423
+      - facts-ssh-ugreen:2424
       - --identity
       - /identity/m2m-nuc.json
     ports:
       # SFTP to ugreen for roles::backup (2222 is taken on nuc)
       - "127.0.0.1:2422:2422"
+      # SSH facts (HEALTHREPORT_SSH_HOSTS, BACKUP_DASHBOARD_SSH_HOSTS)
+      - "127.0.0.1:2423:2423"
+      - "127.0.0.1:2424:2424"
     volumes:
       - ./data:/identity
     environment:
