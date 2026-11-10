@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os/exec"
 	"strings"
 	"time"
@@ -84,11 +85,23 @@ type VerificationCheck struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+// sshTarget splits an address from the SSH host list, "host" or
+// "host:port", into ssh's destination host and, for a port, its -p flag.
+// Hosts reached over Ziti are 127.0.0.1:<port> (services/ziti-proxy-nuc).
+func sshTarget(address string) (string, []string) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return address, nil
+	}
+	return host, []string{"-p", port}
+}
+
 func fetchFacts(ctx context.Context, cfg Config, address string) (*FactsPayload, error) {
 	ctx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
 
-	args := append(append([]string{}, sshOptions...), "-i", cfg.SSHKeyPath, "root@"+address, cfg.LocalFactsBin)
+	sshHost, portArgs := sshTarget(address)
+	args := append(append(append([]string{}, sshOptions...), portArgs...), "-i", cfg.SSHKeyPath, "root@"+sshHost, cfg.LocalFactsBin)
 	cmd := exec.CommandContext(ctx, "ssh", args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout

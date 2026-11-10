@@ -22,6 +22,9 @@ roles::host_facts_endpoint::os_family: 'ugreen'
 roles::host_facts_endpoint::hostname: 'ugreen'
 roles::host_facts_endpoint::dest: '/volume1/homelab/bin/homelab-facts'
 roles::host_facts_endpoint::needs_symlink: true
+# sshd Match: root from 127.0.0.1 (the Ziti router) runs homelab-facts only;
+# UGOS's global ForceCommand would otherwise run anything for root.
+roles::host_facts_endpoint::root_match: true
 roles::host_facts_endpoint::dest_dir: '/volume1/homelab/bin'
 roles::host_facts_endpoint::base_path: '/volume1/homelab'
 

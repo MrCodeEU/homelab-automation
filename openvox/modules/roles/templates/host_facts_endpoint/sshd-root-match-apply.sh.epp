@@ -1,0 +1,30 @@
+<%- | String $bin_path | -%>
+#!/usr/bin/env bash
+# Managed by OpenVox (roles::host_facts_endpoint, ugreen). Replaces the
+# OpenVox Match block for root from 127.0.0.1 (the local Ziti router):
+# key auth only and homelab-facts forced, since UGOS's global ForceCommand
+# would run any command for root. Validated with sshd -t first; restart,
+# not reload (see roles::backup_remote_target's identical script).
+set -euo pipefail
+CONF=/etc/ssh/sshd_config
+TMP=/etc/ssh/.sshd_config.openvox-facts-tmp
+
+sed -e '/# BEGIN OPENVOX MANAGED BLOCK - host-facts-endpoint/,/# END OPENVOX MANAGED BLOCK - host-facts-endpoint/d' \
+  "$CONF" > "$TMP"
+
+cat >> "$TMP" <<'BLOCK'
+# BEGIN OPENVOX MANAGED BLOCK - host-facts-endpoint
+Match User root Address 127.0.0.1
+  PermitRootLogin prohibit-password
+  ForceCommand <%= $bin_path %>
+  AllowTcpForwarding no
+  AllowAgentForwarding no
+  X11Forwarding no
+  PermitTTY no
+  PasswordAuthentication no
+# END OPENVOX MANAGED BLOCK - host-facts-endpoint
+BLOCK
+
+sshd -t -f "$TMP"
+mv "$TMP" "$CONF"
+systemctl restart ssh
