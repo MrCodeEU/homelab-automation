@@ -49,7 +49,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count((last_over_time(healthreport_observation[7h]) and (tlast_over_time(healthreport_observation[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)) == 2) or vector(0)",
+          "expr": "count((last_over_time(healthreport_observation[7h]) and ignoring(__name__) (tlast_over_time(healthreport_observation[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)) == 2) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -109,7 +109,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count((last_over_time(healthreport_observation[7h]) and (tlast_over_time(healthreport_observation[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)) == 1) or vector(0)",
+          "expr": "count((last_over_time(healthreport_observation[7h]) and ignoring(__name__) (tlast_over_time(healthreport_observation[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)) == 1) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -169,7 +169,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count((last_over_time(healthreport_observation[7h]) and (tlast_over_time(healthreport_observation[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)) == 0) or vector(0)",
+          "expr": "count((last_over_time(healthreport_observation[7h]) and ignoring(__name__) (tlast_over_time(healthreport_observation[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)) == 0) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -225,7 +225,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "count((last_over_time(healthreport_collector_up[7h]) and (tlast_over_time(healthreport_collector_up[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)) == 0) or vector(0)",
+          "expr": "count((last_over_time(healthreport_collector_up[7h]) and ignoring(__name__) (tlast_over_time(healthreport_collector_up[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)) == 0) or vector(0)",
           "instant": true,
           "range": false
         }
@@ -409,7 +409,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(time() - max by (id) (last_over_time(healthreport_observation_first_seen_timestamp_seconds[7h]))) + on(id) group_right() (0 * (last_over_time(healthreport_observation[7h]) and (tlast_over_time(healthreport_observation[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)))",
+          "expr": "(time() - max by (id) (last_over_time(healthreport_observation_first_seen_timestamp_seconds[7h]))) + on(id) group_right() (0 * (last_over_time(healthreport_observation[7h]) and ignoring(__name__) (tlast_over_time(healthreport_observation[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)))",
           "instant": true,
           "range": false,
           "format": "table"
@@ -691,7 +691,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sort_desc(count by (subject) ((last_over_time(healthreport_observation[7h]) and (tlast_over_time(healthreport_observation[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)) >= 1))",
+          "expr": "sort_desc(count by (subject) ((last_over_time(healthreport_observation[7h]) and ignoring(__name__) (tlast_over_time(healthreport_observation[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)) >= 1))",
           "instant": true,
           "range": false,
           "legendFormat": "{{subject}}"
@@ -743,7 +743,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(last_over_time(healthreport_collector_up[7h]) and (tlast_over_time(healthreport_collector_up[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120))",
+          "expr": "max by (collector, status) ((last_over_time(healthreport_collector_up[7h]) and ignoring(__name__) (tlast_over_time(healthreport_collector_up[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)))",
           "instant": true,
           "range": false,
           "format": "table"
@@ -754,7 +754,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(last_over_time(healthreport_collector_duration_seconds[7h]) and (tlast_over_time(healthreport_collector_duration_seconds[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120))",
+          "expr": "max by (collector) ((last_over_time(healthreport_collector_duration_seconds[7h]) and ignoring(__name__) (tlast_over_time(healthreport_collector_duration_seconds[7h]) >= scalar(max(max_over_time(healthreport_last_run_timestamp_seconds[7h]))) - 120)))",
           "instant": true,
           "range": false,
           "format": "table"
