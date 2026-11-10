@@ -110,8 +110,8 @@ describe 'roles::host_facts_endpoint' do
     it 'forces homelab-facts for root from 127.0.0.1, guarded by the check script' do
       dir = '/usr/local/libexec/openvox-host-facts'
       is_expected.to contain_exec('host-facts-sshd-root-match').with(
-        command: "#{dir}/sshd-root-match-apply.sh",
-        unless: "#{dir}/sshd-root-match-check.sh",
+        command: "/bin/bash #{dir}/sshd-root-match-apply.sh",
+        unless: "/bin/bash #{dir}/sshd-root-match-check.sh",
       )
       %w[apply check].each do |mode|
         content = catalogue.resource('File', "#{dir}/sshd-root-match-#{mode}.sh")[:content]
