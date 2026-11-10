@@ -144,11 +144,12 @@ class roles::host_facts_endpoint (
         require => File[$match_dir],
       }
     }
-    # Through /bin/bash: a noop run (no scripts on disk yet) would otherwise
-    # fail with "Could not find command" instead of reporting the change.
+    # The guard tests for the script first: in a noop run it is not on disk
+    # yet, and Puppet fails a missing command (also bash's exit 127) instead
+    # of reporting the change.
     exec { 'host-facts-sshd-root-match':
       command => "/bin/bash ${match_dir}/sshd-root-match-apply.sh",
-      unless  => "/bin/bash ${match_dir}/sshd-root-match-check.sh",
+      unless  => "/bin/sh -c 'test -f ${match_dir}/sshd-root-match-check.sh && exec /bin/bash ${match_dir}/sshd-root-match-check.sh'",
       require => [
         File["${match_dir}/sshd-root-match-apply.sh"],
         File["${match_dir}/sshd-root-match-check.sh"],

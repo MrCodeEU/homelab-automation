@@ -111,7 +111,7 @@ describe 'roles::host_facts_endpoint' do
       dir = '/usr/local/libexec/openvox-host-facts'
       is_expected.to contain_exec('host-facts-sshd-root-match').with(
         command: "/bin/bash #{dir}/sshd-root-match-apply.sh",
-        unless: "/bin/bash #{dir}/sshd-root-match-check.sh",
+        unless: "/bin/sh -c 'test -f #{dir}/sshd-root-match-check.sh && exec /bin/bash #{dir}/sshd-root-match-check.sh'",
       )
       %w[apply check].each do |mode|
         content = catalogue.resource('File', "#{dir}/sshd-root-match-#{mode}.sh")[:content]
