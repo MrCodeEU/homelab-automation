@@ -33,6 +33,10 @@ Provisioned datasources use stable UIDs:
   upload, latency, jitter, failed runs) and iperf3 between nuc and
   mljr/ugreen over Ziti every 2h, written by services/speedtest-metrics
   straight into VictoriaMetrics.
+- `homelab-healthreport.json`: the health report's findings (crit, warn,
+  notices with "open since"), failing collectors and history, pushed by
+  services/healthreport on every run: the daily report at 06:15 and
+  `--metrics-only` at 00:15, 12:15, 18:15. The email stays daily.
 
 ## NAS / Unraid
 
