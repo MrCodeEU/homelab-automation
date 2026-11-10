@@ -295,6 +295,15 @@ authelia_oidc_clients:
       - https://paperless.mljr.eu/accounts/oidc/authelia/login/callback/
     scopes: [openid, profile, email]
     authorization_policy: two_factor
+  # Grafana's generic OAuth (services/grafana). Grafana reads groups from
+  # /userinfo, so no claims_policy; admins become Grafana server admins.
+  - id: grafana
+    name: Grafana
+    secret_digest: '$pbkdf2-sha512$310000$faifoV86rszYO4N.cregHA$89TDYkTwrFdywiD9H65cHeis2vDYdqnOdbSUBSy7ha8ZJ2uRr1g2tjdEV/TMUazUl1lKwulvjwseYRlVTMeklQ'
+    redirect_uris:
+      - https://grafana.mljr.eu/login/generic_oauth
+    scopes: [openid, profile, email, groups]
+    authorization_policy: two_factor
   # Unraid 7.3 native SSO (Settings -> Management Access -> API -> OIDC). The
   # plaintext secret is entered once in the Unraid UI and lives on the flash
   # drive; nas has no OpenVox agent, so there is no eyaml copy.

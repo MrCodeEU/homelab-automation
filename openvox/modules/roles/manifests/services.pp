@@ -212,6 +212,8 @@ class roles::services (
       # read access to that one Postgres instance for the DMARC dashboard,
       # not a separate credential.
       'dmarc_postgres_password' => lookup('vault_dmarcmonitor_db_password', { 'default_value' => '' }),
+      # Plaintext of authelia_oidc_clients' grafana secret_digest (common.yaml)
+      'oidc_client_secret'     => lookup('vault_grafana_oidc_client_secret', { 'default_value' => '' }),
     },
     'speedtest' => {
       'admin_password' => lookup('vault_netronome_admin_password', { 'default_value' => '' }),
