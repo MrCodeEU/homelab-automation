@@ -65,11 +65,15 @@ describe 'roles::host_facts_endpoint' do
       key: 'AAAAC3NzaC1lZDI1NTE5AAAAITestHealthreportKey',
       options: [
         'restrict',
-        'from="100.100.10.1"',
+        'from="127.0.0.1"',
         'command="/usr/local/bin/homelab-facts"',
       ],
       target: '/root/.ssh/authorized_keys',
     )
+  end
+
+  it 'adds no sshd Match block by default' do
+    is_expected.not_to contain_exec('host-facts-sshd-root-match')
   end
 
   context 'on Ugreen persistent storage' do
@@ -90,6 +94,30 @@ describe 'roles::host_facts_endpoint' do
         target: '/opt/homelab/bin/homelab-facts',
         require: 'File[/opt/homelab/bin/homelab-facts]',
       )
+    end
+  end
+
+  context 'with the sshd root Match block (ugreen)' do
+    let(:params) do
+      {
+        os_family: 'Debian',
+        hostname: 'ugreen',
+        dest: '/usr/local/bin/homelab-facts',
+        root_match: true,
+      }
+    end
+
+    it 'forces homelab-facts for root from 127.0.0.1, guarded by the check script' do
+      dir = '/usr/local/libexec/openvox-host-facts'
+      is_expected.to contain_exec('host-facts-sshd-root-match').with(
+        command: "#{dir}/sshd-root-match-apply.sh",
+        unless: "#{dir}/sshd-root-match-check.sh",
+      )
+      %w[apply check].each do |mode|
+        content = catalogue.resource('File', "#{dir}/sshd-root-match-#{mode}.sh")[:content]
+        expect(content).to include("Match User root Address 127.0.0.1\n  PermitRootLogin prohibit-password\n" \
+                                   "  ForceCommand /usr/local/bin/homelab-facts\n")
+      end
     end
   end
 end
