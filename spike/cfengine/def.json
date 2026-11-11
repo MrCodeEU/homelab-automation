@@ -1,7 +1,7 @@
 {
   "inputs": ["services/spike/main.cf"],
   "vars": {
-    "bundlesequence_end": ["spike_main"],
+    "control_common_bundlesequence_end": ["spike_main"],
     "acl": ["127.0.0.1/32"]
   }
 }

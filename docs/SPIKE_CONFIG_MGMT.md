@@ -99,6 +99,73 @@ delete the spike key, and leave this file with the results.
    without changes.
 7. Write-up below, then a recommendation.
 
+## Setup notes (2026-11-11)
+
+What the plan did not foresee, in the order it came up:
+
+- The VM disks under `/home/spike-vms` need the SELinux type
+  `virt_image_t` (`semanage fcontext` + `restorecon`). Without it, qemu
+  gets `Permission denied` on every disk read and the VMs never boot.
+- Docker's `iptables -P FORWARD DROP` on nuc also drops libvirt NAT
+  traffic. Four runtime rules in `DOCKER-USER` allow `virbr0` out to the
+  internet but drop 192.168.50.0/24 (LAN) and 100.64.0.0/10 (tailnet),
+  and let only return traffic in. Not persistent; removed at teardown.
+- OpenZiti ships no `ziti-edge-tunnel` RPM for EL. The VMs run the
+  `openziti` package (`ziti` 2.0.8, the controller's version) as a
+  systemd unit: `ziti tunnel host` on the hub, `ziti tunnel proxy
+  spike-cfengine:5308` on the clients (proxy mode also hosts the SSH
+  service). Identities in `/etc/ziti/<vm>.json`.
+- The Rocky 10 GenericCloud image lacks `kernel-modules-extra`
+  (`xt_addrtype`); Docker fails to start without it.
+- Docker CE, git and rsync are installed by hand on both clients, the
+  same for every tool, so part 2 of the slice compares the stack itself.
+
 ## Results
 
-(filled in during the spike)
+### OpenVox (baseline)
+
+Code: `spike/openvox/` on branch `spike/pull` (module `spike`, own
+`hiera.yaml`, per-host eyaml under `data/eyaml/`, `push.sh`,
+`spike-pull.sh`). About 190 lines of Puppet for the four parts.
+
+**a) authoring.** The slice reads like the production roles. Gotcha:
+`\$` in a heredoc is only an escape with the `/$` flag (`@("END"/$)`);
+without it the compile fails with `Resource type not found: WHOAMI_NAME`,
+which does not point at the cause. A compose stack is an `exec
+refreshonly` (production uses `docker_compose` from the Forge).
+
+**b) apply.** Push over Ziti, spike-a: cold apply 7.8 s (catalog 3.9 s),
+rerun without changes 3.4 s (catalog 0.08 s; the rest is rsync and Ruby
+start-up). spike-b cold: 7.4 s. Partial failure (bad sshd drop-in): the
+failing file keeps its old content, its dependents are skipped with
+`Skipping because of failed dependencies`, unrelated resources still
+apply.
+
+**c) architecture.** Secrets: each host decrypts only its own file;
+spike-b on spike-a's file gives `bad decrypt`. Push needs SSH to every
+host (here over Ziti). Pull (option C) prototype: a systemd timer runs
+`spike-pull.sh`: fetch the branch, `git verify-commit` against an
+allowed-signers file, `puppet apply`, write `last-success`. 4.0 s for a
+run without changes. An unsigned head is refused (`refusing <sha>: not
+signed by an allowed key`) and nothing applies.
+
+**Finding (pull):** checking only the head is not enough. An unsigned
+commit with a signed commit on top was applied. A real agent must check
+every commit from the last applied one to the new head and accept a fast
+forward only. On `main` every commit is a GitHub-signed squash merge, so
+this holds there.
+
+**e) dry run.** Three limits, all reproduced:
+
+1. **Dependency case fails.** On a fresh host `--noop` ends with
+   `Exec[sshd-reload]: Could not evaluate: Could not find command
+   '/usr/local/sbin/spike-sshd-check.sh'` (exit 4), because the guard
+   script is created in the same run. The same failure as ugreen on
+   2026-11-10; the workaround is the `test -f && exec` guard.
+2. **`validate_cmd` does not run in noop.** A typo in the sshd drop-in
+   (`ForceComand`) shows as "content changed" in noop; only the real
+   apply rejects it (`Bad configuration option: ForceComand`).
+3. **No diff without `--show_diff`.** Plain `--noop` shows only sha256
+   checksums; `--show_diff` gives a real diff. `openvox-sync.sh` does
+   not pass it, so the PR live noop never shows file diffs. Sensitive
+   values show as `[redacted]`.
