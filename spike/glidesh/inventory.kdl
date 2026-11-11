@@ -1,0 +1,23 @@
+// The spike VMs, reached over Ziti (spike-ssh-<vm>, ziti/tofu/spike.tf).
+vars {
+    iperf3-port "5202"
+    stack-image "docker.io/traefik/whoami:v1.11.0"
+}
+
+group "spike" plan="plan.kdl" {
+    host "spike-a" "spike-a.spike.int.mljr.eu" user="root" {
+        vars {
+            colour "red"
+            peer "spike-b"
+            host-secret "${spike-a-host-secret}"
+        }
+    }
+    host "spike-b" "spike-b.spike.int.mljr.eu" user="root" {
+        vars {
+            colour "blue"
+            iperf3-port "5203"
+            peer "spike-a"
+            host-secret "${spike-b-host-secret}"
+        }
+    }
+}

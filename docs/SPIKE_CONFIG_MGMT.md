@@ -259,3 +259,111 @@ class is false. `users` fails in dry-run (`Failed to create user`), so
 that bundle shows as failed although nothing is wrong. Function results
 are those of the current state, so a dry run cannot predict anything that
 depends on a file the same run would write.
+
+### glidesh 2.1.0
+
+Code: `spike/glidesh/` (`inventory.kdl`, `plan.kdl`, `files/`,
+`secrets.kdl` age-wrapped to the spike key). 111 lines of KDL plus 34 of
+files. Run from the laptop over Ziti; the release binary is checked
+against `checksums-sha256.txt`.
+
+**a) authoring.** The easiest of the three to read: steps run top to
+bottom, `subscribe` for handlers, `check=` for idempotent shell commands,
+and `glidesh validate` catches undefined template variables before a
+run. Gaps found:
+
+- Structured variables (lists) work in plan vars but not in inventory
+  host vars (`loops over 'peers', which is not a defined list`), so
+  per-host lists need a different shape.
+- No `validate_cmd`: the sshd drop-in uses the same "stage, then one
+  command checks, installs and reloads" as CFEngine, with `check="cmp
+  -s staged live"`.
+- A unit created by the `systemd` module is reloaded but not restarted
+  when it changes; that needs a handler step (`state="restarted"`).
+- `secret set` needs a TTY; without one it stores nothing and says
+  nothing. `secret encrypt` (stdin to a token) works.
+- `container` manages single containers, not compose; part 2 is a file
+  step plus a `shell` with `check` and `subscribe`.
+
+**b) apply.** Fail-stop per host: when the sshd activation failed
+(`Bad configuration option: ForceComand`), the rest of that host's plan
+did not run (the colour change in the same run was not applied); other
+hosts carry on. The staged file then differs from the live one, so the
+next run retries. Slow over Ziti: one command on an open SSH connection
+takes about 145 ms (laptop, mljr, nuc, VM), and every task needs a few.
+Cold run 26 s for both hosts, a run without changes 20.8 s (one host
+alone 7.8 s); OpenVox's push needed 3.4 s for the same no-change run.
+
+**c) architecture.** Push only, no agent: the laptop (or CI) needs SSH
+to every host and holds the key that decrypts every host's secrets; the
+hosts only ever receive their own rendered values (spike-b's
+`/etc/spike/host-secret` differs from spike-a's, and spike-b never sees
+spike-a's token). That is weaker than eyaml or `cf-secret`, where a host
+key is needed to read a host's secret. Per-host isolation would need one
+secrets file per host, wrapped to that host's SSH key (the docs mention
+this; not tried). A pull variant would be glidesh run on each host
+against itself from a timer; not tried either.
+
+**e) dry run (`--dry-run --diff`).** The best of the three. Unified
+diffs for every file, `would change` with the reason, handlers predicted
+(`restart (triggered)`), files that are not world-readable shown as
+`diff hidden (not readable by other users)`, and no secret value in the
+output or in the run logs (`~/.glidesh/runs/`). The dependency case is
+clean: a `check` on a script the same run creates simply fails, so the
+task shows as `would change`, no error. Limits: a 0600 staging file
+hides its diff, so the typo did not show, and a `check` that compares
+two files is evaluated against the current state, so the dry run did
+not predict that the activation would fail.
+
+## Comparison
+
+| | OpenVox | CFEngine | glidesh |
+|---|---|---|---|
+| Slice size | 221 lines | 293 lines | 145 lines |
+| No-change run (one host) | 3.4 s push, 4.0 s pull | 1.5-1.8 s (local) | 7.8 s (over Ziti) |
+| Dry run diff | only with `--show_diff` | none | unified diff |
+| Dependency case in dry run | fails (`Could not evaluate`) | errors logged, continues | clean |
+| Built-in validation | `validate_cmd` | none (and a trap) | none |
+| Partial failure | dependents skipped, rest applies | rest applies | rest of the host stops |
+| Secrets | per-host key, `Sensitive`, `[redacted]` | per-host key; logged by `content =>`, backup copies | controller key reads all; redacted in logs |
+| Push / pull | both (pull: prototype) | pull | push |
+| Ziti fit | plain SSH | needs tproxy, IP ACLs meaningless | plain SSH, latency-bound |
+| Maturity | Puppet lineage, Forge | 30 years, 3.27 LTS not on EL10 repo | 7 stars, 2.0 on 2026-10-06 |
+
+**d) rewrite.** Production is 37 role manifests (5951 lines) and 13
+templates (3519 lines); by resource type mostly `file` (169) and `exec`
+(123), then `service` (19) and `package` (11). That is files plus
+scripts, which maps one to one onto glidesh's `file` and `shell check=`,
+and onto CFEngine's `files` and `commands`. A CFEngine port also needs a
+new mental model (fixed promise order, passes, function caching); every
+`exec` that validates something has to be rebuilt as one command, or it
+becomes the trap above. A glidesh port is the more mechanical one, but
+gives up per-host secret isolation and the pull path. Neither has an
+equivalent of the Forge modules in use (`docker`, `augeas_core`).
+
+## Recommendation
+
+Keep OpenVox; go for option C (pull), with the laptop push as the
+fallback. The spike gives no reason to rewrite:
+
+- CFEngine's robust agent and hub-side validation (a broken policy never
+  left the hub) are real, but the Ziti fit needed workarounds, three
+  authoring traps exposed secrets or killed sshd, and its dry run is the
+  weakest of the three.
+- glidesh has the dry run we want and reads well, but it is push-only,
+  slow over Ziti, and its secrets model puts every host's secrets on
+  whoever runs it, which for CI means GitHub. It is also very young.
+  Worth another look in 2027.
+- OpenVox's dry-run gaps are cheaper to fix than to leave: pass
+  `--show_diff` in `openvox-sync.sh` (the PR live noop then shows
+  diffs), keep the `test -f && exec` guard for scripts created in the
+  same run, and use `validate_cmd` wherever a file can be checked.
+
+For option C, the pull agent must, from what the spike showed:
+
+1. verify every commit from the last applied one to the new head, and
+   accept a fast forward only (checking the head alone let an unsigned
+   commit through);
+2. record the last success as a metric and alert on it;
+3. leave the push path from the laptop untouched for bootstrap, DR and
+   a broken agent.

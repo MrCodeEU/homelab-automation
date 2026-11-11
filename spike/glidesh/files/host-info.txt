@@ -1,0 +1,3 @@
+host: ${@host.name}
+colour: ${colour}
+peer: ${peer}

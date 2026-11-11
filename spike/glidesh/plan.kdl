@@ -1,0 +1,88 @@
+// The config-management spike slice (docs/SPIKE_CONFIG_MGMT.md), the same
+// four parts in every tool.
+plan "spike" {
+    mode "async"
+
+    // Part 1: package, a systemd unit with a templated ExecStart, enabled
+    // and running, restarted only when the unit changes.
+    step "iperf3" {
+        package "iperf3" state="present"
+        systemd "spike-iperf3" {
+            command "/usr/bin/iperf3 -s -B 127.0.0.1 -p ${iperf3-port}"
+            description "iperf3 server (spike)"
+            after "network-online.target"
+            restart-policy "on-failure"
+            state "started"
+            enabled #true
+        }
+    }
+    step "Restart iperf3" subscribe="iperf3" {
+        systemd "spike-iperf3" state="restarted"
+    }
+
+    // Part 2: a compose stack whose .env holds a secret, a post-deploy
+    // hook, and a redeploy only when a file changed.
+    step "Stack files" {
+        file "/opt/whoami/docker-compose.yml" {
+            src "files/docker-compose.yml"
+            template #true
+            mode "0644"
+        }
+        file "/opt/whoami/.env" {
+            src "files/whoami.env"
+            template #true
+            mode "0600"
+        }
+        file "/opt/whoami/post-deploy.sh" {
+            src "files/post-deploy.sh"
+            mode "0755"
+        }
+    }
+    step "Stack up" subscribe="Stack files" {
+        shell "docker compose -f /opt/whoami/docker-compose.yml up -d --remove-orphans && /opt/whoami/post-deploy.sh" {
+            check "docker inspect -f '{{.State.Running}}' whoami 2>/dev/null | grep -qx true"
+        }
+    }
+
+    // Part 3: an sshd drop-in, validated with sshd -t before it goes
+    // live, a guard script created in the same run, and a reload only on
+    // change. glidesh has no validate: the drop-in goes to a staging file,
+    // and one command checks, installs and reloads.
+    step "sshd files" {
+        user "spikefacts" shell="/bin/bash"
+        file "/usr/local/sbin/spike-facts" {
+            src "files/spike-facts"
+            mode "0755"
+        }
+        file "/usr/local/sbin/spike-sshd-check.sh" {
+            src "files/spike-sshd-check.sh"
+            mode "0755"
+        }
+        file "/var/lib/spike/50-spike.conf.staged" {
+            src "files/50-spike.conf"
+            mode "0600"
+        }
+    }
+    step "sshd activate" {
+        shell "sshd -t -f /var/lib/spike/50-spike.conf.staged && install -m 0600 /var/lib/spike/50-spike.conf.staged /etc/ssh/sshd_config.d/50-spike.conf && systemctl reload sshd" {
+            check "cmp -s /var/lib/spike/50-spike.conf.staged /etc/ssh/sshd_config.d/50-spike.conf"
+        }
+        // The guard created in this same run (the noop case).
+        shell "systemctl reload sshd" check="/usr/local/sbin/spike-sshd-check.sh"
+    }
+
+    // Part 4: a file that differs per host, and a secret only this host
+    // receives.
+    step "Host files" {
+        file "/etc/spike/host-info.txt" {
+            src "files/host-info.txt"
+            template #true
+            mode "0644"
+        }
+        file "/etc/spike/host-secret" {
+            src "files/host-secret"
+            template #true
+            mode "0600"
+        }
+    }
+}
