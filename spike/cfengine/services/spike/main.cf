@@ -215,7 +215,7 @@ echo \"$live updated, sshd reloaded\"
         create => "true",
         perms => mog("600", "root", "root"),
         content => "Match User spikefacts Address 127.0.0.1
-    ForceComand /usr/local/sbin/spike-facts
+    ForceCommand /usr/local/sbin/spike-facts
     AllowTcpForwarding no
 ";
 
