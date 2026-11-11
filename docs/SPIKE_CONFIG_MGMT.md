@@ -126,7 +126,7 @@ What the plan did not foresee, in the order it came up:
 
 Code: `spike/openvox/` on branch `spike/pull` (module `spike`, own
 `hiera.yaml`, per-host eyaml under `data/eyaml/`, `push.sh`,
-`spike-pull.sh`). About 190 lines of Puppet for the four parts.
+`spike-pull.sh`). 221 lines (manifests, template, hiera, data) for the four parts.
 
 **a) authoring.** The slice reads like the production roles. Gotcha:
 `\$` in a heredoc is only an escape with the `/$` flag (`@("END"/$)`);
@@ -169,3 +169,93 @@ this holds there.
    checksums; `--show_diff` gives a real diff. `openvox-sync.sh` does
    not pass it, so the PR live noop never shows file diffs. Sensitive
    values show as `[redacted]`.
+
+### CFEngine 3.29.0
+
+Code: `spike/cfengine/` (`def.json` augments, `services/spike/main.cf`,
+`data/spike.json`, per-host `hostsecrets/<host>/*.dat`, `hub-pull.sh`).
+276 lines of policy plus 17 of data. 3.27 LTS is not in the yum repo for
+EL10 (only 3.28 and 3.29), so this is the current non-LTS release.
+
+**Ziti fit: poor until tproxy.** Three things broke with a local proxy:
+
+1. `cf-agent --bootstrap 127.0.0.1:<port>` makes the client a hub
+   (`am_policy_hub`): any local address counts as "self".
+2. A dummy-interface address is local too; the client then talked to its
+   own `cf-serverd` (`Incoming 10.254.0.1 spike-a` in `cf-key -s`) and
+   failed with `TRUST FAILED, server presented untrusted key`.
+3. `ziti tunnel proxy` listens on `0.0.0.0`, not loopback, and collides
+   with the client's own `cf-serverd` on 5308.
+
+It works with `ziti tunnel tproxy` on the clients: the hub name resolves
+to an intercept address (100.64.0.2), which is not local. That is how a
+host with `ziti-edge-tunnel` would look. On the hub every client arrives
+from 127.0.0.1, so the MPF `acl` must admit 127.0.0.1/32: IP ACLs say
+nothing any more, Ziti's dial policy decides who reaches the hub and
+CFEngine's keys say who it is. The MPF cannot bind `cf-serverd` to
+loopback without editing `controls/cf_serverd.cf`; an nft rule on the
+hub drops 5308 from anything but `lo`. The clients run `cf-serverd` too
+(`*:5308`), which they do not need.
+
+**a) authoring.** Promise theory reads differently: a fixed order per
+bundle (classes, users, files, packages, commands, services), three
+passes, and state between promises through classes. Gotchas, each found
+by running it:
+
+- The augment key in 3.29 is `control_common_bundlesequence_end`;
+  `bundlesequence_end` is accepted and silently overwritten with an empty
+  list, so the policy never ran and the run reported nothing.
+- `content =>` logs the whole new content at info level: the `.env`
+  secret appeared in `cf-agent -I` output and syslog. A template only logs
+  "Updated rendering". No equivalent of `Sensitive`.
+- Edits leave `.cf-before-edit` and copies `.cfsaved` backups, including
+  `.env.cf-before-edit` and `host-secret.cfsaved`. `edit_defaults =>
+  no_backup` and `copy_backup => "false"` on every promise that touches a
+  secret.
+- The decrypted secrets stay on disk (`/var/cfengine/spike/secrets/`,
+  0600): `cf-secret` is a CLI, the policy decrypts with a command.
+- MPF package modules are Python (`cfengine-selected-python`); fine for a
+  vendor part, but Python on every host.
+
+**The validation trap (the important one).** The first sshd design
+staged the drop-in, set a class from `returnszero("sshd -t -f staged")`
+and copied it live when the class was set. cf-agent evaluates functions
+once in a pre-evaluation, before any promise runs, and caches the result.
+With a typo (`ForceComand`) the class described the old, valid staging
+file, so the broken drop-in was copied live, the SIGHUP killed sshd
+(`status=255`), and systemd's restarts failed on the same file. sshd was
+down from 17:11:14 to 17:13:20, until the next run fixed the file. On a
+real host without an open session that is a lockout. The same design
+also reloaded before the copy on a fresh host (reload 17:08:24.713, file
+17:08:24.8). The fix is one command that checks, installs and reloads
+(`spike-sshd-activate`), the same shape as the production apply scripts;
+with it a typo is refused (`fails sshd -t, ... left as it is`) and sshd
+stays up. Puppet's `validate_cmd` has this built in.
+
+**b) apply.** Through Ziti, spike-a: cold run 3.5 to 3.9 s, reruns 1.5
+to 1.8 s (no Ruby start). `cf-execd` runs it every 5 minutes; killed with
+`kill -9` it was back after 10 s (systemd `Restart=always`). With the
+hub's `cf-serverd` stopped, the client still enforced its cached policy
+and repaired drift; the update step took 22 s of TLS timeouts. A policy
+with a syntax error never reached the clients: the hub's `cf-promises`
+rejected it and they kept the last valid one. `promise_summary.log`
+gives kept/repaired/not repaired per run, a ready source for a metric.
+
+**c) architecture.** Pull by design: the hub fetches git (`hub-pull.sh`:
+every commit since the last one applied must be signed, fast forward
+only), the clients pull from the hub over Ziti. CI needs no host access;
+the laptop needs none either for normal changes. Secrets: `cf-secret`
+encrypts per host key, the ciphertext is in git, the hub serves it and
+cannot read it; spike-b on spike-a's file: `Decryption failed`. Bootstrap
+trusts the hub's key on first contact (`implicitly trusting server`).
+After `--bootstrap` the daemons were inactive once and had to be started
+with `systemctl start cfengine3`.
+
+**e) dry run (`--dry-run`).** Lists every planned action ("Should create
+file", "Would execute"), but no diffs: for `content` the new text, for a
+template only "Should update rendering". Dependency case: does not abort;
+`returnszero` on the not-yet-created script logs two errors and the
+class is false. `users` fails in dry-run (`Failed to create user`), so
+that bundle shows as failed although nothing is wrong. Function results
+are those of the current state, so a dry run cannot predict anything that
+depends on a file the same run would write.
