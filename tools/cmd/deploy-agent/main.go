@@ -15,7 +15,6 @@
 //	DEPLOY_APPLY_TIMEOUT default 30m
 //	DEPLOY_INTERVAL      poll interval (default 60s)
 //	DEPLOY_SUSPEND_FILE  default /etc/homelab-deploy/suspend
-//	DEPLOY_LOCK_FILE     default /run/homelab-deploy.lock
 //	DEPLOY_NTFY_URL      default https://ntfy.mljr.eu/deployment; empty: none
 //	DEPLOY_MAIL_TO       mail recipient; empty: no mail fallback
 //	DEPLOY_SMTP_HOST, _PORT (587), _USER, _PASSWORD, _FROM (default user)
@@ -77,7 +76,6 @@ func main() {
 		Apply:        envOr("DEPLOY_APPLY", "scripts/openvox-apply.sh"),
 		ApplyTimeout: timeout,
 		SuspendFile:  envOr("DEPLOY_SUSPEND_FILE", "/etc/homelab-deploy/suspend"),
-		LockFile:     envOr("DEPLOY_LOCK_FILE", "/run/homelab-deploy.lock"),
 		Notifiers:    notifiers,
 		Log:          log,
 	})

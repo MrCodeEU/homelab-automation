@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -24,12 +23,13 @@ type Config struct {
 	StateDir   string // repo/, releases/, outbox/, state.json, metrics.prom
 	Keyring    string // armored public keys trusted to sign commits
 	// Apply is the path, inside the applied commit's tree, of the
-	// host-side apply script. It runs under /bin/sh from the tree's root with the
-	// request as environment (Request.Env) and must exit 0 on success.
+	// host-side apply script (scripts/openvox-apply.sh). It runs as
+	// `bash <script> <tree> apply` with the request as environment
+	// (Request.Env) and must exit 0 on success. The script holds the
+	// per-host deploy lock it shares with the laptop push.
 	Apply        string
 	ApplyTimeout time.Duration
 	SuspendFile  string
-	LockFile     string // shared with the laptop push
 	Notifiers    []Notifier
 	Log          *slog.Logger
 }
@@ -47,6 +47,10 @@ type State struct {
 	// base of the rollback check.
 	LastApplied string `json:"last_applied"`
 	LastResult  Result `json:"last_result"`
+	// Applying is the request id while its apply runs. Still set at the
+	// next start means the agent died mid-apply (a reboot): reported as
+	// interrupted, not applied again.
+	Applying string `json:"applying,omitempty"`
 }
 
 // Result of one request, for state, outbox and metrics.
@@ -54,7 +58,7 @@ type Result struct {
 	RequestID string    `json:"request_id"`
 	Host      string    `json:"host"`
 	Commit    string    `json:"commit"`
-	Outcome   string    `json:"outcome"` // success, failure, rejected, suspended
+	Outcome   string    `json:"outcome"` // success, failure, rejected, suspended, interrupted
 	Detail    string    `json:"detail"`
 	Time      time.Time `json:"time"`
 	Duration  float64   `json:"duration_seconds"`
@@ -104,6 +108,20 @@ func (a *Agent) Poll(ctx context.Context) error {
 	defer a.writeMetrics()
 	defer a.flushOutbox(ctx)
 
+	if a.state.Applying != "" {
+		res := Result{
+			RequestID: a.state.Applying, Host: a.cfg.Host, Outcome: "interrupted", Time: time.Now(),
+			Detail: "the agent stopped during this apply (reboot?); state unknown, not applied again",
+		}
+		a.state.Applying, a.state.LastResult = "", res
+		if err := a.saveState(); err != nil {
+			return err
+		}
+		if err := a.queue(res); err != nil {
+			return err
+		}
+	}
+
 	branch := DeployBranch(a.cfg.Host)
 	head, err := a.repo.RemoteHead(ctx, branch)
 	if err != nil {
@@ -116,7 +134,7 @@ func (a *Agent) Poll(ctx context.Context) error {
 	if err := a.repo.Fetch(ctx, a.cfg.MainBranch, branch); err != nil {
 		return err
 	}
-	res := a.handle(ctx, branch)
+	res := a.handle(ctx, branch, head.String())
 	a.cfg.Log.Info("request handled", "id", res.RequestID, "commit", res.Commit, "outcome", res.Outcome, "detail", res.Detail)
 	a.state.LastRequestRef = head.String()
 	a.state.LastResult = res
@@ -134,7 +152,7 @@ func (a *Agent) Poll(ctx context.Context) error {
 
 // handle checks the request at the head of the deploy branch and applies
 // it. Every check from docs/DEPLOY_AGENT.md "What the agent checks".
-func (a *Agent) handle(ctx context.Context, branch string) Result {
+func (a *Agent) handle(ctx context.Context, branch, head string) Result {
 	start := time.Now()
 	res := Result{Host: a.cfg.Host, Time: start}
 	refuse := func(format string, args ...any) Result {
@@ -196,7 +214,15 @@ func (a *Agent) handle(ctx context.Context, branch string) Result {
 		return res
 	}
 
+	// Mark the request handled before running it, so a reboot during the
+	// apply cannot make it run twice.
+	a.state.LastRequestRef, a.state.LastRequestID, a.state.Applying = head, req.ID, req.ID
+	if err := a.saveState(); err != nil {
+		res.Outcome, res.Detail = "failure", fmt.Sprintf("save state: %v", err)
+		return res
+	}
 	out, err := a.apply(ctx, req)
+	a.state.Applying = ""
 	res.Duration = time.Since(start).Seconds()
 	if err != nil {
 		res.Outcome, res.Detail = "failure", fmt.Sprintf("%v\n%s", err, out)
@@ -206,18 +232,9 @@ func (a *Agent) handle(ctx context.Context, branch string) Result {
 	return res
 }
 
-// apply exports the target commit and runs the apply script under the
-// shared lock. It returns the tail of the script's output.
+// apply exports the target commit and runs the apply script. It returns
+// the tail of the script's output.
 func (a *Agent) apply(ctx context.Context, req Request) (string, error) {
-	lock, err := os.OpenFile(a.cfg.LockFile, os.O_RDWR|os.O_CREATE, 0o600)
-	if err != nil {
-		return "", err
-	}
-	defer lock.Close()
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
-		return "", fmt.Errorf("lock %s is held (laptop push running?)", a.cfg.LockFile)
-	}
-
 	target, err := a.repo.Commit(req.Commit)
 	if err != nil {
 		return "", err
@@ -230,9 +247,9 @@ func (a *Agent) apply(ctx context.Context, req Request) (string, error) {
 
 	ctx, cancel := context.WithTimeout(ctx, a.cfg.ApplyTimeout)
 	defer cancel()
-	// Through sh, not exec: the exec bit is not reliable (createCommitOnBranch
-	// cannot set it, core.fileMode=false loses it).
-	cmd := exec.CommandContext(ctx, "/bin/sh", filepath.Join(dir, a.cfg.Apply))
+	// Through bash, not exec: the exec bit is not reliable
+	// (createCommitOnBranch cannot set it, core.fileMode=false loses it).
+	cmd := exec.CommandContext(ctx, "/bin/bash", filepath.Join(dir, a.cfg.Apply), dir, "apply")
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), req.Env()...)
 	out, err := cmd.CombinedOutput()

@@ -92,10 +92,17 @@ with allowed parameters. Never **what** is applied.
 - Applies **only on a new request**. It does not enforce on a timer, so
   a laptop push is not overwritten until the next deploy. A nightly
   noop reports drift instead (replaces `openvox-drift.yml`).
-- Calls one host-side apply script, the same one `openvox-sync.sh` calls
-  after copying (release dir, `production` symlink, Forge modules,
-  `puppet apply`). One apply path for both.
-- `flock` on one lock file shared with the laptop push.
+- Runs `bash scripts/openvox-apply.sh <tree> apply` from the export:
+  the same script `openvox-sync.sh` runs after uploading (PR #591:
+  Forge modules, release + `production` symlink, `puppet apply`). One
+  apply path for both. The script holds `/run/homelab-deploy.lock`, so
+  a push and an agent apply never overlap.
+- The request id is stored as "applying" before the apply runs. An
+  agent that dies mid-apply (a reboot from weekly maintenance) reports
+  it as `interrupted` on start and does not run it again.
+- Weekly maintenance follows `deploy.yml`'s rule: trigger `schedule`,
+  `docker_prune` or `reboot_if_needed` sets
+  `OPENVOX_WEEKLY_MAINTENANCE=true`.
 - Suspend file (`/etc/homelab-deploy/suspend`): requests are seen and
   reported as suspended, not applied.
 - A failed apply is reported and not retried; the next request or a
@@ -150,7 +157,7 @@ promise that, so a lost notification has to be noticed.
 
 1. Prototype on the spike VMs (below).
 2. Host-side apply script split out of `openvox-sync.sh`; the laptop
-   push uses it.
+   push uses it (PR #591).
 3. `roles::deploy_agent` (binary, unit, keyring, state dir); agent in
    noop-only mode on nuc next to the existing push.
 4. `deploy.yml` creates requests for nuc; then mljr, ugreen.

@@ -95,7 +95,7 @@ func (o *origin) commit(branch string, parent plumbing.Hash, files map[string]st
 	return h
 }
 
-const applyScript = "#!/bin/sh\necho applied $DEPLOY_COMMIT >> \"$APPLY_LOG\"\n[ -z \"$APPLY_FAIL\" ]\n"
+const applyScript = "#!/bin/bash\n[ \"$2\" = apply ] || exit 3\necho applied $DEPLOY_COMMIT >> \"$APPLY_LOG\"\n[ -z \"$APPLY_FAIL\" ]\n"
 
 var reqSeq = 0
 
@@ -129,8 +129,8 @@ func newAgent(t *testing.T, o *origin, rec *recorder) (*Agent, string) {
 	a, err := New(Config{
 		Host: "test", RepoURL: o.dir, MainBranch: "main", StateDir: state,
 		Keyring: o.keyring, Apply: "scripts/apply.sh", ApplyTimeout: time.Minute,
-		SuspendFile: filepath.Join(state, "suspend"), LockFile: filepath.Join(state, "lock"),
-		Notifiers: []Notifier{rec},
+		SuspendFile: filepath.Join(state, "suspend"),
+		Notifiers:   []Notifier{rec},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -261,4 +261,44 @@ func countDir(t *testing.T, dir string) int {
 		t.Fatal(err)
 	}
 	return len(e)
+}
+
+// An apply cut off by a reboot is reported once as interrupted and not run
+// again.
+func TestInterruptedApply(t *testing.T) {
+	o := newOrigin(t)
+	m1 := o.commit("main", plumbing.ZeroHash, map[string]string{"scripts/apply.sh": applyScript}, false)
+	a, applyLog := newAgent(t, o, &recorder{})
+	o.request(m1, nil, false)
+	a.mustPoll(t)
+
+	// The agent died while applying the next request.
+	o.request(m1, nil, false)
+	head, err := a.repo.RemoteHead(context.Background(), DeployBranch("test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.state.LastRequestRef, a.state.Applying = head.String(), "20261111T235959Z"
+	if err := a.saveState(); err != nil {
+		t.Fatal(err)
+	}
+	b, err := New(a.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := b.mustPoll(t); r.Outcome != "interrupted" {
+		t.Fatalf("got %+v", r)
+	}
+	if n := strings.Count(mustRead(t, applyLog), "applied"); n != 1 {
+		t.Errorf("applied %d times, want 1", n)
+	}
+}
+
+func mustRead(t *testing.T, p string) string {
+	t.Helper()
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
