@@ -256,7 +256,7 @@ bundle agent spike_home(dir)
 
 # Part 4: a file that differs per host, and a secret only this host can
 # decrypt.
-bundle agent spike_hostfile
+bundle agent spike_hostfile BROKEN
 {
   files:
       "/etc/spike/."
