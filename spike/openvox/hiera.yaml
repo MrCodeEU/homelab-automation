@@ -1,0 +1,18 @@
+# Same layout as openvox/hiera.yaml: node data, common data, then the
+# host's own eyaml file, decrypted with that host's own key only.
+version: 5
+defaults:
+  datadir: data
+hierarchy:
+  - name: "Per-node data"
+    data_hash: yaml_data
+    path: "nodes/%{trusted.certname}.yaml"
+  - name: "Common data"
+    data_hash: yaml_data
+    path: "common.yaml"
+  - name: "Host eyaml secrets"
+    lookup_key: eyaml_lookup_key
+    path: "eyaml/%{trusted.certname}.eyaml"
+    options:
+      pkcs7_private_key: "/etc/puppetlabs/puppet/eyaml/hosts/%{trusted.certname}/private_key.pkcs7.pem"
+      pkcs7_public_key: "/etc/puppetlabs/puppet/eyaml/hosts/%{trusted.certname}/public_key.pkcs7.pem"
