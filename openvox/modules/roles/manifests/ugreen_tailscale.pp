@@ -45,9 +45,18 @@ class roles::ugreen_tailscale {
     subscribe   => File['/etc/systemd/system/tailscaled.service.d/10-godebug.conf'],
   }
 
+  # UGOS ships ctdb (Samba cluster DB), which depends on `time` without
+  # UGOS installing it. With that dependency unmet apt refuses every
+  # install, so the tailscale upgrade below failed (2026-11-11). Keeping
+  # `time` present keeps apt consistent.
+  package { 'time':
+    ensure  => installed,
+    require => Class['apt::update'],
+  }
+
   package { 'tailscale':
     ensure  => latest,
-    require => [Class['apt::update'], Exec['ugreen-tailscaled-daemon-reload']],
+    require => [Class['apt::update'], Exec['ugreen-tailscaled-daemon-reload'], Package['time']],
   }
 
   # Read-only, always runs regardless of noop/real - matches the Ansible
