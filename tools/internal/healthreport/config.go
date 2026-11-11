@@ -134,6 +134,11 @@ type Config struct {
 	SMTP2Password string
 	SMTP2From     string
 
+	// Heartbeat (dead-man's switch) outside the homelab, pinged after a
+	// report reached at least one channel: HetrixTools alerts when the
+	// pings stop, which nothing inside the fleet can notice. Optional.
+	HeartbeatURL string
+
 	GrafanaURL    string
 	LookbackHours int
 
@@ -235,6 +240,7 @@ func ConfigFromEnv() Config {
 	c.SMTP2Password = os.Getenv("HEALTHREPORT_SMTP2_PASSWORD")
 	c.SMTP2From = envOr("HEALTHREPORT_SMTP2_FROM", c.SMTP2User)
 	c.EmailTo = os.Getenv("HEALTHREPORT_EMAIL_TO")
+	c.HeartbeatURL = os.Getenv("HEALTHREPORT_HEARTBEAT_URL")
 	c.GrafanaURL = envOr("HEALTHREPORT_GRAFANA_URL", c.GrafanaURL)
 	c.LookbackHours = envInt("HEALTHREPORT_LOOKBACK_HOURS", 24)
 	if raw, ok := os.LookupEnv("HEALTHREPORT_MAINTENANCE_WINDOWS"); ok {

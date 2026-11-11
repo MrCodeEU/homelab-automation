@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"net/smtp"
 	"net/textproto"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -300,4 +301,26 @@ func SubjectLine(facts *Facts) string {
 		stamp = stamp[:10]
 	}
 	return fmt.Sprintf("[homelab] daily health — %s — %s", state, stamp)
+}
+
+// PingHeartbeat tells the outside heartbeat monitor this run delivered.
+// Best-effort like the other channels.
+func PingHeartbeat(cfg Config) string {
+	if cfg.HeartbeatURL == "" {
+		return "skipped: no heartbeat URL"
+	}
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(cfg.HeartbeatURL)
+	if err != nil {
+		// The URL carries the monitor's token: report the error without it.
+		if ue, ok := err.(*url.Error); ok {
+			err = ue.Err
+		}
+		return "heartbeat: " + err.Error()
+	}
+	resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return "heartbeat: " + resp.Status
+	}
+	return ""
 }
