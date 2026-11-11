@@ -14,6 +14,7 @@ bundle agent spike_main
       "iperf3"   usebundle => spike_iperf3;
       "stack"    usebundle => spike_stack;
       "sshd"     usebundle => spike_sshd;
+      "sshd_go"  usebundle => spike_sshd_activate;
       "hostfile" usebundle => spike_hostfile;
 }
 
@@ -128,11 +129,15 @@ bundle agent spike_stack
         template_data => @(spike_data.d),
         classes => results("bundle", "stack_files");
 
+      # A template, not content =>: content is logged in full at info
+      # level, a template only as "Updated rendering".
       "$(dir)/.env"
         if => isvariable("secret"),
         create => "true",
         perms => mog("600", "root", "root"),
-        content => "WHOAMI_NAME=$(secret)$(const.n)",
+        template_method => "inline_mustache",
+        edit_template_string => "WHOAMI_NAME={{{s}}}$(const.n)",
+        template_data => parsejson('{"s": "$(secret)"}'),
         classes => results("bundle", "stack_files");
 
       "$(dir)/post-deploy.sh"
@@ -160,20 +165,15 @@ exit 1
 
 # Part 3: an sshd drop-in, validated with sshd -t before it goes live, a
 # guard script created in the same run, and a reload only on change.
-# CFEngine has no validate_cmd: the drop-in is rendered to a staging file,
-# checked, and only then copied into place.
+# CFEngine has no validate_cmd: the drop-in is rendered to a staging file
+# here, then spike_sshd_activate checks it, copies it into place and
+# reloads. Two bundles because inside one bundle classes are evaluated
+# before files, and commands before the next pass's files: the reload
+# would run before the copy (seen in the spike, 2026-11-11).
 bundle agent spike_sshd
 {
   vars:
       "staged" string => "/var/cfengine/spike/50-spike.conf.staged";
-      "live" string => "/etc/ssh/sshd_config.d/50-spike.conf";
-
-  classes:
-      "sshd_applies_match"
-        expression => returnszero("/usr/local/sbin/spike-sshd-check.sh", "noshell");
-      "staged_valid"
-        expression => returnszero("/usr/sbin/sshd -t -f $(staged)", "noshell"),
-        if => fileexists("$(staged)");
 
   users:
       "spikefacts"
@@ -194,7 +194,7 @@ echo \"facts from $(hostname -s)\"
         create => "true",
         perms => mog("755", "root", "root"),
         content => "#!/bin/bash
-# Exit 0 when the running sshd already applies the Match block.
+# Exit 0 when sshd's config applies the Match block.
 /usr/sbin/sshd -T -C user=spikefacts,host=localhost,addr=127.0.0.1 \\
   | grep -qx 'forcecommand /usr/local/sbin/spike-facts'
 ";
@@ -206,20 +206,44 @@ echo \"facts from $(hostname -s)\"
     ForceCommand /usr/local/sbin/spike-facts
     AllowTcpForwarding no
 ";
+}
 
+bundle agent spike_sshd_activate
+{
+  vars:
+      "staged" string => "$(spike_sshd.staged)";
+      "live" string => "/etc/ssh/sshd_config.d/50-spike.conf";
+
+  classes:
+      "staged_valid"
+        expression => returnszero("/usr/sbin/sshd -t -f $(staged)", "noshell");
+      "sshd_applies_match"
+        expression => returnszero("/usr/local/sbin/spike-sshd-check.sh", "noshell");
+
+  files:
     staged_valid::
       "$(live)"
-        copy_from => local_dcp("$(staged)"),
+        copy_from => spike_local("$(staged)"),
         perms => mog("600", "root", "root"),
         classes => results("bundle", "sshd_dropin");
 
   commands:
-    sshd_dropin_repaired|!sshd_applies_match::
+    sshd_dropin_repaired::
       "/usr/bin/systemctl reload sshd";
 
   reports:
     !staged_valid::
       "spike_sshd: $(staged) fails sshd -t, $(live) left as it is";
+    staged_valid.!sshd_applies_match.!sshd_dropin_repaired::
+      "spike_sshd: $(live) is in place but sshd -T does not show the Match block";
+}
+
+# A local copy that leaves no .cfsaved backup next to secret files.
+body copy_from spike_local(from)
+{
+      source => "$(from)";
+      compare => "digest";
+      copy_backup => "false";
 }
 
 bundle agent spike_home(dir)
@@ -254,6 +278,6 @@ peer: {{{.}}}
       "/etc/spike/host-secret"
         create => "true",
         perms => mog("600", "root", "root"),
-        copy_from => local_dcp("/var/cfengine/spike/secrets/host"),
+        copy_from => spike_local("/var/cfengine/spike/secrets/host"),
         if => fileexists("/var/cfengine/spike/secrets/host");
 }
