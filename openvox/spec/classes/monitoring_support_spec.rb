@@ -124,8 +124,10 @@ describe 'roles::ugreen_tailscale' do
   it 'updates only Tailscale and reports its version after the package' do
     is_expected.to contain_package('tailscale').with(
       ensure: 'latest',
-      require: ['Class[Apt::Update]', 'Exec[ugreen-tailscaled-daemon-reload]'],
+      require: ['Class[Apt::Update]', 'Exec[ugreen-tailscaled-daemon-reload]', 'Package[time]'],
     )
+    # ctdb (UGOS) depends on time; unmet, apt refuses every install.
+    is_expected.to contain_package('time').with(ensure: 'installed')
     is_expected.to contain_exec('ugreen-tailscale-version').with(
       command: '/usr/bin/tailscale version',
       require: 'Package[tailscale]',
