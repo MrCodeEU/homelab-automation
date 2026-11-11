@@ -73,6 +73,7 @@ bundle agent spike_iperf3
       "$(unit)"
         create => "true",
         perms => mog("644", "root", "root"),
+        edit_defaults => no_backup,
         template_method => "inline_mustache",
         edit_template_string => "[Unit]
 Description=iperf3 server (spike)
@@ -115,6 +116,7 @@ bundle agent spike_stack
       "$(dir)/docker-compose.yml"
         create => "true",
         perms => mog("644", "root", "root"),
+        edit_defaults => no_backup,
         template_method => "inline_mustache",
         edit_template_string => "services:
   whoami:
@@ -134,6 +136,7 @@ bundle agent spike_stack
         if => isvariable("secret"),
         create => "true",
         perms => mog("600", "root", "root"),
+        edit_defaults => no_backup,
         template_method => "inline_mustache",
         edit_template_string => "WHOAMI_NAME={{{s}}}$(const.n)",
         template_data => parsejson('{"s": "$(secret)"}'),
@@ -142,6 +145,7 @@ bundle agent spike_stack
       "$(dir)/post-deploy.sh"
         create => "true",
         perms => mog("755", "root", "root"),
+        edit_defaults => no_backup,
         content => "#!/bin/bash
 # Waits for the new container, then records the deploy.
 set -euo pipefail
@@ -187,6 +191,7 @@ bundle agent spike_sshd
       "/usr/local/sbin/spike-facts"
         create => "true",
         perms => mog("755", "root", "root"),
+        edit_defaults => no_backup,
         content => "#!/bin/sh
 echo \"facts from $(hostname -s)\"
 ";
@@ -194,6 +199,7 @@ echo \"facts from $(hostname -s)\"
       "/usr/local/sbin/spike-sshd-activate"
         create => "true",
         perms => mog("755", "root", "root"),
+        edit_defaults => no_backup,
         content => "#!/bin/bash
 # Put the staged sshd drop-in live if it differs and passes sshd -t, then
 # reload. Exit 0 when nothing was to do or it went live.
@@ -214,6 +220,7 @@ echo \"$live updated, sshd reloaded\"
       "$(staged)"
         create => "true",
         perms => mog("600", "root", "root"),
+        edit_defaults => no_backup,
         content => "Match User spikefacts Address 127.0.0.1
     ForceCommand /usr/local/sbin/spike-facts
     AllowTcpForwarding no
@@ -251,6 +258,7 @@ bundle agent spike_hostfile
       "/etc/spike/host-info.txt"
         create => "true",
         perms => mog("644", "root", "root"),
+        edit_defaults => no_backup,
         template_method => "inline_mustache",
         edit_template_string => "host: $(sys.uqhost)
 colour: {{{colour}}}
