@@ -203,7 +203,7 @@ echo \"facts from $(hostname -s)\"
         create => "true",
         perms => mog("600", "root", "root"),
         content => "Match User spikefacts Address 127.0.0.1
-    ForceComand /usr/local/sbin/spike-facts
+    ForceCommand /usr/local/sbin/spike-facts
     AllowTcpForwarding no
 ";
 }
@@ -256,7 +256,7 @@ bundle agent spike_home(dir)
 
 # Part 4: a file that differs per host, and a secret only this host can
 # decrypt.
-bundle agent spike_hostfile BROKEN
+bundle agent spike_hostfile
 {
   files:
       "/etc/spike/."

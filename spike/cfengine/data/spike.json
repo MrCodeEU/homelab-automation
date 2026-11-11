@@ -4,7 +4,7 @@
     "stack_image": "docker.io/traefik/whoami:v1.11.0"
   },
   "hosts": {
-    "spike-a": { "colour": "green", "peers": ["spike-b"] },
+    "spike-a": { "colour": "red", "peers": ["spike-b"] },
     "spike-b": { "colour": "blue", "peers": ["spike-a"], "iperf3_port": "5203" }
   }
 }
