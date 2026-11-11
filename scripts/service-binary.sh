@@ -6,13 +6,16 @@
 # module-local package it imports, plus go.mod/go.sum. CI recomputes it and
 # fails when the source changed without a rebuild.
 #
-#   service-binary.sh build  <service> <cmd>   build + write the sidecar
-#   service-binary.sh check                    verify every sidecar (CI)
-#   service-binary.sh hash   <cmd>             print the source hash
+#   service-binary.sh build      <service> <cmd>  build + write the sidecar
+#   service-binary.sh build-host <dir> <cmd>      same, for a host binary
+#   service-binary.sh check                       verify every sidecar (CI)
+#   service-binary.sh hash       <cmd>            print the source hash
 #
 # <service> is a directory under services/, <cmd> a directory under
-# tools/cmd/; the binary is named after <cmd>. Opt a binary in by running
-# `build` once and committing both files.
+# tools/cmd/; the binary is named after <cmd>. A host binary (not in a
+# container, e.g. deploy-agent) goes to openvox/modules/roles/files/<dir>/,
+# where its role installs it from. Opt a binary in by running `build` or
+# `build-host` once and committing both files.
 set -euo pipefail
 # The source hash sorts file paths; without a fixed collation a de_AT or
 # en_US locale orders `_` differently than CI's C locale and every
@@ -43,10 +46,16 @@ case "${1:-}" in
     [ -n "${2:-}" ] || { echo "usage: $0 hash <cmd>" >&2; exit 2; }
     src_hash "$2"
     ;;
-  build)
-    service="${2:-}"; cmd="${3:-}"
-    [ -d "$root/services/$service" ] && [ -d "$root/tools/cmd/$cmd" ] || { echo "usage: $0 build <service> <cmd>" >&2; exit 2; }
-    out="$root/services/$service/$cmd"
+  build|build-host)
+    dir="${2:-}"; cmd="${3:-}"
+    if [ "$1" = build ]; then
+      [ -d "$root/services/$dir" ] && [ -d "$root/tools/cmd/$cmd" ] || { echo "usage: $0 build <service> <cmd>" >&2; exit 2; }
+      out="$root/services/$dir/$cmd"
+    else
+      [[ "$dir" =~ ^[a-z0-9_]+$ ]] && [ "$dir" != services ] && [ -d "$root/tools/cmd/$cmd" ] || { echo "usage: $0 build-host <dir> <cmd>" >&2; exit 2; }
+      mkdir -p "$root/openvox/modules/roles/files/$dir"
+      out="$root/openvox/modules/roles/files/$dir/$cmd"
+    fi
     (cd "$root/tools" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags '-s -w' -o "$out" "./cmd/$cmd")
     src_hash "$cmd" > "$out.src-sha256"
     echo "built $out (source hash $(cat "$out.src-sha256" | cut -c1-12))"
@@ -54,7 +63,9 @@ case "${1:-}" in
   check)
     status=0
     shopt -s nullglob
-    for sidecar in "$root"/services/*/*.src-sha256; do
+    # files/services/ holds synced copies of services/, checked there.
+    for sidecar in "$root"/services/*/*.src-sha256 "$root"/openvox/modules/roles/files/*/*.src-sha256; do
+      case "$sidecar" in "$root"/openvox/modules/roles/files/services/*) continue ;; esac
       bin="${sidecar%.src-sha256}"
       cmd="$(basename "$bin")"
       want="$(tr -d '[:space:]' < "$sidecar")"

@@ -36,6 +36,8 @@ class role::nuc {
   include roles::hawser_agent
   include roles::backup_dashboard
   include roles::healthreport
+  # Noop only while the push still deploys (docs/DEPLOY_AGENT.md, Rollout).
+  class { 'roles::deploy_agent': mode => 'noop' }
   include roles::host_facts_endpoint
   include roles::unraid_host_facts_proxy
   include roles::grafana_alloy
