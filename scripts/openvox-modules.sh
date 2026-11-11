@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # Validate or reconcile the exact Forge module versions in openvox/Puppetfile.
 # Remote commands interpolate only values constrained by the allowlists below.
+# The ssh target "local" runs the same commands on this machine: the
+# host-side scripts/openvox-apply.sh reconciles modules that way.
 # shellcheck disable=SC2029
 set -euo pipefail
 
 action="${1:?usage: openvox-modules.sh <validate|verify|reconcile> [ssh-target] [module-dir]}"
 host="${2:-}"
 module_dir="${3:-/etc/puppetlabs/code/environments/vendor-modules}"
-puppetfile="openvox/Puppetfile"
+puppetfile="${OPENVOX_PUPPETFILE:-openvox/Puppetfile}"
 
 case "$action" in
   validate) ;;
@@ -55,25 +57,32 @@ ssh_opts=(
   -o ControlPersist=5
   -o ControlPath=/tmp/openvox-ssh-%C
 )
+remote() {
+  if [ "$host" = local ]; then
+    bash -c "$1"
+  else
+    ssh "${ssh_opts[@]}" "root@${host}" "$1"
+  fi
+}
 
 # puppet/firewalld was replaced by roles::firewalld. Remove only that known,
 # obsolete module on reconciliation; never prune arbitrary operator modules.
 if [ "$action" = reconcile ]; then
-  ssh "${ssh_opts[@]}" "root@${host}" "rm -rf -- '$module_dir/firewalld'"
+  remote "rm -rf -- '$module_dir/firewalld'"
 fi
-ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p '$module_dir'"
+remote "mkdir -p '$module_dir'"
 
 # Seed all cached modules before taking the one installed-version inventory.
 if [[ "$module_dir" == /tmp/openvox-pr-*/modules ]]; then
   for entry in "${modules[@]}"; do
     module=${entry%% *}
     short_name=${module#*/}
-    ssh "${ssh_opts[@]}" "root@${host}" \
+    remote \
       "if [ ! -e '$module_dir/$short_name' ] && [ -d '/etc/puppetlabs/code/environments/vendor-modules/$short_name' ]; then cp -a '/etc/puppetlabs/code/environments/vendor-modules/$short_name' '$module_dir/'; fi"
   done
 fi
 
-installed=$(ssh "${ssh_opts[@]}" "root@${host}" \
+installed=$(remote \
   "/opt/puppetlabs/bin/puppet module list --color=false --modulepath='$module_dir'")
 
 for entry in "${modules[@]}"; do
@@ -94,13 +103,13 @@ for entry in "${modules[@]}"; do
   echo "${host%%.*}: installing $module $version"
   # Dependencies are all explicitly pinned above. Ignoring automatic dependency
   # installation prevents the Forge resolver from reintroducing version drift.
-  ssh "${ssh_opts[@]}" "root@${host}" \
+  remote \
     "/opt/puppetlabs/bin/puppet module install '$module' --version='$version' --target-dir='$module_dir' --force --ignore-dependencies"
 done
 
 # This reports missing or incompatible transitive dependencies after all exact
 # versions are present. Its non-zero status makes dependency-update PRs fail.
-installed=$(ssh "${ssh_opts[@]}" "root@${host}" \
+installed=$(remote \
   "/opt/puppetlabs/bin/puppet module list --color=false --modulepath='$module_dir'")
 printf '%s\n' "$installed"
 for entry in "${modules[@]}"; do

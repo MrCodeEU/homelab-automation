@@ -117,7 +117,8 @@ those two.
 | `openvox/data/secrets/<certname>.eyaml` | Per-host encrypted `vault_*` secrets |
 | `openvox/modules/roles/manifests/*.pp` | One class per role |
 | `services/<name>/docker-compose.yml` | Canonical service Compose definitions |
-| `scripts/openvox-sync.sh` | rsync manifests to a host + run `puppet apply` |
+| `scripts/openvox-sync.sh` | rsync manifests to a host's staging tree + run `openvox-apply.sh` there |
+| `scripts/openvox-apply.sh` | host side of a deploy: Forge modules, release + symlink swap, `puppet apply`; also run by deploy-agent |
 | `tools/cmd/` | Go tools (service validation, healthreport, backup-dashboard, etc.) |
 
 ## Adding a service
