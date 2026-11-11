@@ -149,11 +149,15 @@ allowed-signers file, `puppet apply`, write `last-success`. 4.0 s for a
 run without changes. An unsigned head is refused (`refusing <sha>: not
 signed by an allowed key`) and nothing applies.
 
-**Finding (pull):** checking only the head is not enough. An unsigned
-commit with a signed commit on top was applied. A real agent must check
-every commit from the last applied one to the new head and accept a fast
-forward only. On `main` every commit is a GitHub-signed squash merge, so
-this holds there.
+**Pull: what the signature covers.** An unsigned commit with a signed
+commit on top was applied. That is by design, not a hole: a signature on
+a commit covers its whole tree, so whoever signed the head vouched for
+everything under it (comin checks the head only, for this reason). What
+the agent must add is rollback protection: accept only a fast forward of
+the last applied commit, or a force push could bring back an old signed
+commit. Checking every commit since the last applied one is defence in
+depth against signing on top without looking; on `main` every commit is
+a GitHub-signed squash merge anyway.
 
 **e) dry run.** Three limits, all reproduced:
 
@@ -361,9 +365,8 @@ fallback. The spike gives no reason to rewrite:
 
 For option C, the pull agent must, from what the spike showed:
 
-1. verify every commit from the last applied one to the new head, and
-   accept a fast forward only (checking the head alone let an unsigned
-   commit through);
+1. verify the signature of the new head and accept a fast forward of
+   the last applied commit only (rollback protection);
 2. record the last success as a metric and alert on it;
 3. leave the push path from the laptop untouched for bootstrap, DR and
    a broken agent.
