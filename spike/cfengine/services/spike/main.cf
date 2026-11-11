@@ -1,0 +1,259 @@
+# The config-management spike slice (docs/SPIKE_CONFIG_MGMT.md), the same
+# four parts in every tool. Runs on the clients only; the hub serves it.
+#
+# Per-host data: data/spike.json, "common" merged with "hosts.<name>".
+# Secrets: hostsecrets/<host>/*.dat, encrypted with cf-secret for that
+# host's own key; the hub serves them (spike_access) and cannot read them.
+
+bundle agent spike_main
+{
+  methods:
+    !am_policy_hub::
+      "data"     usebundle => spike_data;
+      "secrets"  usebundle => spike_secrets;
+      "iperf3"   usebundle => spike_iperf3;
+      "stack"    usebundle => spike_stack;
+      "sshd"     usebundle => spike_sshd;
+      "hostfile" usebundle => spike_hostfile;
+}
+
+bundle common spike_data
+{
+  vars:
+      "all" data => readjson("$(this.promise_dirname)/../../data/spike.json");
+      "d" data => mergedata("all[common]", "all[hosts][$(sys.uqhost)]");
+      "peers" slist => getvalues("d[peers]");
+}
+
+bundle server spike_access
+{
+  access:
+      # Every client comes in through Ziti, so from 127.0.0.1. The files
+      # are encrypted for one host each; serving all of them to every
+      # client is what eyaml does too.
+      "/var/cfengine/spike-secrets/"
+        handle => "spike_access_secrets",
+        admit => { "127.0.0.1/32" };
+}
+
+# Fetch this host's encrypted files and decrypt each one that changed.
+bundle agent spike_secrets
+{
+  vars:
+      "dir" string => "/var/cfengine/spike/secrets";
+      "names" slist => { "stack", "host" };
+
+  files:
+      "$(dir)/."
+        create => "true",
+        perms => mog("700", "root", "root");
+
+      "$(dir)/$(names).dat"
+        copy_from => remote_dcp("/var/cfengine/spike-secrets/$(sys.uqhost)/$(names).dat", "$(sys.policy_hub)"),
+        perms => mog("600", "root", "root"),
+        classes => results("bundle", "secret_$(names)");
+
+  commands:
+      "/var/cfengine/bin/cf-secret decrypt -o $(dir)/$(names) $(dir)/$(names).dat"
+        if => or("secret_$(names)_repaired", not(fileexists("$(dir)/$(names)")));
+}
+
+# Part 1: package, a systemd unit with a templated ExecStart, enabled and
+# running, restarted only when the unit changes.
+bundle agent spike_iperf3
+{
+  vars:
+      "unit" string => "/etc/systemd/system/spike-iperf3.service";
+
+  packages:
+      "iperf3"
+        policy => "present";
+
+  files:
+      "$(unit)"
+        create => "true",
+        perms => mog("644", "root", "root"),
+        template_method => "inline_mustache",
+        edit_template_string => "[Unit]
+Description=iperf3 server (spike)
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/iperf3 -s -B 127.0.0.1 -p {{{iperf3_port}}}
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+",
+        template_data => @(spike_data.d),
+        classes => results("bundle", "iperf3_unit");
+
+  commands:
+    iperf3_unit_repaired::
+      "/usr/bin/systemctl daemon-reload && /usr/bin/systemctl restart spike-iperf3"
+        contain => in_shell;
+
+  services:
+      "spike-iperf3"
+        service_policy => "start";
+}
+
+# Part 2: a compose stack whose .env holds a secret, a post-deploy hook,
+# and a redeploy only when a file changed.
+bundle agent spike_stack
+{
+  vars:
+      "dir" string => "/opt/whoami";
+      "secret" string => readfile("/var/cfengine/spike/secrets/stack", 4096),
+        if => fileexists("/var/cfengine/spike/secrets/stack");
+
+  files:
+      "$(dir)/."
+        create => "true",
+        perms => mog("755", "root", "root");
+
+      "$(dir)/docker-compose.yml"
+        create => "true",
+        perms => mog("644", "root", "root"),
+        template_method => "inline_mustache",
+        edit_template_string => "services:
+  whoami:
+    image: {{{stack_image}}}
+    container_name: whoami
+    restart: unless-stopped
+    ports: [\"127.0.0.1:8080:80\"]
+    environment:
+      WHOAMI_NAME: $${WHOAMI_NAME}
+",
+        template_data => @(spike_data.d),
+        classes => results("bundle", "stack_files");
+
+      "$(dir)/.env"
+        if => isvariable("secret"),
+        create => "true",
+        perms => mog("600", "root", "root"),
+        content => "WHOAMI_NAME=$(secret)$(const.n)",
+        classes => results("bundle", "stack_files");
+
+      "$(dir)/post-deploy.sh"
+        create => "true",
+        perms => mog("755", "root", "root"),
+        content => "#!/bin/bash
+# Waits for the new container, then records the deploy.
+set -euo pipefail
+for _ in $(seq 30); do
+  if curl -fsS http://127.0.0.1:8080/ | grep -q '^Name: '; then
+    date -u +%FT%TZ > $(dir)/last-deploy
+    exit 0
+  fi
+  sleep 1
+done
+echo 'whoami did not answer' >&2
+exit 1
+";
+
+  commands:
+    stack_files_repaired::
+      "/usr/bin/docker compose -f $(dir)/docker-compose.yml up -d --remove-orphans && $(dir)/post-deploy.sh"
+        contain => in_dir_shell("$(dir)");
+}
+
+# Part 3: an sshd drop-in, validated with sshd -t before it goes live, a
+# guard script created in the same run, and a reload only on change.
+# CFEngine has no validate_cmd: the drop-in is rendered to a staging file,
+# checked, and only then copied into place.
+bundle agent spike_sshd
+{
+  vars:
+      "staged" string => "/var/cfengine/spike/50-spike.conf.staged";
+      "live" string => "/etc/ssh/sshd_config.d/50-spike.conf";
+
+  classes:
+      "sshd_applies_match"
+        expression => returnszero("/usr/local/sbin/spike-sshd-check.sh", "noshell");
+      "staged_valid"
+        expression => returnszero("/usr/sbin/sshd -t -f $(staged)", "noshell"),
+        if => fileexists("$(staged)");
+
+  users:
+      "spikefacts"
+        policy => "present",
+        shell => "/bin/bash",
+        home_dir => "/home/spikefacts",
+        home_bundle => spike_home("/home/spikefacts");
+
+  files:
+      "/usr/local/sbin/spike-facts"
+        create => "true",
+        perms => mog("755", "root", "root"),
+        content => "#!/bin/sh
+echo \"facts from $(hostname -s)\"
+";
+
+      "/usr/local/sbin/spike-sshd-check.sh"
+        create => "true",
+        perms => mog("755", "root", "root"),
+        content => "#!/bin/bash
+# Exit 0 when the running sshd already applies the Match block.
+/usr/sbin/sshd -T -C user=spikefacts,host=localhost,addr=127.0.0.1 \\
+  | grep -qx 'forcecommand /usr/local/sbin/spike-facts'
+";
+
+      "$(staged)"
+        create => "true",
+        perms => mog("600", "root", "root"),
+        content => "Match User spikefacts Address 127.0.0.1
+    ForceCommand /usr/local/sbin/spike-facts
+    AllowTcpForwarding no
+";
+
+    staged_valid::
+      "$(live)"
+        copy_from => local_dcp("$(staged)"),
+        perms => mog("600", "root", "root"),
+        classes => results("bundle", "sshd_dropin");
+
+  commands:
+    sshd_dropin_repaired|!sshd_applies_match::
+      "/usr/bin/systemctl reload sshd";
+
+  reports:
+    !staged_valid::
+      "spike_sshd: $(staged) fails sshd -t, $(live) left as it is";
+}
+
+bundle agent spike_home(dir)
+{
+  files:
+      "$(dir)/."
+        create => "true",
+        perms => mog("700", "spikefacts", "spikefacts");
+}
+
+# Part 4: a file that differs per host, and a secret only this host can
+# decrypt.
+bundle agent spike_hostfile
+{
+  files:
+      "/etc/spike/."
+        create => "true",
+        perms => mog("755", "root", "root");
+
+      "/etc/spike/host-info.txt"
+        create => "true",
+        perms => mog("644", "root", "root"),
+        template_method => "inline_mustache",
+        edit_template_string => "host: $(sys.uqhost)
+colour: {{{colour}}}
+{{#peers}}
+peer: {{{.}}}
+{{/peers}}
+",
+        template_data => @(spike_data.d);
+
+      "/etc/spike/host-secret"
+        create => "true",
+        perms => mog("600", "root", "root"),
+        copy_from => local_dcp("/var/cfengine/spike/secrets/host"),
+        if => fileexists("/var/cfengine/spike/secrets/host");
+}
