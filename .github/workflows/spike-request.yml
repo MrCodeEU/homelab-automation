@@ -1,0 +1,28 @@
+# Spike (docs/DEPLOY_AGENT.md): does GITHUB_TOKEN get GitHub-signed
+# createCommitOnBranch commits? Runs once on push to spike/proto-gha.
+name: Spike deploy request
+on:
+  push:
+    branches: [spike/proto-gha]
+permissions: {}
+jobs:
+  request:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create request on deploy/spike-a
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          R=repos/${GITHUB_REPOSITORY}
+          head=$(gh api $R/git/ref/heads/deploy/spike-a -q .object.sha)
+          target=$(gh api $R/git/ref/heads/spike/proto-main -q .object.sha)
+          req=$(printf '{"id":"%s-%s","host":"spike-a","commit":"%s","trigger":"workflow_dispatch"}\n' "$(date -u +%Y%m%dT%H%M%SZ)" "$GITHUB_RUN_ID" "$target")
+          c=$(gh api graphql -f query='mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }' \
+            -F "input[branch][repositoryNameWithOwner]=${GITHUB_REPOSITORY}" -F "input[branch][branchName]=deploy/spike-a" \
+            -F "input[expectedHeadOid]=$head" -F "input[message][headline]=deploy spike-a ${target:0:9} (workflow_dispatch)" \
+            -F "input[fileChanges][additions][][path]=.deploy/request.json" -F "input[fileChanges][additions][][contents]=$(printf %s "$req" | base64 -w0)" \
+            -q .data.createCommitOnBranch.commit.oid)
+          gh api $R/git/commits/$c -q '"\(.sha) verified=\(.verification.verified) reason=\(.verification.reason)"'
