@@ -109,8 +109,8 @@ A failed deploy must always reach a person. No single channel can
 promise that, so a lost notification has to be noticed.
 
 1. **Outbox.** The agent writes each result to its outbox first, then
-   sends it: ntfy (`/deployment`, as today), and email through mailcow
-   when ntfy fails. An entry is removed only after a channel accepted
+   sends it: ntfy (`/deployment`, as today), and when ntfy fails, mail
+   with healthreport's account and relays (mail.mljr.eu, then Brevo). An entry is removed only after a channel accepted
    it, so an outage delays a notification but does not lose it.
 2. **Expected versus seen.** The agent exports metrics:
    `homelab_deploy_last_poll_timestamp_seconds`,
@@ -119,9 +119,9 @@ promise that, so a lost notification has to be noticed.
    healthreport (another code path, its own email) raises a crit when a
    request has no success within 15 minutes, or when polls stop.
 3. **Watching the watchers.** If ntfy, mail and healthreport fail
-   together, only something outside the homelab notices: a dead-man's
-   switch that healthreport pings after each run and that emails when
-   the pings stop. Open decision (external account).
+   together, only something outside the homelab notices: a HetrixTools
+   heartbeat (cron job monitor) that the daily report pings once it
+   reached a channel (PR #590). HetrixTools alerts when the pings stop.
 
 `deploy.yml` creates requests and does not wait (fire and forget).
 
@@ -160,11 +160,10 @@ promise that, so a lost notification has to be noticed.
 
 - PR check without host access: octocatalog-diff with stored facts and
   placeholder secrets (not yet tested against this repository).
-- Dead-man's switch outside the homelab: which service, or none.
 - Metrics textfile into Alloy (`prometheus.exporter.unix` textfile
   collector) and the healthreport check on it.
-- Mail fallback is written but untested (needs a mailcow submission
-  account per host or a shared one).
+- The mail credentials go into each host's eyaml (today only nuc's has
+  them); one shared submission account.
 
 ## Prototype (2026-11-11)
 
@@ -187,6 +186,7 @@ through `createCommitOnBranch`) and the OpenVox spike slice as the tree:
 | Request from a workflow with `GITHUB_TOKEN` (`contents: write`) | signed (`verified=true`), applied, 5 s |
 | Request for an older commit | rejected (rollback) |
 | ntfy topic with an ACL (403) | result stayed in the outbox, sent on the next poll to `/deployment` |
+| `--test-notify` on nuc with healthreport's account | ntfy, mail.mljr.eu and Brevo each delivered |
 
 Findings:
 
@@ -200,6 +200,9 @@ Findings:
   the older one expired 2024-01-16); go-git verifies with it directly.
 - Poll and apply are cheap: the agent adds seconds, `puppet apply`
   dominates.
+- `tools/go.mod` gains go-git, and go.mod/go.sum are part of every
+  committed service binary's source hash: merging the agent means
+  rebuilding all of them (`scripts/service-binary.sh build`).
 - The binary is 10 MB static (`CGO_ENABLED=0`), so ugreen (no git)
   works the same.
 

@@ -262,4 +262,3 @@ func countDir(t *testing.T, dir string) int {
 	}
 	return len(e)
 }
-

@@ -17,10 +17,12 @@
 //	DEPLOY_SUSPEND_FILE  default /etc/homelab-deploy/suspend
 //	DEPLOY_LOCK_FILE     default /run/homelab-deploy.lock
 //	DEPLOY_NTFY_URL      default https://ntfy.mljr.eu/deployment; empty: none
-//	DEPLOY_SMTP_ADDR, DEPLOY_SMTP_USER, DEPLOY_SMTP_PASSWORD_FILE,
-//	DEPLOY_MAIL_FROM, DEPLOY_MAIL_TO   mail fallback; empty addr: none
+//	DEPLOY_MAIL_TO       mail recipient; empty: no mail fallback
+//	DEPLOY_SMTP_HOST, _PORT (587), _USER, _PASSWORD, _FROM (default user)
+//	DEPLOY_SMTP2_*       second, independent relay (as healthreport's)
 //
-// --once polls once and exits.
+// --once polls once and exits. --test-notify sends a test result through
+// each notifier on its own and reports which ones work.
 package main
 
 import (
@@ -29,6 +31,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -59,6 +62,10 @@ func main() {
 	notifiers, err := notifiersFromEnv()
 	if err != nil {
 		fatal(err)
+	}
+	if len(os.Args) > 1 && os.Args[1] == "--test-notify" {
+		testNotify(host, notifiers)
+		return
 	}
 
 	agent, err := deployagent.New(deployagent.Config{
@@ -106,17 +113,52 @@ func notifiersFromEnv() ([]deployagent.Notifier, error) {
 	if u := envOr("DEPLOY_NTFY_URL", "https://ntfy.mljr.eu/deployment"); u != "" {
 		ns = append(ns, deployagent.Ntfy{URL: u})
 	}
-	if addr := os.Getenv("DEPLOY_SMTP_ADDR"); addr != "" {
-		pw, err := os.ReadFile(os.Getenv("DEPLOY_SMTP_PASSWORD_FILE"))
-		if err != nil {
-			return nil, fmt.Errorf("DEPLOY_SMTP_PASSWORD_FILE: %w", err)
+	to := os.Getenv("DEPLOY_MAIL_TO")
+	for _, p := range []string{"DEPLOY_SMTP_", "DEPLOY_SMTP2_"} {
+		host := os.Getenv(p + "HOST")
+		if to == "" || host == "" {
+			continue
 		}
+		port, err := strconv.Atoi(envOr(p+"PORT", "587"))
+		if err != nil {
+			return nil, fmt.Errorf("%sPORT: %w", p, err)
+		}
+		user := os.Getenv(p + "USER")
 		ns = append(ns, deployagent.Mail{
-			Addr: addr, User: os.Getenv("DEPLOY_SMTP_USER"), Password: strings.TrimSpace(string(pw)),
-			From: os.Getenv("DEPLOY_MAIL_FROM"), To: os.Getenv("DEPLOY_MAIL_TO"),
+			Host: host, Port: port, User: user, Password: os.Getenv(p + "PASSWORD"),
+			From: envOr(p+"FROM", user), To: to,
 		})
 	}
 	return ns, nil
+}
+
+// testNotify sends one made-up failure through every notifier.
+func testNotify(host string, ns []deployagent.Notifier) {
+	r := deployagent.Result{
+		RequestID: time.Now().UTC().Format("20060102T150405Z") + "-test", Host: host,
+		Commit: strings.Repeat("0", 40), Outcome: "failure",
+		Detail: "test notification from deploy-agent --test-notify, nothing was deployed", Time: time.Now(),
+	}
+	failed := false
+	for _, n := range ns {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		err := n.Notify(ctx, r)
+		cancel()
+		if err != nil {
+			failed = true
+		}
+		fmt.Printf("%-28s %v\n", n.Name(), errOK(err))
+	}
+	if failed || len(ns) == 0 {
+		os.Exit(1)
+	}
+}
+
+func errOK(err error) any {
+	if err == nil {
+		return "ok"
+	}
+	return err
 }
 
 // envOr returns the variable, or def when it is unset. Set but empty
