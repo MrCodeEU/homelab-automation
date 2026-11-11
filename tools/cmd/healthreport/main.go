@@ -188,10 +188,20 @@ func run() int {
 	// --- delivery ------------------------------------------------------
 	if *send {
 		var errs []string
-		if e := hr.SendNtfy(cfg, facts, title, hr.NtfyBody(facts, narrative, fallback, 5)); e != "" && !hasPrefix(e, "skipped") {
+		// delivered: the report reached some channel. Only then is the
+		// heartbeat pinged, so a fleet whose every channel is down shows
+		// up as a missing heartbeat outside it.
+		delivered := false
+		if e := hr.SendNtfy(cfg, facts, title, hr.NtfyBody(facts, narrative, fallback, 5)); e == "" {
+			delivered = true
+		} else if !hasPrefix(e, "skipped") {
 			errs = append(errs, e)
 		}
-		if e := hr.SendEmail(cfg, facts, hr.SubjectLine(facts), body, bodyHTML); e != "" && !hasPrefix(e, "skipped") {
+		e := hr.SendEmail(cfg, facts, hr.SubjectLine(facts), body, bodyHTML)
+		if e == "" || hasPrefix(e, "email: delivered via backup") {
+			delivered = true
+		}
+		if e != "" && !hasPrefix(e, "skipped") {
 			errs = append(errs, e)
 			// Whole mail path down: push the report over ntfy instead. A
 			// backup-relay delivery only gets the failure note, not the body.
@@ -199,8 +209,15 @@ func run() int {
 			if hasPrefix(e, "email: delivered via backup") {
 				pushBody = ""
 			}
-			if fe := hr.SendNtfyEmailFailure(cfg, facts, e, pushBody); fe != "" && !hasPrefix(fe, "skipped") {
+			if fe := hr.SendNtfyEmailFailure(cfg, facts, e, pushBody); fe == "" {
+				delivered = true
+			} else if !hasPrefix(fe, "skipped") {
 				errs = append(errs, fe)
+			}
+		}
+		if delivered {
+			if he := hr.PingHeartbeat(cfg); he != "" && !hasPrefix(he, "skipped") {
+				errs = append(errs, he)
 			}
 		}
 		facts.DeliveryErrors = errs

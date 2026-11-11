@@ -260,6 +260,8 @@ class roles::services (
       'smtp2_user'             => lookup('vault_healthreport_smtp2_user', { 'default_value' => '' }),
       'smtp2_password'         => lookup('vault_healthreport_smtp2_password', { 'default_value' => '' }),
       'smtp2_from'             => lookup('vault_healthreport_smtp2_from', { 'default_value' => '' }),
+      # HetrixTools heartbeat (dead-man's switch); empty = disabled.
+      'heartbeat_url'          => lookup('vault_healthreport_heartbeat_url', { 'default_value' => '' }),
       'email_to'               => lookup('vault_healthreport_email_to', { 'default_value' => '' }),
       # Reuses dmarc-monitor's own db_password for read access to its
       # Postgres, not a separate credential - same precedent as Grafana's
