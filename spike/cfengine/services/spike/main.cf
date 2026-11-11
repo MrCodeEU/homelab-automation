@@ -14,7 +14,6 @@ bundle agent spike_main
       "iperf3"   usebundle => spike_iperf3;
       "stack"    usebundle => spike_stack;
       "sshd"     usebundle => spike_sshd;
-      "sshd_go"  usebundle => spike_sshd_activate;
       "hostfile" usebundle => spike_hostfile;
 }
 
@@ -165,15 +164,17 @@ exit 1
 
 # Part 3: an sshd drop-in, validated with sshd -t before it goes live, a
 # guard script created in the same run, and a reload only on change.
-# CFEngine has no validate_cmd: the drop-in is rendered to a staging file
-# here, then spike_sshd_activate checks it, copies it into place and
-# reloads. Two bundles because inside one bundle classes are evaluated
-# before files, and commands before the next pass's files: the reload
-# would run before the copy (seen in the spike, 2026-11-11).
+# CFEngine has no validate_cmd. The drop-in is rendered to a staging file;
+# spike-sshd-activate then checks it, puts it in place and reloads, in one
+# command that runs every time and decides for itself. Not with classes:
+# cf-agent evaluates returnszero() once, before any file changes, and
+# caches it, so a class saying "staged file is valid" describes the old
+# file. In the spike that copied a broken drop-in live (2026-11-11).
 bundle agent spike_sshd
 {
   vars:
       "staged" string => "/var/cfengine/spike/50-spike.conf.staged";
+      "live" string => "/etc/ssh/sshd_config.d/50-spike.conf";
 
   users:
       "spikefacts"
@@ -190,13 +191,24 @@ bundle agent spike_sshd
 echo \"facts from $(hostname -s)\"
 ";
 
-      "/usr/local/sbin/spike-sshd-check.sh"
+      "/usr/local/sbin/spike-sshd-activate"
         create => "true",
         perms => mog("755", "root", "root"),
         content => "#!/bin/bash
-# Exit 0 when sshd's config applies the Match block.
-/usr/sbin/sshd -T -C user=spikefacts,host=localhost,addr=127.0.0.1 \\
-  | grep -qx 'forcecommand /usr/local/sbin/spike-facts'
+# Put the staged sshd drop-in live if it differs and passes sshd -t, then
+# reload. Exit 0 when nothing was to do or it went live.
+set -euo pipefail
+staged=$(staged)
+live=$(live)
+cmp -s \"$staged\" \"$live\" 2>/dev/null && exit 0
+if ! out=$(/usr/sbin/sshd -t -f \"$staged\" 2>&1); then
+  echo \"$staged fails sshd -t, $live left as it is: $out\" >&2
+  exit 1
+fi
+install -m 0600 \"$staged\" \"$live.new\"
+mv \"$live.new\" \"$live\"
+systemctl reload sshd
+echo \"$live updated, sshd reloaded\"
 ";
 
       "$(staged)"
@@ -206,36 +218,9 @@ echo \"facts from $(hostname -s)\"
     ForceCommand /usr/local/sbin/spike-facts
     AllowTcpForwarding no
 ";
-}
-
-bundle agent spike_sshd_activate
-{
-  vars:
-      "staged" string => "$(spike_sshd.staged)";
-      "live" string => "/etc/ssh/sshd_config.d/50-spike.conf";
-
-  classes:
-      "staged_valid"
-        expression => returnszero("/usr/sbin/sshd -t -f $(staged)", "noshell");
-      "sshd_applies_match"
-        expression => returnszero("/usr/local/sbin/spike-sshd-check.sh", "noshell");
-
-  files:
-    staged_valid::
-      "$(live)"
-        copy_from => spike_local("$(staged)"),
-        perms => mog("600", "root", "root"),
-        classes => results("bundle", "sshd_dropin");
 
   commands:
-    sshd_dropin_repaired::
-      "/usr/bin/systemctl reload sshd";
-
-  reports:
-    !staged_valid::
-      "spike_sshd: $(staged) fails sshd -t, $(live) left as it is";
-    staged_valid.!sshd_applies_match.!sshd_dropin_repaired::
-      "spike_sshd: $(live) is in place but sshd -T does not show the Match block";
+      "/usr/local/sbin/spike-sshd-activate";
 }
 
 # A local copy that leaves no .cfsaved backup next to secret files.
