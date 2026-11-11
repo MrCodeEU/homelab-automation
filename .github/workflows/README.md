@@ -28,10 +28,6 @@ Read-only Infrastructure-as-Code scanning with Checkov. This workflow intentiona
 
 Checkov is blocking for active infrastructure. The top-level `ansible/` tree is excluded because it is retained only as the OpenVox migration reference and is no longer a deployment path.
 
-### Claude Code (`claude.yml`, `claude-code-review.yml`)
-
-`claude-code-review.yml` runs an automatic Claude review comment on every PR open/sync. `claude.yml` responds to `@claude` mentions in issues, PR comments, and PR reviews. Both are advisory only - neither is a required status check.
-
 ## Branch Protection
 
 The `Main` ruleset on `main` requires a PR (no direct pushes) and has **no bypass actors** - this applies to everyone, including repo admins. Required status checks to merge: `shellcheck`, `puppet-lint`, `actionlint`, `zizmor`, `gitleaks`, `go` (all from `static-analysis.yml`, chosen specifically because none of them are path-filtered, so they always run on every PR).

@@ -38,7 +38,9 @@ resource "ziti_identity" "idp_admin" {
 }
 
 # --- GitHub Actions (C4) ------------------------------------------------------
-# A workflow logs in with the job's own OIDC token. GitHub's issuer and keys
+# A workflow logs in with the job's own OIDC token. No identity uses it
+# since the C4 PoC (ci-ziti-c4, ziti-c4.yml) was removed 2026-11-11; kept
+# for a CI deploy path over Ziti, should one come. GitHub's issuer and keys
 # are public; the audience is ours, so a token a job requested for any
 # other service is refused. Matched by job_workflow_ref, so one identity
 # belongs to one workflow file on one branch.
@@ -70,13 +72,4 @@ resource "ziti_auth_policy" "ci_github" {
     }
   }
   secondary = {}
-}
-
-# .github/workflows/ziti-c4.yml on main, and nothing else.
-resource "ziti_identity" "ci_ziti_c4" {
-  name            = "ci-ziti-c4"
-  type            = "Default"
-  external_id     = "MrCodeEU/homelab-automation/.github/workflows/ziti-c4.yml@refs/heads/main"
-  role_attributes = ["ci"]
-  auth_policy_id  = ziti_auth_policy.ci_github.id
 }
