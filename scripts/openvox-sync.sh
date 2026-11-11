@@ -4,8 +4,11 @@
 # shellcheck disable=SC2029
 # Syncs openvox/manifests + openvox/modules/roles + hiera.yaml + data/
 # (encrypted eyaml data only - decrypt keys are deployed separately, see
-# scripts/install-openvox-eyaml.sh) to a target host, then runs
-# `puppet apply` (--noop unless $2 is "apply").
+# scripts/install-openvox-eyaml.sh) + Puppetfile and the host-side scripts
+# to a staging tree on the target host, then runs scripts/openvox-apply.sh
+# there (--noop unless $2 is "apply"). openvox-apply.sh does the rest
+# (Forge modules, release + symlink swap, puppet apply); deploy-agent runs
+# the same script from a verified commit (docs/DEPLOY_AGENT.md).
 #
 # ugreen (UGOS) blocks rsync's --server mode entirely - same known
 # constraint that forced the old Ansible role onto plain file copy for
@@ -47,8 +50,6 @@ case "$host" in
   ugreen.tail33930.ts.net) certname='ugreen.int.mljr.eu' ;;
   *)                       certname='' ;;
 esac
-certname_arg=''
-[ -n "$certname" ] && certname_arg="--certname='${certname}' "
 
 # PR checks use a per-run tree under /tmp so proposed code never replaces the
 # live production environment. Keep the override deliberately narrow: this
@@ -62,33 +63,13 @@ if [ -n "${OPENVOX_ENV_DIR:-}" ]; then
   isolated_env=true
 fi
 
-# Releases live at sibling releases/<timestamp>/ next to env_dir, e.g.
-# /etc/puppetlabs/code/environments/releases/20260829T101500Z. `production`
-# (env_dir) is kept as a symlink to the current release so a real apply can
-# ln -sfn to a new release atomically (see below) and openvox-rollback.sh can
-# point it back at a previous one without re-syncing anything. Noop/isolated
-# runs never touch this - they sync straight into env_dir as before, since
-# they're read-only checks, not a real deploy.
-env_base="$(dirname "$env_dir")"
-releases_dir="${env_base}/releases"
-release_keep="${OPENVOX_RELEASE_KEEP:-5}"
-use_release=false
-if [ "$isolated_env" = false ] && [ "$mode" = "apply" ]; then
-  use_release=true
+# The staging tree is repo-shaped (openvox/, scripts/) and persistent, so
+# rsync stays incremental; openvox-apply.sh copies it into a new release.
+# Isolated runs stage under their own /tmp dir, removed on exit.
+stage_dir=/var/lib/openvox-push
+if [ "$isolated_env" = true ]; then
+  stage_dir="${env_dir}/tree"
 fi
-
-# Forge modules (stdlib, apt, docker, ...) are pinned by Puppetfile, not by a
-# given release - they live in a persistent shared dir, sibling to env_dir,
-# instead of inside a per-release directory. Otherwise every release swap
-# would need a full forge reinstall, and releases/ would balloon in size.
-# `roles` (this repo's own code) is the thing that actually changes release
-# to release, so it stays inside env_dir (the release currently symlinked).
-shared_modules_dir="${env_base}/vendor-modules"
-module_target="${env_dir}/modules"
-if [ "$isolated_env" = false ]; then
-  module_target="$shared_modules_dir"
-fi
-module_path="${env_dir}/modules:${shared_modules_dir}:/etc/puppetlabs/code/modules:/opt/puppetlabs/puppet/modules"
 
 # accept-new (not the no-op "no"): trusts a host's key on first contact and
 # persists it, but still refuses a key that later CHANGES. Needed because a
@@ -109,21 +90,25 @@ ssh_opts=(
   -o ControlPersist=5
   -o ControlPath=/tmp/openvox-ssh-%C
 )
-facter_prefix=""
+# Passed to openvox-apply.sh, which turns them into FACTER_ values.
+apply_env=""
 if [ "${OPENVOX_WEEKLY_MAINTENANCE:-false}" = "true" ]; then
-  facter_prefix="FACTER_openvox_weekly_maintenance=true "
+  apply_env="OPENVOX_WEEKLY_MAINTENANCE=true "
 fi
+[ -n "$certname" ] && apply_env+="OPENVOX_CERTNAME=${certname} "
+[ "$isolated_env" = true ] && apply_env+="OPENVOX_ENV_DIR=${env_dir} "
+[ -n "${OPENVOX_RELEASE_KEEP:-}" ] && [[ "$OPENVOX_RELEASE_KEEP" =~ ^[1-9][0-9]*$ ]] && apply_env+="OPENVOX_RELEASE_KEEP=${OPENVOX_RELEASE_KEEP} "
 
 staging_services="${OPENVOX_STAGING_SERVICES:-}"
 if [ -n "$staging_services" ]; then
-  # This value is interpolated into the remote command as a Facter value. Keep
+  # This value is interpolated into the remote command as an env value. Keep
   # its grammar deliberately narrower than service names in general so a
   # workflow input cannot inject shell syntax on the privileged SSH target.
   if [[ ! "$staging_services" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*(,[A-Za-z0-9][A-Za-z0-9._-]*)*$ ]]; then
     echo "invalid OPENVOX_STAGING_SERVICES: expected comma-separated service names" >&2
     exit 2
   fi
-  facter_prefix+="FACTER_openvox_staging_services=${staging_services} "
+  apply_env+="OPENVOX_STAGING_SERVICES=${staging_services} "
 fi
 
 recovery_services="${OPENVOX_RECOVERY_SERVICES:-}"
@@ -132,7 +117,7 @@ if [ -n "$recovery_services" ]; then
     echo "invalid OPENVOX_RECOVERY_SERVICES: expected comma-separated service names" >&2
     exit 2
   fi
-  facter_prefix+="FACTER_openvox_recovery_services=${recovery_services} "
+  apply_env+="OPENVOX_RECOVERY_SERVICES=${recovery_services} "
 fi
 
 # Short label for prefixing/log naming, e.g. "mljr.tail33930.ts.net" -> "mljr".
@@ -165,78 +150,38 @@ start_epoch=$(date +%s)
 echo "${c_bold}==> ${label}${c_reset} (${mode}) starting..." | prefix
 
 {
-  # Candidate PR dependencies go into the isolated environment. Production
-  # noops stay read-only; applies reconcile the pinned dependency set first.
-  if [ "$isolated_env" = true ] || [ "$mode" = apply ]; then
-    ./scripts/openvox-modules.sh reconcile "$host" "$module_target" || exit 1
-  else
-    ./scripts/openvox-modules.sh verify "$host" "$module_target" || exit 1
-  fi
-
-  xfer_dir="$env_dir"
-  if [ "$use_release" = true ]; then
-    release_ts="$(date -u +%Y%m%dT%H%M%SZ)"
-    xfer_dir="${releases_dir}/${release_ts}"
-  fi
-
-  # Every step from here to the symlink swap must succeed. This block has no
-  # `set -e`, and a transient SSH timeout on the first call once let the swap
-  # point `production` at a release dir that was never created
-  # (2026-10-19, mljr) - the host then had no usable environment at all.
-  ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p ${xfer_dir}/manifests ${xfer_dir}/modules/roles ${xfer_dir}/modules/role ${xfer_dir}/data" \
-    || { echo "ERROR: could not create ${xfer_dir} on ${host}" >&2; exit 1; }
+  # Every step must succeed. This block has no `set -e`, and a transient SSH
+  # timeout once let a release swap point `production` at a directory that
+  # was never created (2026-10-19, mljr); the swap now happens on the host,
+  # after the copy, in openvox-apply.sh.
+  ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p ${stage_dir}/openvox/manifests ${stage_dir}/openvox/modules/roles ${stage_dir}/openvox/modules/role ${stage_dir}/openvox/data ${stage_dir}/scripts" \
+    || { echo "ERROR: could not create ${stage_dir} on ${host}" >&2; exit 1; }
 
   if [ "${host}" = "ugreen.tail33930.ts.net" ]; then
-    scp -rq "${ssh_opts[@]}" openvox/manifests/. "root@${host}:${xfer_dir}/manifests/" \
+    # No rsync on UGOS (see above). scp does not delete: start from an
+    # empty tree, so a removed file does not linger.
+    ssh "${ssh_opts[@]}" "root@${host}" "rm -rf -- ${stage_dir}/openvox && mkdir -p ${stage_dir}/openvox/manifests ${stage_dir}/openvox/modules/roles ${stage_dir}/openvox/modules/role ${stage_dir}/openvox/data" \
+      || { echo "ERROR: could not reset ${stage_dir} on ${host}" >&2; exit 1; }
+    for d in manifests modules/roles modules/role data; do
+      scp -rq "${ssh_opts[@]}" "openvox/${d}/." "root@${host}:${stage_dir}/openvox/${d}/" \
+        || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
+    done
+    scp -q "${ssh_opts[@]}" openvox/hiera.yaml openvox/Puppetfile "root@${host}:${stage_dir}/openvox/" \
       || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
-    scp -rq "${ssh_opts[@]}" openvox/modules/roles/. "root@${host}:${xfer_dir}/modules/roles/" \
-      || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
-    scp -rq "${ssh_opts[@]}" openvox/modules/role/. "root@${host}:${xfer_dir}/modules/role/" \
-      || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
-    scp -q "${ssh_opts[@]}" openvox/hiera.yaml "root@${host}:${xfer_dir}/hiera.yaml" \
-      || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
-    scp -rq "${ssh_opts[@]}" openvox/data/. "root@${host}:${xfer_dir}/data/" \
+    scp -q "${ssh_opts[@]}" scripts/openvox-apply.sh scripts/openvox-modules.sh "root@${host}:${stage_dir}/scripts/" \
       || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
   else
-    rsync -az -e "ssh ${ssh_opts[*]}" openvox/manifests/ "root@${host}:${xfer_dir}/manifests/" \
+    for d in manifests modules/roles modules/role data; do
+      rsync -az --delete -e "ssh ${ssh_opts[*]}" "openvox/${d}/" "root@${host}:${stage_dir}/openvox/${d}/" \
+        || { echo "ERROR: transfer to ${host} failed: rsync" >&2; exit 1; }
+    done
+    rsync -az -e "ssh ${ssh_opts[*]}" openvox/hiera.yaml openvox/Puppetfile "root@${host}:${stage_dir}/openvox/" \
       || { echo "ERROR: transfer to ${host} failed: rsync" >&2; exit 1; }
-    rsync -az --delete -e "ssh ${ssh_opts[*]}" openvox/modules/roles/ "root@${host}:${xfer_dir}/modules/roles/" \
-      || { echo "ERROR: transfer to ${host} failed: rsync" >&2; exit 1; }
-    rsync -az --delete -e "ssh ${ssh_opts[*]}" openvox/modules/role/ "root@${host}:${xfer_dir}/modules/role/" \
-      || { echo "ERROR: transfer to ${host} failed: rsync" >&2; exit 1; }
-    rsync -az -e "ssh ${ssh_opts[*]}" openvox/hiera.yaml "root@${host}:${xfer_dir}/hiera.yaml" \
-      || { echo "ERROR: transfer to ${host} failed: rsync" >&2; exit 1; }
-    rsync -az -e "ssh ${ssh_opts[*]}" openvox/data/ "root@${host}:${xfer_dir}/data/" \
+    rsync -az -e "ssh ${ssh_opts[*]}" scripts/openvox-apply.sh scripts/openvox-modules.sh "root@${host}:${stage_dir}/scripts/" \
       || { echo "ERROR: transfer to ${host} failed: rsync" >&2; exit 1; }
   fi
 
-  # Refuse to continue unless the release is complete on the host.
-  ssh "${ssh_opts[@]}" "root@${host}" "test -f '${xfer_dir}/manifests/site.pp' && test -f '${xfer_dir}/hiera.yaml' && test -d '${xfer_dir}/modules/roles'" \
-    || { echo "ERROR: ${xfer_dir} on ${host} is incomplete (missing site.pp/hiera.yaml/modules/roles) - not activating it" >&2; exit 1; }
-
-  if [ "$use_release" = true ]; then
-    # Atomic swap: build the symlink under a temp name, then rename it over
-    # env_dir in one syscall - env_dir is never briefly missing or partial.
-    # First-ever run: env_dir may still be a real directory from before this
-    # release scheme existed - move it into releases/ so it becomes a valid
-    # rollback target instead of just being clobbered by the symlink.
-    ssh "${ssh_opts[@]}" "root@${host}" "
-      set -e
-      mkdir -p '${releases_dir}'
-      if [ -d '${env_dir}' ] && [ ! -L '${env_dir}' ]; then
-        mv -T '${env_dir}' '${releases_dir}/pre-release-migration-$(date -u +%Y%m%dT%H%M%SZ)'
-      fi
-      ln -sfn '${xfer_dir}' '${env_dir}.new'
-      mv -Tf '${env_dir}.new' '${env_dir}'
-      ls -1dt '${releases_dir}'/*/ 2>/dev/null | tail -n +$((release_keep + 1)) | xargs -r rm -rf --
-    "
-  fi
-
-  if [ "${mode}" = "apply" ]; then
-    ssh "${ssh_opts[@]}" "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply ${certname_arg}--color=false --modulepath='${module_path}' --hiera_config='${env_dir}/hiera.yaml' '${env_dir}/manifests/site.pp'"
-  else
-    ssh "${ssh_opts[@]}" "root@${host}" "${facter_prefix}/opt/puppetlabs/bin/puppet apply ${certname_arg}--color=false --noop --modulepath='${module_path}' --hiera_config='${env_dir}/hiera.yaml' '${env_dir}/manifests/site.pp'"
-  fi
+  ssh "${ssh_opts[@]}" "root@${host}" "${apply_env}bash '${stage_dir}/scripts/openvox-apply.sh' '${stage_dir}' '${mode}'"
 } 2>&1 | tee "$log_file" | prefix
 exit_code="${PIPESTATUS[0]}"
 
