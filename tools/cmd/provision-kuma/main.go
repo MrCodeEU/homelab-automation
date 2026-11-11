@@ -28,16 +28,23 @@ const (
 	mailcowSMTPHost = "mail.mljr.eu"
 	mailcowSMTPPort = 587
 
-	tcpPrefix = "TCP: "
+	tcpPrefix  = "TCP: "
+	httpPrefix = "HTTP: "
 
 	// Mail ports besides 587. The HTTP monitor only proves Caddy and the
 	// webmail; each of these proves the port itself answers.
-	mailSMTPInName = tcpPrefix + "mail SMTP 25"
+	mailSMTPInName = smtpPrefix + "mail 25"
 	mailSMTPSName  = tcpPrefix + "mail SMTPS 465"
 	mailIMAPSName  = tcpPrefix + "mail IMAPS 993"
 
-	crowdsecLAPIName = tcpPrefix + "crowdsec LAPI"
+	crowdsecLAPIName = httpPrefix + "crowdsec LAPI"
 	defectdojoName   = tcpPrefix + "defectdojo"
+
+	// Kuma's own `ziti tunnel proxy` sidecar (services/kuma). A TCP check
+	// through it proves nothing: the proxy accepts every connection itself
+	// and only then dials the service. Checks over Ziti therefore speak the
+	// protocol (HTTP, SMTP EHLO), so an answer must come from the far end.
+	kumaZitiProxy = "kuma-ziti-proxy"
 
 	// A single failed check is not an outage: Kuma reports DOWN only after
 	// this many failed retries (RetryInterval apart), PENDING until then.
@@ -63,13 +70,34 @@ func logicalName(display string) string {
 	return display
 }
 
-// tcpTarget is a plain TCP-port monitor that is not derived from services.yml.
+// Kinds of fixed monitor besides a plain TCP port.
+const (
+	kindTCP  = ""
+	kindSMTP = "smtp" // connect and EHLO, no STARTTLS (the name is the proxy's)
+	kindHTTP = "http" // GET url, 2xx
+)
+
+// tcpTarget is a fixed monitor that is not derived from services.yml: a TCP
+// port, an SMTP server (host, port) or an HTTP URL.
 type tcpTarget struct {
 	name   string // logical name
 	on     string // host running it, shown as " [on]"
+	kind   string
 	host   string
 	port   int
+	url    string // kindHTTP only
 	legacy string // name before " [host]" was added, renamed in place
+}
+
+// monitorType is Kuma's type name for t.
+func (t tcpTarget) monitorType() string {
+	switch t.kind {
+	case kindSMTP:
+		return "smtp"
+	case kindHTTP:
+		return "http"
+	}
+	return "port"
 }
 
 // tcpTargets lists the fixed TCP checks. The CrowdSec LAPI is bound to mljr's
@@ -79,15 +107,20 @@ type tcpTarget struct {
 // catches exactly that.
 var tcpTargets = []tcpTarget{
 	{name: smtpPrefix + mailcowSMTPHost, on: "mljr", host: mailcowSMTPHost, port: mailcowSMTPPort, legacy: smtpPrefix + mailcowSMTPHost},
-	{name: crowdsecLAPIName, on: "mljr", host: "100.100.20.1", port: 8088, legacy: tcpPrefix + "crowdsec LAPI (mljr)"},
-	// Port 25 goes over the tailnet: Kuma runs on nuc, whose home network
-	// cannot reach port 25 on the public IP (checked 2026-10-24 from three
-	// outside networks: fine), so a public check would be permanently red.
-	{name: mailSMTPInName, on: "mljr", host: "100.100.20.1", port: 25, legacy: tcpPrefix + "mail SMTP 25 (mljr)"},
+	// Over Ziti (crowdsec-lapi, the LAPI's own health endpoint). The old
+	// TCP check on the tailnet bind is gone with the bind's purpose.
+	{name: crowdsecLAPIName, on: "mljr", kind: kindHTTP, url: "http://" + kumaZitiProxy + ":8088/health"},
+	// Port 25 goes over Ziti (mail-smtp-mljr): Kuma runs on nuc, whose home
+	// network cannot reach port 25 on the public IP (checked 2026-10-24 from
+	// three outside networks: fine), so a public check would be permanently
+	// red.
+	{name: mailSMTPInName, on: "mljr", kind: kindSMTP, host: kumaZitiProxy, port: 2525},
 	{name: mailSMTPSName, on: "mljr", host: mailcowSMTPHost, port: 465, legacy: mailSMTPSName},
 	{name: mailIMAPSName, on: "mljr", host: mailcowSMTPHost, port: 993, legacy: mailIMAPSName},
 	// DefectDojo has no Caddy route (tailnet-only), so no HTTP monitor is derived
-	// from the catalog. nginx publishes on nuc's Tailscale IP.
+	// from the catalog. nginx publishes on nuc's Tailscale IP; Kuma runs on
+	// nuc too, so this never leaves the host. Moves with the catalog bind
+	// addresses (bind_addr, docs/ZERO_TRUST_PLAN.md Phase 8).
 	{name: defectdojoName, on: "nuc", host: "100.100.10.1", port: 8101, legacy: tcpPrefix + "defectdojo (nuc)"},
 }
 
@@ -311,10 +344,9 @@ func syncPingMonitors(ctx context.Context, client *kuma.Client, hosts []host, ex
 	}
 }
 
-// syncTCPMonitors keeps one TCP port monitor per tcpTargets entry. The SMTP
-// check stays a TCP check (no native SMTP type at the time it was written) -
-// kept as-is rather than silently changing an existing production monitor's
-// type as a side effect.
+// syncTCPMonitors keeps one monitor per tcpTargets entry. "SMTP:
+// mail.mljr.eu" stays a TCP check on 587 - kept as-is rather than silently
+// changing an existing production monitor's type as a side effect.
 func syncTCPMonitors(ctx context.Context, client *kuma.Client, existing map[string]monitor.Base, st *stats) {
 	for _, t := range tcpTargets {
 		syncTCPMonitor(ctx, client, t, existing, st)
@@ -325,37 +357,103 @@ func syncTCPMonitor(ctx context.Context, client *kuma.Client, t tcpTarget, exist
 	name := displayName(t.name, t.on)
 	if base, ok := lookup(existing, name, t.legacy); ok {
 		st.claim(base.ID)
-		var tcpMon monitor.TCPPort
-		_ = base.As(&tcpMon)
-		if tcpMon.Hostname != t.host || tcpMon.Port != t.port || base.Name != name || base.MaxRetries != maxRetries {
+		if base.Type() == t.monitorType() {
+			m, changed := t.update(base)
+			if !changed && base.Name == name && base.MaxRetries == maxRetries {
+				st.skipped++
+				return
+			}
 			fmt.Printf("  Updating %s -> %s, maxretries=%d\n", base.Name, name, maxRetries)
-			tcpMon.Base = base
-			tcpMon.Hostname = t.host
-			tcpMon.Port = t.port
-			tcpMon.Base.Name = name
-			tcpMon.Base.MaxRetries = maxRetries
-			if err := client.UpdateMonitor(ctx, &tcpMon); err != nil {
+			b := m.base()
+			b.Name = name
+			b.MaxRetries = maxRetries
+			if err := client.UpdateMonitor(ctx, m); err != nil {
 				fmt.Printf("  Failed to update %s: %v\n", name, err)
 				st.failed = append(st.failed, name)
 			} else {
 				st.updated = append(st.updated, name)
 			}
-		} else {
-			st.skipped++
+			return
 		}
-		return
+		// Kuma cannot change a monitor's type: replace it.
+		fmt.Printf("  Replacing %s (%s -> %s)\n", base.Name, base.Type(), t.monitorType())
+		if err := client.DeleteMonitor(ctx, base.ID); err != nil {
+			fmt.Printf("  Failed to delete %s: %v\n", base.Name, err)
+			st.failed = append(st.failed, name)
+			return
+		}
+		st.deleted = append(st.deleted, base.Name)
 	}
-	fmt.Printf("  Creating %s (TCP port %d)\n", name, t.port)
-	m := &monitor.TCPPort{
-		Base:           monitor.Base{Name: name, Interval: 60, RetryInterval: 60, MaxRetries: maxRetries},
-		TCPPortDetails: monitor.TCPPortDetails{Hostname: t.host, Port: t.port},
-	}
+	fmt.Printf("  Creating %s (%s)\n", name, t.monitorType())
+	m := t.fresh(monitor.Base{Name: name, Interval: 60, RetryInterval: 60, MaxRetries: maxRetries})
 	if err := createAndStart(ctx, client, m); err != nil {
 		fmt.Printf("  Failed to create %s: %v\n", name, err)
 		st.failed = append(st.failed, name)
 	} else {
 		st.created = append(st.created, name)
 	}
+}
+
+// fixedMonitor is a typed monitor whose Base can be edited in place.
+type fixedMonitor interface {
+	monitor.Monitor
+	base() *monitor.Base
+}
+
+type tcpMonitor struct{ *monitor.TCPPort }
+type smtpMonitor struct{ *monitor.SMTP }
+type httpMonitor struct{ *monitor.HTTP }
+
+func (m tcpMonitor) base() *monitor.Base  { return &m.TCPPort.Base }
+func (m smtpMonitor) base() *monitor.Base { return &m.SMTP.Base }
+func (m httpMonitor) base() *monitor.Base { return &m.HTTP.Base }
+
+const smtpNoSTARTTLS = "nostarttls"
+
+// fresh builds a new monitor for t on base.
+func (t tcpTarget) fresh(base monitor.Base) fixedMonitor {
+	switch t.kind {
+	case kindSMTP:
+		port, sec := int64(t.port), smtpNoSTARTTLS
+		return smtpMonitor{&monitor.SMTP{Base: base, SMTPDetails: monitor.SMTPDetails{
+			Hostname: t.host, Port: &port, SMTPSecurity: &sec}}}
+	case kindHTTP:
+		// Same defaults as the catalog's HTTP monitors (syncServiceMonitors).
+		return httpMonitor{&monitor.HTTP{Base: base, HTTPDetails: monitor.HTTPDetails{
+			URL: t.url, Timeout: 48, MaxRedirects: 10, Method: "GET",
+			AcceptedStatusCodes: []string{"200-299"}}}}
+	}
+	return tcpMonitor{&monitor.TCPPort{Base: base, TCPPortDetails: monitor.TCPPortDetails{
+		Hostname: t.host, Port: t.port}}}
+}
+
+// update loads the existing monitor (same type as t), sets what t defines
+// and reports whether that changed anything. Other settings are kept.
+func (t tcpTarget) update(base monitor.Base) (fixedMonitor, bool) {
+	switch t.kind {
+	case kindSMTP:
+		var m monitor.SMTP
+		_ = base.As(&m)
+		m.Base = base
+		port, sec := int64(t.port), smtpNoSTARTTLS
+		changed := m.Hostname != t.host || m.Port == nil || *m.Port != port ||
+			m.SMTPSecurity == nil || *m.SMTPSecurity != sec
+		m.Hostname, m.Port, m.SMTPSecurity = t.host, &port, &sec
+		return smtpMonitor{&m}, changed
+	case kindHTTP:
+		var m monitor.HTTP
+		_ = base.As(&m)
+		m.Base = base
+		changed := m.URL != t.url
+		m.URL = t.url
+		return httpMonitor{&m}, changed
+	}
+	var m monitor.TCPPort
+	_ = base.As(&m)
+	m.Base = base
+	changed := m.Hostname != t.host || m.Port != t.port
+	m.Hostname, m.Port = t.host, t.port
+	return tcpMonitor{&m}, changed
 }
 
 func deleteOrphanedMonitors(ctx context.Context, client *kuma.Client, expected map[string]bool, existing map[string]monitor.Base, st *stats) {

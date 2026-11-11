@@ -18,13 +18,17 @@ locals {
     # CrowdSec agent on nuc -> mljr's LAPI (crowdsec-nas stays on the
     # tailnet until nas is on Ziti, Phase 5)
     "crowdsec-nuc" = ["crowdsec-lapi"]
+    # Uptime Kuma on nuc: checks that would otherwise need the tailnet
+    # (services/kuma, kuma-ziti-proxy)
+    "kuma-nuc" = ["crowdsec-lapi", "mail-smtp-mljr"]
     # speedtest-metrics on nuc -> iperf3 on mljr and ugreen (iperf3.tf)
     "speedtest-nuc" = ["iperf3-mljr", "iperf3-ugreen"]
   }
 
-  # Dialable by name: catalog services, iperf3, SSH, backup SFTP
+  # Dialable by name: catalog services, iperf3, SSH, mail SMTP, backup SFTP
   m2m_services = merge(ziti_service.catalog, local.iperf3_services, local.facts_ssh_services, {
-    (ziti_service.backup_sftp.name) = ziti_service.backup_sftp
+    (ziti_service.mail_smtp_mljr.name) = ziti_service.mail_smtp_mljr,
+    (ziti_service.backup_sftp.name)    = ziti_service.backup_sftp
   })
 }
 

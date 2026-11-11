@@ -112,7 +112,7 @@ func TestExpectedNamesCarryHost(t *testing.T) {
 		{Name: "nextcloud", Domain: "c.example", Host: "nas"},
 		{Name: "off", Domain: "o.example", Host: "nas", Monitor: bptr(false)},
 	}, []host{{NodeName: "nuc", NodeHost: "100.100.10.1"}})
-	for _, want := range []string{"nextcloud [nas]", "Ping: nuc", "TCP: crowdsec LAPI [mljr]", "SMTP: mail.mljr.eu [mljr]"} {
+	for _, want := range []string{"nextcloud [nas]", "Ping: nuc", "HTTP: crowdsec LAPI [mljr]", "SMTP: mail 25 [mljr]", "SMTP: mail.mljr.eu [mljr]"} {
 		if !got[want] {
 			t.Errorf("missing %q in %v", want, got)
 		}

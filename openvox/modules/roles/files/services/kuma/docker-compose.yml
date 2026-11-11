@@ -20,6 +20,34 @@ services:
       # image CVEs); SQLite is plenty for ~55 monitors.
       - UPTIME_KUMA_DB_TYPE=sqlite
 
+  # Checks over Ziti instead of the tailnet (identity kuma-nuc, ziti/tofu
+  # m2m.tf): the CrowdSec LAPI on mljr and mljr's inbound SMTP, which nuc's
+  # home network cannot reach on port 25. Kuma reaches it by name on the
+  # compose network. Only protocol checks go through it (provision-kuma:
+  # kumaZitiProxy): the proxy accepts every TCP connection itself.
+  kuma-ziti-proxy:
+    image: openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
+    container_name: kuma-ziti-proxy
+    restart: unless-stopped
+    user: "2171:2171"
+    entrypoint: ["ziti"]
+    command:
+      - tunnel
+      - proxy
+      - crowdsec-lapi:8088
+      - mail-smtp-mljr:2525
+      - --identity
+      - /identity/kuma-nuc.json
+    volumes:
+      - ./ziti:/identity
+    environment:
+      - TZ=${TZ:-Europe/Vienna}
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
 volumes:
   # New volume for the SQLite database. The old MariaDB volume
   # (kuma_uptime-kuma-data) is kept until the migration is confirmed.
