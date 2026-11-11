@@ -32,15 +32,6 @@ resource "ziti_service_policy" "nuc_alloy_bind" {
   serviceroles  = ["@${ziti_service.nuc_alloy.id}"]
 }
 
-# C4: the CI identity may dial this service only.
-resource "ziti_service_policy" "nuc_alloy_ci_dial" {
-  name          = "nuc-alloy-ci-dial"
-  type          = "Dial"
-  semantic      = "AnyOf"
-  identityroles = ["@${ziti_identity.ci_ziti_c4.id}"]
-  serviceroles  = ["@${ziti_service.nuc_alloy.id}"]
-}
-
 # --- ssh (addressable terminators, C10) ----------------------------------------
 # <host>.int.mljr.eu:22 -> 127.0.0.1:22 on that host. The client dials the
 # terminator named after the intercepted hostname ($dst_hostname); each
