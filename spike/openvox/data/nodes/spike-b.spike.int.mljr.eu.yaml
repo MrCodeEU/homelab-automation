@@ -1,0 +1,3 @@
+spike::hostfile::colour: 'blue'
+spike::hostfile::peers: ['spike-a']
+spike::iperf3::port: 5203

@@ -1,0 +1,6 @@
+<%- | String $colour, Array[String] $peers | -%>
+host: <%= $facts['networking']['hostname'] %>
+colour: <%= $colour %>
+<% $peers.each |$p| { -%>
+peer: <%= $p %>
+<% } -%>
