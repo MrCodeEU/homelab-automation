@@ -53,6 +53,14 @@ on:
 permissions:
   contents: read
 
+env:
+  # docs/DEPLOY_AGENT.md. AGENT_HOSTS run deploy-agent and get a request on
+  # deploy/<host> for every real deploy (job deploy-request).
+  # AGENT_APPLY_HOSTS is the subset whose agent applies: the push below
+  # skips them in apply mode. Check mode (noop) still pushes to every host.
+  AGENT_HOSTS: nuc
+  AGENT_APPLY_HOSTS: nuc
+
 jobs:
   # Resolves which host a repository_dispatch service-update targets, purely
   # so `deploy`'s job-level concurrency group (below) can be keyed by host
@@ -380,6 +388,14 @@ jobs:
           : > /tmp/openvox-fleet.prom
           for host in ${STEPS_HOSTS_OUTPUTS_HOSTS}; do
             HOST_LABEL="${host%%.*}"
+            if [ "$MODE" = "apply" ]; then
+              case " $AGENT_APPLY_HOSTS " in
+                *" $HOST_LABEL "*)
+                  echo "--- $host: applied by its deploy-agent (job deploy-request) ---" | tee -a /tmp/openvox-output.log
+                  continue
+                  ;;
+              esac
+            fi
             HOST_START=$(date +%s)
             HOST_LOG=$(mktemp)
             echo "--- $host ---" | tee -a /tmp/openvox-output.log
@@ -620,20 +636,18 @@ jobs:
         env:
           STEPS_OPENVOX_OUTPUTS_EXIT_CODE: ${{ steps.openvox.outputs.exit_code }}
 
-  # Rollout step 4 of docs/DEPLOY_AGENT.md: every real deploy also becomes a
-  # signed request on deploy/<host> for the hosts that run deploy-agent, with
-  # the same commit and parameters, so the agent (noop for now) handles what
-  # the push just did. Runs after the push, also when it failed: the agent's
-  # result is a comparison either way. Only on main, never in check mode.
+  # docs/DEPLOY_AGENT.md: every real deploy also becomes a signed request on
+  # deploy/<host> for the hosts in AGENT_HOSTS, with the same commit and
+  # parameters. For AGENT_APPLY_HOSTS this is the deploy (fire and forget:
+  # the agent reports its own result); for the others the agent noops what
+  # the push just did. Runs also when the push failed, so a failure on one
+  # host never holds back another. Only on main, never in check mode.
   deploy-request:
     runs-on: ubuntu-latest
     needs: [deploy]
     if: always() && needs.deploy.result != 'skipped' && needs.deploy.outputs.check_mode != 'true' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
-    env:
-      # Hosts with roles::deploy_agent (role::<host> includes it).
-      AGENT_HOSTS: nuc
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
