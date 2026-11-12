@@ -1,1 +1,1 @@
-{"id":"20261112T190019Z","host":"nuc","commit":"6c759c5730596d06938461e385f4d0e6e1ae48c4","trigger":"manual"}
+{"id":"20261112T193936Z-localtest","host":"nuc","commit":"752c6a0c7ccba3adb58b5fbe39cce87515020d8e","trigger":"manual","service":"","staging_services":"homepage","docker_prune":false,"reboot_if_needed":false}
