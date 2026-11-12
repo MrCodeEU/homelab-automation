@@ -24,6 +24,7 @@ describe 'roles::deploy_agent' do
     expect(agent_env).to match(%r{^DEPLOY_MODE=noop$})
     expect(agent_env).to match(%r{^OPENVOX_CERTNAME=nuc\.int\.mljr\.eu$})
     expect(agent_env).to match(%r{^DEPLOY_APPLY=scripts/openvox-apply\.sh$})
+    expect(agent_env).to match(%r{^DEPLOY_METRICS_FILE=/var/lib/node-textfile/homelab_deploy\.prom$})
   end
 
   it 'never restarts the unit from Puppet (an agent-run apply would kill itself)' do

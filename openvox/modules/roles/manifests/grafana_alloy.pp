@@ -90,6 +90,14 @@ class roles::grafana_alloy (
     mode   => '0755',
   }
 
+  # Textfile collector input (config.alloy): host-side programs drop
+  # <name>.prom here, e.g. deploy-agent. Present on every Alloy host so the
+  # collector never reports a missing directory.
+  file { '/var/lib/node-textfile':
+    ensure => directory,
+    mode   => '0755',
+  }
+
   # Sensitive-wrapped so the homeassistant bearer token never leaks
   # into noop/--show_diff output or logs - same precedent as
   # roles::authelia/roles::crowdsec_firewall_bouncer's own config files.

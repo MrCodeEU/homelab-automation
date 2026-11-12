@@ -20,8 +20,11 @@ type Config struct {
 	Host       string
 	RepoURL    string
 	MainBranch string // the protected branch commits must be on
-	StateDir   string // repo/, releases/, outbox/, state.json, metrics.prom
-	Keyring    string // armored public keys trusted to sign commits
+	StateDir   string // repo/, releases/, outbox/, state.json
+	// MetricsFile is written after every poll, for Alloy's textfile
+	// collector; default StateDir/metrics.prom.
+	MetricsFile string
+	Keyring     string // armored public keys trusted to sign commits
 	// Apply is the path, inside the applied commit's tree, of the
 	// host-side apply script (scripts/openvox-apply.sh). It runs as
 	// `bash <script> <tree> <Mode>` with the request as environment
@@ -81,6 +84,9 @@ func New(cfg Config) (*Agent, error) {
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
 	}
+	if cfg.MetricsFile == "" {
+		cfg.MetricsFile = filepath.Join(cfg.StateDir, "metrics.prom")
+	}
 	if cfg.Mode != "apply" && cfg.Mode != "noop" {
 		return nil, fmt.Errorf("mode %q: want apply or noop", cfg.Mode)
 	}
@@ -132,6 +138,10 @@ func (a *Agent) Poll(ctx context.Context) error {
 
 	branch := DeployBranch(a.cfg.Host)
 	head, err := a.repo.RemoteHead(ctx, branch)
+	if errors.Is(err, ErrNoBranch) {
+		a.lastPoll = time.Now()
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -324,7 +334,7 @@ func (a *Agent) writeMetrics() {
 	}
 	fmt.Fprintf(&b, "homelab_deploy_applied_info{host=%q,commit=%q} 1\n", a.cfg.Host, a.state.LastApplied)
 	fmt.Fprintf(&b, "homelab_deploy_outbox_entries{host=%q} %d\n", a.cfg.Host, len(entries))
-	if err := writeAtomic(a.path("metrics.prom"), []byte(b.String()), 0o644); err != nil {
+	if err := writeAtomic(a.cfg.MetricsFile, []byte(b.String()), 0o644); err != nil {
 		a.cfg.Log.Error("metrics", "err", err)
 	}
 }
