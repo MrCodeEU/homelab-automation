@@ -164,7 +164,10 @@ promise that, so a lost notification has to be noticed.
    push uses it (PR #591).
 3. `roles::deploy_agent` (binary, unit, keyring, state dir); agent in
    noop-only mode on nuc next to the existing push.
-4. `deploy.yml` creates requests for nuc; then mljr, ugreen.
+4. `deploy.yml` creates requests for nuc; then mljr, ugreen. Its job
+   `deploy-request` runs after the push (also when the push failed) for
+   the hosts in `AGENT_HOSTS`, with the same commit and inputs, so the
+   noop agent handles every real deploy too.
 5. Remove the SSH steps, Tailscale from CI, `openvox-drift.yml`.
 
 ## Open
