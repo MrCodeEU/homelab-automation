@@ -73,7 +73,9 @@ case "${1:-}" in
       if [ ! -x "$bin" ] && [ ! -f "$bin" ]; then
         echo "FAIL  $bin is missing"; status=1
       elif [ "$want" != "$have" ]; then
-        echo "FAIL  ${bin#"$root"/} is stale: source changed since it was built. Run: scripts/service-binary.sh build $(basename "$(dirname "$bin")") $cmd"
+        verb=build
+        case "$bin" in "$root"/openvox/*) verb=build-host ;; esac
+        echo "FAIL  ${bin#"$root"/} is stale: source changed since it was built. Run: scripts/service-binary.sh $verb $(basename "$(dirname "$bin")") $cmd"
         status=1
       else
         echo "OK    ${bin#"$root"/}"
