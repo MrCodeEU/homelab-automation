@@ -85,6 +85,7 @@ Application secrets are stored per-host, encrypted with hiera-eyaml (`openvox/da
 3. Resolve target hosts (`limit` input, dispatched service, or staging services)
 4. Set up Tailscale VPN
 5. For each target host, run `scripts/openvox-sync.sh <host> <noop|apply>` (syncs `openvox/` to the host, then runs `puppet apply` there)
+6. `deploy-request`: for hosts running deploy-agent (`AGENT_HOSTS`), create a signed request on `deploy/<host>` with the same commit and inputs (docs/DEPLOY_AGENT.md)
 6. Upload the combined apply log as a workflow artifact
 7. Build and publish the deployment status page (`tools/cmd/build-deploy-status`) to `https://deploy.mljr.eu`
 8. Notify via ntfy; fail the job if any host's OpenVox run failed

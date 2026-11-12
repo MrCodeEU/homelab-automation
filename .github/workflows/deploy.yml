@@ -129,6 +129,12 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: [validate, resolve-host]
+    # For deploy-request below.
+    outputs:
+      hosts: ${{ steps.hosts.outputs.hosts }}
+      check_mode: ${{ steps.env.outputs.check_mode }}
+      dispatch_service: ${{ steps.env.outputs.dispatch_service }}
+      staging_services: ${{ steps.env.outputs.staging_services }}
     # Host-keyed, not service-keyed - see resolve-host's header comment.
     # workflow_dispatch/schedule runs (resolve-host's host output is "n/a"
     # for those) still serialize against each other and against any
@@ -613,3 +619,43 @@ jobs:
           exit 1
         env:
           STEPS_OPENVOX_OUTPUTS_EXIT_CODE: ${{ steps.openvox.outputs.exit_code }}
+
+  # Rollout step 4 of docs/DEPLOY_AGENT.md: every real deploy also becomes a
+  # signed request on deploy/<host> for the hosts that run deploy-agent, with
+  # the same commit and parameters, so the agent (noop for now) handles what
+  # the push just did. Runs after the push, also when it failed: the agent's
+  # result is a comparison either way. Only on main, never in check mode.
+  deploy-request:
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always() && needs.deploy.result != 'skipped' && needs.deploy.outputs.check_mode != 'true' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    env:
+      # Hosts with roles::deploy_agent (role::<host> includes it).
+      AGENT_HOSTS: nuc
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/deploy-request.sh
+          sparse-checkout-cone-mode: false
+      - name: Create requests for agent hosts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOSTS: ${{ needs.deploy.outputs.hosts }}
+          TRIGGER: ${{ github.event_name }}
+          DEPLOY_REQUEST_SERVICE: ${{ needs.deploy.outputs.dispatch_service }}
+          DEPLOY_REQUEST_STAGING_SERVICES: ${{ needs.deploy.outputs.staging_services }}
+          DEPLOY_REQUEST_DOCKER_PRUNE: ${{ inputs.docker_prune || 'false' }}
+          DEPLOY_REQUEST_REBOOT_IF_NEEDED: ${{ inputs.reboot_if_needed || 'false' }}
+          DEPLOY_REQUEST_ID_SUFFIX: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          status=0
+          for target in $HOSTS; do
+            host="${target%%.*}"
+            case " $AGENT_HOSTS " in *" $host "*) ;; *) continue ;; esac
+            bash scripts/deploy-request.sh "$host" "$GITHUB_SHA" "$TRIGGER" || status=1
+          done
+          exit "$status"
