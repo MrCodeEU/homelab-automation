@@ -175,6 +175,11 @@ type Config struct {
 	// home_ip collector.
 	HomeIP string
 
+	// Hosts running deploy-agent (deploy_agent collector), and the
+	// repository whose deploy/<host> branches hold their requests.
+	DeployHosts []string
+	DeployRepo  string
+
 	// DefectDojo (services/defectdojo): base URL and the admin password, from
 	// the same eyaml secret the service itself uses. Either empty disables
 	// the defectdojo collector.
@@ -263,6 +268,12 @@ func ConfigFromEnv() Config {
 		c.DMARCDomains = parseWindows(&raw, nil)
 	}
 	c.HomeIP = strings.TrimSpace(os.Getenv("HEALTHREPORT_HOME_IP"))
+	for _, h := range strings.Split(os.Getenv("HEALTHREPORT_DEPLOY_HOSTS"), ",") {
+		if h = strings.TrimSpace(h); h != "" {
+			c.DeployHosts = append(c.DeployHosts, h)
+		}
+	}
+	c.DeployRepo = envOr("HEALTHREPORT_DEPLOY_REPO", "MrCodeEU/homelab-automation")
 	c.DojoURL = strings.TrimSpace(os.Getenv("HEALTHREPORT_DOJO_URL"))
 	c.DojoPassword = os.Getenv("HEALTHREPORT_DOJO_PASSWORD")
 	return c

@@ -10,6 +10,13 @@ describe 'roles::grafana_alloy' do
 
   it { is_expected.to compile.with_all_deps }
 
+  it 'reads host textfiles (deploy-agent metrics) from a directory it creates' do
+    is_expected.to contain_file('/var/lib/node-textfile').with(ensure: 'directory', mode: '0755')
+    config = rendered_file('/opt/grafana-alloy/config.alloy')
+    config = config.unwrap if config.respond_to?(:unwrap)
+    expect(config).to match(%r{textfile \{\n    directory = "/hostfs/var/lib/node-textfile"\n  \}})
+  end
+
   it 'protects rendered credentials and uses the intended remote-write endpoints' do
     manifest = File.read(File.expand_path('../../modules/roles/manifests/grafana_alloy.pp', __dir__))
     config = rendered_file('/opt/grafana-alloy/config.alloy')

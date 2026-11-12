@@ -123,8 +123,12 @@ promise that, so a lost notification has to be noticed.
    `homelab_deploy_last_poll_timestamp_seconds`,
    `homelab_deploy_request_seen{id}`,
    `homelab_deploy_last_result{id,result}` and the applied commit.
-   healthreport (another code path, its own email) raises a crit when a
-   request has no success within 15 minutes, or when polls stop.
+   They go to `/var/lib/node-textfile/homelab_deploy.prom`, which
+   Alloy's textfile collector ships to VictoriaMetrics. healthreport's
+   `deploy_agent` collector (another code path, its own email) compares
+   them with the head request of `deploy/<host>` on GitHub: crit when
+   the agent's metrics are missing or stale (10 min), a request goes
+   unhandled for 15 minutes, or it ends failed, rejected or interrupted.
 3. **Watching the watchers.** If ntfy, mail and healthreport fail
    together, only something outside the homelab notices: a HetrixTools
    heartbeat (cron job monitor) that the daily report pings once it
@@ -167,8 +171,6 @@ promise that, so a lost notification has to be noticed.
 
 - PR check without host access: octocatalog-diff with stored facts and
   placeholder secrets (not yet tested against this repository).
-- Metrics textfile into Alloy (`prometheus.exporter.unix` textfile
-  collector) and the healthreport check on it.
 - The mail credentials go into each host's eyaml (today only nuc's has
   them); one shared submission account.
 

@@ -47,6 +47,11 @@ Most facts are HTTP calls to services already running on nuc:
   imports: known-exploited (CISA KEV) findings, new Critical/High findings that
   already have a fix, and a stale-scan check. `HEALTHREPORT_DOJO_URL` /
   `HEALTHREPORT_DOJO_PASSWORD`
+- **Deploy agents** — `deploy_agent` compares the head request of each
+  `deploy/<host>` branch (GitHub) with what that host's deploy-agent reports
+  (its metrics in VictoriaMetrics): crit when the agent's metrics are
+  missing or stale, a request goes unhandled for 15 min, or ends in
+  failure/rejected/interrupted. Hosts from `HEALTHREPORT_DEPLOY_HOSTS`.
 - **Public IP** — `home_ip` compares nuc's egress IP with the one CrowdSec
   allowlists (`HEALTHREPORT_HOME_IP`)
 - **Mail DNS** — `mail_dns` checks MX, SPF, DKIM, DMARC and the mail host's

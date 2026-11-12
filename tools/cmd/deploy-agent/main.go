@@ -10,6 +10,7 @@
 //	DEPLOY_REPO_URL      default https://github.com/MrCodeEU/homelab-automation.git
 //	DEPLOY_MAIN_BRANCH   protected branch target commits must be on (default main)
 //	DEPLOY_STATE_DIR     default /var/lib/homelab-deploy
+//	DEPLOY_METRICS_FILE  metrics textfile (default <state dir>/metrics.prom)
 //	DEPLOY_KEYRING       armored public keys trusted to sign (default /etc/homelab-deploy/keyring.asc)
 //	DEPLOY_APPLY         apply script inside the tree (default scripts/openvox-apply.sh)
 //	DEPLOY_MODE          apply (default) or noop
@@ -80,6 +81,7 @@ func main() {
 		RepoURL:      envOr("DEPLOY_REPO_URL", "https://github.com/MrCodeEU/homelab-automation.git"),
 		MainBranch:   envOr("DEPLOY_MAIN_BRANCH", "main"),
 		StateDir:     envOr("DEPLOY_STATE_DIR", "/var/lib/homelab-deploy"),
+		MetricsFile:  os.Getenv("DEPLOY_METRICS_FILE"),
 		Keyring:      string(keyring),
 		Apply:        envOr("DEPLOY_APPLY", "scripts/openvox-apply.sh"),
 		ApplyTimeout: timeout,

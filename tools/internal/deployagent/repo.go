@@ -55,8 +55,12 @@ func (g *Repo) RemoteHead(ctx context.Context, branch string) (plumbing.Hash, er
 			return ref.Hash(), nil
 		}
 	}
-	return plumbing.ZeroHash, fmt.Errorf("ls-remote: no branch %s", branch)
+	return plumbing.ZeroHash, ErrNoBranch
 }
+
+// ErrNoBranch: the deploy branch does not exist yet, so there is no
+// request. A poll that finds it is still a successful poll.
+var ErrNoBranch = errors.New("no deploy branch yet")
 
 // Fetch brings the given branches up to date as refs/remotes/origin/<b>.
 func (g *Repo) Fetch(ctx context.Context, branches ...string) error {

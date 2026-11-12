@@ -216,7 +216,7 @@ func TestAgent(t *testing.T) {
 	if a.state.LastApplied != m2.String() {
 		t.Errorf("last applied %s, want %s", a.state.LastApplied, m2)
 	}
-	if b, _ := os.ReadFile(a.path("metrics.prom")); !strings.Contains(string(b), `outcome="failure"`) {
+	if b, _ := os.ReadFile(a.cfg.MetricsFile); !strings.Contains(string(b), `outcome="failure"`) {
 		t.Errorf("metrics:\n%s", b)
 	}
 }
@@ -323,3 +323,17 @@ func TestNoopMode(t *testing.T) {
 }
 
 const noopScript = "#!/bin/bash\n[ \"$2\" = noop ] || exit 3\necho noop $DEPLOY_COMMIT >> \"$APPLY_LOG\"\n"
+
+// Before the first request the branch does not exist: a normal poll, not
+// an error, and the poll metric is set.
+func TestNoBranchYet(t *testing.T) {
+	o := newOrigin(t)
+	o.commit("main", plumbing.ZeroHash, map[string]string{"scripts/apply.sh": applyScript}, false)
+	a, _ := newAgent(t, o, &recorder{})
+	if err := a.Poll(context.Background()); err != nil {
+		t.Fatalf("poll without deploy branch: %v", err)
+	}
+	if m := mustRead(t, a.cfg.MetricsFile); strings.Contains(m, "seconds{host=\"test\"} -") {
+		t.Errorf("poll timestamp not set:\n%s", m)
+	}
+}
