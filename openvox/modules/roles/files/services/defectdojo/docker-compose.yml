@@ -42,7 +42,7 @@ x-django-env: &django-env
 
 services:
   nginx:
-    image: docker.io/defectdojo/defectdojo-nginx:3.4.202
+    image: docker.io/defectdojo/defectdojo-nginx:3.5.0
     container_name: defectdojo-nginx
     restart: unless-stopped
     depends_on:
