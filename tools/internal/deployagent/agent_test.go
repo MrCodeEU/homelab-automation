@@ -95,7 +95,9 @@ func (o *origin) commit(branch string, parent plumbing.Hash, files map[string]st
 	return h
 }
 
-const applyScript = "#!/bin/bash\n[ \"$2\" = apply ] || exit 3\necho applied $DEPLOY_COMMIT >> \"$APPLY_LOG\"\n[ -z \"$APPLY_FAIL\" ]\n"
+const applyScript = "#!/bin/bash\n[ \"$2\" = apply ] || exit 3\necho applied $DEPLOY_COMMIT >> \"$APPLY_LOG\"\n" +
+	"echo 'Notice: /Stage[main]/Roles::X/File[/a]/content: content changed'\n" +
+	"[ -z \"$APPLY_FAIL\" ] || { echo 'Error: boom'; exit 1; }\n"
 
 var reqSeq = 0
 
@@ -216,8 +218,17 @@ func TestAgent(t *testing.T) {
 	if a.state.LastApplied != m2.String() {
 		t.Errorf("last applied %s, want %s", a.state.LastApplied, m2)
 	}
-	if b, _ := os.ReadFile(a.cfg.MetricsFile); !strings.Contains(string(b), `outcome="failure"`) {
-		t.Errorf("metrics:\n%s", b)
+	b, _ := os.ReadFile(a.cfg.MetricsFile)
+	for _, want := range []string{
+		`outcome="failure"`,
+		`homelab_deploy_run_success{host="test",mode="apply"} 0`,
+		`homelab_deploy_resource_changes{host="test",mode="apply"} 1`,
+		`homelab_deploy_error_lines{host="test",mode="apply"} 1`,
+		`homelab_deploy_last_success_timestamp_seconds{host="test",mode="apply"} `,
+	} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("metrics lack %s:\n%s", want, b)
+		}
 	}
 }
 
