@@ -39,6 +39,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -50,6 +51,14 @@ import (
 func main() {
 	once := len(os.Args) > 1 && os.Args[1] == "--once"
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	// Exporting a release builds delta objects in memory: ~1.4 GB of
+	// short-lived allocations, ~100 MB live. A soft limit makes the GC
+	// collect early instead of letting the heap double (peak ~470 MB to
+	// ~110 MB, same run time). GOMEMLIMIT in the environment overrides it.
+	if os.Getenv("GOMEMLIMIT") == "" {
+		debug.SetMemoryLimit(64 << 20)
+	}
 
 	host := os.Getenv("DEPLOY_HOST")
 	if host == "" {
@@ -109,6 +118,8 @@ func main() {
 			}
 		}
 		cancel()
+		// Give the export's heap back to the OS while idle.
+		debug.FreeOSMemory()
 		if once {
 			return
 		}
