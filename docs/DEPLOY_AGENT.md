@@ -124,7 +124,11 @@ promise that, so a lost notification has to be noticed.
    `homelab_deploy_request_seen{id}`,
    `homelab_deploy_last_result{id,result}` and the applied commit.
    They go to `/var/lib/node-textfile/homelab_deploy.prom`, which
-   Alloy's textfile collector ships to VictoriaMetrics. healthreport's
+   Alloy's textfile collector ships to VictoriaMetrics.
+   Per result also run success, duration, resource changes, error lines
+   and the last success time (`homelab_deploy_run_*` and friends, the
+   values `deploy.yml` records for the push); the Grafana deploy panels
+   prefer them over the push's `homelab_openvox_*` per host. healthreport's
    `deploy_agent` collector (another code path, its own email) compares
    them with the head request of `deploy/<host>` on GitHub: crit when
    the agent's metrics are missing or stale (10 min), a request goes

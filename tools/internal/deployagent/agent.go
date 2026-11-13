@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -58,6 +59,9 @@ type State struct {
 	// next start means the agent died mid-apply (a reboot): reported as
 	// interrupted, not applied again.
 	Applying string `json:"applying,omitempty"`
+	// LastSuccess is the newest result with outcome success, for the
+	// last-success metric (LastResult may be a later failure).
+	LastSuccess Result `json:"last_success"`
 }
 
 // Result of one request, for state, outbox and metrics.
@@ -70,6 +74,10 @@ type Result struct {
 	Detail    string    `json:"detail"`
 	Time      time.Time `json:"time"`
 	Duration  float64   `json:"duration_seconds"`
+	// Changes and Errors count the apply output's resource change and
+	// "Error:" lines, as deploy.yml does for the push.
+	Changes int `json:"resource_changes"`
+	Errors  int `json:"error_lines"`
 }
 
 // Agent polls one host's deploy branch.
@@ -162,6 +170,10 @@ func (a *Agent) Poll(ctx context.Context) error {
 	if res.Outcome == "success" && a.cfg.Mode == "apply" {
 		a.state.LastApplied = res.Commit
 	}
+	if res.Outcome == "success" {
+		a.state.LastSuccess = res
+		a.state.LastSuccess.Detail = ""
+	}
 	if err := a.saveState(); err != nil {
 		return err
 	}
@@ -242,6 +254,8 @@ func (a *Agent) handle(ctx context.Context, branch, head string) Result {
 	out, err := a.apply(ctx, req)
 	a.state.Applying = ""
 	res.Duration = time.Since(start).Seconds()
+	res.Changes, res.Errors = countApplyLines(out)
+	out = tail(out, 40)
 	if err != nil {
 		res.Outcome, res.Detail = "failure", fmt.Sprintf("%v\n%s", err, out)
 		return res
@@ -251,7 +265,7 @@ func (a *Agent) handle(ctx context.Context, branch, head string) Result {
 }
 
 // apply exports the target commit and runs the apply script. It returns
-// the tail of the script's output.
+// the script's output.
 func (a *Agent) apply(ctx context.Context, req Request) (string, error) {
 	target, err := a.repo.Commit(req.Commit)
 	if err != nil {
@@ -271,7 +285,26 @@ func (a *Agent) apply(ctx context.Context, req Request) (string, error) {
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), req.Env()...)
 	out, err := cmd.CombinedOutput()
-	return tail(string(out), 40), err
+	return string(out), err
+}
+
+var (
+	changeLine = regexp.MustCompile(`/(ensure|content|returns|mode|owner|group):`)
+	errorLine  = regexp.MustCompile(`^Error:`)
+)
+
+// countApplyLines counts the resource change and error lines of a puppet
+// apply output, with deploy.yml's patterns for the push.
+func countApplyLines(out string) (changes, errs int) {
+	for _, l := range strings.Split(out, "\n") {
+		if changeLine.MatchString(l) {
+			changes++
+		}
+		if errorLine.MatchString(l) {
+			errs++
+		}
+	}
+	return changes, errs
 }
 
 func (a *Agent) pruneReleases(keep int) {
@@ -331,6 +364,21 @@ func (a *Agent) writeMetrics() {
 	fmt.Fprintf(&b, "homelab_deploy_last_poll_timestamp_seconds{host=%q} %d\n", a.cfg.Host, a.lastPoll.Unix())
 	if r.RequestID != "" {
 		fmt.Fprintf(&b, "homelab_deploy_last_result_timestamp_seconds{host=%q,request_id=%q,mode=%q,outcome=%q} %d\n", a.cfg.Host, r.RequestID, r.Mode, r.Outcome, r.Time.Unix())
+	}
+	if r.RequestID != "" {
+		// The same values deploy.yml records for the push
+		// (homelab_openvox_*), for the Grafana deploy panels.
+		success := 0
+		if r.Outcome == "success" {
+			success = 1
+		}
+		fmt.Fprintf(&b, "homelab_deploy_run_success{host=%q,mode=%q} %d\n", a.cfg.Host, r.Mode, success)
+		fmt.Fprintf(&b, "homelab_deploy_run_duration_seconds{host=%q,mode=%q} %.0f\n", a.cfg.Host, r.Mode, r.Duration)
+		fmt.Fprintf(&b, "homelab_deploy_resource_changes{host=%q,mode=%q} %d\n", a.cfg.Host, r.Mode, r.Changes)
+		fmt.Fprintf(&b, "homelab_deploy_error_lines{host=%q,mode=%q} %d\n", a.cfg.Host, r.Mode, r.Errors)
+	}
+	if s := a.state.LastSuccess; s.RequestID != "" {
+		fmt.Fprintf(&b, "homelab_deploy_last_success_timestamp_seconds{host=%q,mode=%q} %d\n", a.cfg.Host, s.Mode, s.Time.Unix())
 	}
 	fmt.Fprintf(&b, "homelab_deploy_applied_info{host=%q,commit=%q} 1\n", a.cfg.Host, a.state.LastApplied)
 	fmt.Fprintf(&b, "homelab_deploy_outbox_entries{host=%q} %d\n", a.cfg.Host, len(entries))
