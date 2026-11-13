@@ -264,7 +264,7 @@ class roles::services (
       'heartbeat_url'          => lookup('vault_healthreport_heartbeat_url', { 'default_value' => '' }),
       # Hosts running deploy-agent (roles::deploy_agent), checked by the
       # deploy_agent collector.
-      'deploy_hosts'           => 'nuc',
+      'deploy_hosts'           => 'nuc,mljr,ugreen',
       'email_to'               => lookup('vault_healthreport_email_to', { 'default_value' => '' }),
       # Reuses dmarc-monitor's own db_password for read access to its
       # Postgres, not a separate credential - same precedent as Grafana's

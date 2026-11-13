@@ -58,7 +58,7 @@ env:
   # deploy/<host> for every real deploy (job deploy-request).
   # AGENT_APPLY_HOSTS is the subset whose agent applies: the push below
   # skips them in apply mode. Check mode (noop) still pushes to every host.
-  AGENT_HOSTS: nuc
+  AGENT_HOSTS: nuc mljr ugreen
   AGENT_APPLY_HOSTS: nuc
 
 jobs:

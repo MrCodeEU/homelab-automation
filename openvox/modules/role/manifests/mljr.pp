@@ -25,4 +25,7 @@ class role::mljr {
   include roles::crowdsec_firewall_bouncer
   include roles::grafana_alloy
   include roles::vuln_scan
+  # Pull deploy agent in noop next to the push (docs/DEPLOY_AGENT.md,
+  # Rollout); roles::deploy_agent defaults to mode noop.
+  include roles::deploy_agent
 }
