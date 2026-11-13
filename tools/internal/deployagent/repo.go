@@ -9,11 +9,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/cache"
 	"github.com/go-git/go-git/v5/plumbing/filemode"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/storage/filesystem"
 )
 
 // Repo is a bare clone of the repository: main and this host's deploy
@@ -24,10 +27,20 @@ type Repo struct {
 
 // OpenRepo opens the bare clone in dir, creating it (with the remote
 // origin at url) on first use. Nothing is fetched yet.
+//
+// The tree holds service binaries of several MB each. go-git's defaults
+// (96 MB object cache, every object read whole into memory) made an export
+// cost ~330 MB of heap; with a small cache and large objects streamed from
+// the packfile it stays low.
 func OpenRepo(dir, url string) (*Repo, error) {
-	r, err := git.PlainOpen(dir)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil, fmt.Errorf("repository %s: %w", dir, err)
+	}
+	st := filesystem.NewStorageWithOptions(osfs.New(dir), cache.NewObjectLRU(8*cache.MiByte),
+		filesystem.Options{LargeObjectThreshold: 1 << 20})
+	r, err := git.Open(st, nil)
 	if errors.Is(err, git.ErrRepositoryNotExists) {
-		r, err = git.PlainInit(dir, true)
+		r, err = git.Init(st, nil)
 		if err == nil {
 			_, err = r.CreateRemote(&config.RemoteConfig{Name: "origin", URLs: []string{url}})
 		}
