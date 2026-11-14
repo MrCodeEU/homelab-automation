@@ -33,6 +33,7 @@ describe 'roles::deploy_agent' do
     is_expected.to contain_file('/etc/systemd/system/deploy-agent.service')
       .with_content(%r{^Restart=always$})
       .with_content(%r{^EnvironmentFile=/etc/homelab-deploy/agent\.env$})
+      .with_content(%r{^Environment=GODEBUG=$})
   end
 
   context 'in apply mode' do
