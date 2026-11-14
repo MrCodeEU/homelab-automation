@@ -61,7 +61,7 @@ class roles::deploy_agent (
   file { '/etc/systemd/system/deploy-agent.service':
     ensure  => file,
     mode    => '0644',
-    content => "[Unit]\nDescription=Deploy agent (pull deploys from deploy/${host})\nWants=network-online.target\nAfter=network-online.target\n\n[Service]\nType=simple\nEnvironmentFile=/etc/homelab-deploy/agent.env\nExecStart=/usr/local/bin/deploy-agent\nStateDirectory=homelab-deploy\nStateDirectoryMode=0700\nRestart=always\nRestartSec=30\n\n[Install]\nWantedBy=multi-user.target\n",
+    content => "[Unit]\nDescription=Deploy agent (pull deploys from deploy/${host})\nWants=network-online.target\nAfter=network-online.target\n\n[Service]\nType=simple\n# UGOS sets GODEBUG=tlskyber=0 for every unit; Go 1.24+ aborts on it.\nEnvironment=GODEBUG=\nEnvironmentFile=/etc/homelab-deploy/agent.env\nExecStart=/usr/local/bin/deploy-agent\nStateDirectory=homelab-deploy\nStateDirectoryMode=0700\nRestart=always\nRestartSec=30\n\n[Install]\nWantedBy=multi-user.target\n",
   }
 
   # Same gotcha as roles::hawser_agent: the service provider does not
