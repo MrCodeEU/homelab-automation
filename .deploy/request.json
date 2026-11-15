@@ -1,1 +1,1 @@
-{"id":"20261114T211136Z-43640887628","host":"ugreen","commit":"2514192b1987ccbf1b8bcf7a914bd9eaec18ceeb","trigger":"workflow_dispatch","service":"","staging_services":"","docker_prune":false,"reboot_if_needed":false}
+{"id":"20261115T033938Z-43672723718","host":"ugreen","commit":"2514192b1987ccbf1b8bcf7a914bd9eaec18ceeb","trigger":"schedule","service":"","staging_services":"","docker_prune":false,"reboot_if_needed":false}
