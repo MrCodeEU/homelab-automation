@@ -3,12 +3,24 @@
 # from the verified commit. $mode noop runs it next to the push during the
 # rollout; apply makes it the deploy path.
 #
+# In apply mode the agent also runs a daily drift check at $drift_at (host
+# local time): a noop of the last applied commit, reported once per new
+# drift. It replaced openvox-drift.yml, which ran the noop over SSH.
+#
 # The unit is never restarted from here: when the agent itself runs the
 # apply that changes it, a restart would kill that apply (same cgroup).
 # The agent exits after a poll once its binary or env file changed, and
 # Restart=always brings up the new version.
 class roles::deploy_agent (
   Enum['noop', 'apply'] $mode = 'noop',
+  # 03:17 local: clear of the NAS auto-update window and the Sunday
+  # weekly deploy (the time openvox-drift.yml ran in summer).
+  Pattern[/\A([01][0-9]|2[0-3]):[0-5][0-9]\z/] $drift_at = '03:17',
+  # Expected drift, not reported: backup_catalog.json carries the compile
+  # time (roles::backup_dashboard), so it differs on every noop.
+  Array[Pattern[/\A[A-Z][A-Za-z_:]*\[[^|]+\]\z/]] $drift_ignore = [
+    'File[/var/lib/backup-dashboard/backup_catalog.json]',
+  ],
 ) {
   $certname = $trusted['certname']
   $host     = $certname.split('\.')[0]
@@ -51,10 +63,12 @@ class roles::deploy_agent (
     mode      => '0600',
     show_diff => false,
     content   => Sensitive(epp('roles/deploy_agent/agent.env.epp', {
-      'host'     => $host,
-      'mode'     => $mode,
-      'certname' => $certname,
-      'mail'     => $mail,
+      'host'         => $host,
+      'mode'         => $mode,
+      'drift_at'     => $drift_at,
+      'drift_ignore' => $drift_ignore.join('|'),
+      'certname'     => $certname,
+      'mail'         => $mail,
     })),
   }
 

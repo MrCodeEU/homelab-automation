@@ -181,7 +181,7 @@
       "gridPos": {"h": 5, "w": 12, "x": 0, "y": 44},
       "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "mappings": [{"type": "value", "options": {"0": {"text": "FAILED", "color": "red"}, "1": {"text": "OK", "color": "green"}}}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none", "justifyMode": "auto"},
-      "targets": [{"refId": "A", "expr": "last_over_time(homelab_openvox_run_success{mode=\"drift\"}[8d])", "legendFormat": "{{host}}"}]
+      "targets": [{"refId": "A", "expr": "max by (host) (last_over_time(homelab_deploy_drift_success[8d])) or on(host) max by (host) (last_over_time(homelab_openvox_run_success{mode=\"drift\"}[8d]))", "legendFormat": "{{host}}"}]
     },
     {
       "id": 16,
@@ -192,7 +192,7 @@
       "gridPos": {"h": 5, "w": 12, "x": 12, "y": 44},
       "fieldConfig": {"defaults": {"unit": "short", "decimals": 0, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}, {"color": "red", "value": 10}]}}, "overrides": []},
       "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "area", "justifyMode": "auto"},
-      "targets": [{"refId": "A", "expr": "last_over_time(homelab_openvox_resource_changes{mode=\"drift\"}[8d])", "legendFormat": "{{host}}"}]
+      "targets": [{"refId": "A", "expr": "max by (host) (last_over_time(homelab_deploy_drift_resource_changes[8d])) or on(host) max by (host) (last_over_time(homelab_openvox_resource_changes{mode=\"drift\"}[8d]))", "legendFormat": "{{host}}"}]
     }
   ]
 }

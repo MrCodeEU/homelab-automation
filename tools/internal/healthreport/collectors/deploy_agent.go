@@ -23,6 +23,8 @@ const (
 	deployPollStale = 10 * time.Minute
 	// A request this old that the agent has not reported on was not handled.
 	deployRequestGrace = 15 * time.Minute
+	// The drift check runs daily; two missed days are not a restart.
+	deployDriftStale = 50 * time.Hour
 )
 
 func init() {
@@ -41,6 +43,10 @@ type deployAgentView struct {
 	requestID string    // last result; empty: none yet
 	outcome   string
 	mode      string
+	// Daily drift check (drift.go); driftRun zero: none reported.
+	driftRun     time.Time
+	driftOK      bool
+	driftChanges int
 }
 
 func collectDeployAgent(cfg hr.Config, rules hr.RulesFile) *hr.CollectorResult {
@@ -79,6 +85,20 @@ func collectDeployAgent(cfg hr.Config, rules hr.RulesFile) *hr.CollectorResult {
 		newest[h] = s.value
 		v := view(h)
 		v.requestID, v.outcome, v.mode = s.metric["request_id"], s.metric["outcome"], s.metric["mode"]
+	}
+
+	for metric, set := range map[string]func(*deployAgentView, float64){
+		"homelab_deploy_drift_last_run_timestamp_seconds": func(v *deployAgentView, x float64) { v.driftRun = time.Unix(int64(x), 0) },
+		"homelab_deploy_drift_success":                    func(v *deployAgentView, x float64) { v.driftOK = x == 1 },
+		"homelab_deploy_drift_resource_changes":           func(v *deployAgentView, x float64) { v.driftChanges = int(x) },
+	} {
+		series, err := vmQuery(cfg, "max by (host) ("+metric+")")
+		if err != nil {
+			panic(err)
+		}
+		for _, s := range series {
+			set(view(s.metric["host"]), s.value)
+		}
 	}
 
 	now := time.Now()
@@ -133,6 +153,7 @@ func evaluateDeploy(host string, now time.Time, req *deployRequest, v *deployAge
 			fmt.Sprintf("deploy agent last polled %s ago", age.Round(time.Minute)),
 			int64(age.Minutes()), map[string]any{"last_poll": v.lastPoll.UTC().Format(time.RFC3339)}))
 	}
+	out = append(out, evaluateDrift(host, now, v, obs)...)
 	if req == nil || req.ID == "" {
 		return out
 	}
@@ -154,6 +175,33 @@ func evaluateDeploy(host string, now time.Time, req *deployRequest, v *deployAge
 	default:
 		out = append(out, obs("deploy_request_failed", req.ID,
 			fmt.Sprintf("deploy request %s (%s) ended %s", req.ID, v.mode, v.outcome), v.outcome, evidence))
+	}
+	return out
+}
+
+// evaluateDrift checks the agent's daily drift check. Only an agent that
+// applies runs it, so a missing check counts only for one.
+func evaluateDrift(host string, now time.Time, v *deployAgentView, obs func(kind, detail, msg string, value any, evidence map[string]any) *hr.Observation) []*hr.Observation {
+	if v.driftRun.IsZero() {
+		if v.mode != "apply" {
+			return nil
+		}
+		return []*hr.Observation{obs("deploy_drift_stale", "", "the deploy agent has not reported a drift check", nil, nil)}
+	}
+	evidence := map[string]any{"last_run": v.driftRun.UTC().Format(time.RFC3339), "resource_changes": v.driftChanges}
+	var out []*hr.Observation
+	if age := now.Sub(v.driftRun); age > deployDriftStale {
+		out = append(out, obs("deploy_drift_stale", "",
+			fmt.Sprintf("last drift check %s ago", age.Round(time.Hour)), int64(age.Hours()), evidence))
+	}
+	switch {
+	case !v.driftOK:
+		out = append(out, obs("deploy_drift_failed", "",
+			"the daily noop of the applied commit failed (agent notification has the output)", nil, evidence))
+	case v.driftChanges > 0:
+		out = append(out, obs("deploy_drift", "",
+			fmt.Sprintf("%d resource(s) differ from the applied commit (agent notification has the list)", v.driftChanges),
+			v.driftChanges, evidence))
 	}
 	return out
 }

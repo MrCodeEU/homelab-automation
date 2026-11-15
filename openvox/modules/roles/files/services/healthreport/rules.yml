@@ -413,6 +413,16 @@ rules:
   deploy_request_suspended:
     type: present
     level: warn
+  # Daily noop of the applied commit in each agent (replaced openvox-drift.yml).
+  deploy_drift:
+    type: present
+    level: warn
+  deploy_drift_failed:
+    type: present
+    level: warn
+  deploy_drift_stale:
+    type: present
+    level: crit
 
   # The home IP drifted from what CrowdSec's allowlist trusts: the owner can
   # get banned until the allowlist is updated.
