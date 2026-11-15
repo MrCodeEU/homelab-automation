@@ -94,3 +94,6 @@ roles::vuln_scan::dojo_user: 'import-mljr'
 # VPS's real hostname (vmi2945702), which is the class default.
 roles::vuln_scan::product: 'mljr'
 roles::vuln_scan::nuclei_enabled: false
+
+# The deploy agent applies; deploy.yml skips the push here (docs/DEPLOY_AGENT.md).
+roles::deploy_agent::mode: 'apply'

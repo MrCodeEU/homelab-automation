@@ -50,3 +50,6 @@ roles::vuln_scan::nuclei_enabled: false
 # belongs to the admin user, read from /etc/ssh/authorized_keys.d.
 roles::ssh_hardening::recovery_user: 'mrcode'
 roles::ssh_hardening::disable_passwords: true
+
+# The deploy agent applies; deploy.yml skips the push here (docs/DEPLOY_AGENT.md).
+roles::deploy_agent::mode: 'apply'
