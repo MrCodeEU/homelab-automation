@@ -17,6 +17,7 @@
 # Secret rotation (see scripts/rotate-eyaml-secret.sh):
 #   make rotate-secret-dry-run [KEY=vault_x]   Preview only, nothing written
 #   make rotate-secret [KEY=vault_x]           Full flow, confirmed at each step
+#   make copy-secret KEYS=vault_a,vault_b FROM=nuc TO=mljr,ugreen  Copy existing secrets to more hosts
 #   make add-secret KEY=vault_x HOSTS=nuc[,mljr] [GEN=hex:32]   Add a NEW secret (pasted, or generated)
 #   make add-secret-line KEY=vault_x          Append ONE line to a multi-line secret (keeps the others)
 #
@@ -30,7 +31,7 @@
         help \
         _check-validate _check-syntax _check-compose _check-binaries _check-exec-bits \
         openvox-check openvox-deploy openvox-recovery openvox-rollback \
-        rotate-secret rotate-secret-dry-run add-secret add-secret-line
+        rotate-secret rotate-secret-dry-run add-secret add-secret-line copy-secret
 
 ################################################################################
 # DEFAULT: fast local tests (no Docker)
@@ -207,6 +208,13 @@ add-secret-line:
 add-secret:
 	@test -n "$(KEY)" -a -n "$(HOSTS)" || { echo "usage: make add-secret KEY=vault_x HOSTS=nuc[,mljr] [GEN=hex:32]"; exit 2; }
 	@bash ./scripts/rotate-eyaml-secret.sh --new $(KEY) --hosts $(HOSTS) $(if $(GEN),--generate $(GEN))
+
+comma := ,
+# Copy existing secrets to more hosts - see scripts/copy-eyaml-secret.sh.
+# Usage: make copy-secret KEYS=vault_a[,vault_b] FROM=nuc TO=mljr[,ugreen] [DRY_RUN=1]
+copy-secret:
+	@test -n "$(KEYS)" -a -n "$(FROM)" -a -n "$(TO)" || { echo "usage: make copy-secret KEYS=vault_a[,vault_b] FROM=nuc TO=mljr[,ugreen] [DRY_RUN=1]"; exit 2; }
+	@bash ./scripts/copy-eyaml-secret.sh $(if $(DRY_RUN),--dry-run) --from $(FROM) --to $(TO) $(subst $(comma), ,$(KEYS))
 
 rotate-secret-dry-run:
 	@bash ./scripts/rotate-eyaml-secret.sh --dry-run $(KEY)

@@ -139,6 +139,9 @@ name the wildcard doesn't cover (e.g. a `CNAME` to a third party).
    `make add-secret-line KEY=vault_x`: it decrypts the current value on the
    host, appends your one new line, re-encrypts and verifies the round trip;
    existing lines are kept. Removing a single line is not supported yet.
+   `make copy-secret KEYS=vault_a,vault_b FROM=nuc TO=mljr` copies existing
+   secrets to more hosts (decrypted on FROM, encrypted for each target,
+   keys already on a target are skipped).
    `scripts/eyaml-get.sh <host> [key]` reads one back. By hand this is:
    add each `vault_*` key to every required host's
    `data/secrets/<certname>.eyaml`, encrypted with that host's public key;
