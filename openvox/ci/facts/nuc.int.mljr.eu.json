@@ -1,0 +1,53 @@
+{
+  "name": "nuc.int.mljr.eu",
+  "values": {
+    "os": {
+      "architecture": "x86_64",
+      "distro": {
+        "codename": "Red Quartz",
+        "description": "Rocky Linux release 10.2 (Red Quartz)",
+        "id": "Rocky",
+        "release": {
+          "full": "10.2",
+          "major": "10",
+          "minor": "2"
+        }
+      },
+      "family": "RedHat",
+      "hardware": "x86_64",
+      "name": "Rocky",
+      "release": {
+        "full": "10.2",
+        "major": "10",
+        "minor": "2"
+      },
+      "selinux": {
+        "config_mode": "enforcing",
+        "config_policy": "targeted",
+        "current_mode": "enforcing",
+        "enabled": true,
+        "enforced": true,
+        "policy_version": "33"
+      },
+      "support": {
+        "end": "2035-05-31"
+      }
+    },
+    "kernel": "Linux",
+    "architecture": "x86_64",
+    "hardwaremodel": "x86_64",
+    "path": "/root/.local/bin:/root/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/puppetlabs/bin",
+    "kernelrelease": "0.0.0",
+    "kernelversion": "0.0.0",
+    "kernelmajversion": "0.0",
+    "networking": {
+      "hostname": "nuc",
+      "fqdn": "nuc.tail33930.ts.net",
+      "domain": "tail33930.ts.net"
+    },
+    "clientcert": "nuc.int.mljr.eu",
+    "openvox_weekly_maintenance": "false",
+    "openvox_staging_services": "",
+    "openvox_recovery_services": ""
+  }
+}

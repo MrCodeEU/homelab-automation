@@ -182,10 +182,15 @@ promise that, so a lost notification has to be noticed.
 
 ## Open
 
-- PR check without host access: octocatalog-diff with stored facts and
-  placeholder secrets (not yet tested against this repository).
-- The mail credentials go into each host's eyaml (today only nuc's has
-  them); one shared submission account.
+- PR check without host access: the "Catalog diff" job compiles every
+  host's catalog for base and head in VoxBox (`scripts/catalog-diff.sh`):
+  facts from `openvox/ci/facts` (allowlisted, `scripts/catalog-facts.sh`),
+  secrets as placeholders, and per `puppet:///` source the changed files.
+  octocatalog-diff was dropped: no release since 2024 and its gem depends
+  on `puppet`, which clashes with `openvox`. Still open: daily drift in the
+  agents, `deploy.yml` check mode as a catalog diff, then the live noop and
+  Tailscale out of CI. A catalog diff does not catch runtime errors (a
+  failing exec, a missing package); those surface as the agent's failure.
 
 ## Prototype (2026-11-11)
 

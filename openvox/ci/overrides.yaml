@@ -1,0 +1,6 @@
+# Catalog diff only (scripts/catalog-compile.sh): fixed values for class
+# parameters whose defaults run generate() at compile time against the
+# host's own state. Puppet evaluates a parameter default only when no value
+# is bound, so these keep the compile host-independent and reproducible.
+roles::backup_dashboard::generated_at: '1970-01-01T00:00:00Z'
+roles::canarytokens::wg_key_seed: 'ci-placeholder-wg-key-seed'

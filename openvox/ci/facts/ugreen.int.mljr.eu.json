@@ -1,0 +1,35 @@
+{
+  "name": "ugreen.int.mljr.eu",
+  "values": {
+    "os": {
+      "architecture": "amd64",
+      "distro": {
+        "codename": "bookworm",
+        "description": "Debian GNU/Linux 12 (bookworm)",
+        "id": "Debian"
+      },
+      "family": "Debian",
+      "hardware": "x86_64",
+      "name": "Debian",
+      "selinux": {
+        "enabled": false
+      }
+    },
+    "kernel": "Linux",
+    "architecture": "amd64",
+    "hardwaremodel": "x86_64",
+    "path": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/puppetlabs/bin",
+    "kernelrelease": "0.0.0",
+    "kernelversion": "0.0.0",
+    "kernelmajversion": "0.0",
+    "networking": {
+      "hostname": "MLJR-UGREEN",
+      "fqdn": "MLJR-UGREEN.tail33930.ts.net",
+      "domain": "tail33930.ts.net"
+    },
+    "clientcert": "ugreen.int.mljr.eu",
+    "openvox_weekly_maintenance": "false",
+    "openvox_staging_services": "",
+    "openvox_recovery_services": ""
+  }
+}
