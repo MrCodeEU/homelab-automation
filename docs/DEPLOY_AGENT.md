@@ -175,8 +175,9 @@ promise that, so a lost notification has to be noticed.
 5. nuc's agent applies (`mode => 'apply'`); `deploy.yml` skips the push
    to the hosts in `AGENT_APPLY_HOSTS` in apply mode. Check mode, the PR
    noop and `openvox-drift.yml` still reach nuc over SSH. Then mljr and
-   ugreen, each first in noop next to the push (in `AGENT_HOSTS`, not
-   yet in `AGENT_APPLY_HOSTS`).
+   ugreen, each first in noop next to the push (#600), then applying as
+   well (`roles::deploy_agent::mode` in their node data): since then the
+   push in `deploy.yml` deploys no host in apply mode.
 6. Remove the SSH steps, Tailscale from CI, `openvox-drift.yml`.
 
 ## Open

@@ -59,7 +59,7 @@ env:
   # AGENT_APPLY_HOSTS is the subset whose agent applies: the push below
   # skips them in apply mode. Check mode (noop) still pushes to every host.
   AGENT_HOSTS: nuc mljr ugreen
-  AGENT_APPLY_HOSTS: nuc
+  AGENT_APPLY_HOSTS: nuc mljr ugreen
 
 jobs:
   # Resolves which host a repository_dispatch service-update targets, purely
