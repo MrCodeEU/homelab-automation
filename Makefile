@@ -31,7 +31,7 @@
         help \
         _check-validate _check-syntax _check-compose _check-binaries _check-exec-bits \
         openvox-check openvox-deploy openvox-recovery openvox-rollback \
-        rotate-secret rotate-secret-dry-run add-secret add-secret-line copy-secret
+        rotate-secret rotate-secret-dry-run add-secret add-secret-line copy-secret catalog-diff
 
 ################################################################################
 # DEFAULT: fast local tests (no Docker)
@@ -210,6 +210,11 @@ add-secret:
 	@bash ./scripts/rotate-eyaml-secret.sh --new $(KEY) --hosts $(HOSTS) $(if $(GEN),--generate $(GEN))
 
 comma := ,
+# Catalog diff of this checkout against a ref, per host, without hosts or
+# secrets (scripts/catalog-diff.sh). Usage: make catalog-diff [BASE=origin/main]
+catalog-diff:
+	@./scripts/catalog-diff.sh --ref $(or $(BASE),origin/main)
+
 # Copy existing secrets to more hosts - see scripts/copy-eyaml-secret.sh.
 # Usage: make copy-secret KEYS=vault_a[,vault_b] FROM=nuc TO=mljr[,ugreen] [DRY_RUN=1]
 copy-secret:

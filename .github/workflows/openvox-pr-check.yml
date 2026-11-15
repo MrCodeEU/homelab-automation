@@ -91,6 +91,35 @@ jobs:
             ghcr.io/voxpupuli/voxbox@sha256:704dfe406a3f2f16d0b2a4d71fb4de4b72a9768df1e1cda06134240e5f01dc3c \
             spec SPEC=spec/classes
 
+  # Catalog of every host before and after this PR, compiled without hosts
+  # or secrets (scripts/catalog-diff.sh), as the job summary. Runs for fork
+  # PRs too. Meant to replace the live noop below (docs/DEPLOY_AGENT.md).
+  catalog-diff:
+    name: Catalog diff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: head
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: base
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: head/tools/go.mod
+          cache-dependency-path: head/tools/go.sum
+
+      - name: Compile and diff catalogs
+        run: |
+          set -o pipefail
+          head/scripts/catalog-diff.sh base/openvox head/openvox | tee catalog-diff.md
+          cat catalog-diff.md >> "$GITHUB_STEP_SUMMARY"
+
   openvox-caddy-render:
     name: OpenVox Caddy render test
     needs: openvox-unit
