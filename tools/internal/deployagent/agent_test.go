@@ -348,3 +348,144 @@ func TestNoBranchYet(t *testing.T) {
 		t.Errorf("poll timestamp not set:\n%s", m)
 	}
 }
+
+const driftScript = "#!/bin/bash\n[ \"$2\" = noop ] || { echo applied $DEPLOY_COMMIT >> \"$APPLY_LOG\"; exit 0; }\n" +
+	"[ -z \"$NOOP_BUSY\" ] || { echo 'ERROR: another deploy holds /run/homelab-deploy.lock'; exit 1; }\n" +
+	"[ -z \"$NOOP_FAIL\" ] || { echo 'Error: noop boom'; exit 1; }\n" +
+	"echo \"Notice: /Stage[main]/Roles::X/Exec[up]/returns: current_value 'notrun', should be ['0'] (noop)\"\n" +
+	"echo \"Notice: /Stage[main]/Roles::X/Docker_compose[up]/ensure: created (noop)\"\n" +
+	"echo \"Notice: /Stage[main]/Roles::X/File[/stamp]/content: content changed '{sha256}a' to '{sha256}b'\"\n" +
+	"[ -z \"$NOOP_DRIFT\" ] || echo \"Notice: /Stage[main]/Roles::X/File[$NOOP_DRIFT]/content: content changed '{sha256}a' to '{sha256}b'\"\n"
+
+func TestDrift(t *testing.T) {
+	o := newOrigin(t)
+	c := o.commit("main", plumbing.ZeroHash, map[string]string{"scripts/apply.sh": driftScript}, false)
+	o.request(c, nil, false)
+	rec := &recorder{}
+	a, _ := newAgent(t, o, rec)
+	a.cfg.DriftAt = "03:17"
+	a.cfg.DriftIgnore = []string{"File[/stamp]"}
+	clock := time.Date(2026, 11, 16, 2, 0, 0, 0, time.Local)
+	a.now = func() time.Time { return clock }
+	ctx := context.Background()
+
+	// Before anything is applied: no drift check.
+	if err := a.MaybeDrift(ctx); err != nil || !a.state.Drift.Time.IsZero() {
+		t.Fatalf("drift before apply: %v %+v", err, a.state.Drift)
+	}
+	if r := a.mustPoll(t); r.Outcome != "success" {
+		t.Fatalf("apply: %+v", r)
+	}
+	rec.got = nil
+
+	check := func(env map[string]string) {
+		t.Helper()
+		for _, k := range []string{"NOOP_BUSY", "NOOP_FAIL", "NOOP_DRIFT"} {
+			t.Setenv(k, env[k])
+		}
+		if err := a.MaybeDrift(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	notified := func() []string {
+		var out []string
+		for _, r := range rec.got {
+			out = append(out, r.Outcome)
+		}
+		rec.got = nil
+		return out
+	}
+
+	// First check runs right away; clean, nothing to tell (an unguarded Exec
+	// or a docker_compose "created (noop)" is no drift).
+	check(nil)
+	if d := a.state.Drift; !d.OK || d.Changes != 0 || d.Commit != c.String() {
+		t.Fatalf("clean: %+v", d)
+	}
+	if n := notified(); len(n) != 0 {
+		t.Fatalf("clean notified: %v", n)
+	}
+	// Same day, slot not yet reached: no new run.
+	before := a.state.Drift.Time
+	clock = clock.Add(time.Hour)
+	check(map[string]string{"NOOP_DRIFT": "/etc/a"})
+	if a.state.Drift.Time != before {
+		t.Fatal("ran before the slot")
+	}
+	// Past 03:17: drift, notified once, not again for the same drift.
+	clock = clock.Add(time.Hour)
+	check(map[string]string{"NOOP_DRIFT": "/etc/a"})
+	if d := a.state.Drift; d.Changes != 1 || d.Fingerprint == "" {
+		t.Fatalf("drift: %+v", d)
+	}
+	if n := notified(); len(n) != 1 || n[0] != "drift" {
+		t.Fatalf("drift notified: %v", n)
+	}
+	clock = clock.Add(24 * time.Hour)
+	check(map[string]string{"NOOP_DRIFT": "/etc/a"})
+	if n := notified(); len(n) != 0 {
+		t.Fatalf("same drift notified again: %v", n)
+	}
+	// Other drift: notified.
+	clock = clock.Add(24 * time.Hour)
+	check(map[string]string{"NOOP_DRIFT": "/etc/b"})
+	if n := notified(); len(n) != 1 || n[0] != "drift" {
+		t.Fatalf("new drift notified: %v", n)
+	}
+	// Lock busy: postponed, no state change, retried on the next call.
+	clock = clock.Add(24 * time.Hour)
+	last := a.state.Drift.Time
+	check(map[string]string{"NOOP_BUSY": "1"})
+	if a.state.Drift.Time != last {
+		t.Fatal("busy lock recorded as a run")
+	}
+	// Failure, then clean again: both notified.
+	check(map[string]string{"NOOP_FAIL": "1"})
+	if d := a.state.Drift; d.OK || d.Errors != 1 {
+		t.Fatalf("failure: %+v", d)
+	}
+	if n := notified(); len(n) != 1 || n[0] != "failure" {
+		t.Fatalf("failure notified: %v", n)
+	}
+	clock = clock.Add(24 * time.Hour)
+	check(nil)
+	if n := notified(); len(n) != 1 || n[0] != "clean" {
+		t.Fatalf("clean again notified: %v", n)
+	}
+
+	data, err := os.ReadFile(a.cfg.MetricsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`homelab_deploy_drift_success{host="test"} 1`,
+		`homelab_deploy_drift_resource_changes{host="test"} 0`,
+		`homelab_deploy_drift_last_run_timestamp_seconds{host="test"} ` + fmt.Sprint(clock.Unix()),
+	} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("metrics lack %q:\n%s", want, data)
+		}
+	}
+	// A noop agent never runs the drift check.
+	a.cfg.Mode = "noop"
+	a.state.Drift = DriftState{}
+	check(nil)
+	if !a.state.Drift.Time.IsZero() {
+		t.Error("noop agent ran the drift check")
+	}
+}
+
+func TestDriftSlot(t *testing.T) {
+	loc := time.FixedZone("x", 3600)
+	s, _ := driftSlot(time.Date(2026, 11, 16, 3, 16, 0, 0, loc), "03:17")
+	if !s.Equal(time.Date(2026, 11, 15, 3, 17, 0, 0, loc)) {
+		t.Errorf("before slot: %v", s)
+	}
+	s, _ = driftSlot(time.Date(2026, 11, 16, 3, 17, 0, 0, loc), "03:17")
+	if !s.Equal(time.Date(2026, 11, 16, 3, 17, 0, 0, loc)) {
+		t.Errorf("at slot: %v", s)
+	}
+	if _, err := driftSlot(time.Now(), "3:17pm"); err == nil {
+		t.Error("bad time accepted")
+	}
+}

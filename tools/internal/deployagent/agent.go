@@ -38,6 +38,12 @@ type Config struct {
 	// never becomes the last applied commit.
 	Mode        string
 	SuspendFile string
+	// DriftAt is the daily local time ("HH:MM") of the drift check, a noop
+	// of the last applied commit (drift.go); empty: no drift check.
+	DriftAt string
+	// DriftIgnore are resources ("File[/x]") whose drift is expected, such
+	// as a file with a compile-time timestamp; their lines are skipped.
+	DriftIgnore []string
 	Notifiers   []Notifier
 	Log         *slog.Logger
 }
@@ -62,6 +68,8 @@ type State struct {
 	// LastSuccess is the newest result with outcome success, for the
 	// last-success metric (LastResult may be a later failure).
 	LastSuccess Result `json:"last_success"`
+	// Drift is the last daily drift check (drift.go).
+	Drift DriftState `json:"drift"`
 }
 
 // Result of one request, for state, outbox and metrics.
@@ -86,6 +94,7 @@ type Agent struct {
 	repo     *Repo
 	state    State
 	lastPoll time.Time
+	now      func() time.Time // time.Now; tests set it
 }
 
 func New(cfg Config) (*Agent, error) {
@@ -107,7 +116,7 @@ func New(cfg Config) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := &Agent{cfg: cfg, repo: repo}
+	a := &Agent{cfg: cfg, repo: repo, now: time.Now}
 	data, err := os.ReadFile(a.path("state.json"))
 	switch {
 	case errors.Is(err, os.ErrNotExist):
@@ -379,6 +388,16 @@ func (a *Agent) writeMetrics() {
 	}
 	if s := a.state.LastSuccess; s.RequestID != "" {
 		fmt.Fprintf(&b, "homelab_deploy_last_success_timestamp_seconds{host=%q,mode=%q} %d\n", a.cfg.Host, s.Mode, s.Time.Unix())
+	}
+	if d := a.state.Drift; !d.Time.IsZero() {
+		ok := 0
+		if d.OK {
+			ok = 1
+		}
+		fmt.Fprintf(&b, "homelab_deploy_drift_last_run_timestamp_seconds{host=%q} %d\n", a.cfg.Host, d.Time.Unix())
+		fmt.Fprintf(&b, "homelab_deploy_drift_success{host=%q} %d\n", a.cfg.Host, ok)
+		fmt.Fprintf(&b, "homelab_deploy_drift_resource_changes{host=%q} %d\n", a.cfg.Host, d.Changes)
+		fmt.Fprintf(&b, "homelab_deploy_drift_error_lines{host=%q} %d\n", a.cfg.Host, d.Errors)
 	}
 	fmt.Fprintf(&b, "homelab_deploy_applied_info{host=%q,commit=%q} 1\n", a.cfg.Host, a.state.LastApplied)
 	fmt.Fprintf(&b, "homelab_deploy_outbox_entries{host=%q} %d\n", a.cfg.Host, len(entries))

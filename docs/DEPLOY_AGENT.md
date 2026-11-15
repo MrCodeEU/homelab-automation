@@ -91,7 +91,16 @@ with allowed parameters. Never **what** is applied.
   is public, so no credentials).
 - Applies **only on a new request**. It does not enforce on a timer, so
   a laptop push is not overwritten until the next deploy. A nightly
-  noop reports drift instead (replaces `openvox-drift.yml`).
+  noop reports drift instead (replaces `openvox-drift.yml`): in apply
+  mode, daily at `roles::deploy_agent::drift_at` (03:17 host time), a
+  noop of the last applied commit under the same host lock (a busy lock
+  postpones it to the next poll). Only content/ensure/mode/owner/group
+  value changes count, as in the workflow; `drift_ignore` lists expected
+  ones (`backup_catalog.json` carries its compile time). It notifies once
+  per new set of drifted resources, on a failed noop and when the drift
+  is gone; metrics `homelab_deploy_drift_*`, healthreport kinds
+  `deploy_drift` (warn), `deploy_drift_failed` (warn), `deploy_drift_stale`
+  (crit, no check for 50 h on an apply agent).
 - Runs `bash scripts/openvox-apply.sh <tree> apply` from the export:
   the same script `openvox-sync.sh` runs after uploading (PR #591:
   Forge modules, release + `production` symlink, `puppet apply`). One
@@ -187,9 +196,10 @@ promise that, so a lost notification has to be noticed.
   facts from `openvox/ci/facts` (allowlisted, `scripts/catalog-facts.sh`),
   secrets as placeholders, and per `puppet:///` source the changed files.
   octocatalog-diff was dropped: no release since 2024 and its gem depends
-  on `puppet`, which clashes with `openvox`. Still open: daily drift in the
-  agents, `deploy.yml` check mode as a catalog diff, then the live noop and
-  Tailscale out of CI. A catalog diff does not catch runtime errors (a
+  on `puppet`, which clashes with `openvox`. Still open: `deploy.yml`
+  check mode as a catalog diff, removing `openvox-drift.yml` once the
+  agents' drift check has run next to it for a few days, then the live
+  noop and Tailscale out of CI. A catalog diff does not catch runtime errors (a
   failing exec, a missing package); those surface as the agent's failure.
 
 ## Prototype (2026-11-11)

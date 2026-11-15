@@ -25,6 +25,14 @@ describe 'roles::deploy_agent' do
     expect(agent_env).to match(%r{^OPENVOX_CERTNAME=nuc\.int\.mljr\.eu$})
     expect(agent_env).to match(%r{^DEPLOY_APPLY=scripts/openvox-apply\.sh$})
     expect(agent_env).to match(%r{^DEPLOY_METRICS_FILE=/var/lib/node-textfile/homelab_deploy\.prom$})
+    expect(agent_env).to match(%r{^DEPLOY_DRIFT_AT=03:17$})
+    expect(agent_env).to match(%r{^DEPLOY_DRIFT_IGNORE=File\[/var/lib/backup-dashboard/backup_catalog\.json\]$})
+  end
+
+  context 'with an invalid drift time' do
+    let(:params) { { drift_at: '3:17' } }
+
+    it { is_expected.to compile.and_raise_error(%r{drift_at}) }
   end
 
   it 'never restarts the unit from Puppet (an agent-run apply would kill itself)' do

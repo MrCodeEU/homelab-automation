@@ -27,6 +27,9 @@ func summary(r Result) (title, body string) {
 	if r.Mode == "noop" {
 		title = fmt.Sprintf("Deploy noop %s on %s: %s", short, r.Host, r.Outcome)
 	}
+	if r.Mode == "drift" {
+		title = fmt.Sprintf("Drift on %s (applied %s): %s", r.Host, short, r.Outcome)
+	}
 	body = fmt.Sprintf("request %s\n%s", r.RequestID, tail(r.Detail, 15))
 	return title, body
 }
@@ -47,7 +50,7 @@ func (n Ntfy) Notify(ctx context.Context, r Result) error {
 	}
 	req.Header.Set("Title", title)
 	req.Header.Set("Tags", "openvox,homelab")
-	if r.Outcome != "success" {
+	if r.Outcome != "success" && r.Outcome != "clean" {
 		req.Header.Set("Priority", "high")
 	}
 	c := n.Client

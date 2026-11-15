@@ -17,6 +17,8 @@
 //	DEPLOY_APPLY_TIMEOUT default 30m
 //	DEPLOY_INTERVAL      poll interval (default 60s)
 //	DEPLOY_SUSPEND_FILE  default /etc/homelab-deploy/suspend
+//	DEPLOY_DRIFT_AT      daily drift check, local HH:MM (empty: off)
+//	DEPLOY_DRIFT_IGNORE  resources whose drift is expected, "|"-separated
 //	DEPLOY_NTFY_URL      default https://ntfy.mljr.eu/deployment; empty: none
 //	DEPLOY_MAIL_TO       mail recipient; empty: no mail fallback
 //	DEPLOY_SMTP_HOST, _PORT (587), _USER, _PASSWORD, _FROM (default user)
@@ -96,6 +98,8 @@ func main() {
 		ApplyTimeout: timeout,
 		Mode:         envOr("DEPLOY_MODE", "apply"),
 		SuspendFile:  envOr("DEPLOY_SUSPEND_FILE", "/etc/homelab-deploy/suspend"),
+		DriftAt:      os.Getenv("DEPLOY_DRIFT_AT"),
+		DriftIgnore:  strings.Split(os.Getenv("DEPLOY_DRIFT_IGNORE"), "|"),
 		Notifiers:    notifiers,
 		Log:          log,
 	})
@@ -118,6 +122,9 @@ func main() {
 			}
 		}
 		cancel()
+		if err := agent.MaybeDrift(ctx); err != nil {
+			log.Error("drift", "err", err)
+		}
 		// Give the export's heap back to the OS while idle.
 		debug.FreeOSMemory()
 		if once {
