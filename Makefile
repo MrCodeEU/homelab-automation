@@ -31,7 +31,7 @@
         help \
         _check-validate _check-syntax _check-compose _check-binaries _check-exec-bits \
         openvox-check openvox-deploy openvox-recovery openvox-rollback \
-        rotate-secret rotate-secret-dry-run add-secret add-secret-line copy-secret catalog-diff
+        rotate-secret rotate-secret-dry-run add-secret add-secret-line copy-secret catalog-diff catalog-check
 
 ################################################################################
 # DEFAULT: fast local tests (no Docker)
@@ -214,6 +214,12 @@ comma := ,
 # secrets (scripts/catalog-diff.sh). Usage: make catalog-diff [BASE=origin/main]
 catalog-diff:
 	@./scripts/catalog-diff.sh --ref $(or $(BASE),origin/main)
+
+# What a deploy of this checkout would change: catalog diff from each
+# host's deployed commit (deploy.yml check mode runs the same).
+# Usage: make catalog-check [HOSTS="nuc mljr"]
+catalog-check:
+	@./scripts/catalog-check.sh $(HOSTS)
 
 # Copy existing secrets to more hosts - see scripts/copy-eyaml-secret.sh.
 # Usage: make copy-secret KEYS=vault_a[,vault_b] FROM=nuc TO=mljr[,ugreen] [DRY_RUN=1]

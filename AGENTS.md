@@ -36,7 +36,8 @@ a real host. Run `make openvox-check-<host>` before `openvox-deploy-<host>`
 for anything touching `openvox/manifests` or `openvox/modules`.
 `make catalog-diff [BASE=origin/main]` shows, without any host, what a
 change does to each host's catalog (the PR check "Catalog diff" posts the
-same as its job summary). Refresh its facts with `scripts/catalog-facts.sh`
+same as its job summary); `make catalog-check` diffs against what each
+host has deployed, as `deploy.yml` does when run from a branch. Refresh its facts with `scripts/catalog-facts.sh`
 when a host's OS changes.
 
 If you touch a generic service's deployable files under `services/<name>/`,

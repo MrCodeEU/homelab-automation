@@ -71,7 +71,7 @@ func TestDiff(t *testing.T) {
 		t.Errorf("file source: %v", f)
 	}
 
-	md := Markdown([]HostResult{{Host: "nuc", Changes: Diff(base, head, baseTree, headTree)}})
+	md := Markdown("Catalog diff", []HostResult{{Host: "nuc", Changes: Diff(base, head, baseTree, headTree)}})
 	for _, s := range []string{
 		"| nuc | 1 | 1 | 4 |",
 		"`content`: changed (sensitive, not shown)",

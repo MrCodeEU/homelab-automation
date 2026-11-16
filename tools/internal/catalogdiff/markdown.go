@@ -19,9 +19,9 @@ const maxLines = 40
 
 // Markdown renders the report: a table of counts, then per host the
 // resources with their changed parameters, collapsed.
-func Markdown(results []HostResult) string {
+func Markdown(title string, results []HostResult) string {
 	var b strings.Builder
-	b.WriteString("## Catalog diff\n\n")
+	fmt.Fprintf(&b, "## %s\n\n", title)
 	b.WriteString("Compiled without hosts: facts from `openvox/ci/facts`, secrets as placeholders (`scripts/catalog-compile.sh`).\n\n")
 	b.WriteString("| Host | Added | Removed | Changed |\n|---|---|---|---|\n")
 	for _, r := range results {
