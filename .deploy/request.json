@@ -1,1 +1,1 @@
-{"id":"20261116T193900Z-43941192525","host":"mljr","commit":"d60184b1fda8c6b3cdc28be2e54760f3ab24ccff","trigger":"repository_dispatch","service":"cron","staging_services":"","docker_prune":false,"reboot_if_needed":false}
+{"id":"20261116T194108Z-43941587336","host":"mljr","commit":"d60184b1fda8c6b3cdc28be2e54760f3ab24ccff","trigger":"repository_dispatch","service":"newsletter","staging_services":"","docker_prune":false,"reboot_if_needed":false}
