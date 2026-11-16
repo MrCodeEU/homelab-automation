@@ -2,7 +2,8 @@ name: Deploy Homelab
 
 on:
   # Manual trigger - can be run from ANY branch via GitHub UI
-  # Non-main branches automatically run in check mode (noop).
+  # Non-main branches run in check mode: job `check`, a catalog diff from
+  # each host's deployed commit, without touching any host.
   workflow_dispatch:
     inputs:
       limit:
@@ -57,7 +58,7 @@ env:
   # docs/DEPLOY_AGENT.md. AGENT_HOSTS run deploy-agent and get a request on
   # deploy/<host> for every real deploy (job deploy-request).
   # AGENT_APPLY_HOSTS is the subset whose agent applies: the push below
-  # skips them in apply mode. Check mode (noop) still pushes to every host.
+  # skips them in apply mode.
   AGENT_HOSTS: nuc mljr ugreen
   AGENT_APPLY_HOSTS: nuc mljr ugreen
 
@@ -133,10 +134,46 @@ jobs:
       - name: Validate service configurations and Caddy templates
         run: bash ./.githooks/pre-commit
 
+  # Check mode: what deploying this branch would change on each host, as
+  # the catalog diff from the commit last requested on deploy/<host>
+  # (scripts/catalog-check.sh). No SSH, Tailscale or secrets; replaced the
+  # live noop push. staging_services has no effect on a catalog.
+  check:
+    name: Check (catalog diff)
+    runs-on: ubuntu-latest
+    needs: [validate]
+    if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # The deployed commits are on main, older than this branch.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: tools/go.mod
+
+      - name: Catalog diff per host
+        env:
+          INPUTS_LIMIT: ${{ inputs.limit }}
+        run: |
+          set -o pipefail
+          case "${INPUTS_LIMIT:-all}" in
+            all) hosts="nuc mljr ugreen" ;;
+            mljr | nuc | ugreen) hosts="$INPUTS_LIMIT" ;;
+            *) echo "::error::Unknown limit '$INPUTS_LIMIT' (expected all, mljr, nuc or ugreen)"; exit 1 ;;
+          esac
+          # shellcheck disable=SC2086 # host list
+          scripts/catalog-check.sh $hosts | tee catalog-check.md
+          cat catalog-check.md >> "$GITHUB_STEP_SUMMARY"
+
   # Deploy
   deploy:
     runs-on: ubuntu-latest
     needs: [validate, resolve-host]
+    # Check mode is the `check` job above; this job only deploys.
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
     # For deploy-request below.
     outputs:
       hosts: ${{ steps.hosts.outputs.hosts }}

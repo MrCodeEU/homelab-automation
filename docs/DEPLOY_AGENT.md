@@ -196,10 +196,12 @@ promise that, so a lost notification has to be noticed.
   facts from `openvox/ci/facts` (allowlisted, `scripts/catalog-facts.sh`),
   secrets as placeholders, and per `puppet:///` source the changed files.
   octocatalog-diff was dropped: no release since 2024 and its gem depends
-  on `puppet`, which clashes with `openvox`. Still open: `deploy.yml`
-  check mode as a catalog diff, removing `openvox-drift.yml` once the
-  agents' drift check has run next to it for a few days, then the live
-  noop and Tailscale out of CI. A catalog diff does not catch runtime errors (a
+  on `puppet`, which clashes with `openvox`. `deploy.yml` check mode (a
+  run on a non-main branch) is the same diff from each host's deployed
+  commit (`scripts/catalog-check.sh`) instead of a noop push. Still open:
+  removing `openvox-drift.yml` once the agents' drift check has run next
+  to it for a few days, then the PR live noop, the push path and Tailscale
+  out of CI. A catalog diff does not catch runtime errors (a
   failing exec, a missing package); those surface as the agent's failure.
 
 ## Prototype (2026-11-11)

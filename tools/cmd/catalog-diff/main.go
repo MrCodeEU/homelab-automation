@@ -1,7 +1,7 @@
 // Command catalog-diff compares the catalogs scripts/catalog-compile.sh
 // wrote for a base and a head tree and prints a Markdown report:
 //
-//	catalog-diff <base-catalogs> <head-catalogs> <base-openvox> <head-openvox>
+//	catalog-diff [-title TEXT] <base-catalogs> <head-catalogs> <base-openvox> <head-openvox>
 //
 // One report row per <certname>.json in the head directory. A host whose head
 // catalog is missing is an error (exit 1); a missing base catalog (the base
@@ -9,6 +9,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,11 +20,13 @@ import (
 )
 
 func main() {
-	if len(os.Args) != 5 {
-		fmt.Fprintln(os.Stderr, "usage: catalog-diff <base-catalogs> <head-catalogs> <base-openvox> <head-openvox>")
+	title := flag.String("title", "Catalog diff", "report heading")
+	flag.Parse()
+	if flag.NArg() != 4 {
+		fmt.Fprintln(os.Stderr, "usage: catalog-diff [-title TEXT] <base-catalogs> <head-catalogs> <base-openvox> <head-openvox>")
 		os.Exit(2)
 	}
-	baseDir, headDir, baseTree, headTree := os.Args[1], os.Args[2], os.Args[3], os.Args[4]
+	baseDir, headDir, baseTree, headTree := flag.Arg(0), flag.Arg(1), flag.Arg(2), flag.Arg(3)
 	heads, err := filepath.Glob(filepath.Join(headDir, "*.json"))
 	if err != nil || len(heads) == 0 {
 		fmt.Fprintf(os.Stderr, "no catalogs in %s\n", headDir)
@@ -50,5 +53,5 @@ func main() {
 		r.Changes = catalogdiff.Diff(base, head, baseTree, headTree)
 		results = append(results, r)
 	}
-	fmt.Print(catalogdiff.Markdown(results))
+	fmt.Print(catalogdiff.Markdown(*title, results))
 }
