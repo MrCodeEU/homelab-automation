@@ -40,6 +40,8 @@ class role::nuc {
   # mode (AGENT_APPLY_HOSTS, docs/DEPLOY_AGENT.md).
   class { 'roles::deploy_agent': mode => 'apply' }
   include roles::host_facts_endpoint
+  # FRITZ!Box addresses for CrowdSec's home allowlist on mljr
+  class { 'roles::home_ip': mode => 'serve' }
   include roles::unraid_host_facts_proxy
   include roles::grafana_alloy
   include roles::tutabridge_cli

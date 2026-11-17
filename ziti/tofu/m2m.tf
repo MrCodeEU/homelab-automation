@@ -6,8 +6,9 @@
 # listed here, by name; it hosts nothing.
 locals {
   m2m = {
-    # Alloy on mljr -> VictoriaMetrics and Loki on nuc; backups -> ugreen
-    "m2m-mljr" = ["grafana-victoriametrics", "grafana-loki", "backup-sftp-ugreen"]
+    # Alloy on mljr -> VictoriaMetrics and Loki on nuc; backups -> ugreen;
+    # home-ip sync -> home-ip serve on nuc (home-ip.tf)
+    "m2m-mljr" = ["grafana-victoriametrics", "grafana-loki", "backup-sftp-ugreen", "home-ip-nuc"]
     # Backups on nuc -> ugreen; healthreport and backup-dashboard facts
     # over SSH -> mljr, ugreen (services/ziti-proxy-nuc)
     "m2m-nuc" = ["backup-sftp-ugreen", "facts-ssh-mljr", "facts-ssh-ugreen"]
@@ -28,7 +29,8 @@ locals {
   # Dialable by name: catalog services, iperf3, SSH, mail SMTP, backup SFTP
   m2m_services = merge(ziti_service.catalog, local.iperf3_services, local.facts_ssh_services, {
     (ziti_service.mail_smtp_mljr.name) = ziti_service.mail_smtp_mljr,
-    (ziti_service.backup_sftp.name)    = ziti_service.backup_sftp
+    (ziti_service.backup_sftp.name)    = ziti_service.backup_sftp,
+    (ziti_service.home_ip_nuc.name)    = ziti_service.home_ip_nuc
   })
 }
 

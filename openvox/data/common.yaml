@@ -191,11 +191,6 @@ breakglass_pubkeys:
   - "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIHw748oVZ7agElRw5HRxnZDED1mvRGMwFK/rsDDrcd9oAAAAFnNzaDpob21lbGFiLWJyZWFrZ2xhc3M= homelab-breakglass-yk1"
   - "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAIKRpiOpcpfhA4kRjR0Ibnq5z8mv31BFMSAAe6e5l9qcLAAAAGnNzaDpob21lbGFiLWJyZWFrZ2xhc3MteWsy homelab-breakglass-yk2"
 
-# Home connection's public IP. Keep in sync with the owner IP in
-# services/crowdsec/parsers/s02-enrich/mljr-local-allowlist.yaml (a healthreport
-# test enforces it); healthreport alerts when nuc's egress IP differs.
-home_public_ip: '85.193.174.52'
-
 # Home Assistant integration/device clusters (haCluster() output, e.g.
 # "prusa_mk4") known to sit unavailable on purpose - so
 # ha_unavailable_entities doesn't stay pinned at crit forever counting

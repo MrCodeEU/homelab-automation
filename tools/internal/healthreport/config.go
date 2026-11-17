@@ -170,11 +170,6 @@ type Config struct {
 	// own, and a third party's failures are not this fleet's problem.
 	DMARCDomains []string
 
-	// Home connection's public IP as trusted by CrowdSec's
-	// mljr-local-allowlist.yaml (hiera home_public_ip). Empty disables the
-	// home_ip collector.
-	HomeIP string
-
 	// Hosts running deploy-agent (deploy_agent collector), and the
 	// repository whose deploy/<host> branches hold their requests.
 	DeployHosts []string
@@ -267,7 +262,6 @@ func ConfigFromEnv() Config {
 	if raw, ok := os.LookupEnv("HEALTHREPORT_DMARC_DOMAINS"); ok {
 		c.DMARCDomains = parseWindows(&raw, nil)
 	}
-	c.HomeIP = strings.TrimSpace(os.Getenv("HEALTHREPORT_HOME_IP"))
 	for _, h := range strings.Split(os.Getenv("HEALTHREPORT_DEPLOY_HOSTS"), ",") {
 		if h = strings.TrimSpace(h); h != "" {
 			c.DeployHosts = append(c.DeployHosts, h)
