@@ -1,10 +1,16 @@
 name: mljr/local-allowlist
 description: "Ignore trusted owner/Tailscale sources and known app-specific false positives"
 whitelist:
-  reason: "Owner IP, Tailscale network, and Nocturne auth and Actual Budget static-asset false positives are trusted"
+  reason: "Owner IP, Tailscale network, and Nocturne auth and Nextcloud client preview/upload-check false positives are trusted"
   ip:
-    - "145.40.45.14"
+    - "85.193.174.52"
   cidr:
     - "100.64.0.0/10"
   expression:
     - "evt.Meta.log_type == 'http_access-log' && evt.Meta.target_fqdn == 'nc.mljr.eu'"
+    # Nextcloud clients after an upload: a preview is 404 until Nextcloud has
+    # generated it, and each upload starts with a HEAD of the not yet
+    # existing file. A batch of photos tripped http-probing and
+    # http-admin-interface-probing and banned the uploader (2026-11-17).
+    # Only these two 404s; other paths on cloud.mljr.eu still count.
+    - "evt.Meta.log_type == 'http_access-log' && evt.Meta.target_fqdn == 'cloud.mljr.eu' && evt.Meta.http_status == '404' && ((evt.Meta.http_verb == 'GET' && evt.Meta.http_path startsWith '/index.php/core/preview') || (evt.Meta.http_verb == 'HEAD' && evt.Meta.http_path startsWith '/remote.php/dav/files/'))"
