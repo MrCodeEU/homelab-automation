@@ -4,9 +4,16 @@
 # (source_id = router id). Events: mljr's Alloy tails the controller's
 # events.log into Loki (job ziti-events, label namespace).
 #
-# Notifications go to ntfy topic homelab-security; ntfy's built-in grafana
-# template formats Grafana's webhook payload. Grafana had no alerting set up
-# before this file, so the notification policy tree below is the whole tree.
+# Notifications go to ntfy topic homelab-security. The URL carries an ntfy
+# message template (title + one summary line per alert) instead of ntfy's
+# built-in grafana template, which dumped labels and query values. Grafana
+# had no alerting set up before this file, so the notification policy tree
+# below is the whole tree.
+#
+# Only alerts that must work while the controller is down live here.
+# Enrolments, configuration changes, failed logins and failing services come
+# from tools/cmd/ziti-notify (roles::ziti_notify), which reads the event log
+# and names identities and services.
 apiVersion: 1
 
 contactPoints:
@@ -17,7 +24,7 @@ contactPoints:
         type: webhook
         disableResolveMessage: false
         settings:
-          url: https://ntfy.mljr.eu/homelab-security?template=grafana
+          url: https://ntfy.mljr.eu/homelab-security?template=yes&title=%7B%7B.commonLabels.alertname%7D%7D%7B%7Bif%20ne%20.status%20%22firing%22%7D%7D%3A%20resolved%7B%7Bend%7D%7D&message=%7B%7Brange%20.alerts%7D%7D%7B%7Bif%20ne%20.status%20%22firing%22%7D%7DWas%3A%20%7B%7Bend%7D%7D%7B%7B.annotations.summary%7D%7D%0A%7B%7Bend%7D%7D
           httpMethod: POST
 
 policies:
@@ -158,105 +165,3 @@ groups:
             `ziti fabric list links` and nuc's router log.
         labels:
           severity: critical
-
-      # New identities (including a new router's) and completed enrolments
-      # (an authenticator is created when an identity enrols).
-      - uid: ziti-identity-change
-        title: Ziti identity created or enrolled
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange: { from: 600, to: 0 }
-            datasourceUid: loki
-            model:
-              expr: >-
-                sum by (entityType) (count_over_time({job="ziti-events", namespace="entityChange"}
-                | json eventType="eventType", entityType="entityType"
-                | eventType="created" | entityType=~"identities|authenticators" [5m]))
-              queryType: instant
-              refId: A
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: A
-              conditions:
-                - evaluator: { type: gt, params: [0] }
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 0s
-        annotations:
-          summary: 'New Ziti {{ $labels.entityType }} created.'
-          description: >-
-            Expected only when you run an enrolment script. Details in Loki:
-            {job="ziti-events", namespace="entityChange"} | json.
-        labels:
-          severity: warning
-
-      # Failed logins (password or certificate) against the controller.
-      - uid: ziti-auth-failures
-        title: Ziti authentication failures
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange: { from: 900, to: 0 }
-            datasourceUid: loki
-            model:
-              expr: >-
-                sum(count_over_time({job="ziti-events", namespace="authentication"}
-                | json event_type="event_type" | event_type="fail" [15m]))
-              queryType: instant
-              refId: A
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: A
-              conditions:
-                - evaluator: { type: gt, params: [2] }
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 0s
-        annotations:
-          summary: '{{ $values.A }} failed Ziti logins in 15 minutes.'
-          description: >-
-            Reason and remote address in Loki:
-            {job="ziti-events", namespace="authentication"} | json | event_type="fail".
-        labels:
-          severity: warning
-
-      # Circuits the fabric refused or could not build: no terminator, router
-      # not allowed for the session, hosting service down.
-      - uid: ziti-circuit-failures
-        title: Ziti circuit failures
-        condition: C
-        data:
-          - refId: A
-            relativeTimeRange: { from: 600, to: 0 }
-            datasourceUid: loki
-            model:
-              expr: >-
-                sum(count_over_time({job="ziti-events", namespace="circuit"}
-                | json event_type="event_type" | event_type="failed" [10m]))
-              queryType: instant
-              refId: A
-          - refId: C
-            datasourceUid: __expr__
-            model:
-              type: threshold
-              expression: A
-              conditions:
-                - evaluator: { type: gt, params: [0] }
-              refId: C
-        noDataState: OK
-        execErrState: Error
-        for: 0s
-        annotations:
-          summary: '{{ $values.A }} failed Ziti circuits in 10 minutes.'
-          description: >-
-            failure_cause and service_id in Loki:
-            {job="ziti-events", namespace="circuit"} | json | event_type="failed".
-        labels:
-          severity: warning

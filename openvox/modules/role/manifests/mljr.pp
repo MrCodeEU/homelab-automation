@@ -31,4 +31,6 @@ class role::mljr {
   include roles::deploy_agent
   # CrowdSec allowlist "home" from nuc's home-ip serve, over Ziti
   class { 'roles::home_ip': mode => 'sync' }
+  # Named ntfy messages from the Ziti controller's event log
+  include roles::ziti_notify
 }
