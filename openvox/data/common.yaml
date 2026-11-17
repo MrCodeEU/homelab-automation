@@ -194,7 +194,7 @@ breakglass_pubkeys:
 # Home connection's public IP. Keep in sync with the owner IP in
 # services/crowdsec/parsers/s02-enrich/mljr-local-allowlist.yaml (a healthreport
 # test enforces it); healthreport alerts when nuc's egress IP differs.
-home_public_ip: '145.40.45.14'
+home_public_ip: '85.193.174.52'
 
 # Home Assistant integration/device clusters (haCluster() output, e.g.
 # "prusa_mk4") known to sit unavailable on purpose - so

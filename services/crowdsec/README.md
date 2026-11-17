@@ -39,11 +39,14 @@ Fail2ban logs are no longer collected because fail2ban is retired.
 `parsers/s02-enrich/mljr-local-allowlist.yaml` ignores trusted owner and
 Tailscale sources before decisions are created:
 
-- `145.40.45.14`
+- `85.193.174.52` (home, since the FRITZ!Box swap 2026-11-17)
 - `100.64.0.0/10`
 
 It also keeps the Nocturne Caddy access-log exception for `nc.mljr.eu` to avoid
-global bans from repeated app-auth failures.
+global bans from repeated app-auth failures, and ignores the two 404s every
+Nextcloud client produces after uploads on `cloud.mljr.eu`: `GET
+/index.php/core/preview` (preview not generated yet) and `HEAD
+/remote.php/dav/files/` (upload target does not exist yet).
 
 ## Ban Duration
 
