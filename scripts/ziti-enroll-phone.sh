@@ -5,10 +5,6 @@
 # it in your own terminal, not through an agent or CI (the token enrols
 # whoever scans it first, until it is used or expires).
 #
-# After the scan, in the app: open the identity, enable MFA, add the TOTP to
-# Bitwarden and keep the recovery codes there. Until then the identity
-# reaches nothing (posture check mfa-mobile).
-#
 # Usage: scripts/ziti-enroll-phone.sh <identity> [--reenroll]
 #   e.g. scripts/ziti-enroll-phone.sh phone-mrcode
 #   --reenroll  new phone or broken enrolment: drops the identity's
@@ -74,4 +70,4 @@ enrolled=$(zcli "edge list authenticators 'identity=\"$id\"' -j" | jq -r '.data 
 if [ "$enrolled" = "0" ]; then
   die "$NAME is not enrolled yet; rerun this script to show the token again"
 fi
-say "Enrolled. Now in the app: identity $NAME -> enable MFA, TOTP into Bitwarden, recovery codes too."
+say "Enrolled: $NAME. Test with Tailscale off: http://kuma.nuc.int.mljr.eu:3001"
