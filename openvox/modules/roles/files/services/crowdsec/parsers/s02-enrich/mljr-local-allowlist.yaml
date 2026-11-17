@@ -1,9 +1,10 @@
 name: mljr/local-allowlist
 description: "Ignore trusted owner/Tailscale sources and known app-specific false positives"
 whitelist:
-  reason: "Owner IP, Tailscale network, and Nocturne auth and Nextcloud client preview/upload-check false positives are trusted"
-  ip:
-    - "85.193.174.52"
+  reason: "Tailscale network, and Nocturne auth and Nextcloud client preview/upload-check false positives are trusted"
+  # The home connection is not listed here: it changes, so home-ip sync
+  # (roles::home_ip) keeps it in the centralized allowlist "home"
+  # (cscli allowlists inspect home).
   cidr:
     - "100.64.0.0/10"
   expression:

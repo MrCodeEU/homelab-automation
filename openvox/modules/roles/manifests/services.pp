@@ -238,7 +238,6 @@ class roles::services (
       'backup_known_paths'     => lookup('unraid_backup_paths').map |$p| { $p['src'] }.join(','),
       'backup_excluded_paths'  => lookup('unraid_backup_excluded').map |$p| { $p['path'] }.join(','),
       'ha_excluded_clusters'   => lookup('ha_excluded_clusters', { 'default_value' => [] }).join(','),
-      'home_public_ip'         => lookup('home_public_ip', { 'default_value' => '' }),
       'dojo_password'         => lookup('vault_defectdojo_admin_password', { 'default_value' => '' }),
       'lookback_hours'         => '24',
       'maintenance_windows'    => 'daily 00:00-00:10,sun 04:55-08:00',

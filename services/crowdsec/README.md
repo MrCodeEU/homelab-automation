@@ -36,11 +36,17 @@ Fail2ban logs are no longer collected because fail2ban is retired.
 
 ## Local Allowlist
 
-`parsers/s02-enrich/mljr-local-allowlist.yaml` ignores trusted owner and
-Tailscale sources before decisions are created:
+`parsers/s02-enrich/mljr-local-allowlist.yaml` ignores the Tailscale
+network (`100.64.0.0/10`) before decisions are created.
 
-- `85.193.174.52` (home, since the FRITZ!Box swap 2026-11-17)
-- `100.64.0.0/10`
+The home connection is in the centralized allowlist `home` instead
+(`cscli allowlists inspect home`), because its addresses change:
+`home-ip sync` on mljr (`roles::home_ip`, every 5 min) fills it with the
+IPv4 address and the delegated IPv6 prefix the FRITZ!Box reports to
+`home-ip serve` on nuc, over the Ziti service `home-ip-nuc`. Every change
+goes to ntfy `homelab-security`; healthreport raises `home_ip_mismatch`
+when nuc's egress IP is not the allowlisted one and `home_ip_sync_stale`
+when the sync stops.
 
 It also keeps the Nocturne Caddy access-log exception for `nc.mljr.eu` to avoid
 global bans from repeated app-auth failures, and ignores the two 404s every

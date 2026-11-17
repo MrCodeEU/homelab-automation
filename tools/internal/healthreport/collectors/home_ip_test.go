@@ -4,12 +4,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"gopkg.in/yaml.v3"
-
-	hr "github.com/MrCodeEU/homelab-automation/tools/internal/healthreport"
 )
 
 func ipServer(t *testing.T, status int, body string) *httptest.Server {
@@ -47,38 +46,41 @@ func TestLookupPublicIPAllFailIsError(t *testing.T) {
 	}
 }
 
-func TestCollectHomeIPDisabledWithoutExpectedIP(t *testing.T) {
-	result := collectHomeIP(hr.Config{}, hr.RulesFile{})
-	if len(result.Observations) != 0 {
-		t.Fatalf("got %d observations, want none when HomeIP is unset", len(result.Observations))
+func TestEvaluateHomeIP(t *testing.T) {
+	now := time.Date(2026, 11, 17, 20, 0, 0, 0, time.UTC)
+	fresh := now.Add(-5 * time.Minute)
+	for _, c := range []struct {
+		name, current, listed string
+		last                  time.Time
+		want                  []string
+	}{
+		{"in sync", "203.0.113.7", "203.0.113.7", fresh, nil},
+		{"new IP not synced", "203.0.113.8", "203.0.113.7", fresh, []string{"home_ip_mismatch"}},
+		{"sync stopped", "203.0.113.7", "203.0.113.7", now.Add(-time.Hour), []string{"home_ip_sync_stale"}},
+		{"never synced", "203.0.113.7", "", time.Time{}, []string{"home_ip_sync_stale"}},
+	} {
+		var kinds []string
+		for _, o := range evaluateHomeIP(now, c.current, c.listed, c.last) {
+			kinds = append(kinds, o.Kind)
+		}
+		if strings.Join(kinds, ",") != strings.Join(c.want, ",") {
+			t.Errorf("%s: got %v, want %v", c.name, kinds, c.want)
+		}
 	}
 }
 
-// The expected IP exists in two places on purpose (hiera for healthreport,
-// the parser file for CrowdSec). Fail the build if they drift, so the
-// alert always compares against what CrowdSec really trusts.
-func TestHomePublicIPMatchesCrowdSecAllowlist(t *testing.T) {
-	var hiera struct {
-		HomePublicIP string `yaml:"home_public_ip"`
-	}
-	readYAML(t, "../../../../openvox/data/common.yaml", &hiera)
-	if hiera.HomePublicIP == "" {
-		t.Fatal("home_public_ip missing from openvox/data/common.yaml")
-	}
-
+// The owner IP must not come back as a static entry: the "home" allowlist
+// (home-ip sync) is the only place it lives.
+func TestCrowdSecParserHasNoStaticHomeIP(t *testing.T) {
 	var allowlist struct {
 		Whitelist struct {
 			IP []string `yaml:"ip"`
 		} `yaml:"whitelist"`
 	}
 	readYAML(t, "../../../../services/crowdsec/parsers/s02-enrich/mljr-local-allowlist.yaml", &allowlist)
-	for _, ip := range allowlist.Whitelist.IP {
-		if ip == hiera.HomePublicIP {
-			return
-		}
+	if len(allowlist.Whitelist.IP) != 0 {
+		t.Fatalf("static IPs in mljr-local-allowlist.yaml: %v; the home IP is synced by roles::home_ip", allowlist.Whitelist.IP)
 	}
-	t.Fatalf("home_public_ip %q is not in mljr-local-allowlist.yaml ip list %v",
-		hiera.HomePublicIP, allowlist.Whitelist.IP)
 }
 
 func readYAML(t *testing.T, path string, out any) {

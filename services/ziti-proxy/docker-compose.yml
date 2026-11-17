@@ -1,5 +1,5 @@
 # Ziti client for apps on mljr that cannot dial Ziti themselves (Grafana
-# Alloy, rclone for the backups): `ziti tunnel proxy` opens one listener per service, published on
+# Alloy, rclone for the backups, home-ip sync): `ziti tunnel proxy` opens one listener per service, published on
 # 127.0.0.1 only, as identity m2m-mljr (ziti/tofu/m2m.tf). That identity may
 # dial only the services listed there.
 #
@@ -19,6 +19,7 @@ services:
       - grafana-victoriametrics:19090
       - grafana-loki:3100
       - backup-sftp-ugreen:2422
+      - home-ip-nuc:19480
       - --identity
       - /identity/m2m-mljr.json
     ports:
@@ -27,6 +28,8 @@ services:
       # SFTP to ugreen for roles::backup (2222 is taken on nuc; same port
       # on both hosts)
       - "127.0.0.1:2422:2422"
+      # home-ip sync -> home-ip serve on nuc (roles::home_ip)
+      - "127.0.0.1:19480:19480"
     volumes:
       - ./data:/identity
     environment:
