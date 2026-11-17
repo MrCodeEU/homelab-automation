@@ -88,9 +88,10 @@ then sync, PR and deploy nuc.
 ## Phone (Android, Ziti Mobile Edge)
 
 The phone is identity `phone-mrcode` (`ziti/tofu/phone.tf`, attribute
-`mobile`). It dials every `#admin-services` service, but only while the
-MFA posture check `mfa-mobile` passes: a TOTP code, asked again after
-12 h.
+`mobile`). It dials every `#admin-services` service. There is no second
+factor: the Android app cannot enrol TOTP (an MFA posture check locked it
+out of everything). The phone's screen lock and the non-exportable key are
+the protection.
 
 1. Install **Ziti Mobile Edge** (Play Store). Android runs one VPN app at a
    time: Tailscale has to be off while Ziti is on.
@@ -98,13 +99,9 @@ MFA posture check `mfa-mobile` passes: a TOTP code, asked again after
    CI): `scripts/ziti-enroll-phone.sh phone-mrcode`. In the app, tap `+`,
    then scan the QR code. Press Enter in the terminal once the app shows
    the identity.
-3. In the app: open the identity, then **Enable MFA**. Add the TOTP secret
-   to Bitwarden and store the recovery codes there too. Enter a code.
-4. Check: with Tailscale off and on mobile data, open
+3. Check: with Tailscale off and on mobile data, open
    `http://kuma.nuc.int.mljr.eu:3001`.
 
 New phone: `scripts/ziti-enroll-phone.sh phone-mrcode --reenroll`. This
 drops the old certificate, so the old phone loses access at the same time.
-Lost phone: remove `ziti_identity.phone` from `phone.tf` and apply. Until
-then a finder still needs the screen lock, then a TOTP code from Bitwarden
-behind its own unlock.
+Lost phone: remove `ziti_identity.phone` from `phone.tf` and apply.
