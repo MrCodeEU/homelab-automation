@@ -252,8 +252,13 @@ live noop and apply under the new certname.
   rotated at 10 MB, 3 kept) that Alloy tails into Loki (job `ziti-events`,
   label `namespace`). Grafana alert rules are provisioned from
   `services/grafana/provisioning/alerting/ziti.yml` and notify ntfy topic
-  `homelab-security`: controller down, router offline, link down,
-  identity created or enrolled, failed logins, failed circuits. Policy
+  `homelab-security`: controller down, router offline, link down. The
+  event alerts (enrolments, configuration changes by author, failed
+  logins, services whose circuits keep failing) moved to
+  `tools/cmd/ziti-notify` (`roles::ziti_notify`, 2026-11-17): it reads
+  the same event log on mljr, names identities and services through the
+  management API, and reports a service only when at least half of its
+  circuits in 10 min failed, not every retry during a restart. Policy
   denials have no event of their own: a client is never issued a session for a service it
   may not dial, so failed logins and refused circuits stand in for them.
   Router offline and link down list the production routers and the
