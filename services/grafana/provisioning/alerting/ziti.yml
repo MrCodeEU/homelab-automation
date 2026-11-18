@@ -35,6 +35,16 @@ policies:
     group_interval: 5m
     repeat_interval: 12h
 
+# Rules removed from this file stay in Grafana until listed here (moved to
+# ziti-notify, 2026-11-17). Deleting an absent uid is a no-op.
+deleteRules:
+  - orgId: 1
+    uid: ziti-identity-change
+  - orgId: 1
+    uid: ziti-auth-failures
+  - orgId: 1
+    uid: ziti-circuit-failures
+
 groups:
   - orgId: 1
     name: ziti
