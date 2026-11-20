@@ -569,8 +569,8 @@ of the `restore-from-db` OIDC bug (C2).
   (`ziti/tofu/policies.tf`): `#at-mljr` identities (caddy-mljr, m2m-mljr,
   homepage-mljr) use `#public` only, `#at-home` ones (the nuc and ugreen
   proxies, `#spike`) `#lan` only, people's devices (`#admin`, `#admins`,
-  `#mobile`) any router. The shared `#all` edge-router policy goes in a
-  second, manual apply. Service edge-router policy stays `#all`: no
+  `#mobile`) any router (#624). The shared `#all` edge-router policy
+  was removed afterwards, once every identity was on its new policy. Service edge-router policy stays `#all`: no
   service is LAN-only yet.
 - Tailscale still in place as a fallback.
 

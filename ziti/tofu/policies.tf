@@ -36,15 +36,8 @@ resource "ziti_edge_router_policy" "roaming" {
   edgerouterroles = ["#all"]
 }
 
-# Being replaced by the three above: removed in a separate apply once every
-# identity is verified on its new routers (a delete, held for a manual
-# apply).
-resource "ziti_edge_router_policy" "all" {
-  name            = "all-identities-all-routers"
-  semantic        = "AnyOf"
-  identityroles   = ["#all"]
-  edgerouterroles = ["#all"]
-}
+# An identity without #at-mljr, #at-home or a roaming attribute gets no
+# edge router at all, so it cannot connect: give every new identity one.
 
 # Every service on every router: none is LAN-only. Each is dialed from mljr
 # (caddy-mljr, m2m-mljr) or is an #admin-service a roaming device reaches
