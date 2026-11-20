@@ -190,20 +190,19 @@ class roles::opkssh (
   }
 
   # `Match all` ends the block, so nothing included after it lands inside.
+  if $root_match_address {
+    $root_match_ensure  = 'file'
+    $root_match_content = "# Managed by OpenVox (roles::opkssh)\nMatch User root Address ${root_match_address}\n  PermitRootLogin prohibit-password\n  AuthenticationMethods publickey\nMatch all\n"
+  } else {
+    $root_match_ensure  = 'absent'
+    $root_match_content = undef
+  }
   file { '/etc/ssh/sshd_config.d/11-openvox-opkssh-root.conf':
-    ensure  => $root_match_address ? { undef => absent, default => file },
+    ensure  => $root_match_ensure,
     owner   => 'root',
     group   => 'root',
     mode    => '0600',
-    content => $root_match_address ? {
-      undef   => undef,
-      default => "# Managed by OpenVox (roles::opkssh)
-Match User root Address ${root_match_address}
-  PermitRootLogin prohibit-password
-  AuthenticationMethods publickey
-Match all
-",
-    },
+    content => $root_match_content,
     require => File['/etc/ssh/sshd_config.d/10-openvox-opkssh.conf'],
     notify  => Exec['opkssh-sshd-reload'],
   }
