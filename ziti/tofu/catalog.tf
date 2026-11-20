@@ -15,6 +15,13 @@
 #              mljr's Caddy dials them (caddy.tf)
 # Consumers get Dial policies by attribute, added with the consumer.
 #
+# Short names for people: every entry (and its -staging twin) is also
+# intercepted as <name>.ziti on port 80, forwarded to the real port, so
+# http://kuma.ziti works without knowing the host or port. The tunneler
+# answers these names itself (no public DNS, so no HSTS from mljr.eu).
+# Machines keep dialing <name>.<host>.int.mljr.eu:<port>. ziti_ports
+# entries get <name>-<key>.ziti on their own port only (not always HTTP).
+#
 # `ziti_ports: {<key>: <port>}` adds Ziti-only services for an entry's
 # other ports (no Caddy): <name>-<key>.<host>.int.mljr.eu:<port>, same
 # host, bind address and attributes, never caddy. Example: forgejo's SSH,
@@ -38,6 +45,7 @@ locals {
         host  = s.host
         port  = try(s.port, 0)
         caddy = try(s.ziti_via_caddy, false)
+        web   = true
       }
       if(try(s.ziti, false) || try(s.ziti_via_caddy, false)) && try(s.enabled, true)
     },
@@ -47,6 +55,7 @@ locals {
           host  = s.host
           port  = p
           caddy = false
+          web   = false
         }
       }
       if try(s.enabled, true)
@@ -56,6 +65,7 @@ locals {
         host  = local.staging_host
         port  = try(s.port, 0) + 10000
         caddy = true
+        web   = true
       }
       if(try(s.ziti_via_caddy, false) || try(s.ziti_staging, false)) && try(s.staging, false) && try(s.enabled, true)
     },
@@ -74,12 +84,15 @@ locals {
 resource "ziti_intercept_v1_config" "catalog" {
   for_each  = local.ziti_catalog
   name      = "${each.key}-intercept"
-  addresses = ["${each.key}.${each.value.host}.int.mljr.eu"]
+  addresses = ["${each.key}.${each.value.host}.int.mljr.eu", "${each.key}.ziti"]
   protocols = ["tcp"]
-  port_ranges = [{
-    low  = each.value.port
-    high = each.value.port
-  }]
+  port_ranges = concat(
+    [{
+      low  = each.value.port
+      high = each.value.port
+    }],
+    each.value.web && each.value.port != 80 ? [{ low = 80, high = 80 }] : [],
+  )
 
   lifecycle {
     precondition {

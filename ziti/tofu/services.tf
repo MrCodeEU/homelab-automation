@@ -74,6 +74,43 @@ resource "ziti_service" "ssh" {
   role_attributes = ["admin-services"]
 }
 
+# <host>.ziti:22 for people (ssh root@nuc.ziti), one service per host:
+# the ssh service above picks its terminator by the intercepted name
+# ($dst_hostname = the router's identity name), which <host>.ziti is not.
+resource "ziti_intercept_v1_config" "ssh_short" {
+  for_each  = toset(local.ssh_hosts)
+  name      = "ssh-${each.key}-short-intercept"
+  addresses = ["${each.key}.ziti"]
+  protocols = ["tcp"]
+  port_ranges = [{
+    low  = 22
+    high = 22
+  }]
+}
+
+resource "ziti_host_v1_config" "ssh_short" {
+  name     = "ssh-short-host"
+  protocol = "tcp"
+  address  = "127.0.0.1"
+  port     = 22
+}
+
+resource "ziti_service" "ssh_short" {
+  for_each        = toset(local.ssh_hosts)
+  name            = "ssh-${each.key}"
+  configs         = sort([ziti_intercept_v1_config.ssh_short[each.key].id, ziti_host_v1_config.ssh_short.id])
+  role_attributes = ["admin-services"]
+}
+
+resource "ziti_service_policy" "ssh_short_bind" {
+  for_each      = toset(local.ssh_hosts)
+  name          = "ssh-${each.key}-bind"
+  type          = "Bind"
+  semantic      = "AnyOf"
+  identityroles = [local.router[each.key]]
+  serviceroles  = ["@${ziti_service.ssh_short[each.key].id}"]
+}
+
 resource "ziti_service_policy" "ssh_bind" {
   name          = "ssh-bind"
   type          = "Bind"

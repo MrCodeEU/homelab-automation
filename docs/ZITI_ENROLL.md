@@ -99,12 +99,20 @@ the protection.
    CI): `scripts/ziti-enroll-phone.sh phone-mrcode`. In the app, tap `+`,
    then scan the QR code. Press Enter in the terminal once the app shows
    the identity.
-3. Check: with Tailscale off and on mobile data, in Termux:
-   `curl -sI http://kuma.nuc.int.mljr.eu:3001` answers `302 Found`
-   (`Location: /dashboard`). A browser shows an SSL protocol error for
-   the same URL: `mljr.eu` sends HSTS with `includeSubDomains`, so a
-   browser that has visited it forces HTTPS on every `*.mljr.eu` name,
-   and the catalog ports speak plain HTTP.
+3. Check: with Tailscale off and on mobile data, open `http://kuma.ziti`
+   (type the `http://`, or the browser may search for it).
+
+Short names: every catalog service on Ziti is also `http://<name>.ziti`
+on port 80 (`ziti/tofu/catalog.tf`), forwarded to its real port on
+whichever host runs it; `ssh root@<host>.ziti` reaches mljr, nuc and
+ugreen (`ziti/tofu/services.tf`, ssh_short). Ziti Mobile Edge answers
+these names itself; they do not exist in public DNS and only work while
+Ziti is on. Plain HTTP is fine for the transport (Ziti encrypts and
+authenticates end to end), but apps that need a secure context (cookies
+marked `Secure`, passkeys) may refuse to log in over it. The
+`<name>.<host>.int.mljr.eu:<port>` names stay for machines; a browser
+cannot open those: `mljr.eu` sends HSTS with `includeSubDomains`, so it
+forces HTTPS on them.
 
 ### SSH from the phone (Termux + opkssh)
 
@@ -141,8 +149,7 @@ service. Tested 2026-11-20 against nuc.
    does not, open the URL it prints); the redirect lands on Termux's
    `localhost` listener. The key goes to `~/.ssh/id_ecdsa` with its
    certificate.
-4. `ssh root@nuc.int.mljr.eu`. Use the full `<host>.int.mljr.eu` name:
-   only those names are intercepted (`ziti/tofu/services.tf`, ssh).
+4. `ssh root@nuc.ziti` (or the full `root@nuc.int.mljr.eu`).
 
 Only hosts with `roles::opkssh` accept the key (nuc today). On the others
 the login fails with `Permission denied (publickey)`.
