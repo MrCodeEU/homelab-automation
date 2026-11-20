@@ -17,8 +17,11 @@
 #     (`ziti tunnel host`), /tmp/c6
 #   - client host: container c6-proxy (`ziti tunnel proxy`, 127.0.0.1:15299),
 #     /tmp/c6
-# Both identities get the default router policy (#all): this tests the path
-# Ziti picks on its own. mljr has no iperf3 package; the client runs it from
+# Both identities get a temporary edge-router policy c6-routers, to every
+# router by default (#all; the shared #all policy is gone,
+# ziti/tofu/policies.tf): this tests the path Ziti picks on its own.
+# ROUTER_ROLES='#lan' gives them only the LAN routers, as production's
+# at-home-lan-routers does. mljr has no iperf3 package; the client runs it from
 # an alpine container there.
 #
 # Usage: scripts/ziti-c6-iperf.sh <external|lan> [runs] [seconds]
@@ -87,7 +90,8 @@ cleanup() {
   rm -f "$out"
   ssh "$CLIENT" 'docker rm -f c6-proxy c6-crouter >/dev/null 2>&1; rm -rf /tmp/c6 /tmp/c6c' || true
   ssh "$SERVER" 'docker rm -f c6-host >/dev/null 2>&1; pkill -f "iperf3 -s -B 127.0.0.1 -p 5299"; rm -rf /tmp/c6' || true
-  for obj in "service-policy c6-dial" "service-policy c6-bind" "identity c6-client" \
+  for obj in "edge-router-policy c6-routers" \
+             "service-policy c6-dial" "service-policy c6-bind" "identity c6-client" \
              "identity c6-server" "edge-router c6-router" "edge-router c6-crouter" \
              "service c6-iperf" "config c6-iperf-host"; do
     zcli "edge delete $obj" >/dev/null 2>&1 || true
@@ -118,6 +122,9 @@ else
 fi
 zcli "edge create service-policy c6-bind Bind --identity-roles $BINDER --service-roles @c6-iperf" >/dev/null
 zcli "edge create service-policy c6-dial Dial --identity-roles $DIALER --service-roles @c6-iperf" >/dev/null
+# Temporary routers have their own system policy; identities need this one.
+c6_ids=$(for r in "$BINDER" "$DIALER"; do case $r in @c6-server|@c6-client) printf '%s,' "$r" ;; esac; done)
+[ -z "$c6_ids" ] || zcli "edge create edge-router-policy c6-routers --identity-roles ${c6_ids%,} --edge-router-roles '${ROUTER_ROLES:-#all}'" >/dev/null
 
 # Enrol on the host itself; the token goes mljr -> this shell -> host.
 enrol() { # host name

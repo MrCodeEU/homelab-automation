@@ -563,6 +563,12 @@ of the `restore-from-db` OIDC bug (C2).
   service on Ziti: C6 LAN (`scripts/ziti-c6-iperf.sh lan`, with
   `CLIENT_TUNNELER=router`) never routes via mljr, and reaches >= 75 % of
   the direct path or the shortfall is accepted for that service.
+  Retest 2026-11-20 (nas -> ugreen, Go tunnelers): 64 % with the LAN
+  routers only (`ROUTER_ROLES='#lan'`, never through mljr), 61 % with
+  every router (one run of three through mljr). Direct links: nuc <->
+  ugreen 940 Mbit/s both ways; to nas 220-230, from nas 76-93 even with
+  4 streams and no retransmits, RTT 4.7 ms against 0.6. The FRITZ!Box
+  to repeater segment is the limit, not TCP or Ziti.
   2026-11-20: link groups were already in place (nuc's link listener is
   in group `lan`, only ugreen dials `lan`, mljr dials `default` only:
   links nuc->mljr, ugreen->mljr, ugreen->nuc). Edge routers by site
