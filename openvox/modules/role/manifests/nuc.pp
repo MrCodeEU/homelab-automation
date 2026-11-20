@@ -37,7 +37,7 @@ class role::nuc {
   include roles::backup_dashboard
   include roles::healthreport
   # nuc is deployed by its agent; deploy.yml no longer pushes here in apply
-  # mode (AGENT_APPLY_HOSTS, docs/DEPLOY_AGENT.md).
+  # mode (docs/DEPLOY_AGENT.md).
   class { 'roles::deploy_agent': mode => 'apply' }
   include roles::host_facts_endpoint
   # FRITZ!Box addresses for CrowdSec's home allowlist on mljr

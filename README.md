@@ -203,8 +203,8 @@ The pre-commit hook rejects any staged eyaml file containing plaintext.
 3. Edit each recipient's file using that same host's keypair as shown above.
    Never transfer a private key between hosts or print plaintext in a shell
    command/log.
-4. Commit only ciphertext, open a PR, and let its live noops validate every
-   recipient before deployment.
+4. Commit only ciphertext, open a PR, and deploy one recipient host at a
+   time: each host's deploy agent reports a failed decryption.
 
 ### Key backup and host recovery
 
@@ -279,8 +279,8 @@ template rendering — both engine-independent, since they validate
 `_check-syntax` runs `puppet parser validate` against every OpenVox
 manifest when a `puppet`/`openvox` binary is available locally (it isn't
 on a plain dev machine, so this step is a SKIP there); CI's
-`openvox-pr-check.yml` runs it for real, plus a live noop apply against
-production, on every PR. `_check-compose` validates every service's
+`openvox-pr-check.yml` runs it for real on every PR, plus a catalog diff of
+every host (no host access). `_check-compose` validates every service's
 `docker-compose.yml`.
 
 ## Common Commands
@@ -320,16 +320,12 @@ per-user accounts) both reject any other username via the Tailscale ACL
 
 Pull requests are handled by `.github/workflows/openvox-pr-check.yml`.
 `.github/workflows/deploy.yml` handles manual dispatch, the weekly schedule,
-and repository dispatch from external repositories, calling
-`scripts/openvox-sync.sh` directly, no Ansible tooling involved. Needs no
-vault-password secret (see Secrets Management above); only
-`TS_OAUTH_CLIENT_ID`/`TS_OAUTH_SECRET` for Tailscale.
+and repository dispatch from external repositories by creating a signed
+deploy request per host; each host's deploy agent applies it
+(docs/DEPLOY_AGENT.md). CI holds no host credentials and no Tailscale access.
 
-The PR workflow first validates OpenVox/EPP/shell syntax offline. Its live
-production noop is restricted to same-repository PRs authored by `MrCodeEU`,
-uses the `production-check` GitHub environment, and syncs proposed code into a
-per-run `/tmp/openvox-pr-*` environment that is removed afterward. Configure
-`production-check` protection in GitHub before making this check required.
+The PR workflow validates OpenVox/EPP/shell syntax offline, runs the catalog
+specs, and shows each host's catalog diff. None of its jobs reach a host.
 
 External repos can trigger a specific service deployment with `repository_dispatch`. The workflow resolves the service's host from `services_catalog` and applies that host's full catalog (+ `mljr` too, for the Caddy snippet) — Puppet's whole-catalog apply is idempotent enough that there's no surgical single-service fast path to target separately, unlike the old Ansible pipeline's `environment` field:
 

@@ -93,7 +93,7 @@ jobs:
 
   # Catalog of every host before and after this PR, compiled without hosts
   # or secrets (scripts/catalog-diff.sh), as the job summary. Runs for fork
-  # PRs too. Meant to replace the live noop below (docs/DEPLOY_AGENT.md).
+  # PRs too. It replaced the live noop over Tailscale (docs/DEPLOY_AGENT.md).
   catalog-diff:
     name: Catalog diff
     runs-on: ubuntu-latest
@@ -131,51 +131,3 @@ jobs:
 
       - name: Render and validate fixture Caddy configuration
         run: ./scripts/test-openvox-caddy-render.sh
-
-  live-noop:
-    name: Live production noop
-    needs: [offline-validation, openvox-unit, openvox-caddy-render]
-    # Only the repository owner's same-repository PRs may receive the
-    # production-check environment's Tailscale credentials.
-    if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.user.login == 'MrCodeEU'
-    runs-on: ubuntu-latest
-    environment: production-check
-    env:
-      MLJR_HOST: mljr.tail33930.ts.net
-      NUC_HOST: nuc.tail33930.ts.net
-      UGREEN_HOST: ugreen.tail33930.ts.net
-      OPENVOX_ENV_DIR: /tmp/openvox-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-
-      - name: Setup Tailscale
-        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-
-      - name: Run isolated live noop
-        run: |
-          set -o pipefail
-          rc=0
-          : > /tmp/openvox-output.log
-          for host in "$MLJR_HOST" "$NUC_HOST" "$UGREEN_HOST"; do
-            if ! ./scripts/openvox-sync.sh "$host" noop 2>&1 | tee -a /tmp/openvox-output.log; then
-              rc=1
-            fi
-          done
-          exit "$rc"
-
-      - name: Upload noop log
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: openvox-pr-noop-${{ github.run_id }}
-          path: /tmp/openvox-output.log
-          if-no-files-found: ignore
-          retention-days: 14

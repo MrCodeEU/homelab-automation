@@ -29,7 +29,7 @@ class role::mljr {
   include roles::vuln_scan
   # Pull deploy agent; applies (roles::deploy_agent::mode in
   # data/nodes/mljr.int.mljr.eu.yaml), deploy.yml no longer pushes here
-  # (AGENT_APPLY_HOSTS, docs/DEPLOY_AGENT.md).
+  # (docs/DEPLOY_AGENT.md).
   include roles::deploy_agent
   # CrowdSec allowlist "home" from nuc's home-ip serve, over Ziti
   class { 'roles::home_ip': mode => 'sync' }

@@ -16,7 +16,7 @@ Pull requests use the separate `openvox-pr-check.yml` workflow, kept out of this
 
 ### OpenVox PR Check (`openvox-pr-check.yml`)
 
-Runs on PRs touching `openvox/**`, `services/**`, `scripts/**`, `tools/**`, `Makefile`, `renovate.json`, `.githooks/pre-commit`, or either of the two OpenVox-related workflow files. `offline-validation` (no secrets) validates Forge modules, `puppet parser validate`/`puppet epp validate`, shell syntax, and `make test`. `live-noop` runs an actual `puppet apply --noop` against all 3 production hosts over Tailscale, but only for same-repo PRs opened by the repo owner (`MrCodeEU`) - fork and external PRs never get production credentials.
+Runs on PRs touching `openvox/**`, `services/**`, `scripts/**`, `tools/**`, `Makefile`, `renovate.json`, `.githooks/pre-commit`, or either of the two OpenVox-related workflow files. `offline-validation` (no secrets) validates Forge modules, `puppet parser validate`/`puppet epp validate`, shell syntax, and `make test`. `Catalog diff` compiles every host's catalog for base and head without hosts or secrets and shows the difference (`scripts/catalog-diff.sh`). No job reaches a host: the live noop over Tailscale was removed on 2026-11-20 (docs/DEPLOY_AGENT.md).
 
 ### Static Analysis Baseline (`static-analysis.yml`)
 
@@ -48,51 +48,22 @@ Configure these secrets in your GitHub repository settings (Settings → Secrets
 | `TS_OAUTH_CLIENT_ID` | Tailscale OAuth client ID |
 | `TS_OAUTH_SECRET` | Tailscale OAuth secret |
 
-**Setup:**
-1. Go to [Tailscale Admin Console](https://login.tailscale.com/admin/settings/oauth)
-2. Generate OAuth client credentials
-3. Add tag `tag:ci` to the OAuth client permissions
+Only `openvox-drift.yml` still uses them, until it is removed (the deploy agents' daily drift check replaces it); then they and the `tag:ci` ACL go. `deploy.yml` and the PR check need no Tailscale.
 
 Application secrets are stored per-host, encrypted with hiera-eyaml (`openvox/data/common.eyaml`), decrypted locally on each host with its own PKCS7 keypair - there is no fleet-wide secret or vault password for CI to hold. See `openvox/README.md` for the encryption setup.
 
 ## How It Works
 
-```
-┌─────────────────────┐
-│  GitHub Actions     │
-│  Runner (Ubuntu)    │
-└──────────┬──────────┘
-           │
-           │ 1. Validate service configs / Caddy templates
-           │ 2. Set up Tailscale VPN (tag:ci)
-           ▼
-┌─────────────────────┐
-│  Tailscale Network  │
-└──────────┬──────────┘
-           │
-           │ 3. scripts/openvox-sync.sh <host> <noop|apply>
-           │    (rsync manifests, puppet apply on each host)
-           ▼
-┌─────────────────────┐
-│  Target Hosts       │
-│  (mljr/nuc/ugreen)  │
-└─────────────────────┘
-```
+`deploy.yml` deploys nothing itself and has no path to a host (docs/DEPLOY_AGENT.md):
 
-**Workflow steps:**
-1. Checkout repository
-2. Validate service configurations and Caddy templates (`.githooks/pre-commit`)
-3. Resolve target hosts (`limit` input, dispatched service, or staging services)
-4. Set up Tailscale VPN
-5. For each target host, run `scripts/openvox-sync.sh <host> <noop|apply>` (syncs `openvox/` to the host, then runs `puppet apply` there). In apply mode, hosts in `AGENT_APPLY_HOSTS` (all three) are skipped: their deploy-agent applies.
-6. `deploy-request`: for hosts running deploy-agent (`AGENT_HOSTS`), create a signed request on `deploy/<host>` with the same commit and inputs (docs/DEPLOY_AGENT.md). For `AGENT_APPLY_HOSTS` this request is the deploy; the agent reports its result to ntfy/mail itself.
-6. Upload the combined apply log as a workflow artifact
-7. Build and publish the deployment status page (`tools/cmd/build-deploy-status`) to `https://deploy.mljr.eu`
-8. Notify via ntfy; fail the job if any host's OpenVox run failed
+1. `validate`: service configurations and Caddy templates (`.githooks/pre-commit`).
+2. On a non-main branch (`workflow_dispatch`), job `check`: the catalog diff from each host's deployed commit (`scripts/catalog-check.sh`). Nothing is deployed.
+3. On main, job `request`: resolve the target hosts (`limit` input, dispatched service, or staging services), then create a GitHub-signed request on `deploy/<host>` per host (`scripts/deploy-request.sh`).
+4. Each host's deploy-agent picks its request up within a minute, verifies it, applies it, and reports the result itself: ntfy `/deployment` (mail fallback), metrics, healthreport. A failed apply does not turn this workflow red.
 
 ## Deployment Status Page
 
-Every run (check or apply) publishes a status page to `https://deploy.mljr.eu`, built by `tools/cmd/build-deploy-status` from the OpenVox apply log, the services catalog, and prior deployment history. No separate report download is needed - the page is the record.
+`https://deploy.mljr.eu` was built by `deploy.yml` from the push's apply log (`tools/cmd/build-deploy-status`). Since the push is gone (2026-11-20) it is no longer updated: the agents' notifications and the Grafana deploy panels are the record.
 
 ## IaC Security Scanning
 

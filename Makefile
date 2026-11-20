@@ -112,7 +112,8 @@ test-healthreport:
 
 ################################################################################
 # OpenVox (Puppet-family) - the real production deploy path.
-# .github/workflows/deploy.yml calls openvox-sync.sh directly.
+# The targets below push from the laptop via openvox-sync.sh; CI does not
+# (deploy.yml only creates requests for the deploy agents).
 # nas/wd-mycloud have no agent at all and are driven by exec resources
 # declared on nuc's own node block instead (see openvox/manifests/).
 ################################################################################
