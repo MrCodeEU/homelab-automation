@@ -46,6 +46,18 @@ describe 'roles::opkssh' do
         .with_content(%r{^AuthorizedKeysCommand /usr/bin/env -u GODEBUG /usr/local/bin/opkssh verify %u %k %t$})
         .that_requires('Exec[opkssh-binary]')
     end
+    it { is_expected.to contain_file('/etc/ssh/sshd_config.d/11-openvox-opkssh-root.conf').with_ensure('absent') }
+
+    context 'with root from one loopback address' do
+      let(:params) { super().merge(root_match_address: '127.0.0.2') }
+
+      it do
+        is_expected.to contain_file('/etc/ssh/sshd_config.d/11-openvox-opkssh-root.conf')
+          .with(ensure: 'file', mode: '0600')
+          .with_content(%r{^Match User root Address 127\.0\.0\.2\n  PermitRootLogin prohibit-password\n  AuthenticationMethods publickey\nMatch all\n\z})
+          .that_notifies('Exec[opkssh-sshd-reload]')
+      end
+    end
   end
 
   context 'without auth_ids' do
