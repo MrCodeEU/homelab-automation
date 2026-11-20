@@ -53,3 +53,14 @@ roles::ssh_hardening::disable_passwords: true
 
 # The deploy agent applies; deploy.yml skips the push here (docs/DEPLOY_AGENT.md).
 roles::deploy_agent::mode: 'apply'
+
+# SSH login through Authelia (roles::opkssh, C14). UGOS keeps root SSH off
+# (and root over loopback, which is where Ziti's ssh services arrive, is
+# the facts endpoint's ForceCommand), so the Authelia user `admin` logs in
+# as the admin user mrcode: ssh mrcode@ugreen.ziti. UGOS has no SELinux
+# and sets GODEBUG=tlskyber=0 for every service (see roles::opkssh).
+roles::opkssh::auth_ids:
+  - user: mrcode
+    identity: '4a76133b-3e28-4917-b53e-5f46367f23bc'
+    issuer: 'https://auth.mljr.eu'
+roles::opkssh::clear_godebug: true

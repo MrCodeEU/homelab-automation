@@ -99,3 +99,10 @@ roles::vuln_scan::nuclei_enabled: false
 roles::deploy_agent::mode: 'apply'
 # The Ziti controller runs here: the agent also applies ziti/tofu/.
 roles::deploy_agent::ziti_tofu: true
+
+# SSH login through Authelia (roles::opkssh, C14), as on nuc: the OIDC sub
+# of the Authelia user `admin` may log in as root.
+roles::opkssh::auth_ids:
+  - user: root
+    identity: '4a76133b-3e28-4917-b53e-5f46367f23bc'
+    issuer: 'https://auth.mljr.eu'
