@@ -46,6 +46,7 @@ ssh "root@${canonical_host}" "
   chmod 0444 '${public_key}'
 "
 
-scp -q "root@${canonical_host}:${public_key}" "$tmp_public_key"
+# -O: legacy scp, UGOS's sftp-server only serves the shares (ugreen).
+scp -O -q "root@${canonical_host}:${public_key}" "$tmp_public_key"
 install -D -m 0644 "$tmp_public_key" "$local_public_key"
 echo "Created ${key_name}'s private key on ${canonical_host}; saved public key to ${local_public_key}."
