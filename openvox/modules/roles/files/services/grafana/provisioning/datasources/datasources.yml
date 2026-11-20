@@ -27,15 +27,14 @@ datasources:
     editable: true
 
   # dmarc-monitor's Postgres lives in its own compose project on nuc, not
-  # this one, so it can't be reached by container name like victoriametrics/
-  # loki above - reached over Tailscale via its published port instead, same
-  # cross-project pattern healthreport already uses for its VictoriaMetrics
-  # queries (HEALTHREPORT_VM_URL).
+  # this one: Grafana joins that project's network (docker-compose.yml,
+  # dmarc-monitor) and reaches it by container name. Its published port is
+  # on loopback, which this container cannot reach.
   - name: DMARC Postgres
     uid: dmarc-postgres
     type: postgres
     access: proxy
-    url: 100.100.10.1:5432
+    url: dmarc-monitor-db:5432
     user: parsedmarc
     secureJsonData:
       # Grafana's own provisioning-file expansion syntax is $__env{VAR},

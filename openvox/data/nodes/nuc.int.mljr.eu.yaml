@@ -36,7 +36,6 @@ roles::backup::verification_integrity_schedule: 'Sun *-*-* 06:30:00'
 roles::backup::verification_restore_schedule: 'Sun *-*-01..07 10:30:00'
 
 roles::services::hostname: 'nuc'
-roles::services::tailscale_ip: '100.100.10.1'
 
 roles::hawser_agent::tailscale_ip: '100.100.10.1'
 
@@ -63,7 +62,7 @@ docker::extra_parameters:
   - '--default-address-pool base=172.16.0.0/12,size=24'
 
 # DefectDojo is published on nuc's Tailscale IP only (services/defectdojo).
-roles::vuln_scan::dojo_url: 'http://100.100.10.1:8101'
+roles::vuln_scan::dojo_url: 'http://127.0.0.1:8101'
 # Remote hosts that push Trivy scans here; each needs
 # vault_dojo_import_<name>_password in this file and vault_dojo_import_password
 # in its own.

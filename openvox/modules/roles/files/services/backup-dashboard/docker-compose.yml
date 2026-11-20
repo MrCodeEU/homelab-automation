@@ -56,14 +56,8 @@ services:
     # 8080, not 80 - nginx-unprivileged (see Dockerfile.web) listens there
     # since it runs as a non-root user and can't bind a port below 1024.
     #
-    # BIND_ADDR, not a hardcoded 127.0.0.1: this service runs on nuc but
-    # Caddy runs on mljr, same cross-host situation as kuma/mail-archiver
-    # (see their docker-compose.yml). BIND_ADDR resolves to nuc's own
-    # Tailscale IP via env.j2, so Caddy can actually reach it - a literal
-    # 127.0.0.1 here made the port unreachable from any other host and
-    # backup.mljr.eu 502'd (confirmed live: Caddy's conf.d entry proxies to
-    # nuc.tail33930.ts.net:8092, which loopback-only binding can never
-    # answer).
+    # BIND_ADDR (loopback): Caddy on mljr reaches it over Ziti, through
+    # nuc's router (ziti/tofu/catalog.tf).
     ports:
       - "${BIND_ADDR:-127.0.0.1}:8092:8080"
     volumes:

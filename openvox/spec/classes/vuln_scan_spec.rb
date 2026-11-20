@@ -2,7 +2,7 @@ require 'spec_helper'
 
 describe 'roles::vuln_scan' do
   let(:hiera_config) { File.expand_path('../fixtures/vuln_scan_hiera.yaml', __dir__) }
-  let(:params) { { dojo_url: 'http://100.100.10.1:8101' } }
+  let(:params) { { dojo_url: 'http://127.0.0.1:8101' } }
 
   it { is_expected.to compile.with_all_deps }
 
@@ -19,7 +19,7 @@ describe 'roles::vuln_scan' do
       timer = catalogue.resource('file', '/etc/systemd/system/dd-enrich.timer')
 
       expect(service[:content]).to include(
-        'Environment=DOJO_URL=http://100.100.10.1:8101',
+        'Environment=DOJO_URL=http://127.0.0.1:8101',
         'ExecStart=/usr/bin/bash /usr/local/libexec/vuln-scan/dd-enrich.sh',
         'Type=oneshot',
       )

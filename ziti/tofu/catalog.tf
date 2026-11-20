@@ -5,10 +5,8 @@
 #
 # For an entry <name> on <host> with port <port>:
 #   intercept  <name>.<host>.int.mljr.eu:<port>
-#   host       <bind address of <host>>:<port>, bound by <host>'s router.
-#              The bind address is what the service publishes on today:
-#              roles::services::tailscale_ip from the host's node file, or
-#              127.0.0.1 where that is empty (mljr, Caddy is co-located).
+#   host       127.0.0.1:<port>, bound by <host>'s router (host network).
+#              Services publish on loopback only (roles::services BIND_ADDR).
 #   attributes catalog, catalog-<host>, admin-services (admins may dial
 #              every catalog service, as over Tailscale today), and caddy
 #              for entries with `ziti_via_caddy: true` (implies ziti):
@@ -70,15 +68,6 @@ locals {
       if(try(s.ziti_via_caddy, false) || try(s.ziti_staging, false)) && try(s.staging, false) && try(s.enabled, true)
     },
   )
-
-  # Hosts with a router on Ziti; a catalog service on any other host fails
-  # the plan (precondition below) instead of getting a dead service.
-  bind_addr = {
-    for h in keys(local.router) : h => coalesce(
-      try(yamldecode(file("${path.module}/openvox-data/nodes/${h}.int.mljr.eu.yaml"))["roles::services::tailscale_ip"], ""),
-      "127.0.0.1",
-    )
-  }
 }
 
 resource "ziti_intercept_v1_config" "catalog" {
@@ -106,7 +95,7 @@ resource "ziti_host_v1_config" "catalog" {
   for_each = local.ziti_catalog
   name     = "${each.key}-host"
   protocol = "tcp"
-  address  = local.bind_addr[each.value.host]
+  address  = "127.0.0.1"
   port     = each.value.port
 }
 

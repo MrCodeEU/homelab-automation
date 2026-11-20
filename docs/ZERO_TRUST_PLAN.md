@@ -572,6 +572,14 @@ of the `restore-from-db` OIDC bug (C2).
   `#mobile`) any router (#624). The shared `#all` edge-router policy
   was removed afterwards, once every identity was on its new policy. Service edge-router policy stays `#all`: no
   service is LAN-only yet.
+- Catalog services publish on loopback only (2026-11-20): `BIND_ADDR` is
+  `127.0.0.1` on every OpenVox host (`roles::services`), and every catalog
+  Ziti service's host config dials `127.0.0.1` (the routers use host
+  networking). Consumers that used nuc's Tailscale IP moved: the health
+  report to loopback, Grafana to dmarc-monitor's compose network, the
+  DefectDojo importers on mljr and ugreen and Kuma's DefectDojo check to
+  the Ziti service `defectdojo`. Ports still published on `0.0.0.0`
+  (Grafana, VictoriaMetrics, Loki, Forgejo and others) are Phase 7.
 - Tailscale still in place as a fallback.
 
 Progress:

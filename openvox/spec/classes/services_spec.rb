@@ -6,7 +6,6 @@ describe 'roles::services' do
   let(:params) do
     {
       hostname: 'mljr',
-      tailscale_ip: '100.100.20.1',
     }
   end
 
@@ -47,14 +46,14 @@ describe 'roles::services' do
 
   context 'on nuc with a selected staging service' do
     let(:params) do
-      super().merge(hostname: 'nuc', tailscale_ip: '100.100.10.1')
+      super().merge(hostname: 'nuc')
     end
 
     let(:facts) { { openvox_staging_services: 'homepage' } }
 
     it 'creates only the selected isolated staging deployment' do
       is_expected.to contain_file('/opt/staging/homepage/.env').with(
-        content: %r{BIND_ADDR=100\.100\.10\.1},
+        content: %r{BIND_ADDR=127\.0\.0\.1},
       )
       is_expected.to contain_exec('services-homepage-staging-deploy').with(
         command: %r{compose-deploy\.sh /opt/staging/homepage false homepage-staging},
@@ -65,7 +64,7 @@ describe 'roles::services' do
 
   context 'on nuc with an invalid staging selection' do
     let(:params) do
-      super().merge(hostname: 'nuc', tailscale_ip: '100.100.10.1')
+      super().merge(hostname: 'nuc')
     end
 
     let(:facts) { { openvox_staging_services: 'forgejo' } }

@@ -75,7 +75,7 @@ app's own login (or OIDC client) is the only gate.
 |---|---|---|---|---|
 | actual-budget | nuc | budget.mljr.eu | app (OIDC via Authelia) | |
 | sure | nuc | sure.mljr.eu | app (OIDC via Authelia) | |
-| defectdojo | nuc | dojo.mljr.eu | authelia | importers bypass via `100.100.10.1:8101` (cat 3) |
+| defectdojo | nuc | dojo.mljr.eu | authelia | importers bypass Authelia: `127.0.0.1:8101` on nuc, Ziti service `defectdojo` elsewhere (cat 3) |
 | backup-dashboard | nuc | backup.mljr.eu | authelia | |
 | grafana | nuc | monitor/grafana.mljr.eu | authelia | |
 | mail-archiver | nuc | mail-archive.mljr.eu | authelia | |
