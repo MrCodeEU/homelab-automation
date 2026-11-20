@@ -26,6 +26,17 @@ locals {
     "speedtest-nuc" = ["iperf3-mljr", "iperf3-ugreen"]
   }
 
+  # Where each one runs, for its edge routers (policies.tf).
+  m2m_site = {
+    "m2m-mljr"      = "at-mljr"
+    "homepage-mljr" = "at-mljr"
+    "m2m-nuc"       = "at-home"
+    "m2m-ugreen"    = "at-home"
+    "crowdsec-nuc"  = "at-home"
+    "kuma-nuc"      = "at-home"
+    "speedtest-nuc" = "at-home"
+  }
+
   # Dialable by name: catalog services, iperf3, SSH, mail SMTP, backup SFTP
   m2m_services = merge(ziti_service.catalog, local.iperf3_services, local.facts_ssh_services, {
     (ziti_service.mail_smtp_mljr.name) = ziti_service.mail_smtp_mljr,
@@ -35,12 +46,11 @@ locals {
 }
 
 resource "ziti_identity" "m2m" {
-  for_each       = local.m2m
-  name           = each.key
-  type           = "Default"
-  auth_policy_id = "default"
-  # Explicitly empty, as caddy-mljr (caddy.tf): avoids a [] -> null diff.
-  role_attributes = []
+  for_each        = local.m2m
+  name            = each.key
+  type            = "Default"
+  auth_policy_id  = "default"
+  role_attributes = [local.m2m_site[each.key]]
 }
 
 resource "ziti_service_policy" "m2m_dial" {
