@@ -7,6 +7,8 @@
 class role::mljr {
   include roles::base
   include roles::ssh_hardening
+  # SSH login through Authelia (C14)
+  include roles::opkssh
   include roles::iperf3
   include roles::netronome_agent
   include roles::caddy

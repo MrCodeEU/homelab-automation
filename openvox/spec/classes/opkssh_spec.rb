@@ -3,7 +3,7 @@
 require 'spec_helper'
 
 describe 'roles::opkssh' do
-  let(:facts) { { os: { family: 'RedHat' } } }
+  let(:facts) { { os: { family: 'RedHat', selinux: { enabled: true } } } }
   let(:params) do
     { auth_ids: [{ 'user' => 'root', 'identity' => 'spec-sub', 'issuer' => 'https://auth.mljr.eu' }] }
   end
@@ -30,6 +30,22 @@ describe 'roles::opkssh' do
       .with_content(%r{^AuthorizedKeysCommandUser opksshuser$})
       .that_requires(['Exec[opkssh-binary]', 'Exec[opkssh-selinux]', 'File[/etc/opk/auth_id]'])
       .that_notifies('Exec[opkssh-sshd-reload]')
+  end
+
+  context 'without SELinux, with GODEBUG cleared (ugreen, UGOS)' do
+    let(:facts) { { os: { family: 'Debian', selinux: { enabled: false } } } }
+    let(:params) do
+      { auth_ids: [{ 'user' => 'mrcode', 'identity' => 'spec-sub', 'issuer' => 'https://auth.mljr.eu' }], clear_godebug: true }
+    end
+
+    it { is_expected.to compile.with_all_deps }
+    it { is_expected.not_to contain_exec('opkssh-selinux') }
+    it { is_expected.not_to contain_exec('opkssh-cache-label') }
+    it do
+      is_expected.to contain_file('/etc/ssh/sshd_config.d/10-openvox-opkssh.conf')
+        .with_content(%r{^AuthorizedKeysCommand /usr/bin/env -u GODEBUG /usr/local/bin/opkssh verify %u %k %t$})
+        .that_requires('Exec[opkssh-binary]')
+    end
   end
 
   context 'without auth_ids' do

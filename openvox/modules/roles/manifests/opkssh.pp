@@ -15,6 +15,12 @@
 #
 # The verifier reaches the issuer (auth.mljr.eu on mljr) over the public
 # internet, so nothing here depends on Tailscale.
+#
+# $selinux: the module and cache label only where SELinux runs (nuc, mljr;
+# UGOS on ugreen has none). $clear_godebug (ugreen): UGOS puts
+# GODEBUG=tlskyber=0 into every service's environment, and Go 1.24+ exits
+# on it (roles::ugreen_tailscale), so sshd calls opkssh through
+# `env -u GODEBUG`.
 class roles::opkssh (
   String $version = 'v0.19.2',
   # sha256 of opkssh-linux-amd64 from the GitHub release (asset digest).
@@ -26,6 +32,8 @@ class roles::opkssh (
   Array[Struct[{ user => String[1], identity => String[1], issuer => String[1] }]] $auth_ids = [],
   String $cache_max_age = '1h',
   String $cache_fallback = '24h',
+  Boolean $selinux = $facts.dig('os', 'selinux', 'enabled') == true,
+  Boolean $clear_godebug = false,
 ) {
   $bin       = '/usr/local/bin/opkssh'
   $libexec   = '/usr/local/libexec/opkssh'
@@ -53,25 +61,27 @@ class roles::opkssh (
     mode   => '0755',
   }
 
-  file { "${libexec}/opkssh.te":
-    ensure => file,
-    mode   => '0644',
-    source => 'puppet:///modules/roles/opkssh/opkssh.te',
-  }
+  if $selinux {
+    file { "${libexec}/opkssh.te":
+      ensure => file,
+      mode   => '0644',
+      source => 'puppet:///modules/roles/opkssh/opkssh.te',
+    }
 
-  file { "${libexec}/selinux-install.sh":
-    ensure => file,
-    mode   => '0755',
-    source => 'puppet:///modules/roles/opkssh/selinux-install.sh',
-  }
+    file { "${libexec}/selinux-install.sh":
+      ensure => file,
+      mode   => '0755',
+      source => 'puppet:///modules/roles/opkssh/selinux-install.sh',
+    }
 
-  exec { 'opkssh-selinux':
-    command   => "${libexec}/selinux-install.sh",
-    unless    => '/usr/sbin/semodule -l | /usr/bin/grep -qx opkssh',
-    path      => ['/usr/sbin', '/usr/bin', '/sbin', '/bin'],
-    subscribe => File["${libexec}/opkssh.te"],
-    require   => File["${libexec}/selinux-install.sh"],
-    timeout   => 300,
+    exec { 'opkssh-selinux':
+      command   => "${libexec}/selinux-install.sh",
+      unless    => '/usr/sbin/semodule -l | /usr/bin/grep -qx opkssh',
+      path      => ['/usr/sbin', '/usr/bin', '/sbin', '/bin'],
+      subscribe => File["${libexec}/opkssh.te"],
+      require   => File["${libexec}/selinux-install.sh"],
+      timeout   => 300,
+    }
   }
 
   # Download, check against the pinned digest, then install. Guard inline
@@ -137,12 +147,23 @@ class roles::opkssh (
     require => User['opksshuser'],
   }
 
-  exec { 'opkssh-cache-label':
-    command  => "semanage fcontext -a -t opkssh_cache_t '${cache_dir}(/.*)?' 2>/dev/null || semanage fcontext -m -t opkssh_cache_t '${cache_dir}(/.*)?'; restorecon -R ${cache_dir}",
-    unless   => "stat -c %C ${cache_dir} | grep -q opkssh_cache_t",
-    provider => shell,
-    path     => ['/usr/sbin', '/usr/bin', '/sbin', '/bin'],
-    require  => [File[$cache_dir], Exec['opkssh-selinux']],
+  if $selinux {
+    exec { 'opkssh-cache-label':
+      command  => "semanage fcontext -a -t opkssh_cache_t '${cache_dir}(/.*)?' 2>/dev/null || semanage fcontext -m -t opkssh_cache_t '${cache_dir}(/.*)?'; restorecon -R ${cache_dir}",
+      unless   => "stat -c %C ${cache_dir} | grep -q opkssh_cache_t",
+      provider => shell,
+      path     => ['/usr/sbin', '/usr/bin', '/sbin', '/bin'],
+      require  => [File[$cache_dir], Exec['opkssh-selinux']],
+    }
+  }
+
+  $command = $clear_godebug ? {
+    true    => "/usr/bin/env -u GODEBUG ${bin}",
+    default => $bin,
+  }
+  $before_sshd = $selinux ? {
+    true    => [Exec['opkssh-binary', 'opkssh-selinux', 'opkssh-cache-label']],
+    default => [Exec['opkssh-binary']],
   }
 
   # Last: sshd only calls opkssh once everything above is in place.
@@ -151,9 +172,8 @@ class roles::opkssh (
     owner   => 'root',
     group   => 'root',
     mode    => '0600',
-    content => "# Managed by OpenVox (roles::opkssh)\nAuthorizedKeysCommand ${bin} verify %u %k %t\nAuthorizedKeysCommandUser opksshuser\n",
-    require => [
-      Exec['opkssh-binary', 'opkssh-selinux', 'opkssh-cache-label'],
+    content => "# Managed by OpenVox (roles::opkssh)\nAuthorizedKeysCommand ${command} verify %u %k %t\nAuthorizedKeysCommandUser opksshuser\n",
+    require => $before_sshd + [
       File['/etc/opk/providers', '/etc/opk/auth_id', '/etc/opk/config.yml'],
       User['opksshuser'],
     ],
