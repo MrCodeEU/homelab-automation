@@ -12,7 +12,7 @@ class role::ugreen (
   include roles::ssh_hardening
   # SSH login through Authelia (C14)
   include roles::opkssh
-  include roles::netronome_agent
+  include roles::netronome_teardown
   if $backup_remote_target_enabled {
     include roles::backup_remote_target
   }

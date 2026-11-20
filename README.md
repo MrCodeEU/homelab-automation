@@ -39,7 +39,7 @@ GitHub Actions / local openvox-sync.sh
  VPS                 compute   Unraid    Debian NAS (UGOS)
  Caddy ingress       node      NAS       backup target,
  CrowdSec            Grafana,  proxy-    light read-only
-                      Netronome exec'd   monitoring only
+                      speedtest exec'd   monitoring only
                                 from nuc
 ```
 
@@ -73,7 +73,7 @@ Two more hosts sit outside the diagram above: `wd_mycloud` (WD My Cloud EX2 Ultr
   CI run only (`FACTER_openvox_weekly_maintenance`, see `openvox/manifests/site.pp`).
 - Grafana/Loki/VictoriaMetrics monitoring with Grafana Alloy agents (mljr, nuc, ugreen, nas) plus bare node_exporter + remote scraping for hosts that can't run Alloy (wd_mycloud, Home Assistant). SMART, systemd, and btrfs collectors included where applicable.
 - CrowdSec security engine with nftables firewall enforcement on `mljr`.
-- Netronome network testing on `nuc`, exposed as `speedtest.mljr.eu`.
+- Hourly internet speedtest and iperf3 over Ziti from `nuc` (`services/speedtest-metrics`), in Grafana.
 - GitHub Actions deployment over Tailscale — secrets decrypt host-side via
   hiera-eyaml at apply time, so CI itself needs no vault-password secret.
 - Local deployment via `make openvox-check`/`openvox-deploy` (and per-host
@@ -101,7 +101,7 @@ homelab-automation/
 ├── services/
 │   ├── crowdsec/
 │   ├── grafana/
-│   ├── speedtest/                    # Netronome
+│   ├── speedtest-metrics/            # speedtest + iperf3 -> VictoriaMetrics
 │   └── ...
 └── .github/workflows/
     └── deploy.yml
@@ -152,7 +152,6 @@ on `$host_active_names` in `openvox/modules/roles/manifests/services.pp`).
 | Authelia | `mljr` | `auth.mljr.eu` |
 | CrowdSec | `mljr` | `crowdsec.mljr.eu`, `security.mljr.eu` |
 | Grafana | `nuc` | `monitor.mljr.eu`, `grafana.mljr.eu` |
-| Netronome | `nuc` | `speedtest.mljr.eu` |
 
 ## Secrets Management
 

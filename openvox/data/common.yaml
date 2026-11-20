@@ -784,18 +784,6 @@ services_catalog:
     description: "Weather CLI - browser terminal weather dashboard"
     icon: "mdi:weather-partly-cloudy"
 
-  - name: speedtest
-    enabled: true
-    domain: "speedtest.mljr.eu"
-    appsec: log
-    port: 8090
-    host: nuc
-    staging: true
-    description: "Netronome Network Monitor"
-    icon: "mdi:speedometer"
-    caddy_auth: authelia
-    ziti_via_caddy: true
-
   - name: nas-alloy
     enabled: true
     managed: true
@@ -811,14 +799,6 @@ services_catalog:
     host: nas
     description: "Network performance testing server for the NAS"
     icon: "mdi:speedometer"
-
-  - name: netronome-agent-nas
-    enabled: true
-    managed: true
-    port: 0
-    host: nas
-    description: "Netronome system-metrics agent for the NAS"
-    icon: "mdi:chart-line"
 
   - name: ollama
     enabled: true

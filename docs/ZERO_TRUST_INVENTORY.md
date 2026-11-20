@@ -96,7 +96,6 @@ app's own login (or OIDC client) is the only gate.
 | immich | nas | immich.mljr.eu | app | |
 | dawarich | nas | dawarich.mljr.eu | app | location history |
 | opencloud | nas | files.mljr.eu | app | migration on hold |
-| speedtest | nuc | speedtest.mljr.eu | none | **Confirmed 2026-11-03: Netronome UI is public, no login seen** |
 | ntfy | mljr | ntfy.mljr.eu | app (topic whitelist) | phone push needs public reach |
 
 ### Category 2: human, public
@@ -117,7 +116,7 @@ app's own login (or OIDC client) is the only gate.
 ### Category 3: machine-to-machine (no domain)
 
 healthreport, crowdsec-nuc, crowdsec-nas, paperless-mail-export,
-dmarc-monitor, diun, nas-alloy, iperf3-nas, netronome-agent-nas, ollama,
+dmarc-monitor, diun, nas-alloy, iperf3-nas, ollama,
 immich-kiosk, photon, nextcloud-notify, syncthing-ugreen, oxicloud,
 smartctl-exporter (ugreen, nuc, nas), caddy-poc. Their flows are listed
 below.
