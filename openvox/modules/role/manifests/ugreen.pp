@@ -25,6 +25,6 @@ class role::ugreen (
   include roles::vuln_scan
   # Pull deploy agent; applies (roles::deploy_agent::mode in
   # data/nodes/ugreen.int.mljr.eu.yaml), deploy.yml no longer pushes here
-  # (AGENT_APPLY_HOSTS, docs/DEPLOY_AGENT.md).
+  # (docs/DEPLOY_AGENT.md).
   include roles::deploy_agent
 }

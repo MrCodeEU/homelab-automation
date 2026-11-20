@@ -153,8 +153,9 @@ promise that, so a lost notification has to be noticed.
    Alloy's textfile collector ships to VictoriaMetrics.
    Per result also run success, duration, resource changes, error lines
    and the last success time (`homelab_deploy_run_*` and friends, the
-   values `deploy.yml` records for the push); the Grafana deploy panels
-   prefer them over the push's `homelab_openvox_*` per host. healthreport's
+   values `deploy.yml` recorded for the push until 2026-11-20); the
+   Grafana deploy panels prefer them over the push's `homelab_openvox_*`
+   per host. healthreport's
    `deploy_agent` collector (another code path, its own email) compares
    them with the head request of `deploy/<host>` on GitHub: crit when
    the agent's metrics are missing or stale (10 min), a request goes
@@ -204,7 +205,10 @@ promise that, so a lost notification has to be noticed.
    ugreen, each first in noop next to the push (#600), then applying as
    well (`roles::deploy_agent::mode` in their node data): since then the
    push in `deploy.yml` deploys no host in apply mode.
-6. Remove the SSH steps, Tailscale from CI, `openvox-drift.yml`.
+6. Remove the SSH steps and Tailscale from CI (2026-11-20): `deploy.yml`
+   only creates requests (job `request`), the PR live noop is gone.
+   Still to remove: `openvox-drift.yml`, then the `TS_OAUTH_*` secrets
+   and the `tag:ci` ACL.
 
 ## Open
 
@@ -215,11 +219,12 @@ promise that, so a lost notification has to be noticed.
   octocatalog-diff was dropped: no release since 2024 and its gem depends
   on `puppet`, which clashes with `openvox`. `deploy.yml` check mode (a
   run on a non-main branch) is the same diff from each host's deployed
-  commit (`scripts/catalog-check.sh`) instead of a noop push. Still open:
-  removing `openvox-drift.yml` once the agents' drift check has run next
-  to it for a few days, then the PR live noop, the push path and Tailscale
-  out of CI. A catalog diff does not catch runtime errors (a
-  failing exec, a missing package); those surface as the agent's failure.
+  commit (`scripts/catalog-check.sh`) instead of a noop push. The PR
+  live noop, the push path and Tailscale left CI on 2026-11-20. Still
+  open: removing `openvox-drift.yml` once the agents' drift check has run
+  next to it for a few days. A catalog diff does not catch runtime errors
+  (a failing exec, a missing package); those surface as the agent's
+  failure.
 
 ## Prototype (2026-11-11)
 

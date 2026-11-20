@@ -149,15 +149,13 @@ bump too, reconcile that manually first.
 
 `Puppetfile` pins every direct and transitive Forge module. Do not install
 modules manually: `scripts/openvox-modules.sh` verifies production during a
-noop, reconciles it before an apply, and installs candidate versions into the
-isolated PR environment for the live noop.
+noop and reconciles it before an apply.
 
 Dependabot does not support Puppetfiles. `renovate.json` configures Renovate's
 native Puppet manager to open grouped, non-automerge update PRs after a
 seven-day release delay. The Renovate GitHub App must be enabled for this
-repository once; the PR checks then validate dependency compatibility and the
-owner-authored PRs additionally validate the resulting production catalog in
-an isolated live noop. Renovate PRs never receive the production-check secrets.
+repository once; the PR checks then validate dependency compatibility and
+show the resulting catalog diff per host. No PR check has host access.
 
 ## Catalog unit tests
 
@@ -165,7 +163,7 @@ an isolated live noop. Renovate PRs never receive the production-check secrets.
 pinned VoxBox image containing OpenVox 8.28.1. It has no host, Tailscale, or
 secret access. The test fixture downloads the same pinned `puppetlabs/stdlib`
 version as `Puppetfile` into ignored `openvox/spec/fixtures/`; CI runs this
-target for every OpenVox PR before the owner-only live noop. Small test-only
+target for every OpenVox PR. Small test-only
 module doubles under `spec/fixtures/modules/` model the narrow resource
 surfaces used from Forge modules (Docker Compose and apt); production still
 uses the exact versions pinned in `Puppetfile`.
