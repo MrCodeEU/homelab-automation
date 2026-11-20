@@ -6,8 +6,8 @@ SSH to pull by a small Go agent on each host).
 
 ## Why
 
-`deploy.yml`, `openvox-drift.yml` and the PR live noop reach the hosts as
-root over Tailscale SSH. Tailscale goes (docs/ZERO_TRUST_PLAN.md), and
+`deploy.yml`, `openvox-drift.yml` and the PR live noop reached the hosts
+as root over Tailscale SSH (until 2026-11-20). Tailscale goes (docs/ZERO_TRUST_PLAN.md), and
 CI over Ziti is awkward (one ext-jwt signer per issuer, per-PR workflow
 refs). With pull, CI needs no path to the hosts at all.
 
@@ -206,9 +206,10 @@ promise that, so a lost notification has to be noticed.
    well (`roles::deploy_agent::mode` in their node data): since then the
    push in `deploy.yml` deploys no host in apply mode.
 6. Remove the SSH steps and Tailscale from CI (2026-11-20): `deploy.yml`
-   only creates requests (job `request`), the PR live noop is gone.
-   Still to remove: `openvox-drift.yml`, then the `TS_OAUTH_*` secrets
-   and the `tag:ci` ACL.
+   only creates requests (job `request`), the PR live noop is gone. Then
+   `openvox-drift.yml` (the agents' drift check had run clean on all
+   three hosts since #606), the `TS_OAUTH_*` secrets, the `tag:ci` ACL
+   and the `production-check` environment.
 
 ## Open
 
@@ -220,9 +221,8 @@ promise that, so a lost notification has to be noticed.
   on `puppet`, which clashes with `openvox`. `deploy.yml` check mode (a
   run on a non-main branch) is the same diff from each host's deployed
   commit (`scripts/catalog-check.sh`) instead of a noop push. The PR
-  live noop, the push path and Tailscale left CI on 2026-11-20. Still
-  open: removing `openvox-drift.yml` once the agents' drift check has run
-  next to it for a few days. A catalog diff does not catch runtime errors
+  live noop, the push path, `openvox-drift.yml` and Tailscale left CI on
+  2026-11-20. A catalog diff does not catch runtime errors
   (a failing exec, a missing package); those surface as the agent's
   failure.
 

@@ -42,13 +42,7 @@ If a long-lived branch (like a Renovate PR opened before a new required check wa
 
 Configure these secrets in your GitHub repository settings (Settings → Secrets and variables → Actions):
 
-### Tailscale Authentication
-| Secret | Description |
-|--------|-------------|
-| `TS_OAUTH_CLIENT_ID` | Tailscale OAuth client ID |
-| `TS_OAUTH_SECRET` | Tailscale OAuth secret |
-
-Only `openvox-drift.yml` still uses them, until it is removed (the deploy agents' daily drift check replaces it); then they and the `tag:ci` ACL go. `deploy.yml` and the PR check need no Tailscale.
+No workflow reaches a host, so there are no Tailscale or SSH credentials in CI. The Tailscale OAuth client (`TS_OAUTH_*`, `tag:ci`) and the `production-check` environment were removed on 2026-11-20, together with `openvox-drift.yml`: each deploy agent runs the daily drift check on its own host (docs/DEPLOY_AGENT.md).
 
 Application secrets are stored per-host, encrypted with hiera-eyaml (`openvox/data/common.eyaml`), decrypted locally on each host with its own PKCS7 keypair - there is no fleet-wide secret or vault password for CI to hold. See `openvox/README.md` for the encryption setup.
 
@@ -73,22 +67,15 @@ KICS remains a useful secondary scanner, but the Checkmarx GitHub Action and Doc
 
 ## Security Features
 
-- **No SSH keys in repository**: Uses Tailscale authentication
-- **Ephemeral connections**: VPN exists only during workflow run
-- **Scoped permissions**: OAuth client tagged with `tag:ci`
+- **No host access from CI**: workflows only write signed requests to `deploy/<host>`; the hosts pull them
 - **No fleet-wide secret**: hiera-eyaml, per-host PKCS7 keypairs - a compromised CI runner never holds a key that unlocks more than one host's data
-- **No public exposure**: All communication over private Tailscale network
 - **CrowdSec enforcement**: `mljr` installs the nftables firewall bouncer for host-level remediation
 
 ## Troubleshooting
 
-### "Cannot connect to host"
-- Verify Tailscale is running on target device
-- Check the host list in `Makefile`'s `OPENVOX_HOSTS`
-- Ensure `tag:ci` is allowed in your Tailscale ACLs
-
-### "Permission denied"
-- Verify the deploy SSH user has sudo/root permissions on the target host
+### Request created, nothing applied
+- Check the host's agent: `journalctl -u deploy-agent` (ugreen keeps no journal: see `/var/lib/node-textfile/homelab_deploy.prom`)
+- docs/DEPLOY_AGENT.md, "Failure modes"
 
 ### OpenVox catalog compile errors
 - Run `puppet parser validate` locally (`make test` includes this) before pushing
