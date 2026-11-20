@@ -118,6 +118,23 @@ with allowed parameters. Never **what** is applied.
   laptop push follows.
 - State in `/var/lib/homelab-deploy/`: last request id, last applied
   commit, outbox.
+- **Ziti policy as code, on mljr only** (`roles::deploy_agent::ziti_tofu`,
+  `DEPLOY_TOFU=scripts/ziti-tofu.sh`, 2026-11-20). After each successful
+  apply the agent runs `ZITI_TOFU_LOCAL=1 bash scripts/ziti-tofu.sh auto`
+  from the same export: OpenTofu for `ziti/tofu/` against the controller
+  on `127.0.0.1:8440`, state key and admin password from
+  `/opt/ziti-controller/.env`. Nothing of it reaches GitHub, whose logs
+  are public. The merge to main is the approval for additions and
+  in-place changes; a plan that deletes or replaces anything (a recreated
+  identity loses its enrolment, a deleted policy cuts access) is **held**:
+  not applied, notified as `Ziti tofu <commit> on mljr: held`, and
+  applied by a person with `scripts/ziti-tofu.sh apply` after reading
+  the plan. A plan without changes reports nothing; applied, held and
+  failed runs are their own results (mode `ziti-tofu`), metrics
+  `homelab_deploy_tofu_{last_run_timestamp_seconds,success}`. The daily
+  drift check adds `scripts/ziti-tofu.sh check` (a plan): a change made
+  on the controller by hand shows up as `Ziti tofu: <address> will be
+  ...` drift lines in the same drift notification.
 
 ## Results and notifications
 

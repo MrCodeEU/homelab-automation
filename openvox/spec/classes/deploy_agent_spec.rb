@@ -29,6 +29,16 @@ describe 'roles::deploy_agent' do
     expect(agent_env).to match(%r{^DEPLOY_DRIFT_IGNORE=File\[/var/lib/backup-dashboard/backup_catalog\.json\]$})
   end
 
+  it 'runs no tofu step by default' do
+    expect(agent_env).not_to match(%r{^DEPLOY_TOFU=})
+  end
+
+  context 'on the Ziti controller host' do
+    let(:params) { { ziti_tofu: true } }
+
+    it { expect(agent_env).to match(%r{^DEPLOY_TOFU=scripts/ziti-tofu\.sh$}) }
+  end
+
   context 'with an invalid drift time' do
     let(:params) { { drift_at: '3:17' } }
 

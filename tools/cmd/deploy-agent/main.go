@@ -19,6 +19,8 @@
 //	DEPLOY_SUSPEND_FILE  default /etc/homelab-deploy/suspend
 //	DEPLOY_DRIFT_AT      daily drift check, local HH:MM (empty: off)
 //	DEPLOY_DRIFT_IGNORE  resources whose drift is expected, "|"-separated
+//	DEPLOY_TOFU          tofu script inside the tree (scripts/ziti-tofu.sh), on
+//	                     the Ziti controller host only; empty: no tofu step
 //	DEPLOY_NTFY_URL      default https://ntfy.mljr.eu/deployment; empty: none
 //	DEPLOY_MAIL_TO       mail recipient; empty: no mail fallback
 //	DEPLOY_SMTP_HOST, _PORT (587), _USER, _PASSWORD, _FROM (default user)
@@ -100,6 +102,7 @@ func main() {
 		SuspendFile:  envOr("DEPLOY_SUSPEND_FILE", "/etc/homelab-deploy/suspend"),
 		DriftAt:      os.Getenv("DEPLOY_DRIFT_AT"),
 		DriftIgnore:  strings.Split(os.Getenv("DEPLOY_DRIFT_IGNORE"), "|"),
+		Tofu:         os.Getenv("DEPLOY_TOFU"),
 		Notifiers:    notifiers,
 		Log:          log,
 	})
