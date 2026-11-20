@@ -563,6 +563,15 @@ of the `restore-from-db` OIDC bug (C2).
   service on Ziti: C6 LAN (`scripts/ziti-c6-iperf.sh lan`, with
   `CLIENT_TUNNELER=router`) never routes via mljr, and reaches >= 75 % of
   the direct path or the shortfall is accepted for that service.
+  2026-11-20: link groups were already in place (nuc's link listener is
+  in group `lan`, only ugreen dials `lan`, mljr dials `default` only:
+  links nuc->mljr, ugreen->mljr, ugreen->nuc). Edge routers by site
+  (`ziti/tofu/policies.tf`): `#at-mljr` identities (caddy-mljr, m2m-mljr,
+  homepage-mljr) use `#public` only, `#at-home` ones (the nuc and ugreen
+  proxies, `#spike`) `#lan` only, people's devices (`#admin`, `#admins`,
+  `#mobile`) any router. The shared `#all` edge-router policy goes in a
+  second, manual apply. Service edge-router policy stays `#all`: no
+  service is LAN-only yet.
 - Tailscale still in place as a fallback.
 
 Progress:

@@ -8,9 +8,8 @@ resource "ziti_identity" "caddy_mljr" {
   name           = "caddy-mljr"
   type           = "Default"
   auth_policy_id = "default"
-  # Explicitly empty: the controller stores [], and an unset list plans
-  # [] -> null on every run.
-  role_attributes = []
+  # Runs on mljr: edge routers #public only (policies.tf).
+  role_attributes = ["at-mljr"]
 }
 
 resource "ziti_service_policy" "caddy_dial" {
