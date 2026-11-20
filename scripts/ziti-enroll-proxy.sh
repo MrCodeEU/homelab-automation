@@ -20,6 +20,9 @@
 # shellcheck disable=SC2029  # remote commands are built locally on purpose
 set -euo pipefail
 
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
+
 say() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
@@ -48,8 +51,8 @@ iddir=$(sed -n 's|^ *- *\./\([a-z0-9_-]*\):/identity$|\1|p' "$compose" | head -1
 [ -n "$iddir" ] || die "$compose has no ./<dir>:/identity volume"
 base=$(sed -n "s/^roles::services::base_path: *['\"]\{0,1\}\([^'\"]*\).*/\1/p" "$node")
 
-CTRL_HOST=root@mljr.tail33930.ts.net
-TARGET=root@$HOST.tail33930.ts.net
+CTRL_HOST=root@mljr.ziti
+TARGET=root@$HOST.ziti
 DIR=${base:-/opt}/$SERVICE/$iddir
 DEST=$DIR/$NAME.json
 # The OpenZiti image, not the first one: homepage's compose file lists the

@@ -12,6 +12,9 @@
 # shellcheck disable=SC2029  # remote commands are built locally on purpose
 set -euo pipefail
 
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
+
 say() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 die() { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
@@ -27,7 +30,7 @@ esac
 [[ $NAME =~ ^[a-z0-9-]+$ ]] || die "bad identity name: $NAME"
 [ -t 1 ] || die "stdout is not a terminal: run this yourself, the QR code is a credential"
 
-CTRL_HOST=${ZITI_CTRL_SSH:-root@mljr.tail33930.ts.net}
+CTRL_HOST=${ZITI_CTRL_SSH:-root@mljr.ziti}
 # Drawn by qrencode in a throwaway container: nothing to install, and the
 # token only passes through its stdin.
 QR_IMAGE=docker.io/library/alpine:3.22

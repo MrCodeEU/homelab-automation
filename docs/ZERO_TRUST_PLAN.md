@@ -548,7 +548,12 @@ of the `restore-from-db` OIDC bug (C2).
 - Move the transport references left on `*.tail33930.ts.net` after Phase 2
   (SSH targets, `OPENVOX_HOSTS` and CI host lists, `reverse_proxy` and
   monitoring URLs, appliance proxy scripts) to `<host>.int.mljr.eu` intercept
-  names, together with the service that carries them.
+  names, together with the service that carries them. 2026-11-20: laptop
+  SSH targets (Makefile, `openvox-sync.sh`, eyaml helpers, `ziti-*.sh`)
+  on `root@<host>.ziti` with an opkssh key check (`scripts/opk-ready.sh`);
+  ugreen's `ugreen.ziti` arrives from 127.0.0.2 for root. Left: the Caddy
+  fallback, nuc to nas/wd_mycloud (Phase 5), compose allowlists and the
+  homepage Tailscale widget (with Tailscale itself).
 - Router placement and LAN locality (from C6): every host that can run
   Ziti hosts its own services; nuc's router serves LAN devices that cannot.
   Replace the shared `#all` edge-router and service-edge-router policies

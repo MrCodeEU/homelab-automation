@@ -154,6 +154,11 @@ service. Tested 2026-11-20 against nuc.
    certificate.
 4. `ssh root@nuc.ziti` (or the full `root@nuc.int.mljr.eu`).
 
+On the laptop, the repository's scripts and make targets SSH to
+`root@<host>.ziti` and check the key first (`scripts/opk-ready.sh`): no key,
+or less than 10 minutes of the 24 h left, runs `opkssh login` in a terminal
+and fails without one. `OPK_SKIP=1` skips the check (YubiKey key).
+
 `roles::opkssh` runs on nuc, mljr and ugreen: `ssh root@nuc.ziti`,
 `ssh root@mljr.ziti`, and on ugreen the admin user, `ssh
 mrcode@ugreen.ziti` (UGOS keeps root SSH off, and root over loopback,

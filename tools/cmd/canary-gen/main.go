@@ -5,7 +5,7 @@
 // it's an infrequent admin action, not worth a public/Tailscale vhost),
 // so this always runs against an SSH tunnel:
 //
-//	ssh -L 8101:localhost:8101 mljr.tail33930.ts.net
+//	ssh -L 8101:localhost:8101 mljr.ziti
 //	canary-gen -type web -memo "nas-fotos-share-bait" -email you@example.com
 //
 // Every created token's trigger value (URL and/or downloaded file) and

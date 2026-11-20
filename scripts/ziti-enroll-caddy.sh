@@ -14,7 +14,10 @@
 # shellcheck disable=SC2029  # remote commands are built locally on purpose
 set -euo pipefail
 
-CTRL_HOST=root@mljr.tail33930.ts.net
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
+
+CTRL_HOST=root@mljr.ziti
 NAME=caddy-mljr
 DEST=/etc/caddy/ziti/$NAME.json
 

@@ -5,15 +5,18 @@
 # usage: eyaml-get.sh <mljr|nuc|ugreen> [key]   (no key = list key names)
 set -euo pipefail
 
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
+
 host="${1:-}"
 key="${2:-}"
 # Puppet certname (identity: names the secrets file and on-host key dir) is
 # decoupled from the SSH transport for migrated hosts (Phase 2,
 # docs/ZERO_TRUST_PLAN.md); transport stays Tailscale until the OpenZiti phase.
 case "$host" in
-  mljr)   cert="mljr.int.mljr.eu";        ssh_target="mljr.tail33930.ts.net" ;;
-  nuc)    cert="nuc.int.mljr.eu";         ssh_target="nuc.tail33930.ts.net" ;;
-  ugreen) cert="ugreen.int.mljr.eu";      ssh_target="ugreen.tail33930.ts.net" ;;
+  mljr)   cert="mljr.int.mljr.eu";        ssh_target="mljr.ziti" ;;
+  nuc)    cert="nuc.int.mljr.eu";         ssh_target="nuc.ziti" ;;
+  ugreen) cert="ugreen.int.mljr.eu";      ssh_target="ugreen.ziti" ;;
   *) echo "usage: $0 <mljr|nuc|ugreen> [key]" >&2; exit 2 ;;
 esac
 

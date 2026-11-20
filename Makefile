@@ -118,16 +118,19 @@ test-healthreport:
 # declared on nuc's own node block instead (see openvox/manifests/).
 ################################################################################
 
-OPENVOX_HOSTS      := mljr.tail33930.ts.net nuc.tail33930.ts.net ugreen.tail33930.ts.net
+OPENVOX_HOSTS      := mljr.ziti nuc.ziti ugreen.ziti
 
 # Runs all 3 hosts in parallel (xargs -P4), then prints one pass/fail line
 # per host so a `make openvox-check`/`openvox-deploy` run has a scannable
 # fleet-wide result instead of just each host's own banner buried in the
 # (now per-line-prefixed, see openvox-sync.sh) combined output above it.
 # Exits non-zero if any host failed - fine to use in a script/CI context.
+# The opkssh key is checked once up front (scripts/opk-ready.sh), not by
+# each parallel openvox-sync.sh, so an expired key means one login.
 define openvox_run
+	@./scripts/opk-ready.sh
 	@results=$$(mktemp); \
-	echo "$(OPENVOX_HOSTS)" | tr ' ' '\n' | xargs -P4 -I{} sh -c \
+	echo "$(OPENVOX_HOSTS)" | tr ' ' '\n' | OPK_SKIP=1 xargs -P4 -I{} sh -c \
 	  './scripts/openvox-sync.sh {} $(1); echo "{} $$?" >> '"$$results"; \
 	echo ""; \
 	echo "==> fleet summary ($(1)):"; \
@@ -153,39 +156,39 @@ openvox-deploy:
 
 openvox-recovery:
 	@test -n "$(HOST)" && test -n "$(SERVICE)" || (echo "Usage: make openvox-recovery HOST=<mljr|nuc> SERVICE=<service>[,<service>...]" >&2; exit 2)
-	@OPENVOX_RECOVERY_SERVICES="$(SERVICE)" ./scripts/openvox-sync.sh "$(HOST).tail33930.ts.net" apply
+	@OPENVOX_RECOVERY_SERVICES="$(SERVICE)" ./scripts/openvox-sync.sh "$(HOST).ziti" apply
 
 # Rolls a host's `production` symlink back to a previous release and
 # re-applies (see scripts/openvox-rollback.sh). STEPS defaults to 1 (the
 # release immediately before the current one).
 openvox-rollback:
 	@test -n "$(HOST)" || (echo "Usage: make openvox-rollback HOST=<mljr|nuc|ugreen> [STEPS=1]" >&2; exit 2)
-	@./scripts/openvox-rollback.sh "$(HOST).tail33930.ts.net" $(if $(STEPS),$(STEPS),1)
+	@./scripts/openvox-rollback.sh "$(HOST).ziti" $(if $(STEPS),$(STEPS),1)
 
 # Single-host convenience targets, e.g. `make openvox-check-mljr`.
 openvox-check-mljr:
-	@./scripts/openvox-sync.sh mljr.tail33930.ts.net noop
+	@./scripts/openvox-sync.sh mljr.ziti noop
 
 openvox-check-nuc:
-	@./scripts/openvox-sync.sh nuc.tail33930.ts.net noop
+	@./scripts/openvox-sync.sh nuc.ziti noop
 
 openvox-check-ugreen:
-	@./scripts/openvox-sync.sh ugreen.tail33930.ts.net noop
+	@./scripts/openvox-sync.sh ugreen.ziti noop
 
 openvox-deploy-mljr:
-	@./scripts/openvox-sync.sh mljr.tail33930.ts.net apply
+	@./scripts/openvox-sync.sh mljr.ziti apply
 
 openvox-deploy-nuc:
-	@./scripts/openvox-sync.sh nuc.tail33930.ts.net apply
+	@./scripts/openvox-sync.sh nuc.ziti apply
 
 openvox-deploy-ugreen:
-	@./scripts/openvox-sync.sh ugreen.tail33930.ts.net apply
+	@./scripts/openvox-sync.sh ugreen.ziti apply
 
 # Explicit staging deployment on nuc. Usage:
 #   make openvox-staging SERVICE=homepage
 openvox-staging:
 	@test -n "$(SERVICE)" || (echo "Usage: make openvox-staging SERVICE=<service>[,<service>...]" >&2; exit 2)
-	@OPENVOX_STAGING_SERVICES="$(SERVICE)" ./scripts/openvox-sync.sh nuc.tail33930.ts.net apply
+	@OPENVOX_STAGING_SERVICES="$(SERVICE)" ./scripts/openvox-sync.sh nuc.ziti apply
 
 # Keep the vendored OpenVox files tree equal to the deployable assets in
 # services/. `make test` checks this automatically; use this target after

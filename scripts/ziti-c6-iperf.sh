@@ -40,7 +40,7 @@
 # shellcheck disable=SC2029
 set -euo pipefail
 
-CTRL_HOST=root@mljr.tail33930.ts.net
+CTRL_HOST=root@mljr.ziti
 IMAGE=docker.io/openziti/ziti-cli:2.0.8@sha256:82d76e9b4c15742ac4370529caddd125d30f300ce6a05a500064aa0a80122fdf
 # The ziti-cli and ziti-router images run as ziggy (2171); the per-test dirs
 # hold one-time tokens and identity keys, so they are 0700 and owned by it.
@@ -59,12 +59,12 @@ EDGE_TUNNEL=docker.io/openziti/ziti-edge-tunnel@sha256:2a103bdd5d242bccd7627e7b8
 
 case "$MODE" in
   external)
-    CLIENT=root@mljr.tail33930.ts.net; SERVER=root@nas.tail33930.ts.net
+    CLIENT=root@mljr.ziti; SERVER=root@nas.tail33930.ts.net
     SERVER_DIRECT=100.100.10.2 # nas over Tailscale
     FORBIDDEN=nuc.int.mljr.eu; PASS_PCT=90
     IPERF_BIN="docker run --rm --network host $ALPINE sh -c 'apk add -q iperf3 >/dev/null && iperf3 \"\$@\"' iperf3" ;;
   lan)
-    CLIENT=root@nas.tail33930.ts.net; SERVER=root@ugreen.tail33930.ts.net
+    CLIENT=root@nas.tail33930.ts.net; SERVER=root@ugreen.ziti
     SERVER_DIRECT=192.168.50.86 # ugreen on the LAN
     CLIENT_LAN=192.168.50.80    # nas, for CLIENT_TUNNELER=router
     FORBIDDEN=mljr.int.mljr.eu; PASS_PCT=75

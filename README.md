@@ -174,12 +174,12 @@ The secrets file name and the on-host key dir use the host's Puppet certname
 the Tailscale name until the OpenZiti phase:
 
 ```bash
-scp openvox/data/secrets/nuc.int.mljr.eu.eyaml root@nuc.tail33930.ts.net:/tmp/nuc.eyaml
-ssh root@nuc.tail33930.ts.net "/opt/puppetlabs/puppet/bin/eyaml edit /tmp/nuc.eyaml \
+scp openvox/data/secrets/nuc.int.mljr.eu.eyaml root@nuc.ziti:/tmp/nuc.eyaml
+ssh root@nuc.ziti "/opt/puppetlabs/puppet/bin/eyaml edit /tmp/nuc.eyaml \
   --pkcs7-public-key=/etc/puppetlabs/puppet/eyaml/hosts/nuc.int.mljr.eu/public_key.pkcs7.pem \
   --pkcs7-private-key=/etc/puppetlabs/puppet/eyaml/hosts/nuc.int.mljr.eu/private_key.pkcs7.pem"
-scp root@nuc.tail33930.ts.net:/tmp/nuc.eyaml openvox/data/secrets/nuc.int.mljr.eu.eyaml
-ssh root@nuc.tail33930.ts.net "shred -u /tmp/nuc.eyaml"
+scp root@nuc.ziti:/tmp/nuc.eyaml openvox/data/secrets/nuc.int.mljr.eu.eyaml
+ssh root@nuc.ziti "shred -u /tmp/nuc.eyaml"
 ```
 
 **Decryption happens host-side**, never in CI. The per-host private keys are
@@ -298,8 +298,8 @@ make openvox-deploy-nuc
 make openvox-check-ugreen
 
 # Or drive scripts/openvox-sync.sh directly for anything not covered above
-./scripts/openvox-sync.sh mljr.tail33930.ts.net noop
-./scripts/openvox-sync.sh nuc.tail33930.ts.net apply
+./scripts/openvox-sync.sh mljr.ziti noop
+./scripts/openvox-sync.sh nuc.ziti apply
 ```
 
 Both `make openvox-check`/`openvox-deploy` run all 3 hosts in parallel and
@@ -309,11 +309,12 @@ output is also prefixed with the host's short label (`[mljr]`, `[nuc]`,
 saved under `logs/openvox/<host>-<mode>-<timestamp>.log` for later
 inspection.
 
-For manual SSH, `nuc` and `ugreen` accept your own username
-(`ssh nuc`/`ugreen`). `mljr` (a bare Contabo VPS) and `nas` (Unraid, no
-per-user accounts) both reject any other username via the Tailscale ACL
-(`tailnet policy does not permit you to SSH as user "<name>"`) — use
-`ssh root@mljr` / `ssh root@nas`.
+SSH to mljr, nuc and ugreen goes over Ziti with the opkssh key:
+`opkssh login` once a day, then `ssh root@<host>.ziti`
+(docs/ZITI_ENROLL.md). The scripts and make targets check the key first
+(`scripts/opk-ready.sh`) and run `opkssh login` when it is missing or about
+to expire; `OPK_SKIP=1` skips that for a YubiKey key. `nas` and
+`wd_mycloud` have no Ziti yet and stay on Tailscale (`ssh root@nas`).
 
 ## GitHub Actions
 

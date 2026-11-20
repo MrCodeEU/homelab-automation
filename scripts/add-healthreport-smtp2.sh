@@ -7,10 +7,13 @@
 # with nuc's own public key (value piped over stdin, never argv), and
 # appends/replaces the key in the local file. Review `git diff`, then PR.
 set -euo pipefail
+
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
 cd "$(git rev-parse --show-toplevel)"
 
 certname="nuc.int.mljr.eu"              # Puppet identity: secrets file + key dir
-ssh_target="nuc.tail33930.ts.net"       # SSH transport (Tailscale, until OpenZiti)
+ssh_target="nuc.ziti"                  # SSH transport (Ziti)
 file="openvox/data/secrets/${certname}.eyaml"
 pub="/etc/puppetlabs/puppet/eyaml/hosts/${certname}/public_key.pkcs7.pem"
 

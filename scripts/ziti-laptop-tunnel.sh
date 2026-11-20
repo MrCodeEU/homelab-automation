@@ -19,7 +19,11 @@
 # shellcheck disable=SC2029
 set -euo pipefail
 
-CTRL_HOST=root@mljr.tail33930.ts.net
+# Over Ziti with the opkssh key. Enrolling a laptop without a working
+# tunnel needs another path to mljr: ZITI_CTRL_SSH=<target> (while it
+# exists, root@mljr.tail33930.ts.net), and OPK_SKIP=1 for another key.
+CTRL_HOST=${ZITI_CTRL_SSH:-root@mljr.ziti}
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
 NAME=laptop-mrcode
 DIR=/var/lib/ziti-edge-tunnel
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

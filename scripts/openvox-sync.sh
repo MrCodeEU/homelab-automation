@@ -34,20 +34,23 @@
 # to logs/openvox/ for later inspection - *.log is already gitignored.
 set -uo pipefail
 
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
+
 host="${1:?usage: openvox-sync.sh <ssh-target> [apply]}"
 mode="${2:-noop}"
 env_dir="${OPENVOX_ENV_DIR:-/etc/puppetlabs/code/environments/production}"
 
 # Puppet identity (certname) is decoupled from the SSH transport above
-# (Phase 2, docs/ZERO_TRUST_PLAN.md): a migrated host still connects over its
-# Tailscale name but applies under its <host>.int.mljr.eu certname, which
+# (Phase 2, docs/ZERO_TRUST_PLAN.md): a host connects over its Ziti name
+# (<host>.ziti) but applies under its <host>.int.mljr.eu certname, which
 # drives its hiera node file, eyaml secrets file and eyaml key dir. Hosts not
 # listed here keep using their on-host default certname (no --certname),
 # so the migration rolls out one host at a time with per-host rollback.
 case "$host" in
-  mljr.tail33930.ts.net)   certname='mljr.int.mljr.eu' ;;
-  nuc.tail33930.ts.net)    certname='nuc.int.mljr.eu' ;;
-  ugreen.tail33930.ts.net) certname='ugreen.int.mljr.eu' ;;
+  mljr.ziti)   certname='mljr.int.mljr.eu' ;;
+  nuc.ziti)    certname='nuc.int.mljr.eu' ;;
+  ugreen.ziti) certname='ugreen.int.mljr.eu' ;;
   *)                       certname='' ;;
 esac
 
@@ -120,7 +123,7 @@ if [ -n "$recovery_services" ]; then
   apply_env+="OPENVOX_RECOVERY_SERVICES=${recovery_services} "
 fi
 
-# Short label for prefixing/log naming, e.g. "mljr.tail33930.ts.net" -> "mljr".
+# Short label for prefixing/log naming, e.g. "mljr.ziti" -> "mljr".
 label="${host%%.*}"
 
 # Invoked indirectly by the EXIT trap below.
@@ -157,7 +160,7 @@ echo "${c_bold}==> ${label}${c_reset} (${mode}) starting..." | prefix
   ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p ${stage_dir}/openvox/manifests ${stage_dir}/openvox/modules/roles ${stage_dir}/openvox/modules/role ${stage_dir}/openvox/data ${stage_dir}/scripts" \
     || { echo "ERROR: could not create ${stage_dir} on ${host}" >&2; exit 1; }
 
-  if [ "${host}" = "ugreen.tail33930.ts.net" ]; then
+  if [ "${host}" = "ugreen.ziti" ]; then
     # No rsync on UGOS (see above). scp does not delete: start from an
     # empty tree, so a removed file does not linger.
     ssh "${ssh_opts[@]}" "root@${host}" "rm -rf -- ${stage_dir}/openvox && mkdir -p ${stage_dir}/openvox/manifests ${stage_dir}/openvox/modules/roles ${stage_dir}/openvox/modules/role ${stage_dir}/openvox/data" \
