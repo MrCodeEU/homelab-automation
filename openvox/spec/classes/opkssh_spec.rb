@@ -48,13 +48,13 @@ describe 'roles::opkssh' do
     end
     it { is_expected.to contain_file('/etc/ssh/sshd_config.d/11-openvox-opkssh-root.conf').with_ensure('absent') }
 
-    context 'with root from one loopback address' do
-      let(:params) { super().merge(root_match_address: '127.0.0.2') }
+    context 'with root on one loopback address' do
+      let(:params) { super().merge(root_local_address: '127.0.0.2') }
 
       it do
         is_expected.to contain_file('/etc/ssh/sshd_config.d/11-openvox-opkssh-root.conf')
           .with(ensure: 'file', mode: '0600')
-          .with_content(%r{^Match User root Address 127\.0\.0\.2\n  PermitRootLogin prohibit-password\n  AuthenticationMethods publickey\nMatch all\n\z})
+          .with_content(%r{^Match User root LocalAddress 127\.0\.0\.2\n  PermitRootLogin prohibit-password\n  AuthenticationMethods publickey\n  ForceCommand none\nMatch all\n\z})
           .that_notifies('Exec[opkssh-sshd-reload]')
       end
     end

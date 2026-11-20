@@ -22,13 +22,17 @@
 # on it (roles::ugreen_tailscale), so sshd calls opkssh through
 # `env -u GODEBUG`.
 #
-# $root_match_address (ugreen): UGOS sets PermitRootLogin no, and root from
+# $root_local_address (ugreen): UGOS sets PermitRootLogin no, and root from
 # 127.0.0.1 is the facts endpoint's ForceCommand. This allows root with a
-# key from that one loopback address, where the Ziti service <host>.ziti
-# arrives. The only other root key is the facts key, which has
-# from="127.0.0.1", so in practice only opkssh logs in there. A drop-in,
-# not sshd_config, which UGOS rewrites from its UI; if UGOS ever drops it,
-# root login is simply refused again.
+# key on connections TO that loopback address, where the Ziti service
+# <host>.ziti dials. It matches LocalAddress, not Address: the kernel picks
+# 127.0.0.1 as the source for any 127/8 destination, so every Ziti
+# connection comes from 127.0.0.1. ForceCommand none overrides both the
+# facts block and UGOS's force_command.sh (which runs anything for root
+# anyway). The facts key keeps restrict and its own command=, so in
+# practice only opkssh gets a shell there. A drop-in, not sshd_config,
+# which UGOS rewrites from its UI; if UGOS ever drops it, root login is
+# simply refused again.
 class roles::opkssh (
   String $version = 'v0.19.2',
   # sha256 of opkssh-linux-amd64 from the GitHub release (asset digest).
@@ -42,7 +46,7 @@ class roles::opkssh (
   String $cache_fallback = '24h',
   Boolean $selinux = $facts.dig('os', 'selinux', 'enabled') == true,
   Boolean $clear_godebug = false,
-  Optional[Stdlib::IP::Address::V4::Nosubnet] $root_match_address = undef,
+  Optional[Stdlib::IP::Address::V4::Nosubnet] $root_local_address = undef,
 ) {
   $bin       = '/usr/local/bin/opkssh'
   $libexec   = '/usr/local/libexec/opkssh'
@@ -190,9 +194,9 @@ class roles::opkssh (
   }
 
   # `Match all` ends the block, so nothing included after it lands inside.
-  if $root_match_address {
+  if $root_local_address {
     $root_match_ensure  = 'file'
-    $root_match_content = "# Managed by OpenVox (roles::opkssh)\nMatch User root Address ${root_match_address}\n  PermitRootLogin prohibit-password\n  AuthenticationMethods publickey\nMatch all\n"
+    $root_match_content = "# Managed by OpenVox (roles::opkssh)\nMatch User root LocalAddress ${root_local_address}\n  PermitRootLogin prohibit-password\n  AuthenticationMethods publickey\n  ForceCommand none\nMatch all\n"
   } else {
     $root_match_ensure  = 'absent'
     $root_match_content = undef
