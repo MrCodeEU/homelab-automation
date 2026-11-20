@@ -1,0 +1,10 @@
+---
+version: 5
+
+defaults:
+  datadir: data
+
+hierarchy:
+  - name: Caddy without transport fixture
+    data_hash: yaml_data
+    path: caddy_no_transport.yaml

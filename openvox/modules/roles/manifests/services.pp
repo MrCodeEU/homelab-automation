@@ -217,7 +217,9 @@ class roles::services (
       'nas_ip'                 => '100.100.10.2',
       'mljr_ip'                => '100.100.20.1',
       'ugreen_ip'              => '100.100.10.4',
-      'homeassistant_ip'       => '100.100.10.200',
+      # LAN (DHCP reservation): Home Assistant has no Ziti identity of its own;
+      # nuc reaches it directly, as nuc's router does for the Ziti service.
+      'homeassistant_ip'       => '192.168.50.31',
       'kuma_api_key'           => lookup('vault_kuma_api_key', { 'default_value' => '' }),
       'healthreport_schedule'  => '*-*-* 06:15:00',
       'healthreport_model'     => 'qwen3:8b',

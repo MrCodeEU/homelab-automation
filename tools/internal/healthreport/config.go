@@ -194,7 +194,7 @@ func defaultConfig() Config {
 		SSHHosts:              map[string]string{},
 		SSHKeyPath:            "/ssh/id_ed25519",
 		LocalFactsBin:         "/usr/local/bin/homelab-facts",
-		HAURL:                 "http://100.100.10.200:8123",
+		HAURL:                 "http://192.168.50.31:8123",
 		NtfyURL:               "https://ntfy.mljr.eu",
 		NtfyTopic:             "homelab-health",
 		SMTPPort:              587,

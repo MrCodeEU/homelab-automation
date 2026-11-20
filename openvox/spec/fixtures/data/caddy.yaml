@@ -6,16 +6,17 @@ services_catalog:
     port: 8080
     domain: local.example.test
     caddy_auth: authelia
-    staging: true
+  # Next to Caddy on mljr: a service on another host is reached over Ziti
+  # only (caddy_ziti.yaml), which the stock-Caddy render test cannot parse.
   - name: remote-https
     enabled: true
-    host: nuc
+    host: mljr
     port: 8443
     domain: [app.example.test, alt.example.test]
     https_backend: true
   - name: custom-upstream
     enabled: true
-    host: nuc
+    host: mljr
     port: 9000
     domain: custom.example.test
     caddy_extra_config: |
@@ -37,52 +38,14 @@ services_catalog:
   # AppSec opt-in is only rendered when roles::caddy::appsec_enabled is true.
   - name: appsec-log
     enabled: true
-    host: nuc
+    host: mljr
     port: 7001
     domain: log.example.test
     appsec: log
   - name: appsec-block
     enabled: true
-    host: nuc
+    host: mljr
     port: 7002
     domain: block.example.test
     appsec: block
     appsec_exclude_paths: ['/upload/*', '/dav/*']
-  # Over Ziti only when roles::caddy::ziti_transport is true; otherwise the
-  # usual Tailscale upstream (so the stock-Caddy render test validates it).
-  - name: ziti-upstream
-    enabled: true
-    domain: ziti.example.test
-    port: 3001
-    host: nuc
-    staging: true
-    ziti_via_caddy: true
-  # Prod next to Caddy on mljr; only the staging vhost goes over Ziti.
-  - name: ziti-staging-only
-    enabled: true
-    domain: zstage.example.test
-    port: 3002
-    host: mljr
-    staging: true
-    ziti_staging: true
-  # `reverse_proxy catalog:<name>` resolves to that entry's upstream.
-  - name: catalog-ref
-    enabled: true
-    domain: ref.example.test
-    port: 3003
-    host: mljr
-    caddy_extra_config: |
-      handle_path /zu* {
-          reverse_proxy catalog:ziti-upstream
-      }
-  # Block form, as nextcloud uses it: its own options, no default proxy.
-  - name: catalog-block-ref
-    enabled: true
-    domain: block.example.test
-    port: 3004
-    host: mljr
-    caddy_suppress_default_proxy: true
-    caddy_extra_config: |
-      reverse_proxy catalog:ziti-upstream {
-          request_buffers 16m
-      }
