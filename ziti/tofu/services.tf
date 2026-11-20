@@ -95,10 +95,21 @@ resource "ziti_host_v1_config" "ssh_short" {
   port     = 22
 }
 
+# ugreen: root from 127.0.0.1 is the facts endpoint's ForceCommand, so its
+# admin login arrives from 127.0.0.2, where sshd allows root with a key
+# (roles::opkssh::root_match_address). Linux answers the whole 127/8 on lo.
+resource "ziti_host_v1_config" "ssh_short_ugreen" {
+  name     = "ssh-short-host-ugreen"
+  protocol = "tcp"
+  address  = "127.0.0.2"
+  port     = 22
+}
+
 resource "ziti_service" "ssh_short" {
-  for_each        = toset(local.ssh_hosts)
-  name            = "ssh-${each.key}"
-  configs         = sort([ziti_intercept_v1_config.ssh_short[each.key].id, ziti_host_v1_config.ssh_short.id])
+  for_each = toset(local.ssh_hosts)
+  name     = "ssh-${each.key}"
+  configs = sort([ziti_intercept_v1_config.ssh_short[each.key].id,
+  each.key == "ugreen" ? ziti_host_v1_config.ssh_short_ugreen.id : ziti_host_v1_config.ssh_short.id])
   role_attributes = ["admin-services"]
 }
 

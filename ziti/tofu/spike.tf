@@ -73,8 +73,8 @@ resource "ziti_host_v1_config" "spike_cfengine" {
 }
 
 resource "ziti_service" "spike_cfengine" {
-  name            = "spike-cfengine"
-  configs         = sort([ziti_intercept_v1_config.spike_cfengine.id, ziti_host_v1_config.spike_cfengine.id])
+  name    = "spike-cfengine"
+  configs = sort([ziti_intercept_v1_config.spike_cfengine.id, ziti_host_v1_config.spike_cfengine.id])
 }
 
 resource "ziti_service_policy" "spike_cfengine_bind" {

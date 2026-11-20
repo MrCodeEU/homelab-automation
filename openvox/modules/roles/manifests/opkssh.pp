@@ -21,6 +21,14 @@
 # GODEBUG=tlskyber=0 into every service's environment, and Go 1.24+ exits
 # on it (roles::ugreen_tailscale), so sshd calls opkssh through
 # `env -u GODEBUG`.
+#
+# $root_match_address (ugreen): UGOS sets PermitRootLogin no, and root from
+# 127.0.0.1 is the facts endpoint's ForceCommand. This allows root with a
+# key from that one loopback address, where the Ziti service <host>.ziti
+# arrives. The only other root key is the facts key, which has
+# from="127.0.0.1", so in practice only opkssh logs in there. A drop-in,
+# not sshd_config, which UGOS rewrites from its UI; if UGOS ever drops it,
+# root login is simply refused again.
 class roles::opkssh (
   String $version = 'v0.19.2',
   # sha256 of opkssh-linux-amd64 from the GitHub release (asset digest).
@@ -34,6 +42,7 @@ class roles::opkssh (
   String $cache_fallback = '24h',
   Boolean $selinux = $facts.dig('os', 'selinux', 'enabled') == true,
   Boolean $clear_godebug = false,
+  Optional[Stdlib::IP::Address::V4::Nosubnet] $root_match_address = undef,
 ) {
   $bin       = '/usr/local/bin/opkssh'
   $libexec   = '/usr/local/libexec/opkssh'
@@ -177,6 +186,24 @@ class roles::opkssh (
       File['/etc/opk/providers', '/etc/opk/auth_id', '/etc/opk/config.yml'],
       User['opksshuser'],
     ],
+    notify  => Exec['opkssh-sshd-reload'],
+  }
+
+  # `Match all` ends the block, so nothing included after it lands inside.
+  if $root_match_address {
+    $root_match_ensure  = 'file'
+    $root_match_content = "# Managed by OpenVox (roles::opkssh)\nMatch User root Address ${root_match_address}\n  PermitRootLogin prohibit-password\n  AuthenticationMethods publickey\nMatch all\n"
+  } else {
+    $root_match_ensure  = 'absent'
+    $root_match_content = undef
+  }
+  file { '/etc/ssh/sshd_config.d/11-openvox-opkssh-root.conf':
+    ensure  => $root_match_ensure,
+    owner   => 'root',
+    group   => 'root',
+    mode    => '0600',
+    content => $root_match_content,
+    require => File['/etc/ssh/sshd_config.d/10-openvox-opkssh.conf'],
     notify  => Exec['opkssh-sshd-reload'],
   }
 
