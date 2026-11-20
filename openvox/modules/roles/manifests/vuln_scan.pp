@@ -13,8 +13,9 @@
 #     while the script, the timer and the import stay on this host.
 #     Containers only, there is no host package scan.
 #
-# The scripts live under files/vuln_scan/. DefectDojo is reached over the
-# tailnet at $dojo_url. Two ways to authenticate:
+# The scripts live under files/vuln_scan/. DefectDojo is reached at
+# $dojo_url: 127.0.0.1 on nuc, elsewhere the host's Ziti proxy
+# (services/ziti-proxy*, service defectdojo). Two ways to authenticate:
 #   - On the DefectDojo host (nuc): the admin password from
 #     /opt/defectdojo/.env, no extra secret.
 #   - On every other host: a least-privilege importer account, set with

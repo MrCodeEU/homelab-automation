@@ -14,9 +14,10 @@ critical compute node, and this has no public-facing surface anyway.
 - Image: `ghcr.io/domainaware/parsedmarc:latest`
 - No exposed app port - it's a long-running IMAP watch daemon (`watch = True`
   in `config.ini`, using IMAP IDLE), not a web service.
-- Postgres port `5432` is published (bound to `${BIND_ADDR}`, nuc's Tailscale
-  IP) so Grafana - a separate Docker Compose project - can reach it as a
-  datasource. It is not reachable outside the tailnet.
+- Postgres port `5432` is published on loopback (`${BIND_ADDR}`) for the
+  health report (host networking). Grafana, a separate Docker Compose
+  project, joins the `dmarc-monitor_dmarc-monitor-internal` network and uses
+  `dmarc-monitor-db:5432`.
 - `config.ini` holds only non-secret settings (folders, batch size, watch
   mode). All credentials come from env vars, which override the config file:
   `PARSEDMARC_IMAP_HOST/USER/PASSWORD`, `PARSEDMARC_POSTGRESQL_PASSWORD`.

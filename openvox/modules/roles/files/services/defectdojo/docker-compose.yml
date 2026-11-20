@@ -76,10 +76,11 @@ services:
     environment:
       <<: *django-env
       DD_DEBUG: "False"
-      # Reached by tailnet IP or MagicDNS name (importers, plain http) and
-      # through Caddy + Authelia at dojo.mljr.eu (https). Session cookies stay
-      # non-Secure on purpose: the tailnet address is plain http.
-      DD_ALLOWED_HOSTS: "dojo.${DOMAIN:-mljr.eu},nuc.tail33930.ts.net,100.100.10.1,localhost,127.0.0.1"
+      # Reached on loopback (importers on nuc, and elsewhere through their
+      # host's Ziti proxy, plain http) and through Caddy + Authelia at
+      # dojo.mljr.eu (https). Session cookies stay non-Secure on purpose:
+      # the loopback address is plain http.
+      DD_ALLOWED_HOSTS: "dojo.${DOMAIN:-mljr.eu},localhost,127.0.0.1"
       DD_CSRF_TRUSTED_ORIGINS: "https://dojo.${DOMAIN:-mljr.eu}"
       DD_SECURE_PROXY_SSL_HEADER: "True"
       # Upstream defaults to 4 processes x 4 threads, sized for far more users

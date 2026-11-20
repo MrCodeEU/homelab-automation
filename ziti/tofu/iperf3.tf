@@ -2,9 +2,8 @@
 # nuc (m2m.tf, speedtest-nuc). Not catalog entries, so not in catalog.tf:
 # one service per host, iperf3.<host>.int.mljr.eu:5201 -> 127.0.0.1:5201
 # (roles::iperf3::bind; the routers run with host networking), bound by
-# that host's router only. Not local.bind_addr: that is the Tailscale IP
-# on nuc and ugreen. Control and data
-# connections both use 5201, so one TCP service carries a whole test.
+# that host's router only. Control and data connections both use 5201, so
+# one TCP service carries a whole test.
 locals {
   iperf3_hosts = ["mljr", "ugreen"]
 

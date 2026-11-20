@@ -5,6 +5,10 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    # default: victoriametrics, loki; dmarc: the DMARC Postgres datasource
+    networks:
+      - default
+      - dmarc
     environment:
       - TZ=${TZ}
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
@@ -76,6 +80,13 @@ services:
     volumes:
       - ./loki/loki.yml:/etc/loki/loki.yml:ro
       - loki-data:/loki
+
+networks:
+  # dmarc-monitor's network (services/dmarc-monitor), created by that
+  # project; the same cross-project pattern as caddy-poc and crowdsec.
+  dmarc:
+    external: true
+    name: dmarc-monitor_dmarc-monitor-internal
 
 volumes:
   grafana-data:

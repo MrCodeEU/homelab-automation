@@ -512,7 +512,7 @@ func processMail(ctx context.Context, c *client, cfg config, st *State, e emailS
 
 func main() {
 	var cfg config
-	api := flag.String("api", "http://100.100.10.1:5000", "mail-archiver base URL")
+	api := flag.String("api", "http://127.0.0.1:5000", "mail-archiver base URL")
 	rate := flag.Int("rate", 100, "max API requests per minute (server limit is 120)")
 	flag.StringVar(&cfg.mode, "mode", "incremental", "incremental | sweep")
 	flag.StringVar(&cfg.out, "out", "/outbox", "outbox directory")

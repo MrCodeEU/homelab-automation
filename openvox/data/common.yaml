@@ -8,7 +8,7 @@
 # Agent-managed + proxy-only hosts' tailscale IPs. Not secret (tailnet IPs
 # only meaningful to devices already on the tailnet), and deliberately
 # duplicated from each openvox/data/nodes/<certname>.yaml's own
-# roles::base::tailscale_ip / roles::services::tailscale_ip rather than
+# roles::base::tailscale_ip rather than
 # looked up - same "hardcode a small derived dataset, document the
 # maintenance shift" call already made for roles::backup_dashboard's
 # $catalog_services. Public consumer: the mljr-web homepage's Tailscale
@@ -379,7 +379,7 @@ services_catalog:
     domain: "dojo.mljr.eu"
     port: 8101
     host: nuc
-    description: "Vulnerability findings database (Trivy/Nuclei imports). Behind Authelia; importers keep using the tailnet address 100.100.10.1:8101."
+    description: "Vulnerability findings database (Trivy/Nuclei imports). Behind Authelia; importers use 127.0.0.1:8101 on nuc and their host's Ziti proxy (127.0.0.1:19101) elsewhere."
     caddy_auth: authelia
     icon: "mdi:shield-search"
     backup_critical: true

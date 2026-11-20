@@ -38,7 +38,7 @@ const (
 	mailIMAPSName  = tcpPrefix + "mail IMAPS 993"
 
 	crowdsecLAPIName = httpPrefix + "crowdsec LAPI"
-	defectdojoName   = tcpPrefix + "defectdojo"
+	defectdojoName   = httpPrefix + "defectdojo"
 
 	// Kuma's own `ziti tunnel proxy` sidecar (services/kuma). A TCP check
 	// through it proves nothing: the proxy accepts every connection itself
@@ -117,11 +117,11 @@ var tcpTargets = []tcpTarget{
 	{name: mailSMTPInName, on: "mljr", kind: kindSMTP, host: kumaZitiProxy, port: 2525},
 	{name: mailSMTPSName, on: "mljr", host: mailcowSMTPHost, port: 465, legacy: mailSMTPSName},
 	{name: mailIMAPSName, on: "mljr", host: mailcowSMTPHost, port: 993, legacy: mailIMAPSName},
-	// DefectDojo has no Caddy route (tailnet-only), so no HTTP monitor is derived
-	// from the catalog. nginx publishes on nuc's Tailscale IP; Kuma runs on
-	// nuc too, so this never leaves the host. Moves with the catalog bind
-	// addresses (bind_addr, docs/ZERO_TRUST_PLAN.md Phase 8).
-	{name: defectdojoName, on: "nuc", host: "100.100.10.1", port: 8101, legacy: tcpPrefix + "defectdojo (nuc)"},
+	// DefectDojo's own login page over Ziti (service defectdojo): nginx
+	// publishes on nuc's loopback, which Kuma's bridged container cannot
+	// reach. The domain monitor stops at Authelia. Replaces the old TCP
+	// check on the tailnet bind.
+	{name: defectdojoName, on: "nuc", kind: kindHTTP, url: "http://" + kumaZitiProxy + ":8101/login"},
 }
 
 type service struct {

@@ -8,7 +8,7 @@ services:
     # time never starts a (potentially hours-long) backfill.
     command: ["--help"]
     restart: "no"
-    # Reaches mail-archiver on nuc's Tailscale address (100.100.10.1:5000).
+    # Reaches mail-archiver on nuc's loopback (127.0.0.1:5000).
     network_mode: host
     env_file:
       - .env

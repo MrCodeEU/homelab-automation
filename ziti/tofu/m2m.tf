@@ -7,13 +7,14 @@
 locals {
   m2m = {
     # Alloy on mljr -> VictoriaMetrics and Loki on nuc; backups -> ugreen;
-    # home-ip sync -> home-ip serve on nuc (home-ip.tf)
-    "m2m-mljr" = ["grafana-victoriametrics", "grafana-loki", "backup-sftp-ugreen", "home-ip-nuc"]
+    # home-ip sync -> home-ip serve on nuc (home-ip.tf); Trivy/Nuclei
+    # imports -> DefectDojo on nuc (roles::vuln_scan)
+    "m2m-mljr" = ["grafana-victoriametrics", "grafana-loki", "backup-sftp-ugreen", "home-ip-nuc", "defectdojo"]
     # Backups on nuc -> ugreen; healthreport and backup-dashboard facts
     # over SSH -> mljr, ugreen (services/ziti-proxy-nuc)
     "m2m-nuc" = ["backup-sftp-ugreen", "facts-ssh-mljr", "facts-ssh-ugreen"]
-    # Alloy on ugreen -> the same
-    "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki"]
+    # Alloy on ugreen -> the same; Trivy imports -> DefectDojo
+    "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki", "defectdojo"]
     # homepage on mljr (live homelab panel) -> VictoriaMetrics, PromQL
     "homepage-mljr" = ["grafana-victoriametrics"]
     # CrowdSec agent on nuc -> mljr's LAPI (crowdsec-nas stays on the
@@ -21,7 +22,7 @@ locals {
     "crowdsec-nuc" = ["crowdsec-lapi"]
     # Uptime Kuma on nuc: checks that would otherwise need the tailnet
     # (services/kuma, kuma-ziti-proxy)
-    "kuma-nuc" = ["crowdsec-lapi", "mail-smtp-mljr"]
+    "kuma-nuc" = ["crowdsec-lapi", "mail-smtp-mljr", "defectdojo"]
     # speedtest-metrics on nuc -> iperf3 on mljr and ugreen (iperf3.tf)
     "speedtest-nuc" = ["iperf3-mljr", "iperf3-ugreen"]
   }

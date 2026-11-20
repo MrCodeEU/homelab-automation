@@ -46,9 +46,6 @@ class roles::services (
   # this box's real OS hostname - same reasoning/precedent as
   # roles::backup's own $hostname param.
   String $hostname     = $facts['networking']['hostname'],
-  # This host's own Tailscale IP, used as BIND_ADDR for every service
-  # except mljr (loopback-only, since Caddy is co-located there).
-  String $tailscale_ip = '',
   # Ported 1:1 from ansible/inventory/group_vars/all/all.yml. `ollama` is
   # nas-hosted and stays out of this default - nas has no real Puppet
   # agent, so it's reached via the separate roles::services_nas class
@@ -104,10 +101,11 @@ class roles::services (
       and !pick($s['skip_deploy'], false)
   }
 
-  $bind_addr = $hostname ? {
-    'mljr'  => '127.0.0.1',
-    default => $tailscale_ip,
-  }
+  # BIND_ADDR for every service: loopback only. Other hosts reach a
+  # service through Ziti, whose router on this host (host network) dials
+  # 127.0.0.1 (ziti/tofu/catalog.tf); a consumer on this host uses
+  # 127.0.0.1 itself.
+  $bind_addr = '127.0.0.1'
 
   # Resolve only secrets that can be rendered on this host.  This is
   # intentionally a host selector rather than one fleet-wide Hash: Puppet
@@ -225,7 +223,6 @@ class roles::services (
       'smtp_from'      => lookup('vault_smtp_from', { 'default_value' => "speedtest@${domain}" }),
     },
     'healthreport' => {
-      'nuc_ip'                 => '100.100.10.1',
       'nas_ip'                 => '100.100.10.2',
       'mljr_ip'                => '100.100.20.1',
       'ugreen_ip'              => '100.100.10.4',
@@ -468,7 +465,7 @@ class roles::services (
         domain    => $domain,
         email     => $email,
         timezone  => $timezone,
-        bind_addr => $tailscale_ip,
+        bind_addr => $bind_addr,
         work_dir  => $work_dir,
         secrets   => pick($all_secrets[$svc['name']], {}),
         staging   => true,
