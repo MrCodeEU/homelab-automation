@@ -44,8 +44,11 @@ type Config struct {
 	// DriftIgnore are resources ("File[/x]") whose drift is expected, such
 	// as a file with a compile-time timestamp; their lines are skipped.
 	DriftIgnore []string
-	Notifiers   []Notifier
-	Log         *slog.Logger
+	// Tofu is the path, inside the tree, of scripts/ziti-tofu.sh: set on
+	// the Ziti controller host only (tofu.go). Empty: no tofu step.
+	Tofu      string
+	Notifiers []Notifier
+	Log       *slog.Logger
 }
 
 // DeployBranch is the request branch of a host.
@@ -70,6 +73,8 @@ type State struct {
 	LastSuccess Result `json:"last_success"`
 	// Drift is the last daily drift check (drift.go).
 	Drift DriftState `json:"drift"`
+	// Tofu is the last tofu step that had changes (tofu.go).
+	Tofu Result `json:"tofu"`
 }
 
 // Result of one request, for state, outbox and metrics.
@@ -186,7 +191,19 @@ func (a *Agent) Poll(ctx context.Context) error {
 	if err := a.saveState(); err != nil {
 		return err
 	}
-	return a.queue(res)
+	if err := a.queue(res); err != nil {
+		return err
+	}
+	if a.cfg.Tofu != "" && a.cfg.Mode == "apply" && res.Outcome == "success" {
+		if t := a.tofuApply(ctx, res); t != nil {
+			a.state.Tofu = *t
+			if err := a.saveState(); err != nil {
+				return err
+			}
+			return a.queue(*t)
+		}
+	}
+	return nil
 }
 
 // handle checks the request at the head of the deploy branch and applies
@@ -398,6 +415,14 @@ func (a *Agent) writeMetrics() {
 		fmt.Fprintf(&b, "homelab_deploy_drift_success{host=%q} %d\n", a.cfg.Host, ok)
 		fmt.Fprintf(&b, "homelab_deploy_drift_resource_changes{host=%q} %d\n", a.cfg.Host, d.Changes)
 		fmt.Fprintf(&b, "homelab_deploy_drift_error_lines{host=%q} %d\n", a.cfg.Host, d.Errors)
+	}
+	if t := a.state.Tofu; t.RequestID != "" {
+		ok := 0
+		if t.Outcome == "success" {
+			ok = 1
+		}
+		fmt.Fprintf(&b, "homelab_deploy_tofu_last_run_timestamp_seconds{host=%q,outcome=%q} %d\n", a.cfg.Host, t.Outcome, t.Time.Unix())
+		fmt.Fprintf(&b, "homelab_deploy_tofu_success{host=%q} %d\n", a.cfg.Host, ok)
 	}
 	fmt.Fprintf(&b, "homelab_deploy_applied_info{host=%q,commit=%q} 1\n", a.cfg.Host, a.state.LastApplied)
 	fmt.Fprintf(&b, "homelab_deploy_outbox_entries{host=%q} %d\n", a.cfg.Host, len(entries))

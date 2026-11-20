@@ -97,3 +97,5 @@ roles::vuln_scan::nuclei_enabled: false
 
 # The deploy agent applies; deploy.yml skips the push here (docs/DEPLOY_AGENT.md).
 roles::deploy_agent::mode: 'apply'
+# The Ziti controller runs here: the agent also applies ziti/tofu/.
+roles::deploy_agent::ziti_tofu: true

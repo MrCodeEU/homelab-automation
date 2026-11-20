@@ -65,6 +65,9 @@ scripts/ziti-enroll-router.sh <h>    # token from mljr straight into the contain
 scripts/ziti-tofu.sh apply          # ssh service now also on <h>
 ```
 
+The deploy agent on mljr would apply the ssh change with the next mljr
+deploy too; running it here makes it immediate for the check below.
+
 ## 4. Check
 
 ```sh

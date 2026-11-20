@@ -7,6 +7,11 @@
 # local time): a noop of the last applied commit, reported once per new
 # drift. It replaced openvox-drift.yml, which ran the noop over SSH.
 #
+# $ziti_tofu (the Ziti controller host, mljr): after each successful apply
+# the agent also applies ziti/tofu/ from the same commit
+# (scripts/ziti-tofu.sh auto). A plan that deletes or replaces anything is
+# held for a person and notified; the daily drift check adds a tofu plan.
+#
 # The unit is never restarted from here: when the agent itself runs the
 # apply that changes it, a restart would kill that apply (same cgroup).
 # The agent exits after a poll once its binary or env file changed, and
@@ -21,6 +26,7 @@ class roles::deploy_agent (
   Array[Pattern[/\A[A-Z][A-Za-z_:]*\[[^|]+\]\z/]] $drift_ignore = [
     'File[/var/lib/backup-dashboard/backup_catalog.json]',
   ],
+  Boolean $ziti_tofu = false,
 ) {
   $certname = $trusted['certname']
   $host     = $certname.split('\.')[0]
@@ -67,6 +73,7 @@ class roles::deploy_agent (
       'mode'         => $mode,
       'drift_at'     => $drift_at,
       'drift_ignore' => $drift_ignore.join('|'),
+      'ziti_tofu'    => $ziti_tofu,
       'certname'     => $certname,
       'mail'         => $mail,
     })),

@@ -568,6 +568,9 @@ Progress:
   Bitwarden), part of the controller's cold backup. The 17 objects of the
   PoC were imported; the plan after import was empty. Apply only from
   `main`.
+  Since 2026-11-20 mljr's deploy agent applies it after each deploy of
+  mljr (docs/DEPLOY_AGENT.md); plans that delete or replace are held for
+  a manual `apply`.
 - 2026-11-07, services from the catalog (#547): `ziti: true` on a
   `services_catalog` entry makes `<name>.<host>.int.mljr.eu:<port>`,
   hosted by the host's router on its bind address, dialable by

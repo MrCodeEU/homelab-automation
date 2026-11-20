@@ -93,6 +93,16 @@ func (a *Agent) MaybeDrift(ctx context.Context) error {
 			errs++
 		}
 	}
+	if a.cfg.Tofu != "" {
+		tlines, failed, tout := a.tofuDrift(ctx, filepath.Join(a.cfg.StateDir, "drift", commit))
+		if failed {
+			errs++
+			out += "\nziti tofu check failed:\n" + tail(tout, 10)
+			keys = append(keys, "ziti tofu check failed")
+		}
+		lines = append(lines, tlines...)
+		keys = append(keys, tlines...)
+	}
 	d := DriftState{
 		Time: a.now(), Commit: commit, Changes: len(lines), Errors: errs,
 		OK: runErr == nil && errs == 0, Notified: a.state.Drift.Notified,

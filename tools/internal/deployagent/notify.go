@@ -27,6 +27,12 @@ func summary(r Result) (title, body string) {
 	if r.Mode == "noop" {
 		title = fmt.Sprintf("Deploy noop %s on %s: %s", short, r.Host, r.Outcome)
 	}
+	if r.Mode == "ziti-tofu" {
+		title = fmt.Sprintf("Ziti tofu %s on %s: %s", short, r.Host, r.Outcome)
+		if r.Outcome == "held" {
+			title = fmt.Sprintf("Ziti tofu %s on %s: held, the plan deletes resources", short, r.Host)
+		}
+	}
 	if r.Mode == "drift" {
 		title = fmt.Sprintf("Drift on %s (applied %s): %s", r.Host, short, r.Outcome)
 	}
