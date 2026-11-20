@@ -27,8 +27,10 @@
 # shellcheck disable=SC2029  # remote commands are built locally on purpose
 set -euo pipefail
 
-CTRL_HOST=root@mljr.tail33930.ts.net
+CTRL_HOST=root@mljr.ziti
 LOCAL=${ZITI_TOFU_LOCAL:-0}
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh); not on mljr.
+[ "$LOCAL" = 1 ] || "$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
 TOFU_IMAGE=ghcr.io/opentofu/opentofu:1.13.9@sha256:f5aef7f2632b490e3c289a239d7974497d0583f3df6bfa35e8eb31a367ee5ec0
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$REPO/ziti/tofu"

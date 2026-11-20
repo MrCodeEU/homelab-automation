@@ -4,6 +4,9 @@
 # half for review and use by the ciphertext migration tool.
 set -euo pipefail
 
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
+
 usage() {
   echo "usage: $0 <mljr|nuc|ugreen>" >&2
   exit 2
@@ -11,9 +14,9 @@ usage() {
 
 host="${1:-}"
 case "$host" in
-  mljr|mljr.tail33930.ts.net|mljr.int.mljr.eu) canonical_host='mljr.tail33930.ts.net'; key_name='mljr'; certname='mljr.int.mljr.eu' ;;
-  nuc|nuc.tail33930.ts.net|nuc.int.mljr.eu) canonical_host='nuc.tail33930.ts.net'; key_name='nuc'; certname='nuc.int.mljr.eu' ;;
-  ugreen|ugreen.tail33930.ts.net|ugreen.int.mljr.eu) canonical_host='ugreen.tail33930.ts.net'; key_name='ugreen'; certname='ugreen.int.mljr.eu' ;;
+  mljr|mljr.ziti|mljr.int.mljr.eu) canonical_host='mljr.ziti'; key_name='mljr'; certname='mljr.int.mljr.eu' ;;
+  nuc|nuc.ziti|nuc.int.mljr.eu) canonical_host='nuc.ziti'; key_name='nuc'; certname='nuc.int.mljr.eu' ;;
+  ugreen|ugreen.ziti|ugreen.int.mljr.eu) canonical_host='ugreen.ziti'; key_name='ugreen'; certname='ugreen.int.mljr.eu' ;;
   *) usage ;;
 esac
 
@@ -43,6 +46,7 @@ ssh "root@${canonical_host}" "
   chmod 0444 '${public_key}'
 "
 
-scp -q "root@${canonical_host}:${public_key}" "$tmp_public_key"
+# -O: legacy scp, UGOS's sftp-server only serves the shares (ugreen).
+scp -O -q "root@${canonical_host}:${public_key}" "$tmp_public_key"
 install -D -m 0644 "$tmp_public_key" "$local_public_key"
 echo "Created ${key_name}'s private key on ${canonical_host}; saved public key to ${local_public_key}."

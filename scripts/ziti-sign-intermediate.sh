@@ -27,7 +27,10 @@
 # shellcheck disable=SC2029
 set -euo pipefail
 
-HOST=root@mljr.tail33930.ts.net
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
+
+HOST=root@mljr.ziti
 DATA=/opt/ziti-controller/data
 ZUID=2171 # ziggy, the image user
 TRUST_DOMAIN=ziti.mljr.eu

@@ -20,7 +20,10 @@
 # shellcheck disable=SC2029
 set -euo pipefail
 
-CTRL_HOST=root@mljr.tail33930.ts.net
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
+
+CTRL_HOST=root@mljr.ziti
 ZUID=2171 # ziggy, the image user
 
 die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
@@ -30,9 +33,9 @@ name="${1:-}"
 reenroll=false
 [ "${2:-}" = --reenroll ] && reenroll=true
 case "$name" in
-  mljr) host=root@mljr.tail33930.ts.net; svc=ziti-router;     attr=public; base=/opt ;;
-  nuc)  host=root@nuc.tail33930.ts.net;  svc=ziti-router-nuc; attr=lan;    base=/opt ;;
-  ugreen) host=root@ugreen.tail33930.ts.net; svc=ziti-router-ugreen; attr=lan; base=/volume1/homelab ;;
+  mljr) host=root@mljr.ziti; svc=ziti-router;     attr=public; base=/opt ;;
+  nuc)  host=root@nuc.ziti;  svc=ziti-router-nuc; attr=lan;    base=/opt ;;
+  ugreen) host=root@ugreen.ziti; svc=ziti-router-ugreen; attr=lan; base=/volume1/homelab ;;
   *) die "usage: $0 <mljr|nuc|ugreen> [--reenroll]" ;;
 esac
 # base: roles::services::base_path of that host (docs/ZITI_ENROLL.md).

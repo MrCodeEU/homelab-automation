@@ -11,6 +11,9 @@
 #   steps-back defaults to 1 - the release immediately before the current one.
 set -uo pipefail
 
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
+
 host="${1:?usage: openvox-rollback.sh <ssh-target> [steps-back]}"
 steps_back="${2:-1}"
 

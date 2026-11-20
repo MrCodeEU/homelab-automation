@@ -19,6 +19,9 @@
 # confirmations (for non-interactive runs).
 set -uo pipefail
 
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
+
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
   echo "not inside a git repo" >&2
   exit 1
@@ -32,9 +35,9 @@ declare -A HOST_CERTNAME=(
   [ugreen]="ugreen.int.mljr.eu"
 )
 declare -A HOST_SSH=(
-  [mljr]="mljr.tail33930.ts.net"
-  [nuc]="nuc.tail33930.ts.net"
-  [ugreen]="ugreen.tail33930.ts.net"
+  [mljr]="mljr.ziti"
+  [nuc]="nuc.ziti"
+  [ugreen]="ugreen.ziti"
 )
 
 bold() { printf '\033[1m%s\033[0m\n' "$*"; }

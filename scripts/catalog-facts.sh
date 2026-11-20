@@ -11,6 +11,9 @@
 # No IPs, MACs, disks, serials or SSH keys.
 set -euo pipefail
 
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
+
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 out_dir="${repo}/openvox/ci/facts"
 command -v jq >/dev/null || { echo "jq not found" >&2; exit 1; }
@@ -24,7 +27,7 @@ for h in "${hosts[@]}"; do
   esac
   cert="${h}.int.mljr.eu"
   # GODEBUG= for UGOS (its global GODEBUG=tlskyber=0 aborts Go programs).
-  ssh "root@${h}.tail33930.ts.net" \
+  ssh "root@${h}.ziti" \
     'GODEBUG= /opt/puppetlabs/bin/facter -j os kernel architecture hardwaremodel path networking 2>/dev/null' |
     jq --arg c "$cert" '{
       name: $c,

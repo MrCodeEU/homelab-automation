@@ -12,9 +12,10 @@
 #
 # ugreen (UGOS) blocks rsync's --server mode entirely - same known
 # constraint that forced the old Ansible role onto plain file copy for
-# that host too (see ansible/roles/services/tasks/prepare_service.yml).
-# scp -r works fine there; rsync is used everywhere else for its
-# incremental-diff speed.
+# that host too. Its sftp-server is a wrapper that serves only the shares,
+# so scp's default SFTP mode finds no /tmp either (Tailscale SSH brought
+# its own SFTP); the tree goes over as a tar stream instead. rsync is used
+# everywhere else for its incremental-diff speed.
 #
 # OPENVOX_WEEKLY_MAINTENANCE=true (env, not an arg - CI's own weekly
 # schedule sets this) forwards FACTER_openvox_weekly_maintenance=true to
@@ -34,20 +35,23 @@
 # to logs/openvox/ for later inspection - *.log is already gitignored.
 set -uo pipefail
 
+# SSH over Ziti with the opkssh key (scripts/opk-ready.sh).
+"$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
+
 host="${1:?usage: openvox-sync.sh <ssh-target> [apply]}"
 mode="${2:-noop}"
 env_dir="${OPENVOX_ENV_DIR:-/etc/puppetlabs/code/environments/production}"
 
 # Puppet identity (certname) is decoupled from the SSH transport above
-# (Phase 2, docs/ZERO_TRUST_PLAN.md): a migrated host still connects over its
-# Tailscale name but applies under its <host>.int.mljr.eu certname, which
+# (Phase 2, docs/ZERO_TRUST_PLAN.md): a host connects over its Ziti name
+# (<host>.ziti) but applies under its <host>.int.mljr.eu certname, which
 # drives its hiera node file, eyaml secrets file and eyaml key dir. Hosts not
 # listed here keep using their on-host default certname (no --certname),
 # so the migration rolls out one host at a time with per-host rollback.
 case "$host" in
-  mljr.tail33930.ts.net)   certname='mljr.int.mljr.eu' ;;
-  nuc.tail33930.ts.net)    certname='nuc.int.mljr.eu' ;;
-  ugreen.tail33930.ts.net) certname='ugreen.int.mljr.eu' ;;
+  mljr.ziti)   certname='mljr.int.mljr.eu' ;;
+  nuc.ziti)    certname='nuc.int.mljr.eu' ;;
+  ugreen.ziti) certname='ugreen.int.mljr.eu' ;;
   *)                       certname='' ;;
 esac
 
@@ -120,7 +124,7 @@ if [ -n "$recovery_services" ]; then
   apply_env+="OPENVOX_RECOVERY_SERVICES=${recovery_services} "
 fi
 
-# Short label for prefixing/log naming, e.g. "mljr.tail33930.ts.net" -> "mljr".
+# Short label for prefixing/log naming, e.g. "mljr.ziti" -> "mljr".
 label="${host%%.*}"
 
 # Invoked indirectly by the EXIT trap below.
@@ -157,19 +161,17 @@ echo "${c_bold}==> ${label}${c_reset} (${mode}) starting..." | prefix
   ssh "${ssh_opts[@]}" "root@${host}" "mkdir -p ${stage_dir}/openvox/manifests ${stage_dir}/openvox/modules/roles ${stage_dir}/openvox/modules/role ${stage_dir}/openvox/data ${stage_dir}/scripts" \
     || { echo "ERROR: could not create ${stage_dir} on ${host}" >&2; exit 1; }
 
-  if [ "${host}" = "ugreen.tail33930.ts.net" ]; then
-    # No rsync on UGOS (see above). scp does not delete: start from an
-    # empty tree, so a removed file does not linger.
-    ssh "${ssh_opts[@]}" "root@${host}" "rm -rf -- ${stage_dir}/openvox && mkdir -p ${stage_dir}/openvox/manifests ${stage_dir}/openvox/modules/roles ${stage_dir}/openvox/modules/role ${stage_dir}/openvox/data" \
+  if [ "${host}" = "ugreen.ziti" ]; then
+    # No rsync or SFTP on UGOS (see above): a tar stream over ssh. The tree
+    # is replaced as a whole, so a removed file does not linger.
+    ssh "${ssh_opts[@]}" "root@${host}" "rm -rf -- ${stage_dir}/openvox && mkdir -p ${stage_dir}/openvox" \
       || { echo "ERROR: could not reset ${stage_dir} on ${host}" >&2; exit 1; }
-    for d in manifests modules/roles modules/role data; do
-      scp -rq "${ssh_opts[@]}" "openvox/${d}/." "root@${host}:${stage_dir}/openvox/${d}/" \
-        || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
-    done
-    scp -q "${ssh_opts[@]}" openvox/hiera.yaml openvox/Puppetfile "root@${host}:${stage_dir}/openvox/" \
-      || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
-    scp -q "${ssh_opts[@]}" scripts/openvox-apply.sh scripts/openvox-modules.sh "root@${host}:${stage_dir}/scripts/" \
-      || { echo "ERROR: transfer to ${host} failed: scp" >&2; exit 1; }
+    tar -C openvox -cf - manifests modules/roles modules/role data hiera.yaml Puppetfile \
+      | ssh "${ssh_opts[@]}" "root@${host}" "tar -C ${stage_dir}/openvox -xf -" \
+      || { echo "ERROR: transfer to ${host} failed: tar" >&2; exit 1; }
+    tar -C scripts -cf - openvox-apply.sh openvox-modules.sh \
+      | ssh "${ssh_opts[@]}" "root@${host}" "tar -C ${stage_dir}/scripts -xf -" \
+      || { echo "ERROR: transfer to ${host} failed: tar" >&2; exit 1; }
   else
     for d in manifests modules/roles modules/role data; do
       rsync -az --delete -e "ssh ${ssh_opts[*]}" "openvox/${d}/" "root@${host}:${stage_dir}/openvox/${d}/" \
