@@ -186,9 +186,8 @@ ssh root@nuc.tail33930.ts.net "shred -u /tmp/nuc.eyaml"
 gitignored; only public keys and ciphertext are committed. This is why **CI
 needs no vault-password secret at all**.
 
-Tailscale OAuth secrets (`TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`) still stay
-as GitHub secrets, since they're used by the Tailscale GitHub Action
-directly, unrelated to hiera-eyaml.
+CI has no host access at all (no Tailscale or SSH secrets since
+2026-11-20): the hosts pull signed deploy requests (docs/DEPLOY_AGENT.md).
 
 The pre-commit hook rejects any staged eyaml file containing plaintext.
 

@@ -69,13 +69,15 @@ has no backdoor - but the other hosts remain unaffected. This replaces the
 old shared-key design and the earlier Ansible-vault-password requirement;
 there is deliberately no CI unlock secret.
 
-**GitHub Actions secrets** (only 2 now - the eyaml key is never a CI
-secret, it's deployed straight to hosts): `TS_OAUTH_CLIENT_ID`,
-`TS_OAUTH_SECRET`.
+**GitHub Actions secrets**: none for deploys (the eyaml key is never a CI
+secret, it's deployed straight to hosts, and CI has no host access since
+2026-11-20, docs/DEPLOY_AGENT.md). dnscontrol uses
+`DESEC_READ_TOKEN` (repository) and `DESEC_WRITE_TOKEN` (environment
+`dns-production`).
 
 **The single biggest thing this repo cannot back up or reproduce**: the
-Tailscale admin console configuration itself - ACLs, device tags, the
-`tag:ci` OAuth client scope, and every node's one-time interactive login.
+Tailscale admin console configuration itself - ACLs, device tags, and
+every node's one-time interactive login.
 If that's gone, every host needs re-enrolling and re-approving by hand
 before OpenVox can reach any of them.
 
@@ -451,8 +453,8 @@ regenerate identically, not just "annoying":
    Unraid flash backup ever turns out to not actually restore Docker
    templates cleanly (unverified) - their actual data (appdata + Immich's
    photo library) is now offsite-covered either way, see below.
-2. The Tailscale admin console configuration itself (ACLs, tags, the
-   `tag:ci` OAuth client) - not exportable/backed-up by anything here.
+2. The Tailscale admin console configuration itself (ACLs, tags) - not
+   exportable/backed-up by anything here.
 3. Authelia's 2FA/WebAuthn enrollments, if `vault_authelia_storage_encryption_key`
    is ever lost without the DB (see credentials checklist above).
 

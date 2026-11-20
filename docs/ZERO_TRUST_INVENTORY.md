@@ -156,7 +156,7 @@ Phase 4/5.
 | dawarich (nas) | photon (nas) | 2322 | `services/dawarich/docker-compose.yml` |
 | syncthing (nas) | syncthing-ugreen | Syncthing protocol | `roles::services_ugreen` |
 | dockhand (nas) | hawser agents on mljr, nuc | hawser port | `roles::hawser_agent` |
-| CI runner (`tag:ci`) | mljr, nuc, ugreen | SSH + rsync | `.github/workflows/deploy.yml:301` |
+| CI runner (`tag:ci`) | mljr, nuc, ugreen | SSH + rsync | removed 2026-11-20: hosts pull requests (docs/DEPLOY_AGENT.md) |
 | nuc (proxy exec) | nas, wd_mycloud | SSH | `role::nuc` |
 | actual-budget, glucava | trust mljr as proxy | `TRUSTED_PROXIES=100.100.20.1` | compose files |
 
@@ -250,7 +250,8 @@ against.
 
 1. Bitwarden (eyaml private keys per host).
 2. Tailscale admin console: interactive enrolment, device approval, ACL
-   tags, `tag:ci` OAuth client. **Not reproducible from git.**
+   tags (the `tag:ci` OAuth client is gone since 2026-11-20). **Not
+   reproducible from git.**
 3. OS install, then `scripts/install-openvox.sh` (Rocky) or the Debian
    bootstrap (ugreen).
 4. Restore the eyaml key from Bitwarden.
