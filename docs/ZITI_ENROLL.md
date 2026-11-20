@@ -99,8 +99,53 @@ the protection.
    CI): `scripts/ziti-enroll-phone.sh phone-mrcode`. In the app, tap `+`,
    then scan the QR code. Press Enter in the terminal once the app shows
    the identity.
-3. Check: with Tailscale off and on mobile data, open
-   `http://kuma.nuc.int.mljr.eu:3001`.
+3. Check: with Tailscale off and on mobile data, in Termux:
+   `curl -sI http://kuma.nuc.int.mljr.eu:3001` answers `302 Found`
+   (`Location: /dashboard`). A browser shows an SSL protocol error for
+   the same URL: `mljr.eu` sends HSTS with `includeSubDomains`, so a
+   browser that has visited it forces HTTPS on every `*.mljr.eu` name,
+   and the catalog ports speak plain HTTP.
+
+### SSH from the phone (Termux + opkssh)
+
+No SSH key lives on the phone: `opkssh login` signs in at Authelia (two
+factors) and writes a key that is valid for 24 h, as on the laptop
+(`scripts/opkssh-laptop.sh`, docs/ZERO_TRUST_PLAN.md C14). Termux traffic
+goes through Ziti Mobile Edge's VPN, so plain `ssh` reaches the `ssh`
+service. Tested 2026-11-20 against nuc.
+
+1. In Termux: `pkg install openssh opkssh`. The Termux package builds
+   the same opkssh version as `roles::opkssh` (0.19.2 at the time of
+   writing).
+2. Client config, the same as the laptop's:
+
+   ```
+   mkdir -p ~/.opk && chmod 700 ~/.opk
+   cat > ~/.opk/config.yml <<'YAML'
+   ---
+   default_provider: authelia
+   providers:
+     - alias: authelia
+       issuer: https://auth.mljr.eu
+       client_id: opkssh
+       scopes: openid email profile
+       redirect_uris:
+         - http://localhost:3000/login-callback
+         - http://localhost:10001/login-callback
+         - http://localhost:11110/login-callback
+   YAML
+   chmod 600 ~/.opk/config.yml
+   ```
+
+3. Once a day: `opkssh login`. It opens the browser at Authelia (if it
+   does not, open the URL it prints); the redirect lands on Termux's
+   `localhost` listener. The key goes to `~/.ssh/id_ecdsa` with its
+   certificate.
+4. `ssh root@nuc.int.mljr.eu`. Use the full `<host>.int.mljr.eu` name:
+   only those names are intercepted (`ziti/tofu/services.tf`, ssh).
+
+Only hosts with `roles::opkssh` accept the key (nuc today). On the others
+the login fails with `Permission denied (publickey)`.
 
 New phone: `scripts/ziti-enroll-phone.sh phone-mrcode --reenroll`. This
 drops the old certificate, so the old phone loses access at the same time.
