@@ -136,6 +136,11 @@ class roles::vuln_scan (
       unless      => "/usr/bin/bash -c 'test -r ${dir}/dojo-importer-check.sh && exec bash ${dir}/dojo-importer-check.sh'",
       path        => ['/usr/bin', '/bin'],
       environment => ["DOJO_URL=${dojo_url}", "IMPORTERS_FILE=${importers_file}"],
+      # The healthcheck passes before uwsgi answers the API after a
+      # recreate (any .env or compose change): the token request failed
+      # in that window (2026-11-20, twice). Idempotent, so retry.
+      tries       => 10,
+      try_sleep   => 30,
       require     => [File[$dir], File[$importers_file], Exec['services-defectdojo-healthcheck']],
     }
   }
