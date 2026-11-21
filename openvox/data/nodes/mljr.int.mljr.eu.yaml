@@ -107,3 +107,18 @@ roles::opkssh::auth_ids:
   - user: root
     identity: '4a76133b-3e28-4917-b53e-5f46367f23bc'
     issuer: 'https://auth.mljr.eu'
+
+# Ziti certificate renewal and expiry watch (roles::ziti_renew). Routers and
+# the controller renew their own server/client certs; the intermediate CA
+# (2029) and the root (2036) need a person, so they are watched too.
+roles::ziti_renew::identities:
+  - file: '/etc/caddy/ziti/caddy-mljr.json'
+    restart: 'systemctl reload caddy'
+  - file: '/opt/ziti-proxy/data/m2m-mljr.json'
+    restart: 'docker restart ziti-proxy'
+  - file: '/opt/homepage/ziti/homepage-mljr.json'
+    restart: 'docker restart homepage-ziti-proxy'
+  - file: '/opt/ziti-router/data/mljr.cert'
+  - file: '/opt/ziti-controller/data/pki/intermediate/certs/server.cert'
+  - file: '/opt/ziti-controller/data/pki/intermediate/certs/intermediate.cert'
+  - file: '/opt/ziti-controller/data/pki/root/certs/root.cert'

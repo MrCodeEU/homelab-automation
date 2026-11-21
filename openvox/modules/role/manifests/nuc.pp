@@ -7,6 +7,7 @@ class role::nuc {
   include roles::ssh_hardening
   include roles::opkssh
   include roles::tcp_notsent_lowat
+  include roles::ziti_renew
   include roles::iperf3
 
   include roles::wd_mycloud_proxy

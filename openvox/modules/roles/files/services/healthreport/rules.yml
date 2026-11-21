@@ -424,6 +424,19 @@ rules:
     type: present
     level: crit
 
+  # Ziti certificates (roles::ziti_renew): under 30 days left means the
+  # automatic renewal (60 days ahead) is not working; when one expires its
+  # service drops off the overlay.
+  ziti_cert_expiring:
+    type: present
+    level: warn
+  ziti_cert_renew_failed:
+    type: present
+    level: warn
+  ziti_cert_renew_stale:
+    type: present
+    level: warn
+
   # The home IP drifted from what CrowdSec's allowlist trusts: the owner can
   # get banned until the allowlist is updated.
   home_ip_mismatch:

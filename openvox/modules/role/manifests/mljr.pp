@@ -10,6 +10,7 @@ class role::mljr {
   # SSH login through Authelia (C14)
   include roles::opkssh
   include roles::tcp_notsent_lowat
+  include roles::ziti_renew
   include roles::iperf3
   include roles::caddy
   include roles::authelia

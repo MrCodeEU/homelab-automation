@@ -594,6 +594,23 @@ of the `restore-from-db` OIDC bug (C2).
   the server, its staging copy and the agents with their data (no export,
   owner decision); nas's agent was removed by hand (no agent there).
   The teardown class went away on 2026-11-21, once every host was clean.
+- Certificate renewal (2026-11-21): identities get a one-year
+  certificate at enrolment. The routers (on start) and the controller
+  renew their own, the SDK identities nothing. `roles::ziti_renew`
+  (`tools/cmd/ziti-renew`) runs daily on mljr, nuc and ugreen: an identity
+  file with under 60 days left gets a new key and certificate through the
+  client API's extension (`/current-identity/authenticators/{id}/extend`,
+  then `extend-verify`; the old cert works until then, so no
+  re-enrolment and no gap), then its restart command (`systemctl reload
+  caddy` for caddy-mljr, `docker restart <proxy>` for the m2m sidecars).
+  Router, controller server, intermediate (2029-11-04) and root
+  (2036-11-02) certificates are only watched. Metrics
+  `ziti_identity_cert_expiry_timestamp_seconds` and
+  `ziti_identity_renew_failed`; healthreport `ziti_cert_expiring` (under
+  30 days), `ziti_cert_renew_failed`, `ziti_cert_renew_stale`. Tested live
+  on speedtest-nuc (`ziti-renew -renew <file>`). Not covered: the phone
+  (`phone-mrcode`, expires 2027-11), re-enrolled by hand with
+  `scripts/ziti-enroll-phone.sh`, and the intermediate CA.
 - Link heartbeats (2026-11-21): mljr's router logged 44 closed links in
   72 h ("heartbeat not received in time, closing router link connection",
   679 "pulse failed to send heartbeat: timeout waiting to put message in
@@ -631,7 +648,8 @@ Progress:
   answers 502 after `dial_timeout` and recovers without a restart. Switch:
   `roles::caddy::ziti_transport` on mljr. First service: kuma
   (`uptime.mljr.eu`), 200 through Ziti. Per-service rollback: drop
-  `ziti_via_caddy`. Open: renewal of the `caddy-mljr` certificate.
+  `ziti_via_caddy`. Renewal of the `caddy-mljr` certificate: see
+  2026-11-21, certificate renewal.
 - 2026-11-08, CI (#551): release downloads for this repo answered 503/504
   from github.com for about an hour. The custom Caddy download now retries
   (bounded, 5xx and timeouts only) and is cached per PR.
