@@ -55,6 +55,15 @@ with the REST git-data API are not signed. `expectedHeadOid` makes each
 request a compare-and-swap: two requests at once cannot overwrite each
 other.
 
+Ruleset "Deploy request branches" (2026-11-21, GitHub settings, not in
+this repo) blocks deletion and force-push on `deploy/*`, so the request
+history is append-only; the repository admin role may bypass it. Who may
+add a request is not restricted: on a personal repository GitHub Actions'
+own token cannot be a ruleset bypass actor ("must be part of the ruleset
+source or owner organization"), and a dedicated GitHub App for requests
+was judged not worth its key. A request from any write token still has to
+pass the checks below: GitHub-signed, for a commit on protected `main`.
+
 The deployment history lives in git, not only in GitHub's Actions logs,
 and moves with the repository. Moving to another server means another
 signing key in the agent's keyring, nothing else.

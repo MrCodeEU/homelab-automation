@@ -611,6 +611,9 @@ of the `restore-from-db` OIDC bug (C2).
   on speedtest-nuc (`ziti-renew -renew <file>`). Not covered: the phone
   (`phone-mrcode`, expires 2027-11), re-enrolled by hand with
   `scripts/ziti-enroll-phone.sh`, and the intermediate CA.
+- `deploy/*` protected (2026-11-21): ruleset "Deploy request branches",
+  no deletion or force-push, admin bypass (docs/DEPLOY_AGENT.md). The
+  spike leftover `deploy/spike-a` was deleted.
 - Link heartbeats (2026-11-21): mljr's router logged 44 closed links in
   72 h ("heartbeat not received in time, closing router link connection",
   679 "pulse failed to send heartbeat: timeout waiting to put message in
