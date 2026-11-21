@@ -10,7 +10,7 @@ Sequential deployment: validate → set up Tailscale → run OpenVox → build d
 
 - `workflow_dispatch`: manual run, any branch. Non-`main` branches automatically run in check mode (noop). Inputs: `limit` (`all`/`mljr`/`nuc`/`ugreen`), `staging_services`, `docker_prune`, `reboot_if_needed`.
 - `schedule`: weekly, Saturday 18:00 UTC, full apply of main on all hosts. Weekly maintenance (updates, docker prune, gated reboot) is the deploy agents' own window, Sundays from 01:00 local (docs/DEPLOY_AGENT.md).
-- `repository_dispatch` (`service-update`): fast path for a single service - resolves the service's host from `openvox/data/common.yaml`'s `services_catalog` and applies just that host (plus mljr for its Caddy snippet). Only that service pulls its image; the others are brought up with the images they have (docs/DEPLOY_AGENT.md).
+- `repository_dispatch` (`service-update`): fast path for a single service - resolves the service's host from `openvox/data/common.yaml`'s `services_catalog` and applies just that host (plus mljr for its Caddy snippet). Only that service pulls its image; the others are brought up with the images they have. An optional `client_payload[tag]` (production only, `latest` = none) pins the service to that image tag until a dispatch without one (docs/DEPLOY_AGENT.md).
 
 Pull requests use the separate `openvox-pr-check.yml` workflow, kept out of this one so its reporting/notification steps never run against a dry run.
 
@@ -105,4 +105,6 @@ make openvox-check-nuc
 ### Deploy a single service via its catalog entry:
 ```bash
 gh api repos/:owner/:repo/dispatches -f event_type=service-update -f 'client_payload[service]=homepage'
+# pinned to one build:
+gh api repos/:owner/:repo/dispatches -f event_type=service-update -f 'client_payload[service]=homepage' -f 'client_payload[tag]=sha-1a2b3c4'
 ```

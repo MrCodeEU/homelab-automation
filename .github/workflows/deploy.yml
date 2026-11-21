@@ -164,10 +164,13 @@ jobs:
           EVENT: ${{ github.event_name }}
           INPUTS_LIMIT: ${{ inputs.limit }}
           RAW_DISPATCH_SERVICE: ${{ github.event.client_payload.service }}
+          RAW_DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+          RAW_DISPATCH_ENVIRONMENT: ${{ github.event.client_payload.environment }}
           RAW_STAGING_SERVICES: ${{ inputs.staging_services }}
         run: |
           set -euo pipefail
           SERVICE=""
+          TAG=""
           STAGING=""
           if [ "$EVENT" = repository_dispatch ]; then
             case "$RAW_DISPATCH_SERVICE" in
@@ -181,6 +184,37 @@ jobs:
               exit 1
             fi
             SERVICE="$RAW_DISPATCH_SERVICE"
+            # The optional tag pins the production service to that image
+            # (docs/DEPLOY_AGENT.md). Only for environment production or
+            # none: branch builds send tag=dev with environment=staging and
+            # must not move production. "latest" is the same as no tag.
+            case "$RAW_DISPATCH_ENVIRONMENT" in
+              "" | production )
+                case "$RAW_DISPATCH_TAG" in
+                  "" | latest ) ;;
+                  [A-Za-z0-9_]* )
+                    case "$RAW_DISPATCH_TAG" in
+                      *[!A-Za-z0-9_.-]* )
+                        echo "::error::repository_dispatch rejected: 'tag' is not a Docker tag"
+                        exit 1
+                        ;;
+                    esac
+                    if [ "${#RAW_DISPATCH_TAG}" -gt 128 ]; then
+                      echo "::error::repository_dispatch rejected: 'tag' is longer than 128 characters"
+                      exit 1
+                    fi
+                    TAG="$RAW_DISPATCH_TAG"
+                    ;;
+                  * )
+                    echo "::error::repository_dispatch rejected: 'tag' is not a Docker tag"
+                    exit 1
+                    ;;
+                esac
+                ;;
+              * )
+                [ -z "$RAW_DISPATCH_TAG" ] || echo "::notice::tag ignored: environment is not production"
+                ;;
+            esac
           fi
           if [ -n "$RAW_STAGING_SERVICES" ]; then
             case "$RAW_STAGING_SERVICES" in
@@ -226,6 +260,7 @@ jobs:
           {
             echo "hosts=$HOSTS"
             echo "service=$SERVICE"
+            echo "tag=$TAG"
             echo "staging=$STAGING"
           } >> "$GITHUB_OUTPUT"
 
@@ -235,6 +270,7 @@ jobs:
           HOSTS: ${{ steps.hosts.outputs.hosts }}
           TRIGGER: ${{ github.event_name }}
           DEPLOY_REQUEST_SERVICE: ${{ steps.hosts.outputs.service }}
+          DEPLOY_REQUEST_IMAGE_TAG: ${{ steps.hosts.outputs.tag }}
           DEPLOY_REQUEST_STAGING_SERVICES: ${{ steps.hosts.outputs.staging }}
           DEPLOY_REQUEST_DOCKER_PRUNE: ${{ inputs.docker_prune || 'false' }}
           DEPLOY_REQUEST_REBOOT_IF_NEEDED: ${{ inputs.reboot_if_needed || 'false' }}

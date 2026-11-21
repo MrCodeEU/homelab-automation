@@ -41,6 +41,9 @@ define roles::services::service (
   # False: `docker compose up -d` without the pull before it (roles::services'
   # $pull_services, a repository_dispatch apply for other services).
   Boolean $pull = true,
+  # IMAGE_TAG in .env (compose files use ${IMAGE_TAG:-latest}); a
+  # repository_dispatch pin, see roles::services' $image_tags.
+  String[1] $image_tag = 'latest',
 ) {
   # $title is only a unique resource identifier - for a service that's
   # both nuc-hosted in production AND staging-enabled (speedtest,
@@ -108,6 +111,7 @@ define roles::services::service (
       'bind_addr'    => $bind_addr,
       'project_name' => $real_name,
       'secrets'      => $secrets,
+      'image_tag'    => $image_tag,
     })),
     require   => File[$deploy_path],
   }

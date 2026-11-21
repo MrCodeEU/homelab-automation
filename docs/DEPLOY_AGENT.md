@@ -48,6 +48,10 @@ commit each, linear, never rewritten. Its tree holds one file:
 }
 ```
 
+A `repository_dispatch` request can also carry `"image_tag"`: see
+"deploy.yml after the change". The key appears only when it is set,
+because an agent rejects keys it does not know.
+
 Requests are made with the GraphQL mutation `createCommitOnBranch`,
 which GitHub signs with its web-flow key (checked 2026-11-11: user token,
 `verified=true`, committer `GitHub <noreply@github.com>`). Commits made
@@ -207,6 +211,18 @@ promise that, so a lost notification has to be noticed.
   Any request on the way without a service, an unsigned or invalid one,
   or a walk that does not reach the last request pulls everything, as
   do every other trigger and the maintenance window.
+- An optional `client_payload.tag` pins the dispatched service to that
+  image tag. It counts only for `environment` `production` or empty:
+  branch builds send `tag=dev` with `environment=staging`, and that must
+  not move production. `latest` is the same as no tag. The pin is kept
+  in the agent's state (`image_tags` in `state.json`), not in git: every
+  apply, the maintenance window and the drift noop pass it on as
+  `OPENVOX_IMAGE_TAGS`, which becomes `IMAGE_TAG` in that service's
+  `.env`. Without that, the next apply would bring the service back up
+  on an older local `latest`, because #654 no longer pulls services
+  outside the dispatch. A later dispatch without a tag, or with
+  `latest`, clears the pin. To list the pins on a host:
+  `jq .image_tags /var/lib/homelab-deploy/state.json`.
 
 ## Failure modes
 

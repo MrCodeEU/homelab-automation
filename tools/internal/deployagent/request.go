@@ -28,6 +28,10 @@ type Request struct {
 	StagingServices string `json:"staging_services"`
 	DockerPrune     bool   `json:"docker_prune"`
 	RebootIfNeeded  bool   `json:"reboot_if_needed"`
+	// ImageTag pins Service to this image tag (repository_dispatch's
+	// client_payload.tag, production only). Omitted when empty, so a
+	// request without one stays readable by an agent that predates it.
+	ImageTag string `json:"image_tag,omitempty"`
 }
 
 var (
@@ -35,6 +39,8 @@ var (
 	hostRE    = regexp.MustCompile(`^[a-z0-9-]{1,63}$`)
 	commitRE  = regexp.MustCompile(`^[0-9a-f]{40}$`)
 	serviceRE = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+	// Docker's tag grammar.
+	imageTagRE = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$`)
 )
 
 // The triggers deploy.yml and the laptop create requests for.
@@ -70,6 +76,10 @@ func (r Request) Validate() error {
 		return fmt.Errorf("request trigger %q is not one of workflow_dispatch, schedule, repository_dispatch, manual", r.Trigger)
 	case r.Service != "" && !serviceRE.MatchString(r.Service):
 		return fmt.Errorf("request service %q: want 1-64 of [A-Za-z0-9._-]", r.Service)
+	case r.ImageTag != "" && !imageTagRE.MatchString(r.ImageTag):
+		return fmt.Errorf("request image_tag %q is not a Docker tag", r.ImageTag)
+	case r.ImageTag != "" && r.Service == "":
+		return fmt.Errorf("request image_tag needs a service")
 	case len(r.StagingServices) > 256:
 		return fmt.Errorf("request staging_services is longer than 256")
 	}

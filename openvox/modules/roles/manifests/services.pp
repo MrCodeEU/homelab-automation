@@ -382,6 +382,15 @@ class roles::services (
     default => split($facts['openvox_pull_services'], ','),
   }
 
+  # Image tags pinned by a repository_dispatch (deploy agent state, passed
+  # as OPENVOX_IMAGE_TAGS, service=tag pairs). Production only; every other
+  # service and every staging instance keeps IMAGE_TAG=latest.
+  $image_tags = $facts['openvox_image_tags'] ? {
+    undef   => {},
+    ''      => {},
+    default => Hash(split($facts['openvox_image_tags'], ',').map |$pair| { split($pair, '=') }),
+  }
+
   $host_services.each |$svc| {
     roles::services::service { $svc['name']:
       service                => $svc,
@@ -397,6 +406,7 @@ class roles::services (
       executables            => pick($service_executables[$svc['name']], []),
       postgres_major_upgrade => pick($postgres_major_upgrades[$svc['name']], {}),
       pull                   => empty($pull_services) or $svc['name'] in $pull_services,
+      image_tag              => pick($image_tags[$svc['name']], 'latest'),
       require                => [Exec['services-dockerhub-login'], Exec['services-ghcr-login']],
     }
   }

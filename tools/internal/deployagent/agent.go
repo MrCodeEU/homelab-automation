@@ -82,6 +82,9 @@ type State struct {
 	Maintenance Result `json:"maintenance"`
 	// Tofu is the last tofu step that had changes (tofu.go).
 	Tofu Result `json:"tofu"`
+	// ImageTags are the services pinned to an image tag by a dispatch
+	// (UpdateImageTags), passed to every apply.
+	ImageTags map[string]string `json:"image_tags,omitempty"`
 }
 
 // Result of one request, for state, outbox and metrics.
@@ -282,6 +285,19 @@ func (a *Agent) handle(ctx context.Context, branch, head string) Result {
 	if scope != "" {
 		a.cfg.Log.Info("pull scope", "id", req.ID, "services", scope)
 	}
+	// A partial fold still holds only verified requests: their tags count.
+	folded, _ := fold(reqCommit, prev, a.cfg.Keyring)
+	if len(folded) == 0 {
+		folded = []Request{req}
+	}
+	if a.state.ImageTags == nil {
+		a.state.ImageTags = map[string]string{}
+	}
+	before := ImageTagsEnv(a.state.ImageTags)
+	UpdateImageTags(a.state.ImageTags, folded)
+	if after := ImageTagsEnv(a.state.ImageTags); after != before {
+		a.cfg.Log.Info("image tags", "id", req.ID, "tags", after)
+	}
 
 	// Mark the request handled before running it, so a reboot during the
 	// apply cannot make it run twice.
@@ -322,7 +338,8 @@ func (a *Agent) apply(ctx context.Context, req Request, scope string) (string, e
 	// (createCommitOnBranch cannot set it, core.fileMode=false loses it).
 	cmd := exec.CommandContext(ctx, "/bin/bash", filepath.Join(dir, a.cfg.Apply), dir, a.cfg.Mode)
 	cmd.Dir = dir
-	cmd.Env = append(append(os.Environ(), req.Env()...), "OPENVOX_PULL_SERVICES="+scope)
+	cmd.Env = append(append(os.Environ(), req.Env()...),
+		"OPENVOX_PULL_SERVICES="+scope, "OPENVOX_IMAGE_TAGS="+ImageTagsEnv(a.state.ImageTags))
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
