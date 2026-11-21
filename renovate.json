@@ -21,7 +21,15 @@
       "matchStrings": ["# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\nARG \\w+=(?<currentValue>\\S+)"]
     }
   ],
+  "platformAutomerge": false,
   "packageRules": [
+    {
+      "description": "Digest and patch updates of container images and Actions merge themselves once the required checks pass (owner decision 2026-11-21): ten unmerged PRs had hit the PR limit and held back image rebuilds with fixes for actively exploited CVEs. Merging deploys nothing by itself; hosts pick it up at their next deploy request or Saturday's scheduled run. Not Go modules: a go.mod change needs the committed binaries rebuilt (scripts/service-binary.sh), which Renovate cannot do. platformAutomerge is off because the repo does not allow GitHub auto-merge; Renovate merges the green PR itself.",
+      "matchManagers": ["docker-compose", "dockerfile", "github-actions", "custom.regex"],
+      "matchUpdateTypes": ["digest", "pinDigest", "patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
     {
       "description": "Keep OpenVox Forge updates separate and manually reviewed",
       "matchManagers": ["puppet"],
