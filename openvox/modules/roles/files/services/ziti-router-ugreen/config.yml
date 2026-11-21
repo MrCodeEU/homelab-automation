@@ -21,6 +21,17 @@ ctrl:
 # Dial-only. Groups default (mljr's router) and lan (nuc's LAN link
 # listener, 192.168.50.30:8442): nuc <-> ugreen traffic stays on the LAN.
 link:
+  # Link heartbeats (router/env/config.go, 2.0.8): every 10 s, checked every
+  # second. A link whose heartbeat answer is late for closeUnresponsiveTimeout
+  # is closed, with every circuit on it. Default 1m: bulk transfers (backups,
+  # Trivy imports) queued heartbeats long enough to close the link about 15
+  # times a day (2026-11). 3m keeps a busy link; a dead TCP connection still
+  # closes on its own. Setting this block resets all three to the channel
+  # defaults (30 s timeout), so all three are set.
+  heartbeats:
+    sendInterval:             10s
+    checkInterval:            1s
+    closeUnresponsiveTimeout: 3m
   dialers:
     - binding: transport
       groups:
