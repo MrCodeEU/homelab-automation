@@ -14,8 +14,6 @@ roles::iperf3::base_path: '/opt'
 # Loopback only: the local Ziti router (host network) publishes it
 roles::iperf3::bind: '127.0.0.1'
 
-roles::netronome_teardown::base_path: '/opt'
-roles::netronome_teardown::server: true
 
 roles::backup::services:
   - kuma

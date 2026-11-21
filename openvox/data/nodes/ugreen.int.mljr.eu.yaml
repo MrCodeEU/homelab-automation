@@ -8,8 +8,6 @@ roles::iperf3::base_path: '/volume1/homelab'
 roles::iperf3::bind: '127.0.0.1'
 roles::iperf3::manage_firewall: false
 
-roles::netronome_teardown::base_path: '/volume1/homelab'
-roles::netronome_teardown::manage_firewall: false
 
 roles::services::hostname: 'ugreen'
 roles::services::base_path: '/volume1/homelab'

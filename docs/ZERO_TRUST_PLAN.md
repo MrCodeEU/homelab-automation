@@ -591,6 +591,7 @@ of the `restore-from-db` OIDC bug (C2).
   speedtests, Alloy its host metrics. `roles::netronome_teardown` removed
   the server, its staging copy and the agents with their data (no export,
   owner decision); nas's agent was removed by hand (no agent there).
+  The teardown class went away on 2026-11-21, once every host was clean.
 - Link heartbeats (2026-11-21): mljr's router logged 44 closed links in
   72 h ("heartbeat not received in time, closing router link connection",
   679 "pulse failed to send heartbeat: timeout waiting to put message in

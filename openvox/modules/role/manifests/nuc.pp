@@ -8,16 +8,6 @@ class role::nuc {
   include roles::opkssh
   include roles::tcp_notsent_lowat
   include roles::iperf3
-  include roles::netronome_teardown
-
-  # The retired Netronome speedtest server's port (roles::netronome_teardown).
-  # Remove this resource with the teardown class.
-  roles::firewalld::port { 'netronome-speedtest-tcp':
-    ensure   => absent,
-    zone     => 'trusted',
-    port     => 8090,
-    protocol => 'tcp',
-  }
 
   include roles::wd_mycloud_proxy
   include roles::wd_mycloud_node_exporter_proxy

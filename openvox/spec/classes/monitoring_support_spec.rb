@@ -96,32 +96,6 @@ describe 'roles::iperf3' do
   end
 end
 
-describe 'roles::netronome_teardown' do
-  let(:pre_condition) { 'service { "firewalld": ensure => running }' }
-
-  it { is_expected.to compile.with_all_deps }
-
-  it 'removes the agent and closes its port, nothing of the server' do
-    is_expected.to contain_exec('netronome-agent-teardown').with(
-      command: %r{rm -rf /opt/netronome-agent;},
-    )
-    is_expected.to contain_roles__firewalld__port('netronome-agent-tcp').with(
-      ensure: 'absent', port: 8200,
-    )
-    is_expected.not_to contain_exec('netronome-server-teardown')
-  end
-
-  context 'on the server host' do
-    let(:params) { { server: true } }
-
-    it 'also removes the server, its staging copy and their volumes' do
-      is_expected.to contain_exec('netronome-server-teardown').with(
-        command: %r{docker volume rm .*name=\^netronome-data\$.*rm -rf /opt/speedtest /opt/staging/speedtest;},
-      )
-    end
-  end
-end
-
 describe 'roles::ugreen_tailscale' do
   it { is_expected.to compile.with_all_deps }
 
