@@ -114,7 +114,7 @@ func (o *origin) request(target plumbing.Hash, mutate func(*Request), unsigned b
 	if mutate != nil {
 		mutate(&r)
 	}
-	data := fmt.Sprintf(`{"id":%q,"host":%q,"commit":%q,"trigger":%q}`, r.ID, r.Host, r.Commit, r.Trigger)
+	data := fmt.Sprintf(`{"id":%q,"host":%q,"commit":%q,"trigger":%q,"service":%q}`, r.ID, r.Host, r.Commit, r.Trigger, r.Service)
 	o.commit("deploy/test", plumbing.ZeroHash, map[string]string{RequestPath: data}, unsigned)
 }
 

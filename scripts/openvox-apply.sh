@@ -20,6 +20,8 @@
 #   OPENVOX_WEEKLY_MAINTENANCE   true: FACTER_openvox_weekly_maintenance=true
 #   OPENVOX_STAGING_SERVICES     comma list: FACTER_openvox_staging_services
 #   OPENVOX_RECOVERY_SERVICES    comma list: FACTER_openvox_recovery_services
+#   OPENVOX_PULL_SERVICES        comma list: FACTER_openvox_pull_services
+#                                (deploy-agent; only these services pull)
 #   OPENVOX_RELEASE_KEEP         releases kept (default 5)
 #   OPENVOX_ENV_DIR              /tmp/openvox-pr-<n>-<m>: isolated PR/drift
 #                                environment, noop only, with its own module
@@ -61,7 +63,7 @@ fi
 list_re='^[A-Za-z0-9][A-Za-z0-9._-]*(,[A-Za-z0-9][A-Za-z0-9._-]*)*$'
 facts=()
 [ "${OPENVOX_WEEKLY_MAINTENANCE:-false}" = true ] && facts+=(FACTER_openvox_weekly_maintenance=true)
-for pair in "STAGING:staging" "RECOVERY:recovery"; do
+for pair in "STAGING:staging" "RECOVERY:recovery" "PULL:pull"; do
   var="OPENVOX_${pair%%:*}_SERVICES"
   val="${!var:-}"
   [ -n "$val" ] || continue

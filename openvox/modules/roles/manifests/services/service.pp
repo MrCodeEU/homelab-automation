@@ -38,6 +38,9 @@ define roles::services::service (
   # Optional one-shot logical database migration, run after the managed
   # Compose/.env files are present but before Compose sees the new image.
   Hash $postgres_major_upgrade = {},
+  # False: `docker compose up -d` without the pull before it (roles::services'
+  # $pull_services, a repository_dispatch apply for other services).
+  Boolean $pull = true,
 ) {
   # $title is only a unique resource identifier - for a service that's
   # both nuc-hosted in production AND staging-enabled (speedtest,
@@ -133,10 +136,12 @@ define roles::services::service (
     }
   }
 
+  $deploy_env = $pull ? { true => [], default => ['OPENVOX_SKIP_PULL=true'] }
   exec { "services-${svc_name}-deploy":
-    command => "${work_dir}/compose-deploy.sh ${deploy_path} ${build_from_source} ${compose_project}",
-    timeout => 300,
-    require => [File[$deploy_path], File["${deploy_path}/.env"]],
+    command     => "${work_dir}/compose-deploy.sh ${deploy_path} ${build_from_source} ${compose_project}",
+    environment => $deploy_env,
+    timeout     => 300,
+    require     => [File[$deploy_path], File["${deploy_path}/.env"]],
   }
 
   if pick($service['port'], 0) > 0 {

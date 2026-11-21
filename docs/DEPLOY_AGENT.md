@@ -197,6 +197,16 @@ promise that, so a lost notification has to be noticed.
   ugreen).
 - `repository_dispatch` (`service-update`) creates a request for the
   service's host at the current `main`: a redeploy needs no new commit.
+  The apply is a full one, but only the dispatched service pulls its
+  image (2026-11-21): every other service gets `docker compose up -d`
+  with the images it has, so a build in another repo does not roll out
+  unrelated `latest` images. Requests that arrive during an apply fold
+  into the next one, so the agent walks the deploy branch back to the
+  request it handled last and passes the union of their services
+  (`OPENVOX_PULL_SERVICES`, `PullScope` in `tools/internal/deployagent`).
+  Any request on the way without a service, an unsigned or invalid one,
+  or a walk that does not reach the last request pulls everything, as
+  do every other trigger and the maintenance window.
 
 ## Failure modes
 
