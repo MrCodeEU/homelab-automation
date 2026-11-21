@@ -14,9 +14,9 @@
 # an edge binary. Renovate bumps the tag and the digests together.
 
 # renovate: datasource=docker depName=caddy
-ARG CADDY_TAG=2.11.7
-ARG CADDY_BUILDER_DIGEST=sha256:c2fc374fd352439d76e1777b28d97d9f6d9c1dd86116db9227460374d46097d5
-ARG CADDY_RUNTIME_DIGEST=sha256:504a44d7d74bd2bc28a66afc4774912fc21223ca8a67734af1c54ab2f999b489
+ARG CADDY_TAG=2.11.8
+ARG CADDY_BUILDER_DIGEST=sha256:d4eb070c36154bd2d4c94b40359a03c6168346d5af5404963c74691ab77fb63f
+ARG CADDY_RUNTIME_DIGEST=sha256:4fcafa98afd1c2e642e353e3c5cf9ddbe892fcee14bc990e7ba2c5b78e51f9cf
 # renovate: datasource=github-tags depName=hslatman/caddy-crowdsec-bouncer
 ARG BOUNCER_VERSION=v0.14.1
 
