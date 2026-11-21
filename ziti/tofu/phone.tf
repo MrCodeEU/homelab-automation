@@ -16,6 +16,34 @@ resource "ziti_identity" "phone" {
   role_attributes = ["mobile"]
 }
 
+# Certificate plus an Authelia login (ext-jwt signer authelia) as second
+# factor. The controller resolves the Authelia ID token by its sub to the
+# identity's external id and refuses a token of anyone else, so the
+# identity that uses this policy carries the owner's sub. Needs Ziti Mobile
+# Edge for Android v0.26.0 or later (secondary ext-jwt fixed in ziti-sdk-c
+# 1.22, #1172). The app asks for the login again when the ID token expires:
+# 12 h (Authelia client ziti, id_token_lifespan in common.yaml).
+resource "ziti_auth_policy" "phone_authelia" {
+  name = "phone-authelia"
+  primary = {
+    cert = {
+      allowed             = true
+      allow_expired_certs = false
+    }
+    updb = {
+      allowed      = false
+      max_attempts = 0
+    }
+    ext_jwt = {
+      allowed         = false
+      allowed_signers = []
+    }
+  }
+  secondary = {
+    jwt_signer = ziti_external_jwt_signer.authelia.id
+  }
+}
+
 resource "ziti_service_policy" "mobile_dial" {
   name          = "mobile-dial"
   type          = "Dial"

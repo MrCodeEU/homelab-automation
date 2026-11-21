@@ -79,4 +79,14 @@ describe 'roles::authelia' do
     expect(cli).not_to include('client_secret')
     expect(config.scan('client_secret:').length).to eq(2)
   end
+
+  it 'gives a client with id_token_lifespan a custom lifespan of its own' do
+    config = rendered_file('/opt/authelia/configuration.yml')
+    cli = config[config.index("      - client_id: 'cli-app'")..]
+
+    expect(config).to include("    lifespans:\n      custom:\n        cli-app:\n          id_token: '12h'")
+    expect(config.index('    lifespans:')).to be < config.index('    clients:')
+    expect(cli).to include("        lifespan: 'cli-app'")
+    expect(config.scan('lifespan:').length).to eq(1)
+  end
 end

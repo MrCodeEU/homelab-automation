@@ -53,6 +53,14 @@ class roles::authelia (
     ], "\n"),
     default => [],
   }
+  # Clients with id_token_lifespan get a custom lifespan of their own name.
+  $lifespan_clients = $oidc_clients.filter |$c| { $c['id_token_lifespan'] =~ NotUndef }
+  $oidc_lifespans = $lifespan_clients.empty ? {
+    false   => join(['    lifespans:', '      custom:'] + $lifespan_clients.map |$c| {
+      "        ${c['id']}:\n          id_token: '${c['id_token_lifespan']}'"
+    }, "\n"),
+    default => [],
+  }
   $oidc_block = $oidc_clients.empty ? {
     true    => '',
     default => join([
@@ -69,6 +77,7 @@ class roles::authelia (
       # (Authelia otherwise serves groups/email only from /userinfo, and some
       # apps, e.g. Unraid, only read the ID token).
       $oidc_claims_policy,
+      $oidc_lifespans,
       '    clients:',
       $oidc_clients.map |$c| {
         join([
@@ -96,6 +105,10 @@ class roles::authelia (
           $c['claims_policy'] ? {
             undef   => [],
             default => "        claims_policy: '${c['claims_policy']}'",
+          },
+          $c['id_token_lifespan'] ? {
+            undef   => [],
+            default => "        lifespan: '${c['id']}'",
           },
           # Audiences a client may request with the `audience` parameter
           # (the Ziti SDK sends audience=ziti); anything else is
