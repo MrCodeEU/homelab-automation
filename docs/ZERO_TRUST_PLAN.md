@@ -585,7 +585,9 @@ of the `restore-from-db` OIDC bug (C2).
   report to loopback, Grafana to dmarc-monitor's compose network, the
   DefectDojo importers on mljr and ugreen and Kuma's DefectDojo check to
   the Ziti service `defectdojo`. Ports still published on `0.0.0.0`
-  (Grafana, VictoriaMetrics, Loki, Forgejo and others) are Phase 7.
+  (Grafana, VictoriaMetrics, Loki and others) are Phase 7. Forgejo's
+  3300 and 2222 moved to `127.0.0.1` on 2026-11-21: docker publishes
+  bypass firewalld, so Git over SSH was reachable on the LAN.
 - Netronome retired (2026-11-20): `services/speedtest-metrics` (hourly
   Ookla speedtest, iperf3 to mljr and ugreen over Ziti) replaced its
   speedtests, Alloy its host metrics. `roles::netronome_teardown` removed

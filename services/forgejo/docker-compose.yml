@@ -31,9 +31,12 @@ services:
       - forgejo-data:/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
+    # Loopback only: Caddy (git.mljr.eu) and Git over SSH (forgejo-ssh)
+    # reach both over Ziti, whose host config dials 127.0.0.1; the runner
+    # uses http://forgejo:3000 on the compose network.
     ports:
-      - "3300:3000"
-      - "2222:22"
+      - "127.0.0.1:3300:3000"
+      - "127.0.0.1:2222:22"
     depends_on:
       db:
         condition: service_healthy
