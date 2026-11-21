@@ -289,6 +289,6 @@ Findings:
 - The binary is 10 MB static (`CGO_ENABLED=0`), so ugreen (no git)
   works the same.
 
-Leftovers of the prototype (removed with the spike teardown): branches
-`deploy/spike-a`, `spike/proto-main`, `spike/proto-gha`; agent, keyring
-and `/var/lib/homelab-deploy` on spike-a.
+The prototype's leftovers went with the spike teardown (2026-11-21): the
+branches `deploy/spike-a`, `spike/proto-main` and `spike/proto-gha`, and
+spike-a itself with its agent, keyring and `/var/lib/homelab-deploy`.
