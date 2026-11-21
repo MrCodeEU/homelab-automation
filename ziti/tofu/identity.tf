@@ -25,17 +25,9 @@ resource "ziti_external_jwt_signer" "authelia" {
   enroll_attribute_claims_selector = "/groups"
 }
 
-# One identity per Authelia user, matched by the OIDC sub; every device of
-# that user logs in as it (ext-jwt-login after `add` with the network JWT).
-# Needed because enroll-to-cert/-token fetches /network-jwts with the OS
-# trust store, and the client API's certificate is from our private CA.
-resource "ziti_identity" "idp_admin" {
-  name            = "idp-admin"
-  type            = "Default"
-  external_id     = "4a76133b-3e28-4917-b53e-5f46367f23bc"
-  role_attributes = ["admins"]
-  auth_policy_id  = "default"
-}
+# idp-admin (one identity per Authelia user for the C15 laptop test) was
+# removed 2026-11-21: external ids are unique, and the owner's Authelia sub
+# is the phone's second factor now (phone.tf).
 
 # --- GitHub Actions (C4) ------------------------------------------------------
 # A workflow logs in with the job's own OIDC token. No identity uses it

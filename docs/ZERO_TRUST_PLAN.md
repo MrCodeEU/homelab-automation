@@ -614,6 +614,25 @@ of the `restore-from-db` OIDC bug (C2).
 - `deploy/*` protected (2026-11-21): ruleset "Deploy request branches",
   no deletion or force-push, admin bypass (docs/DEPLOY_AGENT.md). The
   spike leftover `deploy/spike-a` was deleted.
+- HTTPS for the `*.ziti` short names: dropped (2026-11-21, owner
+  decision). Ziti already encrypts every connection end to end, and the
+  `.ziti` names exist to avoid `*.mljr.eu`'s HSTS. A name-constrained
+  sub-CA would add TLS termination on every host and a CA to install on
+  the laptop and the phone, for no gain on the overlay.
+- Phone second factor (2026-11-21): Authelia as secondary ext-jwt on
+  `phone-mrcode` (auth policy `phone-authelia`: cert, then an Authelia
+  login). Ziti Mobile Edge for Android v0.26.0 (2026-11-18) carries the
+  ziti-sdk-c fix for secondary ext-jwt (#1172); v0.24 did not work. The
+  controller resolves the Authelia token by `sub` to the identity's
+  external id and refuses a mismatch, and external ids are unique, so
+  `idp-admin` (the C15 laptop test identity, unused since the laptop runs
+  `laptop-mrcode` with a certificate) was deleted and the owner's sub moved
+  to the phone. No public client API certificate was needed: the app's
+  login goes to Authelia (`external_auth_url`), whose certificate is
+  public, and back to the SDK's loopback callback
+  `http://localhost:20314/auth/callback`. The ID token lives 12 h
+  (Authelia `lifespans.custom.ziti`), so the app asks for the login again
+  after that.
 - Link heartbeats (2026-11-21): mljr's router logged 44 closed links in
   72 h ("heartbeat not received in time, closing router link connection",
   679 "pulse failed to send heartbeat: timeout waiting to put message in
