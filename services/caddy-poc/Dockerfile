@@ -18,7 +18,7 @@ ARG CADDY_TAG=2.11.8
 ARG CADDY_BUILDER_DIGEST=sha256:d4eb070c36154bd2d4c94b40359a03c6168346d5af5404963c74691ab77fb63f
 ARG CADDY_RUNTIME_DIGEST=sha256:4fcafa98afd1c2e642e353e3c5cf9ddbe892fcee14bc990e7ba2c5b78e51f9cf
 # renovate: datasource=github-tags depName=hslatman/caddy-crowdsec-bouncer
-ARG BOUNCER_VERSION=v0.14.1
+ARG BOUNCER_VERSION=v0.15.0
 
 FROM docker.io/library/caddy:${CADDY_TAG}-builder@${CADDY_BUILDER_DIGEST} AS builder
 ARG CADDY_TAG
