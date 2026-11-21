@@ -174,6 +174,9 @@ func (a *Agent) noop(ctx context.Context, commit string) (string, error) {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "/bin/bash", filepath.Join(dir, a.cfg.Apply), dir, "noop")
 	cmd.Dir = dir
+	// The pins are part of the desired state: without them every pinned
+	// service's .env would show as drift.
+	cmd.Env = append(os.Environ(), "OPENVOX_IMAGE_TAGS="+ImageTagsEnv(a.state.ImageTags))
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

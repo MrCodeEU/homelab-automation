@@ -22,6 +22,8 @@
 #   OPENVOX_RECOVERY_SERVICES    comma list: FACTER_openvox_recovery_services
 #   OPENVOX_PULL_SERVICES        comma list: FACTER_openvox_pull_services
 #                                (deploy-agent; only these services pull)
+#   OPENVOX_IMAGE_TAGS           service=tag list: FACTER_openvox_image_tags
+#                                (deploy-agent; dispatch-pinned image tags)
 #   OPENVOX_RELEASE_KEEP         releases kept (default 5)
 #   OPENVOX_ENV_DIR              /tmp/openvox-pr-<n>-<m>: isolated PR/drift
 #                                environment, noop only, with its own module
@@ -70,6 +72,12 @@ for pair in "STAGING:staging" "RECOVERY:recovery" "PULL:pull"; do
   [[ "$val" =~ $list_re ]] || { echo "invalid ${var}: expected comma-separated service names" >&2; exit 2; }
   facts+=("FACTER_openvox_${pair##*:}_services=${val}")
 done
+# Docker's tag grammar after the '='; the value lands in a .env file.
+tags_re='^[A-Za-z0-9][A-Za-z0-9._-]*=[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}(,[A-Za-z0-9][A-Za-z0-9._-]*=[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})*$'
+if [ -n "${OPENVOX_IMAGE_TAGS:-}" ]; then
+  [[ "$OPENVOX_IMAGE_TAGS" =~ $tags_re ]] || { echo "invalid OPENVOX_IMAGE_TAGS: expected service=tag pairs" >&2; exit 2; }
+  facts+=("FACTER_openvox_image_tags=${OPENVOX_IMAGE_TAGS}")
+fi
 
 # One deploy at a time per host: laptop push, CI and deploy-agent all come
 # through here. Isolated PR noops touch nothing shared and skip the lock.

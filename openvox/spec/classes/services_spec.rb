@@ -61,6 +61,19 @@ describe 'roles::services' do
     end
   end
 
+  it 'runs every service on latest without a pin' do
+    is_expected.to contain_file('/opt/homepage/.env').with(content: %r{IMAGE_TAG=latest\\n})
+  end
+
+  context 'with a dispatch-pinned image tag' do
+    let(:facts) { { openvox_image_tags: 'homepage=sha-1a2b3c4,elsewhere=v2' } }
+
+    it 'pins only that service' do
+      is_expected.to contain_file('/opt/homepage/.env').with(content: %r{IMAGE_TAG=sha-1a2b3c4\\n})
+      is_expected.to contain_file('/opt/forgejo/.env').with(content: %r{IMAGE_TAG=latest\\n})
+    end
+  end
+
   context 'on nuc with a selected staging service' do
     let(:params) do
       super().merge(hostname: 'nuc')

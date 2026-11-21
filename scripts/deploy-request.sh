@@ -11,6 +11,7 @@
 # agent applies:
 #
 #   DEPLOY_REQUEST_SERVICE           repository_dispatch service name
+#   DEPLOY_REQUEST_IMAGE_TAG         image tag to pin that service to
 #   DEPLOY_REQUEST_STAGING_SERVICES  comma list
 #   DEPLOY_REQUEST_DOCKER_PRUNE      true|false
 #   DEPLOY_REQUEST_REBOOT_IF_NEEDED  true|false
@@ -30,12 +31,17 @@ trigger="${3:-manual}"
 case "$trigger" in workflow_dispatch|schedule|repository_dispatch|manual) ;; *) echo "invalid trigger: $trigger" >&2; exit 2 ;; esac
 
 service="${DEPLOY_REQUEST_SERVICE:-}"
+image_tag="${DEPLOY_REQUEST_IMAGE_TAG:-}"
 staging="${DEPLOY_REQUEST_STAGING_SERVICES:-}"
 prune="${DEPLOY_REQUEST_DOCKER_PRUNE:-false}"
 reboot="${DEPLOY_REQUEST_REBOOT_IF_NEEDED:-false}"
 suffix="${DEPLOY_REQUEST_ID_SUFFIX:-}"
 name_re='^[A-Za-z0-9._-]{1,64}$'
 [ -z "$service" ] || [[ "$service" =~ $name_re ]] || { echo "invalid service: $service" >&2; exit 2; }
+if [ -n "$image_tag" ]; then
+  [[ "$image_tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || { echo "invalid image tag: $image_tag" >&2; exit 2; }
+  [ -n "$service" ] || { echo "an image tag needs a service" >&2; exit 2; }
+fi
 if [ -n "$staging" ]; then
   [ "${#staging}" -le 256 ] || { echo "staging services longer than 256" >&2; exit 2; }
   IFS=, read -ra names <<< "$staging"
@@ -61,8 +67,11 @@ for attempt in 1 2 3; do
   id="$(date -u +%Y%m%dT%H%M%SZ)${suffix:+-$suffix}"
   request=$(jq -cn --arg id "$id" --arg host "$host" --arg commit "$commit" --arg trigger "$trigger" \
     --arg service "$service" --arg staging "$staging" --argjson prune "$prune" --argjson reboot "$reboot" \
+    --arg image_tag "$image_tag" \
     '{id: $id, host: $host, commit: $commit, trigger: $trigger, service: $service,
-      staging_services: $staging, docker_prune: $prune, reboot_if_needed: $reboot}')
+      staging_services: $staging, docker_prune: $prune, reboot_if_needed: $reboot}
+     # Only when set: an agent that predates the field rejects unknown keys.
+     + (if $image_tag == "" then {} else {image_tag: $image_tag} end)')
   # shellcheck disable=SC2016 # $input is a GraphQL variable, not shell
   if gh api graphql \
     -f query='mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }' \

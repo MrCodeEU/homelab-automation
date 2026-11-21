@@ -3,6 +3,7 @@ package deployagent
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -114,8 +115,11 @@ func (o *origin) request(target plumbing.Hash, mutate func(*Request), unsigned b
 	if mutate != nil {
 		mutate(&r)
 	}
-	data := fmt.Sprintf(`{"id":%q,"host":%q,"commit":%q,"trigger":%q,"service":%q}`, r.ID, r.Host, r.Commit, r.Trigger, r.Service)
-	o.commit("deploy/test", plumbing.ZeroHash, map[string]string{RequestPath: data}, unsigned)
+	data, err := json.Marshal(r)
+	if err != nil {
+		o.t.Fatal(err)
+	}
+	o.commit("deploy/test", plumbing.ZeroHash, map[string]string{RequestPath: string(data)}, unsigned)
 }
 
 type recorder struct{ got []Result }
