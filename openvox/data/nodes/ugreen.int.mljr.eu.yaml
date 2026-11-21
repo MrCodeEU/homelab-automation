@@ -65,3 +65,9 @@ roles::opkssh::auth_ids:
     issuer: 'https://auth.mljr.eu'
 roles::opkssh::clear_godebug: true
 roles::opkssh::root_local_address: '127.0.0.2'
+
+# Ziti certificate renewal and expiry watch (roles::ziti_renew).
+roles::ziti_renew::identities:
+  - file: '/volume1/homelab/ziti-proxy-ugreen/data/m2m-ugreen.json'
+    restart: 'docker restart ziti-proxy-ugreen'
+  - file: '/volume1/homelab/ziti-router-ugreen/data/ugreen.cert'

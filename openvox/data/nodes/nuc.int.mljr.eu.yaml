@@ -88,3 +88,15 @@ roles::base::cockpit_disabled: true
 
 # Weekly updates + gated reboot (roles::deploy_agent), before mljr's 01:30.
 roles::deploy_agent::maintenance_window: 'Sun 01:00 30m'
+
+# Ziti certificate renewal and expiry watch (roles::ziti_renew).
+roles::ziti_renew::identities:
+  - file: '/opt/kuma/ziti/kuma-nuc.json'
+    restart: 'docker restart kuma-ziti-proxy'
+  - file: '/opt/crowdsec-nuc/ziti/crowdsec-nuc.json'
+    restart: 'docker restart crowdsec-nuc-ziti-proxy'
+  - file: '/opt/speedtest-metrics/ziti/speedtest-nuc.json'
+    restart: 'docker restart speedtest-metrics-ziti-proxy'
+  - file: '/opt/ziti-proxy-nuc/data/m2m-nuc.json'
+    restart: 'docker restart ziti-proxy-nuc'
+  - file: '/opt/ziti-router-nuc/data/nuc.cert'

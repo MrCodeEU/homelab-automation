@@ -13,6 +13,7 @@ class role::ugreen (
   # SSH login through Authelia (C14)
   include roles::opkssh
   include roles::tcp_notsent_lowat
+  include roles::ziti_renew
   if $backup_remote_target_enabled {
     include roles::backup_remote_target
   }
