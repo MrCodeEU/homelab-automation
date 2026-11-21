@@ -9,7 +9,7 @@ This directory contains the GitHub Actions workflows for validating and deployin
 Sequential deployment: validate → set up Tailscale → run OpenVox → build deployment status page → notify.
 
 - `workflow_dispatch`: manual run, any branch. Non-`main` branches automatically run in check mode (noop). Inputs: `limit` (`all`/`mljr`/`nuc`/`ugreen`), `staging_services`, `docker_prune`, `reboot_if_needed`.
-- `schedule`: weekly, Sunday 00:00 UTC, full apply on all hosts with weekly maintenance (docker prune + gated reboot) enabled.
+- `schedule`: weekly, Saturday 18:00 UTC, full apply of main on all hosts. Weekly maintenance (updates, docker prune, gated reboot) is the deploy agents' own window, Sundays from 01:00 local (docs/DEPLOY_AGENT.md).
 - `repository_dispatch` (`service-update`): fast path for a single service - resolves the service's host from `openvox/data/common.yaml`'s `services_catalog` and applies just that host (plus mljr for its Caddy snippet).
 
 Pull requests use the separate `openvox-pr-check.yml` workflow, kept out of this one so its reporting/notification steps never run against a dry run.

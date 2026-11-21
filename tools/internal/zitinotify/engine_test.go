@@ -153,6 +153,26 @@ func TestCircuits(t *testing.T) {
 	}
 }
 
+func TestCircuitsQuiet(t *testing.T) {
+	quiet := true
+	e := New(fakeNames{"svc": "grafana-loki"}, Settings{Quiet: func(time.Time) bool { return quiet }})
+	// Failing while quiet (hosts rebooting): dropped.
+	for i := 0; i < 6; i++ {
+		e.Handle(circuit(t, "failed", "ROUTER_ERR_CONN_REFUSED", time.Duration(i)*time.Second))
+	}
+	if got := e.Tick(t0.Add(10 * time.Minute)); len(got) != 0 {
+		t.Fatalf("reported while quiet: %v", titles(got))
+	}
+	// Still failing after the window: reported.
+	quiet = false
+	for i := 0; i < 6; i++ {
+		e.Handle(circuit(t, "failed", "ROUTER_ERR_CONN_REFUSED", 11*time.Minute))
+	}
+	if got := e.Tick(t0.Add(20 * time.Minute)); len(got) != 1 || got[0].Title != "Ziti: grafana-loki failing" {
+		t.Fatalf("got %v", titles(got))
+	}
+}
+
 func TestFollowRotation(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "events.log")

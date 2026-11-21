@@ -12,6 +12,14 @@
 # (scripts/ziti-tofu.sh auto). A plan that deletes or replaces anything is
 # held for a person and notified; the daily drift check adds a tofu plan.
 #
+# $maintenance_window ("Sun 01:00 30m", host local time): once a week, in
+# apply mode, the agent applies the last applied commit with docker prune
+# and the gated reboot on (roles::base): security updates, then a reboot
+# when needs-restarting says so. It starts only inside the window, so a
+# host that was down then waits a week. Kuma's "Weekly host maintenance"
+# window and Grafana's weekly-maintenance mute timing cover Sun 01:00-02:00;
+# keep the hosts' windows inside it. undef: no maintenance.
+#
 # The unit is never restarted from here: when the agent itself runs the
 # apply that changes it, a restart would kill that apply (same cgroup).
 # The agent exits after a poll once its binary or env file changed, and
@@ -27,6 +35,7 @@ class roles::deploy_agent (
     'File[/var/lib/backup-dashboard/backup_catalog.json]',
   ],
   Boolean $ziti_tofu = false,
+  Optional[Pattern[/\A(Sun|Mon|Tue|Wed|Thu|Fri|Sat) ([01][0-9]|2[0-3]):[0-5][0-9] [1-9][0-9]*m\z/]] $maintenance_window = undef,
 ) {
   $certname = $trusted['certname']
   $host     = $certname.split('\.')[0]
@@ -73,6 +82,7 @@ class roles::deploy_agent (
       'mode'         => $mode,
       'drift_at'     => $drift_at,
       'drift_ignore' => $drift_ignore.join('|'),
+      'maintenance'  => $maintenance_window.lest || { '' },
       'ziti_tofu'    => $ziti_tofu,
       'certname'     => $certname,
       'mail'         => $mail,

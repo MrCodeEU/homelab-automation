@@ -40,6 +40,8 @@ type window struct {
 	// service running on that host. Both are matched against monitor names.
 	Services []string
 	Hosts    []string
+	// All selects every monitor, catalog or not (pings, TCP checks).
+	All bool
 }
 
 // windows mirror the real jobs that restart or stop things:
@@ -47,6 +49,10 @@ type window struct {
 //   - Unraid appdata.backup plugin: Sundays 05:00, stops the containers listed
 //     below for the duration of the backup (nextcloud-aio-* are skipped there).
 //   - Nextcloud AIO's own backup: daily 02:00 UTC, stops the whole AIO stack.
+//   - Weekly host maintenance: the deploy agents' security updates and gated
+//     reboot (roles::deploy_agent maintenance_window), nuc 01:00 and mljr
+//     01:30. A mljr reboot takes the public Caddy and the Ziti controller
+//     with it, a nuc reboot Kuma itself, so every monitor is in it.
 var windows = []window{
 	{
 		Title:       "Unraid container update",
@@ -72,6 +78,14 @@ var windows = []window{
 		Timezone:    "UTC",
 		Services:    []string{"nextcloud"},
 	},
+	{
+		Title:       "Weekly host maintenance",
+		Description: "deploy agents: updates + reboot when needed, Sundays nuc 01:00, mljr 01:30 (roles::deploy_agent)",
+		Cron:        "0 1 * * 0",
+		Minutes:     60,
+		Timezone:    "Europe/Vienna",
+		All:         true,
+	},
 }
 
 // windowMonitorNames resolves a window to monitor names present in the catalog.
@@ -94,6 +108,20 @@ func windowMonitorNames(w window, services []service) []string {
 		}
 	}
 	sort.Strings(out)
+	return out
+}
+
+// allMonitorIDs is every monitor id once (ids indexes some under two names).
+func allMonitorIDs(ids map[string]int64) []int64 {
+	seen := map[int64]bool{}
+	var out []int64
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+			out = append(out, id)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 	return out
 }
 
@@ -249,6 +277,9 @@ func syncMaintenance(ctx context.Context, client *kuma.Client, services []servic
 
 	for _, w := range windows {
 		var monIDs []int64
+		if w.All {
+			monIDs = allMonitorIDs(ids)
+		}
 		for _, name := range windowMonitorNames(w, services) {
 			if id, ok := ids[name]; ok {
 				monIDs = append(monIDs, id)

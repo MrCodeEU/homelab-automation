@@ -27,6 +27,20 @@ contactPoints:
           url: https://ntfy.mljr.eu/homelab-security?template=yes&title=%7B%7B.commonLabels.alertname%7D%7D%7B%7Bif%20ne%20.status%20%22firing%22%7D%7D%3A%20resolved%7B%7Bend%7D%7D&message=%7B%7Brange%20.alerts%7D%7D%7B%7Bif%20ne%20.status%20%22firing%22%7D%7DWas%3A%20%7B%7Bend%7D%7D%7B%7B.annotations.summary%7D%7D%0A%7B%7Bend%7D%7D
           httpMethod: POST
 
+# Weekly host maintenance (roles::deploy_agent maintenance_window): nuc
+# reboots from 01:00, mljr from 01:30, and with mljr the controller and the
+# public router. Same slot as Kuma's "Weekly host maintenance" window. An
+# alert still firing when it ends is sent then.
+muteTimes:
+  - orgId: 1
+    name: weekly-maintenance
+    time_intervals:
+      - weekdays: ['sunday']
+        times:
+          - start_time: '01:00'
+            end_time: '02:00'
+        location: Europe/Vienna
+
 policies:
   - orgId: 1
     receiver: ntfy-homelab-security
@@ -34,6 +48,12 @@ policies:
     group_wait: 30s
     group_interval: 5m
     repeat_interval: 12h
+    # The root policy cannot be muted; this route matches every alert.
+    routes:
+      - receiver: ntfy-homelab-security
+        object_matchers:
+          - ['alertname', '=~', '.+']
+        mute_time_intervals: ['weekly-maintenance']
 
 # Rules removed from this file stay in Grafana until listed here (moved to
 # ziti-notify, 2026-11-17). Deleting an absent uid is a no-op.

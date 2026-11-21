@@ -50,6 +50,7 @@ import (
 	"time"
 
 	"github.com/MrCodeEU/homelab-automation/tools/internal/deployagent"
+	"github.com/MrCodeEU/homelab-automation/tools/internal/maintwindow"
 )
 
 func main() {
@@ -80,6 +81,14 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
+	var maint *maintwindow.Weekly
+	if v := os.Getenv("DEPLOY_MAINTENANCE_WINDOW"); v != "" {
+		w, err := maintwindow.Parse(v)
+		if err != nil {
+			fatal(fmt.Errorf("DEPLOY_MAINTENANCE_WINDOW: %w", err))
+		}
+		maint = &w
+	}
 	notifiers, err := notifiersFromEnv()
 	if err != nil {
 		fatal(err)
@@ -102,6 +111,7 @@ func main() {
 		SuspendFile:  envOr("DEPLOY_SUSPEND_FILE", "/etc/homelab-deploy/suspend"),
 		DriftAt:      os.Getenv("DEPLOY_DRIFT_AT"),
 		DriftIgnore:  strings.Split(os.Getenv("DEPLOY_DRIFT_IGNORE"), "|"),
+		Maintenance:  maint,
 		Tofu:         os.Getenv("DEPLOY_TOFU"),
 		Notifiers:    notifiers,
 		Log:          log,
@@ -125,6 +135,9 @@ func main() {
 			}
 		}
 		cancel()
+		if err := agent.MaybeMaintenance(ctx); err != nil {
+			log.Error("maintenance", "err", err)
+		}
 		if err := agent.MaybeDrift(ctx); err != nil {
 			log.Error("drift", "err", err)
 		}

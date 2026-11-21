@@ -107,11 +107,24 @@ with allowed parameters. Never **what** is applied.
   apply path for both. The script holds `/run/homelab-deploy.lock`, so
   a push and an agent apply never overlap.
 - The request id is stored as "applying" before the apply runs. An
-  agent that dies mid-apply (a reboot from weekly maintenance) reports
+  agent that dies mid-apply (a reboot from `reboot_if_needed`) reports
   it as `interrupted` on start and does not run it again.
-- Weekly maintenance follows `deploy.yml`'s rule: trigger `schedule`,
-  `docker_prune` or `reboot_if_needed` sets
-  `OPENVOX_WEEKLY_MAINTENANCE=true`.
+- **Weekly maintenance window** (`roles::deploy_agent::maintenance_window`,
+  `DEPLOY_MAINTENANCE_WINDOW`, e.g. `Sun 01:00 30m`, host local time):
+  once per window the agent applies its last applied commit with
+  `OPENVOX_WEEKLY_MAINTENANCE=true`: `dnf upgrade`, docker prune, and the
+  reboot when `needs-restarting -r` says so (`roles::base`). It starts
+  only while the window is open (a host that was down waits a week),
+  waits for a busy host lock, and is skipped while suspended. Result as
+  mode `maintenance` (ntfy "Maintenance <commit> on <host>", metrics
+  `homelab_deploy_maintenance_*`); an apply cut off by the reboot is
+  reported as `interrupted` after it. nuc runs at 01:00, mljr at 01:30
+  (the controller and public Caddy go down with it); ugreen has none (no
+  `roles::base`, UGOS updates itself). Kuma's "Weekly host maintenance"
+  window, Grafana's `weekly-maintenance` mute timing and ziti-notify's
+  quiet window (`roles::ziti_notify::quiet`) cover Sun 01:00-02:00.
+- A request turns the same maintenance on only with `docker_prune` or
+  `reboot_if_needed`; trigger `schedule` no longer does.
 - Suspend file (`/etc/homelab-deploy/suspend`): requests are seen and
   reported as suspended, not applied.
 - A failed apply is reported and not retried; the next request or a

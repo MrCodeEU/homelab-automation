@@ -77,10 +77,9 @@ var defaultMaintenanceWindows = []string{
 	"daily 00:00-00:10",
 	// Unraid appdata backup (plugin cron: Sunday 05:00), ~2h45 wall clock.
 	"sun 04:55-08:00",
-	// Weekly full deploy (.github/workflows/deploy.yml, Sunday 00:00 UTC),
-	// which restarts changed containers. An hour is generous: the deploy
-	// itself runs ~15 minutes.
-	"sun 02:00-03:00",
+	// Weekly host maintenance (roles::deploy_agent maintenance_window):
+	// updates and gated reboot, nuc from 01:00, mljr from 01:30.
+	"sun 01:00-02:00",
 }
 
 // Config is runtime configuration, read from the environment. The .env is

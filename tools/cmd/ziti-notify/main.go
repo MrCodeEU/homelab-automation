@@ -26,6 +26,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/MrCodeEU/homelab-automation/tools/internal/maintwindow"
 	"github.com/MrCodeEU/homelab-automation/tools/internal/zitinotify"
 )
 
@@ -104,7 +105,15 @@ func run() error {
 	go func() { errc <- zitinotify.Follow(ctx, path, 2*time.Second, lines) }()
 	slog.Info("following", "path", path, "dry_run", dry)
 
-	eng := zitinotify.New(dir, zitinotify.Settings{})
+	var set zitinotify.Settings
+	if v := os.Getenv("ZITI_NOTIFY_QUIET"); v != "" {
+		w, err := maintwindow.Parse(v)
+		if err != nil {
+			return fmt.Errorf("ZITI_NOTIFY_QUIET: %w", err)
+		}
+		set.Quiet = w.Contains
+	}
+	eng := zitinotify.New(dir, set)
 	tick := time.NewTicker(5 * time.Second)
 	defer tick.Stop()
 	for {

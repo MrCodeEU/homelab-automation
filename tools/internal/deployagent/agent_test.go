@@ -15,6 +15,8 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+
+	"github.com/MrCodeEU/homelab-automation/tools/internal/maintwindow"
 )
 
 // origin is a local repository standing in for GitHub: main with an
@@ -487,5 +489,111 @@ func TestDriftSlot(t *testing.T) {
 	}
 	if _, err := driftSlot(time.Now(), "3:17pm"); err == nil {
 		t.Error("bad time accepted")
+	}
+}
+
+// maintScript applies like applyScript and prints what roles::base would:
+// the maintenance env, and the reboot line when MAINT_REBOOT is set.
+const maintScript = "#!/bin/bash\n[ \"$2\" = apply ] || exit 3\n" +
+	"[ -z \"$MAINT_BUSY\" ] || { echo 'another deploy holds /run/homelab-deploy.lock'; exit 1; }\n" +
+	"echo \"applied $DEPLOY_COMMIT maint=$OPENVOX_WEEKLY_MAINTENANCE\" >> \"$APPLY_LOG\"\n" +
+	"[ -z \"$MAINT_REBOOT\" ] || echo 'Notice: /Stage[main]/Roles::Base/Reboot[base-reboot-after-run]: Scheduling system reboot'\n" +
+	"[ -z \"$APPLY_FAIL\" ] || { echo 'Error: boom'; exit 1; }\n"
+
+func TestMaintenance(t *testing.T) {
+	o := newOrigin(t)
+	c := o.commit("main", plumbing.ZeroHash, map[string]string{"scripts/apply.sh": maintScript}, false)
+	o.request(c, nil, false)
+	rec := &recorder{}
+	a, log := newAgent(t, o, rec)
+	w, _ := maintwindow.Parse("Sun 01:20 40m")
+	a.cfg.Maintenance = &w
+	clock := time.Date(2026, 11, 22, 1, 25, 0, 0, time.Local) // a Sunday, in the window
+	a.now = func() time.Time { return clock }
+	ctx := context.Background()
+	run := func(env map[string]string) {
+		t.Helper()
+		for _, k := range []string{"MAINT_BUSY", "MAINT_REBOOT", "APPLY_FAIL"} {
+			t.Setenv(k, env[k])
+		}
+		if err := a.MaybeMaintenance(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	notified := func() []string {
+		var out []string
+		for _, r := range rec.got {
+			out = append(out, r.Mode+":"+r.Outcome)
+		}
+		rec.got = nil
+		return out
+	}
+
+	// Nothing applied yet: no maintenance.
+	run(nil)
+	if a.state.Maintenance.RequestID != "" {
+		t.Fatalf("ran before any apply: %+v", a.state.Maintenance)
+	}
+	if r := a.mustPoll(t); r.Outcome != "success" {
+		t.Fatalf("apply: %+v", r)
+	}
+	rec.got = nil
+	os.Remove(log)
+
+	// Busy lock: postponed, retried on the next call.
+	run(map[string]string{"MAINT_BUSY": "1"})
+	if a.state.Maintenance.RequestID != "" || len(notified()) != 0 {
+		t.Fatalf("busy lock recorded: %+v", a.state.Maintenance)
+	}
+	// In the window: applies the last applied commit with maintenance on.
+	run(map[string]string{"MAINT_REBOOT": "1"})
+	m := a.state.Maintenance
+	if m.Outcome != "success" || m.Commit != c.String() || !strings.HasPrefix(m.Detail, "rebooting") {
+		t.Fatalf("maintenance: %+v", m)
+	}
+	if n := notified(); len(n) != 1 || n[0] != "maintenance:success" {
+		t.Fatalf("notified: %v", n)
+	}
+	data, _ := os.ReadFile(log)
+	if got := string(data); got != "applied "+c.String()+" maint=true\n" {
+		t.Fatalf("apply log: %q", got)
+	}
+	// Once per window.
+	clock = clock.Add(10 * time.Minute)
+	run(nil)
+	if a.state.Maintenance.Time != m.Time {
+		t.Fatal("ran twice in one window")
+	}
+	// After the window (the host was down during it): not run late.
+	clock = time.Date(2026, 11, 29, 2, 5, 0, 0, time.Local)
+	run(nil)
+	if a.state.Maintenance.Time != m.Time {
+		t.Fatal("ran after the window")
+	}
+	// Next week: runs again; a failure is reported.
+	clock = time.Date(2026, 12, 6, 1, 21, 0, 0, time.Local)
+	run(map[string]string{"APPLY_FAIL": "1"})
+	if a.state.Maintenance.Outcome != "failure" {
+		t.Fatalf("failure: %+v", a.state.Maintenance)
+	}
+	if n := notified(); len(n) != 1 || n[0] != "maintenance:failure" {
+		t.Fatalf("failure notified: %v", n)
+	}
+	// An agent that stopped mid-apply reports it once on the next call.
+	a.state.Maintenance.Outcome = "running"
+	run(nil)
+	if n := notified(); len(n) != 1 || n[0] != "maintenance:interrupted" {
+		t.Fatalf("interrupted notified: %v", n)
+	}
+
+	metrics, _ := os.ReadFile(a.cfg.MetricsFile)
+	if want := `homelab_deploy_maintenance_success{host="test"} 0`; !strings.Contains(string(metrics), want) {
+		t.Errorf("metrics lack %q:\n%s", want, metrics)
+	}
+	// A deploy request no longer turns maintenance on by its trigger.
+	for _, e := range (Request{Trigger: "schedule"}).Env() {
+		if e == "OPENVOX_WEEKLY_MAINTENANCE=true" {
+			t.Error("schedule trigger still sets maintenance")
+		}
 	}
 }
