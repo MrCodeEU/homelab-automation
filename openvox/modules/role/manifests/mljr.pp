@@ -11,7 +11,6 @@ class role::mljr {
   include roles::opkssh
   include roles::tcp_notsent_lowat
   include roles::iperf3
-  include roles::netronome_teardown
   include roles::caddy
   include roles::authelia
   include roles::canarytokens
