@@ -17,7 +17,10 @@ import (
 )
 
 // Session-scope units flap on every SSH/console login and carry no signal.
-var systemdNoise = regexp.MustCompile(`^session-c?\d+\.scope$`)
+// cameramgr_serv and smbftpd are UGOS vendor units on ugreen for apps the
+// owner does not use (camera manager, FTP); they fail at every boot
+// (2026-11-05 on) and must not be started (FTP stays off).
+var systemdNoise = regexp.MustCompile(`^(session-c?\d+\.scope|cameramgr_serv\.service|smbftpd\.service)$`)
 
 // Pseudo-filesystems that are always ~100% full or always empty, and say
 // nothing about the health of the machine.
