@@ -82,6 +82,11 @@ The same four parts in every tool, each modelled on a real role:
 delete `ziti/tofu/spike.tf` (tofu destroys the identities and services),
 delete the spike key, and leave this file with the results.
 
+Done 2026-11-21 (Phase 4b of docs/ZERO_TRUST_PLAN.md): VMs and their
+storage, `/home/spike-vms`, the libvirt/qemu packages, the SELinux
+fcontext, `ziti/tofu/spike.tf` (and `#spike` in the at-home edge-router
+policy), the `spike/*` branches.
+
 ## Steps
 
 1. nuc: libvirt, the three VMs from the Rocky 10 cloud image (cloud-init:

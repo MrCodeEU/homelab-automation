@@ -25,7 +25,7 @@ resource "ziti_edge_router_policy" "at_mljr" {
 resource "ziti_edge_router_policy" "at_home" {
   name            = "at-home-lan-routers"
   semantic        = "AnyOf"
-  identityroles   = sort(["#at-home", "#spike"])
+  identityroles   = ["#at-home"]
   edgerouterroles = ["#lan"]
 }
 
