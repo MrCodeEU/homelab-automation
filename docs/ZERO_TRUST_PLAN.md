@@ -622,7 +622,12 @@ of the `restore-from-db` OIDC bug (C2).
 - Phone second factor (2026-11-21): Authelia as secondary ext-jwt on
   `phone-mrcode` (auth policy `phone-authelia`: cert, then an Authelia
   login). Ziti Mobile Edge for Android v0.26.0 (2026-11-18) carries the
-  ziti-sdk-c fix for secondary ext-jwt (#1172); v0.24 did not work. The
+  ziti-sdk-c fix for secondary ext-jwt (#1172); v0.24 did not work.
+  WAITING: v0.26.0 is a GitHub pre-release only (Play and the latest
+  stable are v0.24.x), and the owner does not sideload it. Step 1 is live
+  (#637: the policy, unattached, and idp-admin gone); step 2, the phone's
+  external id and `auth_policy_id`, follows once a stable v0.26+ is on
+  Play. The
   controller resolves the Authelia token by `sub` to the identity's
   external id and refuses a mismatch, and external ids are unique, so
   `idp-admin` (the C15 laptop test identity, unused since the laptop runs

@@ -21,7 +21,7 @@ resource "ziti_identity" "phone" {
 # identity's external id and refuses a token of anyone else, so the
 # identity that uses this policy carries the owner's sub. Needs Ziti Mobile
 # Edge for Android v0.26.0 or later (secondary ext-jwt fixed in ziti-sdk-c
-# 1.22, #1172). The app asks for the login again when the ID token expires:
+# 1.22, #1172); not attached until a stable v0.26+ is on Google Play. The app asks for the login again when the ID token expires:
 # 12 h (Authelia client ziti, id_token_lifespan in common.yaml).
 resource "ziti_auth_policy" "phone_authelia" {
   name = "phone-authelia"
