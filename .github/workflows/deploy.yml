@@ -77,8 +77,8 @@ jobs:
 
       - name: Install Caddy (custom CrowdSec/AppSec build) for config validation
         env:
-          CADDY_RELEASE: caddy-v2.11.7-crowdsec-v0.14.1-17a1e5a5
-          CADDY_SHA256: c67e050c3fc66ece9c39332ea2f963b8edfa3e44444b0ff38391ffcfd1a7e6c6
+          CADDY_RELEASE: caddy-v2.11.8-crowdsec-v0.14.1-98e517ff
+          CADDY_SHA256: fe01d115590785912a659066f3acbdfdf87450d47c8ef325e9b2721df4ce1330
         run: |
           # Bounded retries: release downloads have returned 503/504 from
           # github.com for minutes at a time (2026-11-08). 5xx and timeouts
