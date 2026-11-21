@@ -2,7 +2,7 @@
 # (roles::host_facts_endpoint: a key that can only run homelab-facts).
 # facts-ssh-<host>, facts-ssh.<host>.int.mljr.eu:22 -> 127.0.0.1:22, bound
 # by that host's router only. Not the addressable "ssh" service
-# (services.tf): `ziti tunnel proxy` cannot choose its terminator. The real sshd answers there (over the tailnet,
+# (services.tf): the m2m proxy (`ziti-tcp-proxy`) cannot choose its terminator. The real sshd answers there (over the tailnet,
 # Tailscale SSH did). Dialled by nuc's host proxy (m2m.tf, m2m-nuc). nas
 # stays on the tailnet until Phase 5.
 locals {

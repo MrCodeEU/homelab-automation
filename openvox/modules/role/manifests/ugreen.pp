@@ -14,6 +14,9 @@ class role::ugreen (
   include roles::opkssh
   include roles::tcp_notsent_lowat
   include roles::ziti_renew
+  # m2m sidecar binary; installed before the sidecars start (roles::ziti_tcp_proxy)
+  include roles::ziti_tcp_proxy
+  Class['roles::ziti_tcp_proxy'] -> Class['roles::services']
   if $backup_remote_target_enabled {
     include roles::backup_remote_target
   }

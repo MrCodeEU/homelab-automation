@@ -7,9 +7,9 @@
 # this only turns its one-time token into a certificate and key.
 #
 # The token is fetched on mljr (controller) and piped over SSH; enrolment
-# runs on the target host in a throwaway container of the router image, so
-# the private key never leaves that host. The file is 2171:2171 0600 (the
-# image's user).
+# runs on the target host in a throwaway container of the router image
+# (services/ziti-router's pin), so the private key never leaves that host.
+# The file is 2171:2171 0600 (the sidecars' user).
 #
 # Usage: scripts/ziti-enroll-proxy.sh <identity> <host> <service> [--reenroll]
 #   e.g. scripts/ziti-enroll-proxy.sh m2m-mljr mljr ziti-proxy
@@ -55,10 +55,10 @@ CTRL_HOST=root@mljr.ziti
 TARGET=root@$HOST.ziti
 DIR=${base:-/opt}/$SERVICE/$iddir
 DEST=$DIR/$NAME.json
-# The OpenZiti image, not the first one: homepage's compose file lists the
-# app's own image first.
-IMAGE=$(sed -n 's|^ *image: *\(openziti/[^ ]*\)$|\1|p' "$compose" | head -1)
-[ -n "$IMAGE" ] || die "no openziti/ image in $compose"
+# The sidecars run ziti-tcp-proxy on a distroless image, which has no
+# `ziti` CLI: enrol with the router image, pinned in services/ziti-router.
+IMAGE=$(sed -n 's|^ *image: *\(openziti/ziti-router[^ ]*\)$|\1|p' "$repo/services/ziti-router/docker-compose.yml" | head -1)
+[ -n "$IMAGE" ] || die "no openziti/ziti-router image in services/ziti-router/docker-compose.yml"
 
 zcli() {
   ssh "$CTRL_HOST" "set -a; . /opt/ziti-controller/.env; set +a

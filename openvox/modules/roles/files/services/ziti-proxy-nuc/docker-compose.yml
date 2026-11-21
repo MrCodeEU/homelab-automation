@@ -1,6 +1,6 @@
 # Ziti client for host processes on nuc that cannot dial Ziti themselves
 # (rclone in roles::backup; ssh in healthreport and backup-dashboard, both
-# host-network containers): `ziti tunnel proxy` opens one listener per
+# host-network containers): `ziti-tcp-proxy` opens one listener per
 # service, published on 127.0.0.1 only, as identity m2m-nuc
 # (ziti/tofu/m2m.tf). That identity may dial only the services listed there.
 # Apps in their own compose project have their own proxy (speedtest-metrics,
@@ -11,19 +11,20 @@
 # until the file exists.
 services:
   ziti-proxy:
-    image: openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
+    image: gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
     container_name: ziti-proxy-nuc
     restart: unless-stopped
     user: "2171:2171"
-    entrypoint: ["ziti"]
+    labels:
+      # restarted by roles::ziti_tcp_proxy when the binary changes
+      homelab.ziti-tcp-proxy: "true"
+    entrypoint: ["/opt/ziti-tcp-proxy/ziti-tcp-proxy"]
     command:
-      - tunnel
-      - proxy
+      - -identity
+      - /identity/m2m-nuc.json
       - backup-sftp-ugreen:2422
       - facts-ssh-mljr:2423
       - facts-ssh-ugreen:2424
-      - --identity
-      - /identity/m2m-nuc.json
     ports:
       # SFTP to ugreen for roles::backup (2222 is taken on nuc)
       - "127.0.0.1:2422:2422"
@@ -32,5 +33,6 @@ services:
       - "127.0.0.1:2424:2424"
     volumes:
       - ./data:/identity
+      - /usr/local/libexec/ziti-tcp-proxy:/opt/ziti-tcp-proxy:ro
     environment:
       - TZ=${TZ}
