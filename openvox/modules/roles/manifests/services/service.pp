@@ -136,11 +136,12 @@ define roles::services::service (
     }
   }
 
+  $deploy_env = $pull ? { true => [], default => ['OPENVOX_SKIP_PULL=true'] }
   exec { "services-${svc_name}-deploy":
     command     => "${work_dir}/compose-deploy.sh ${deploy_path} ${build_from_source} ${compose_project}",
-    environment => $pull ? { true => [], default => ['OPENVOX_SKIP_PULL=true'] },
+    environment => $deploy_env,
     timeout     => 300,
-    require => [File[$deploy_path], File["${deploy_path}/.env"]],
+    require     => [File[$deploy_path], File["${deploy_path}/.env"]],
   }
 
   if pick($service['port'], 0) > 0 {
