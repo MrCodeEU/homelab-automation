@@ -6,7 +6,7 @@ the "DMARC Reports" Grafana dashboard.
 
 ## Why `nuc`
 
-Same placement rule as Netronome/speedtest: `nuc` is the stronger, less
+Same placement rule as speedtest-metrics: `nuc` is the stronger, less
 critical compute node, and this has no public-facing surface anyway.
 
 ## Runtime

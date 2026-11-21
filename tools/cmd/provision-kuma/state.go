@@ -62,7 +62,7 @@ var windows = []window{
 		Cron:        "0 5 * * 0",
 		Minutes:     180,
 		Timezone:    "SAME_AS_SERVER",
-		Services:    []string{"dawarich", "immich", "dockhand", "ollama", "syncthing", "netronome-agent-nas"},
+		Services:    []string{"dawarich", "immich", "dockhand", "ollama", "syncthing"},
 	},
 	{
 		Title:       "Nextcloud AIO backup",

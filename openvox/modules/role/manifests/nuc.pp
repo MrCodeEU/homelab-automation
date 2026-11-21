@@ -7,15 +7,12 @@ class role::nuc {
   include roles::ssh_hardening
   include roles::opkssh
   include roles::iperf3
-  include roles::netronome_agent
+  include roles::netronome_teardown
 
-  # speedtest (Netronome) uses network_mode: host for real routing to
-  # tailnet peer IPs - needs the same explicit firewall port any
-  # host-networked container needs (see roles::iperf3/netronome_agent).
-  # Genuinely nuc-specific one-off config, not reusable data - left as a
-  # bare resource declaration rather than turned into hiera-fed params.
+  # The retired Netronome speedtest server's port (roles::netronome_teardown).
+  # Remove this resource with the teardown class.
   roles::firewalld::port { 'netronome-speedtest-tcp':
-    ensure   => present,
+    ensure   => absent,
     zone     => 'trusted',
     port     => 8090,
     protocol => 'tcp',

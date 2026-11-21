@@ -371,7 +371,7 @@ hardware. The repeatable boundary is deliberately clear:
    ```
 
    The apply recreates `/volume1/homelab`, the managed Compose services,
-   `homelab-facts`, Grafana Alloy, iperf3/Netronome, the SFTP backup
+   `homelab-facts`, Grafana Alloy, iperf3, the SFTP backup
    account and chroot (`/volume1/homelab-backups/data`), and the Btrfs
    backup-history timer. It deliberately does not manage a firewall on
    Ugreen; access is Tailscale-only.

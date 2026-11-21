@@ -10,7 +10,7 @@
     {
       "description": "Images pinned as tag@digest inside the inline compose YAML of these Puppet manifests; Renovate's compose manager only reads compose files.",
       "customType": "regex",
-      "managerFilePatterns": ["/^openvox/modules/roles/manifests/(iperf3|netronome_agent)\\.pp$/"],
+      "managerFilePatterns": ["/^openvox/modules/roles/manifests/(iperf3)\\.pp$/"],
       "matchStrings": ["image: (?<depName>[^:\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]+)"],
       "datasourceTemplate": "docker"
     },

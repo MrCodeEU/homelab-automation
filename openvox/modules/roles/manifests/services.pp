@@ -213,15 +213,6 @@ class roles::services (
       # Plaintext of authelia_oidc_clients' grafana secret_digest (common.yaml)
       'oidc_client_secret'     => lookup('vault_grafana_oidc_client_secret', { 'default_value' => '' }),
     },
-    'speedtest' => {
-      'admin_password' => lookup('vault_netronome_admin_password', { 'default_value' => '' }),
-      'session_secret' => lookup('vault_netronome_session_secret', { 'default_value' => '' }),
-      'smtp_host'      => lookup('vault_smtp_host', { 'default_value' => '' }),
-      'smtp_port'      => lookup('vault_smtp_port', { 'default_value' => '587' }),
-      'smtp_user'      => lookup('vault_smtp_user', { 'default_value' => '' }),
-      'smtp_password'  => lookup('vault_smtp_password', { 'default_value' => '' }),
-      'smtp_from'      => lookup('vault_smtp_from', { 'default_value' => "speedtest@${domain}" }),
-    },
     'healthreport' => {
       'nas_ip'                 => '100.100.10.2',
       'mljr_ip'                => '100.100.20.1',

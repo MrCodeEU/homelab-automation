@@ -586,6 +586,11 @@ of the `restore-from-db` OIDC bug (C2).
   DefectDojo importers on mljr and ugreen and Kuma's DefectDojo check to
   the Ziti service `defectdojo`. Ports still published on `0.0.0.0`
   (Grafana, VictoriaMetrics, Loki, Forgejo and others) are Phase 7.
+- Netronome retired (2026-11-20): `services/speedtest-metrics` (hourly
+  Ookla speedtest, iperf3 to mljr and ugreen over Ziti) replaced its
+  speedtests, Alloy its host metrics. `roles::netronome_teardown` removed
+  the server, its staging copy and the agents with their data (no export,
+  owner decision); nas's agent was removed by hand (no agent there).
 - Tailscale still in place as a fallback.
 
 Progress:
