@@ -15,15 +15,25 @@ set -euo pipefail
 # bind-mounted file *content*, so a server.yml edit alone never reaches the
 # running process. Confirmed live 2026-09-02: auth-default-access: deny-all
 # shipped and this hook's grants ran, but the container was still serving
-# the old (fully open) config until restarted by hand. Force it here so
-# server.yml is never stale for more than one deploy.
-docker restart ntfy >/dev/null
+# the old (fully open) config until restarted by hand. Restart here when
+# server.yml differs from the one ntfy was last restarted with (stamp, as
+# in the ziti-router hook), not on every deploy: each restart drops every
+# open subscription.
+stamp=.config-restarted.sha256
+want=$(sha256sum server.yml | cut -d' ' -f1)
+if [ "$(cat "$stamp" 2>/dev/null)" != "$want" ]; then
+  docker restart ntfy >/dev/null
+  printf '%s\n' "$want" >"$stamp"
+  echo "ntfy: server.yml changed - restarted"
+else
+  echo "ntfy: server.yml unchanged - not restarted"
+fi
 for attempt in $(seq 1 30); do
   if docker exec ntfy ntfy access >/dev/null 2>&1; then
     break
   fi
   if [ "$attempt" -eq 30 ]; then
-    echo "FAILED: ntfy did not come back up after restart." >&2
+    echo "FAILED: ntfy is not answering." >&2
     exit 1
   fi
   sleep 1
