@@ -100,8 +100,9 @@ func (r Request) Env() []string {
 		"OPENVOX_STAGING_SERVICES=" + r.StagingServices,
 		fmt.Sprintf("DEPLOY_DOCKER_PRUNE=%t", r.DockerPrune),
 		fmt.Sprintf("DEPLOY_REBOOT_IF_NEEDED=%t", r.RebootIfNeeded),
-		// deploy.yml's rule: the weekly schedule or either input turns on
-		// docker prune + gated reboot (site.pp's $weekly_maintenance).
-		fmt.Sprintf("OPENVOX_WEEKLY_MAINTENANCE=%t", r.Trigger == "schedule" || r.DockerPrune || r.RebootIfNeeded),
+		// Either input turns on docker prune + gated reboot (roles::base).
+		// The weekly schedule no longer does: the agent's own maintenance
+		// window (maintenance.go) does, at a fixed time.
+		fmt.Sprintf("OPENVOX_WEEKLY_MAINTENANCE=%t", r.DockerPrune || r.RebootIfNeeded),
 	}
 }

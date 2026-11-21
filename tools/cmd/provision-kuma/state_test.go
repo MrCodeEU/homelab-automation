@@ -121,3 +121,10 @@ func TestExpectedNamesCarryHost(t *testing.T) {
 		t.Errorf("unexpected names in %v", got)
 	}
 }
+
+func TestAllMonitorIDs(t *testing.T) {
+	got := allMonitorIDs(map[string]int64{"HTTP: a": 3, "a": 3, "Ping nuc": 1, "b": 2})
+	if want := []int64{1, 2, 3}; !reflect.DeepEqual(got, want) {
+		t.Errorf("allMonitorIDs = %v, want %v", got, want)
+	}
+}

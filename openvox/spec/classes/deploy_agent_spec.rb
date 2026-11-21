@@ -33,6 +33,22 @@ describe 'roles::deploy_agent' do
     expect(agent_env).not_to match(%r{^DEPLOY_TOFU=})
   end
 
+  it 'has no maintenance window by default' do
+    expect(agent_env).not_to match(%r{^DEPLOY_MAINTENANCE_WINDOW=})
+  end
+
+  context 'with a maintenance window' do
+    let(:params) { { maintenance_window: 'Sun 01:00 30m' } }
+
+    it { expect(agent_env).to match(%r{^DEPLOY_MAINTENANCE_WINDOW=Sun 01:00 30m$}) }
+  end
+
+  context 'with an invalid maintenance window' do
+    let(:params) { { maintenance_window: 'Sunday 1:00' } }
+
+    it { is_expected.to compile.and_raise_error(%r{maintenance_window}) }
+  end
+
   context 'on the Ziti controller host' do
     let(:params) { { ziti_tofu: true } }
 

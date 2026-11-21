@@ -13,6 +13,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/MrCodeEU/homelab-automation/tools/internal/maintwindow"
 )
 
 // Config is what one agent needs; cmd/deploy-agent fills it from the
@@ -44,6 +46,9 @@ type Config struct {
 	// DriftIgnore are resources ("File[/x]") whose drift is expected, such
 	// as a file with a compile-time timestamp; their lines are skipped.
 	DriftIgnore []string
+	// Maintenance is the weekly window of the maintenance apply
+	// (maintenance.go); nil: none.
+	Maintenance *maintwindow.Weekly
 	// Tofu is the path, inside the tree, of scripts/ziti-tofu.sh: set on
 	// the Ziti controller host only (tofu.go). Empty: no tofu step.
 	Tofu      string
@@ -73,6 +78,8 @@ type State struct {
 	LastSuccess Result `json:"last_success"`
 	// Drift is the last daily drift check (drift.go).
 	Drift DriftState `json:"drift"`
+	// Maintenance is the last weekly maintenance apply (maintenance.go).
+	Maintenance Result `json:"maintenance"`
 	// Tofu is the last tofu step that had changes (tofu.go).
 	Tofu Result `json:"tofu"`
 }
@@ -415,6 +422,14 @@ func (a *Agent) writeMetrics() {
 		fmt.Fprintf(&b, "homelab_deploy_drift_success{host=%q} %d\n", a.cfg.Host, ok)
 		fmt.Fprintf(&b, "homelab_deploy_drift_resource_changes{host=%q} %d\n", a.cfg.Host, d.Changes)
 		fmt.Fprintf(&b, "homelab_deploy_drift_error_lines{host=%q} %d\n", a.cfg.Host, d.Errors)
+	}
+	if m := a.state.Maintenance; m.RequestID != "" && m.Outcome != "running" {
+		ok := 0
+		if m.Outcome == "success" {
+			ok = 1
+		}
+		fmt.Fprintf(&b, "homelab_deploy_maintenance_last_run_timestamp_seconds{host=%q,outcome=%q} %d\n", a.cfg.Host, m.Outcome, m.Time.Unix())
+		fmt.Fprintf(&b, "homelab_deploy_maintenance_success{host=%q} %d\n", a.cfg.Host, ok)
 	}
 	if t := a.state.Tofu; t.RequestID != "" {
 		ok := 0

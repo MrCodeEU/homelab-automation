@@ -87,3 +87,6 @@ roles::opkssh::auth_ids:
     issuer: 'https://auth.mljr.eu'
 # Cockpit (OS default on *:9090) is unused since nuc-webui was removed
 roles::base::cockpit_disabled: true
+
+# Weekly updates + gated reboot (roles::deploy_agent), before mljr's 01:30.
+roles::deploy_agent::maintenance_window: 'Sun 01:00 30m'

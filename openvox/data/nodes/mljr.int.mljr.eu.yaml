@@ -98,6 +98,9 @@ roles::vuln_scan::nuclei_enabled: false
 roles::deploy_agent::mode: 'apply'
 # The Ziti controller runs here: the agent also applies ziti/tofu/.
 roles::deploy_agent::ziti_tofu: true
+# Weekly updates + gated reboot (roles::deploy_agent), after nuc's 01:00:
+# a mljr reboot takes the Ziti controller and the public Caddy along.
+roles::deploy_agent::maintenance_window: 'Sun 01:30 30m'
 
 # SSH login through Authelia (roles::opkssh, C14), as on nuc: the OIDC sub
 # of the Authelia user `admin` may log in as root.

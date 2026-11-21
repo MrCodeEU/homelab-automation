@@ -86,6 +86,10 @@ type Settings struct {
 	// A service is failing when a window has at least CircuitMinFailed
 	// failed circuits and they are at least half of all attempts.
 	CircuitMinFailed int
+	// Quiet, when set, reports times (the weekly host maintenance) whose
+	// circuit windows are dropped: failures while hosts reboot are no news.
+	// A service still failing after it is reported by the next window.
+	Quiet func(time.Time) bool
 }
 
 func (s *Settings) defaults() {
@@ -267,7 +271,9 @@ func (e *Engine) Tick(now time.Time) []Message {
 		e.authFails = nil
 	}
 	if !e.circuitStart.IsZero() && now.Sub(e.circuitStart) >= e.set.CircuitWindow {
-		out = append(out, e.circuitMessages()...)
+		if e.set.Quiet == nil || !e.set.Quiet(now) {
+			out = append(out, e.circuitMessages()...)
+		}
 		e.circuits = map[string]*circuitStats{}
 		e.circuitStart = now
 	}
