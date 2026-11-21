@@ -2,7 +2,7 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
   "assignees": ["MrCodeEU"],
-  "dependencyDashboard": true,
+  "dependencyDashboard": { "enabled": true },
   "labels": ["dependencies"],
   "minimumReleaseAge": "7 days",
   "ignorePaths": ["tools/thirdparty/**"],
@@ -37,8 +37,9 @@
       "automerge": false
     },
     {
-      "description": "Don't let Renovate bump go.mod's own `go` directive - it's pinned to match CI's toolchain (see .github/workflows), and Renovate bumping it alongside an unrelated dependency update breaks the build (seen live 2026-09-08, PR #311: x/sync bump silently carried go 1.25.2 -> 1.26.0)",
-      "matchManagers": ["golang-version"],
+      "description": "Don't let Renovate bump go.mod's own `go` directive - it's pinned to match CI's toolchain (see .github/workflows), and Renovate bumping it alongside an unrelated dependency update breaks the build (seen live 2026-09-08, PR #311: x/sync bump silently carried go 1.25.2 -> 1.26.0). Renovate 44 dropped the golang-version manager; the directive is now the gomod dependency of depType golang (an unknown manager name made the whole config invalid, 2026-11-16 to 11-21, issue #607).",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["golang"],
       "enabled": false
     },
     {
