@@ -723,33 +723,79 @@ address.
 **Gate:** all category-3 services work over Ziti with default-deny, and no
 scraper, backup or webhook is silently broken.
 
-### Phase 5: Appliances and OpenBolt push layer
+### Phase 4b: Cleanup before Phase 5 (added 2026-11-21)
+
+Owner decision: clear the open findings from the Phase 4 gate check
+first, each a small change.
+
+- Spike teardown (docs/SPIKE_CONFIG_MGMT.md): VMs spike-a, spike-b and
+  spike-hub on nuc (`/home/spike-vms`, 8.8 GB), the libvirt packages and
+  the SELinux fcontext, `ziti/tofu/spike.tf` (20 resources), the
+  `spike/*` branches. Deleting the VMs is irreversible: confirm first.
+- Post-deploy hooks of ntfy and crowdsec run `docker restart` on every
+  deploy (crowdsec-web-ui too); every mljr deploy leaves AppSec failing
+  open for the restart. Restart only when their config changed.
+- healthreport: the `github` collector gets a 401 (token to replace,
+  owner); `crowdsec_absent nuc` looks for a container named `crowdsec`
+  (nuc's is `crowdsec-nuc`).
+- Images with known-exploited CVEs (CISA KEV, 3 CVEs in the 06:21
+  2026-11-21 run) and one high-EPSS CVE.
+- ugreen: failed UGOS units `cameramgr_serv` and `smbftpd`; the C6 test
+  container `c6-host` is still running.
+- CrowdSec: stale bouncer registration `caddy_poc`.
+
+**Gate:** healthreport shows no crit that is not an accepted risk.
+
+### Phase 5: Appliances, OpenBolt spike and DR drill
+
+Order: nas first, because Tailscale cannot go before it (Caddy's tailnet
+fallback still serves 10 nas vhosts and Home Assistant; PR C, the
+fallback removal, is parked until then), then wd_mycloud, then Home
+Assistant.
 
 - Enrol nas: a router (Docker on Unraid, host-mode tunnel; C6 showed a
   tunneler reaches only ~55-60 % of Tailscale when nas sends), its data
   and start hook on the array/flash because the root filesystem is tmpfs,
   plus `net.ipv4.tcp_notsent_lowat=131072` (already managed by
   `roles::unraid_proxy`).
-- Enrol wd_mycloud: armv7 tunneler started from the clamAV boot hook (the
-  crontab is wiped at every reboot), or a nuc-hosted hop if Phase 3 showed
-  the tunneler can't run.
+- Enrol wd_mycloud (owner decision 2026-11-21): first the armv7 tunneler
+  on the device, started from the clamAV boot hook (the crontab is wiped
+  at every reboot). If it does not run or is unstable in testing, a hop
+  hosted on **nas's** router, not nuc's: nas and wd_mycloud share the
+  better physical path, while nuc reaches both through the FRITZ!Box to
+  repeater segment.
 - Home Assistant: nuc-hosted Ziti services forwarding to its LAN address
   (SSH, 8123, scrape target), unless a Ziti add-on for Home Assistant OS
   proved viable in Phase 3.
 - Test all three with a **real reboot**; earlier work found boot races only
   that way.
-- Introduce OpenBolt from the laptop for bootstrap, enrolment and the
-  appliance work that today runs as proxy `exec` on nuc's node block.
-- Verify whether `apply()` in OpenBolt needs an OpenVox agent on the target.
-  If it does (as Puppet Bolt did), appliances only get tasks, scripts and
-  commands.
+- Then remove the Tailscale fallbacks: PR C (Caddy tailnet fallback), the
+  remaining `tail33930` transport references, the homepage Tailscale
+  widget and the compose allowlists.
+- OpenBolt spike (owner decision 2026-11-21). Context: the config-mgmt
+  spike (2026-11-11) already chose OpenVox plus the pull deploy agent, and
+  rejected OpenBolt `apply()` for the main hosts because it compiles on
+  the controller and so needs every host's eyaml key. The spike asks
+  whether OpenBolt still adds a measurable benefit as a laptop tool for
+  bootstrap, enrolment and the appliance work that today runs as proxy
+  `exec` on nuc's node block. Write the criteria before starting:
+  lines of shell and exec glue it replaces, steps to onboard a host or an
+  appliance, wall time, what it needs on the target (agent or not, for
+  `apply()` too), where secrets and keys must live, and failure
+  diagnostics. Compare against the current scripts
+  (`scripts/ziti-enroll-*.sh`, `openvox-sync.sh`, the proxy `exec`
+  resources). Drop OpenBolt if the benefit is none, negligible, or too
+  small for the work of adopting it.
 - Full DR drill: rebuild one host from a fresh OS using only the DR target
-  inputs.
+  inputs. Committed Go binaries are part of the DR chain (the owner wants
+  them built from source at deploy time; see backlog).
 
 **Rollback:** appliances fall back to Tailscale and the existing proxy
 `exec` pattern, which stays in the repo until this gate passes.
-**Gate:** the DR drill passes, and option B measurably beats today's proxy
-`exec` pattern on the metrics. If not, keep masterless OpenVox as it is.
+**Gate:** nas, wd_mycloud and Home Assistant are reachable over Ziti and
+survive a real reboot; the Tailscale fallbacks are gone; the DR drill
+passes; the OpenBolt spike ends with adopt or drop, against its written
+criteria.
 
 ### Phase 6: Identity provider PoC (Zitadel vs Authelia)
 
@@ -820,11 +866,15 @@ Baselined in Phase 0 and re-measured at every gate.
 ## Open items, deferred to PoC exit criteria on purpose
 
 - Whether the wd_mycloud armv7 tunneler runs at all, and how nas enrols.
+  (Phase 5; fallback for wd_mycloud is a hop on nas's router.)
 - Whether the Ziti OpenTofu provider covers the needed resources. (C3:
   yes, with the constraints above.)
-- Whether GitHub Actions OIDC works as a Ziti external JWT signer.
+- Whether GitHub Actions OIDC works as a Ziti external JWT signer. (Phase
+  3: yes. CI no longer reaches any host since #619 and #620.)
 - How Caddy on mljr reaches backends over Ziti (tunneler intercept vs SDK).
-- Whether `apply()` in OpenBolt needs an agent on the target.
+  (SDK: the ziti-caddy transport, Phase 4.)
+- Whether `apply()` in OpenBolt needs an agent on the target, and whether
+  OpenBolt adds anything at all (Phase 5 OpenBolt spike).
 - Effort estimate per phase, filled in at each gate.
 
 ## Research sources (2026-11-03)
