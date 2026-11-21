@@ -8,7 +8,7 @@ require (
 	github.com/go-git/go-billy/v5 v5.9.2
 	github.com/go-git/go-git/v5 v5.19.3
 	github.com/lib/pq v1.12.3
-	github.com/openziti/sdk-golang v1.8.2
+	github.com/openziti/sdk-golang v1.9.1
 	github.com/showwin/speedtest-go v1.8.3
 	golang.org/x/text v0.43.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -29,7 +29,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-ole/go-ole v1.2.6 // indirect
+	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-openapi/analysis v1.0.0 // indirect
 	github.com/go-openapi/errors v0.22.8 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
@@ -63,7 +63,7 @@ require (
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kataras/go-events v0.0.3 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
-	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
+	github.com/lufia/plan9stats v0.0.0-20260330125221-c963978e514e // indirect
 	github.com/maldikhan/go.socket.io v0.1.1 // indirect
 	github.com/maniartech/signals v1.3.1 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
@@ -75,6 +75,7 @@ require (
 	github.com/muhlemmer/gu v0.3.1 // indirect
 	github.com/oklog/ulid/v2 v2.1.2 // indirect
 	github.com/openziti/channel/v4 v4.3.13 // indirect
+	github.com/openziti/channel/v5 v5.0.10 // indirect
 	github.com/openziti/edge-api v0.36.1 // indirect
 	github.com/openziti/foundation/v2 v2.0.104 // indirect
 	github.com/openziti/identity v1.0.143 // indirect
@@ -92,8 +93,8 @@ require (
 	github.com/sirupsen/logrus v1.10.2 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
 	github.com/speps/go-hashids v2.0.0+incompatible // indirect
-	github.com/tklauser/go-sysconf v0.3.16 // indirect
-	github.com/tklauser/numcpus v0.11.0 // indirect
+	github.com/tklauser/go-sysconf v0.4.0 // indirect
+	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zitadel/oidc/v3 v3.51.1 // indirect
