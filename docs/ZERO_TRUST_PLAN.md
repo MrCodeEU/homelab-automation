@@ -647,6 +647,19 @@ of the `restore-from-db` OIDC bug (C2).
   `net.ipv4.tcp_notsent_lowat=131072` on mljr, nuc and ugreen
   (`roles::tcp_notsent_lowat`, as on nas), so heartbeats no longer wait
   behind seconds of queued data.
+- m2m sidecars on `ziti-tcp-proxy` (2026-11-21): crowdsec-nuc's LAPI
+  heartbeat hung for hours. A nuc-mljr link drop removed its circuits
+  ("error rerouting circuit, removing: can't route"); `ziti tunnel proxy`
+  (v2.0.8, SDK flow control on) got the close for one circuit but not
+  the other and kept that client connection open, and CrowdSec's LAPI
+  client has no timeout. Closed upstream issue #4394 is the same family.
+  `tools/cmd/ziti-tcp-proxy` (sdk-golang v1.8.2, flow control at the SDK
+  default, off) replaces it in all seven sidecars: half-close is passed
+  on, and a connection with no byte either way for 5 min is closed, so the
+  client reconnects over a new circuit. Shipped once per host by
+  `roles::ziti_tcp_proxy` into `/usr/local/libexec/ziti-tcp-proxy`,
+  mounted read-only into a distroless image; a new binary restarts the
+  containers labelled `homelab.ziti-tcp-proxy`.
 - Tailscale still in place as a fallback.
 
 Progress:

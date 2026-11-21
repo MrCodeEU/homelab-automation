@@ -24,30 +24,32 @@ services:
         max-size: "5m"
         max-file: "2"
 
-  # Ziti client for the iperf3 tests: `ziti tunnel proxy` as identity
+  # Ziti client for the iperf3 tests: `ziti-tcp-proxy` as identity
   # speedtest-nuc (ziti/tofu/m2m.tf), which may dial iperf3-mljr and
   # iperf3-ugreen only (ziti/tofu/iperf3.tf). Ports on 127.0.0.1 only
   # (speedtest-metrics runs with host networking).
   # Enrolment: scripts/ziti-enroll-proxy.sh speedtest-nuc nuc speedtest-metrics
   # writes ziti/speedtest-nuc.json (uid 2171, 0600).
   ziti-proxy:
-    image: openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
+    image: gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
     container_name: speedtest-metrics-ziti-proxy
     restart: unless-stopped
     user: "2171:2171"
-    entrypoint: ["ziti"]
+    labels:
+      # restarted by roles::ziti_tcp_proxy when the binary changes
+      homelab.ziti-tcp-proxy: "true"
+    entrypoint: ["/opt/ziti-tcp-proxy/ziti-tcp-proxy"]
     command:
-      - tunnel
-      - proxy
+      - -identity
+      - /identity/speedtest-nuc.json
       - iperf3-mljr:15201
       - iperf3-ugreen:15202
-      - --identity
-      - /identity/speedtest-nuc.json
     ports:
       - "127.0.0.1:15201:15201"
       - "127.0.0.1:15202:15202"
     volumes:
       - ./ziti:/identity
+      - /usr/local/libexec/ziti-tcp-proxy:/opt/ziti-tcp-proxy:ro
     environment:
       - TZ=${TZ}
     logging:

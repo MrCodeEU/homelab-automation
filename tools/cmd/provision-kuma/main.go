@@ -40,7 +40,7 @@ const (
 	crowdsecLAPIName = httpPrefix + "crowdsec LAPI"
 	defectdojoName   = httpPrefix + "defectdojo"
 
-	// Kuma's own `ziti tunnel proxy` sidecar (services/kuma). A TCP check
+	// Kuma's own `ziti-tcp-proxy` sidecar (services/kuma). A TCP check
 	// through it proves nothing: the proxy accepts every connection itself
 	// and only then dials the service. Checks over Ziti therefore speak the
 	// protocol (HTTP, SMTP EHLO), so an answer must come from the far end.

@@ -1,5 +1,5 @@
 # Ziti client for apps on ugreen that cannot dial Ziti themselves (Grafana
-# Alloy, DefectDojo imports): `ziti tunnel proxy` opens one listener per service, published on
+# Alloy, DefectDojo imports): `ziti-tcp-proxy` opens one listener per service, published on
 # 127.0.0.1 only, as identity m2m-ugreen (ziti/tofu/m2m.tf). That identity may
 # dial only the services listed there.
 #
@@ -8,19 +8,20 @@
 # until the file exists; Alloy buffers in its WAL meanwhile.
 services:
   ziti-proxy-ugreen:
-    image: openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
+    image: gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
     container_name: ziti-proxy-ugreen
     restart: unless-stopped
     user: "2171:2171"
-    entrypoint: ["ziti"]
+    labels:
+      # restarted by roles::ziti_tcp_proxy when the binary changes
+      homelab.ziti-tcp-proxy: "true"
+    entrypoint: ["/opt/ziti-tcp-proxy/ziti-tcp-proxy"]
     command:
-      - tunnel
-      - proxy
+      - -identity
+      - /identity/m2m-ugreen.json
       - grafana-victoriametrics:19090
       - grafana-loki:3100
       - defectdojo:19101
-      - --identity
-      - /identity/m2m-ugreen.json
     ports:
       - "127.0.0.1:19090:19090"
       - "127.0.0.1:3100:3100"
@@ -29,5 +30,6 @@ services:
       - "127.0.0.1:19101:19101"
     volumes:
       - ./data:/identity
+      - /usr/local/libexec/ziti-tcp-proxy:/opt/ziti-tcp-proxy:ro
     environment:
       - TZ=${TZ}

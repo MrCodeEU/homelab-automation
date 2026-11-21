@@ -1,5 +1,5 @@
 # Machine-to-machine consumers that cannot dial Ziti themselves go through
-# `ziti tunnel proxy`: one per host for host-network apps (Alloy,
+# `ziti-tcp-proxy` (tools/cmd/ziti-tcp-proxy): one per host for host-network apps (Alloy,
 # services/ziti-proxy*), one inside the compose project for a bridged app
 # (homepage, crowdsec-nuc, speedtest-metrics). Each has its own identity, enrolled on its host by
 # scripts/ziti-enroll-proxy.sh so the key never leaves it. Each identity may dial only the services

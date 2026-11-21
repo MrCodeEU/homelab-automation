@@ -8,6 +8,9 @@ class role::nuc {
   include roles::opkssh
   include roles::tcp_notsent_lowat
   include roles::ziti_renew
+  # m2m sidecar binary; installed before the sidecars start (roles::ziti_tcp_proxy)
+  include roles::ziti_tcp_proxy
+  Class['roles::ziti_tcp_proxy'] -> Class['roles::services']
   include roles::iperf3
 
   include roles::wd_mycloud_proxy

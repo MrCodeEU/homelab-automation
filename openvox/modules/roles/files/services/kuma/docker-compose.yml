@@ -22,21 +22,23 @@ services:
   # compose network. Only protocol checks go through it (provision-kuma:
   # kumaZitiProxy): the proxy accepts every TCP connection itself.
   kuma-ziti-proxy:
-    image: openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
+    image: gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
     container_name: kuma-ziti-proxy
     restart: unless-stopped
     user: "2171:2171"
-    entrypoint: ["ziti"]
+    labels:
+      # restarted by roles::ziti_tcp_proxy when the binary changes
+      homelab.ziti-tcp-proxy: "true"
+    entrypoint: ["/opt/ziti-tcp-proxy/ziti-tcp-proxy"]
     command:
-      - tunnel
-      - proxy
+      - -identity
+      - /identity/kuma-nuc.json
       - crowdsec-lapi:8088
       - mail-smtp-mljr:2525
       - defectdojo:8101
-      - --identity
-      - /identity/kuma-nuc.json
     volumes:
       - ./ziti:/identity
+      - /usr/local/libexec/ziti-tcp-proxy:/opt/ziti-tcp-proxy:ro
     environment:
       - TZ=${TZ:-Europe/Vienna}
     logging:
