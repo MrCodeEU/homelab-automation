@@ -591,6 +591,15 @@ of the `restore-from-db` OIDC bug (C2).
   speedtests, Alloy its host metrics. `roles::netronome_teardown` removed
   the server, its staging copy and the agents with their data (no export,
   owner decision); nas's agent was removed by hand (no agent there).
+- Link heartbeats (2026-11-21): mljr's router logged 44 closed links in
+  72 h ("heartbeat not received in time, closing router link connection",
+  679 "pulse failed to send heartbeat: timeout waiting to put message in
+  send queue"), mostly during bulk transfers (Trivy, backups). Each close
+  dropped every circuit on the link (Caddy 502 bursts). Fix: link
+  `closeUnresponsiveTimeout` 1m -> 3m on all three routers and
+  `net.ipv4.tcp_notsent_lowat=131072` on mljr, nuc and ugreen
+  (`roles::tcp_notsent_lowat`, as on nas), so heartbeats no longer wait
+  behind seconds of queued data.
 - Tailscale still in place as a fallback.
 
 Progress:

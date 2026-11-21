@@ -6,6 +6,7 @@ class role::nuc {
   include roles::base
   include roles::ssh_hardening
   include roles::opkssh
+  include roles::tcp_notsent_lowat
   include roles::iperf3
   include roles::netronome_teardown
 
