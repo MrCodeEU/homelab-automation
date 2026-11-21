@@ -218,6 +218,7 @@ func (a *Agent) Poll(ctx context.Context) error {
 func (a *Agent) handle(ctx context.Context, branch, head string) Result {
 	start := time.Now()
 	res := Result{Host: a.cfg.Host, Mode: a.cfg.Mode, Time: start}
+	prev := a.state.LastRequestRef
 	refuse := func(format string, args ...any) Result {
 		res.Outcome, res.Detail = "rejected", fmt.Sprintf(format, args...)
 		return res
@@ -277,6 +278,11 @@ func (a *Agent) handle(ctx context.Context, branch, head string) Result {
 		return res
 	}
 
+	scope := PullScope(reqCommit, prev, a.cfg.Keyring)
+	if scope != "" {
+		a.cfg.Log.Info("pull scope", "id", req.ID, "services", scope)
+	}
+
 	// Mark the request handled before running it, so a reboot during the
 	// apply cannot make it run twice.
 	a.state.LastRequestRef, a.state.LastRequestID, a.state.Applying = head, req.ID, req.ID
@@ -284,7 +290,7 @@ func (a *Agent) handle(ctx context.Context, branch, head string) Result {
 		res.Outcome, res.Detail = "failure", fmt.Sprintf("save state: %v", err)
 		return res
 	}
-	out, err := a.apply(ctx, req)
+	out, err := a.apply(ctx, req, scope)
 	a.state.Applying = ""
 	res.Duration = time.Since(start).Seconds()
 	res.Changes, res.Errors = countApplyLines(out)
@@ -298,8 +304,8 @@ func (a *Agent) handle(ctx context.Context, branch, head string) Result {
 }
 
 // apply exports the target commit and runs the apply script. It returns
-// the script's output.
-func (a *Agent) apply(ctx context.Context, req Request) (string, error) {
+// the script's output. scope is PullScope's result ("" = all services).
+func (a *Agent) apply(ctx context.Context, req Request, scope string) (string, error) {
 	target, err := a.repo.Commit(req.Commit)
 	if err != nil {
 		return "", err
@@ -316,7 +322,7 @@ func (a *Agent) apply(ctx context.Context, req Request) (string, error) {
 	// (createCommitOnBranch cannot set it, core.fileMode=false loses it).
 	cmd := exec.CommandContext(ctx, "/bin/bash", filepath.Join(dir, a.cfg.Apply), dir, a.cfg.Mode)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), req.Env()...)
+	cmd.Env = append(append(os.Environ(), req.Env()...), "OPENVOX_PULL_SERVICES="+scope)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

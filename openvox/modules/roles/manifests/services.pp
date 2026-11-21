@@ -370,6 +370,18 @@ class roles::services (
     },
   }
 
+  # A repository_dispatch deploy pulls only the images of the services it
+  # names: the deploy agent's OPENVOX_PULL_SERVICES, the union of the
+  # requests it folded into this apply. Every other service still gets its
+  # files and `docker compose up -d`, without a pull, so a build in another
+  # repo does not roll out unrelated `latest` images. Unset or empty (every
+  # other trigger): all services pull.
+  $pull_services = $facts['openvox_pull_services'] ? {
+    undef   => [],
+    ''      => [],
+    default => split($facts['openvox_pull_services'], ','),
+  }
+
   $host_services.each |$svc| {
     roles::services::service { $svc['name']:
       service                => $svc,
@@ -384,6 +396,7 @@ class roles::services (
       critical               => $svc['name'] in $critical_hook_services,
       executables            => pick($service_executables[$svc['name']], []),
       postgres_major_upgrade => pick($postgres_major_upgrades[$svc['name']], {}),
+      pull                   => empty($pull_services) or $svc['name'] in $pull_services,
       require                => [Exec['services-dockerhub-login'], Exec['services-ghcr-login']],
     }
   }

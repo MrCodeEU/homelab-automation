@@ -60,7 +60,7 @@ func (a *Agent) MaybeMaintenance(ctx context.Context) error {
 	if err := a.saveState(); err != nil {
 		return err
 	}
-	out, err := a.apply(ctx, req)
+	out, err := a.apply(ctx, req, "")
 	if err != nil && strings.Contains(out, lockBusy) {
 		a.cfg.Log.Info("maintenance postponed: host lock busy")
 		os.RemoveAll(filepath.Join(a.cfg.StateDir, "releases", req.ID))

@@ -44,6 +44,23 @@ describe 'roles::services' do
     it { is_expected.not_to contain_exec('services-cleanup-orphaned') }
   end
 
+  it 'pulls every service when no pull scope is set' do
+    is_expected.to contain_exec('services-forgejo-deploy').with(environment: [])
+    is_expected.to contain_exec('services-homepage-deploy').with(environment: [])
+  end
+
+  context 'with a repository_dispatch pull scope' do
+    let(:facts) { { openvox_pull_services: 'homepage,codec' } }
+
+    it 'pulls only the named services and still deploys the others' do
+      is_expected.to contain_exec('services-homepage-deploy').with(environment: [])
+      is_expected.to contain_exec('services-forgejo-deploy').with(
+        command: %r{compose-deploy\.sh /opt/forgejo false},
+        environment: ['OPENVOX_SKIP_PULL=true'],
+      )
+    end
+  end
+
   context 'on nuc with a selected staging service' do
     let(:params) do
       super().merge(hostname: 'nuc')

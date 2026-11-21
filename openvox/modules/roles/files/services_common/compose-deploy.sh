@@ -17,6 +17,10 @@
 # resolving their project name from the directory basename exactly as
 # before.
 #
+# OPENVOX_SKIP_PULL=true (env, set by roles::services::service when a
+# repository_dispatch apply names other services) skips the pull: the
+# service still gets `up -d` with the images it already has.
+#
 # Unconditional, no unless-guard: `docker compose up -d` is itself
 # idempotent (only recreates a container when its resolved spec actually
 # changed) - same accepted shape as roles::mailcow's mailcow-services-up.
@@ -66,6 +70,6 @@ for name, svc in cfg.get("services", {}).items():
   fi
   docker compose "${compose_args[@]}" up -d --remove-orphans
 else
-  docker compose "${compose_args[@]}" pull --quiet
+  [ "${OPENVOX_SKIP_PULL:-false}" = true ] || docker compose "${compose_args[@]}" pull --quiet
   docker compose "${compose_args[@]}" up -d --remove-orphans
 fi
