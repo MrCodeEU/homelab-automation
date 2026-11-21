@@ -37,6 +37,18 @@ done
 echo "INFO: Updating CrowdSec Hub index."
 docker exec crowdsec cscli hub update
 
+# Restart only when something the running agent has not loaded changed:
+# a bind-mounted config file (compose-deploy.sh does not recreate the
+# container for file content alone) or the installed Hub content. A
+# restart takes the LAPI and AppSec away for seconds; Caddy fails open
+# meanwhile, so requests go uninspected (healthreport
+# appsec_unavailable_24h, 2026-11-21: 28 per day from restarts on every
+# deploy).
+hub_state() { docker exec crowdsec cscli hub list -o raw | sha256sum | cut -d' ' -f1; }
+hub_before=$(hub_state)
+stamp=.config-restarted.sha256
+want=$(find acquis.yaml profiles.yaml appsec-configs parsers -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)
+
 STRICT_SCENARIOS=(
   "crowdsecurity/http-dos-random-uri"
   "crowdsecurity/http-dos-switching-ua"
@@ -59,20 +71,28 @@ done
 echo "INFO: Upgrading installed CrowdSec Hub content."
 docker exec crowdsec cscli hub upgrade
 
-docker restart crowdsec >/dev/null
+restarted=false
+if [ "$(hub_state)" != "$hub_before" ] || [ "$(cat "$stamp" 2>/dev/null)" != "$want" ]; then
+  docker restart crowdsec >/dev/null
+  restarted=true
+  printf '%s\n' "$want" >"$stamp"
+  echo "INFO: CrowdSec config or Hub content changed - restarted."
 
-for attempt in $(seq 1 30); do
-  if docker exec crowdsec cscli lapi status >/dev/null 2>&1; then
-    break
-  fi
+  for attempt in $(seq 1 30); do
+    if docker exec crowdsec cscli lapi status >/dev/null 2>&1; then
+      break
+    fi
 
-  if [ "$attempt" -eq 30 ]; then
-    echo "FAILED: CrowdSec Local API did not become ready after Hub maintenance."
-    exit 1
-  fi
+    if [ "$attempt" -eq 30 ]; then
+      echo "FAILED: CrowdSec Local API did not become ready after Hub maintenance."
+      exit 1
+    fi
 
-  sleep 2
-done
+    sleep 2
+  done
+else
+  echo "INFO: CrowdSec config and Hub content unchanged - not restarted."
+fi
 
 docker exec crowdsec cscli bouncers delete firewall --ignore-missing >/dev/null
 docker exec crowdsec cscli bouncers add firewall --key "${CROWDSEC_FIREWALL_BOUNCER_KEY}" >/dev/null
@@ -84,6 +104,7 @@ else
   docker exec crowdsec cscli machines add crowdsec-web-ui \
     --password "${CROWDSEC_WEB_UI_PASSWORD}" \
     -f /dev/null
+  restarted=true
   echo "SUCCESS: CrowdSec web UI machine created."
 fi
 
@@ -105,5 +126,8 @@ else
   echo "SUCCESS: CrowdSec nas agent machine created."
 fi
 
-docker restart crowdsec-web-ui >/dev/null
-echo "SUCCESS: CrowdSec web UI restarted."
+# The web UI reconnects to a restarted LAPI only after its own restart.
+if $restarted; then
+  docker restart crowdsec-web-ui >/dev/null
+  echo "SUCCESS: CrowdSec web UI restarted."
+fi
