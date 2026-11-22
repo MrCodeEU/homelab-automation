@@ -789,7 +789,8 @@ Assistant.
   diagnostics. Compare against the current scripts
   (`scripts/ziti-enroll-*.sh`, `openvox-sync.sh`, the proxy `exec`
   resources). Drop OpenBolt if the benefit is none, negligible, or too
-  small for the work of adopting it.
+  small for the work of adopting it. Criteria, test cases and results:
+  docs/OPENBOLT_SPIKE.md (criteria written 2026-11-22).
 - Full DR drill: rebuild one host from a fresh OS using only the DR target
   inputs. Committed Go binaries are part of the DR chain (the owner wants
   them built from source at deploy time; see backlog).
