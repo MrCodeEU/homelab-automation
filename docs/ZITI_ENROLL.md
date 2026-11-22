@@ -184,3 +184,25 @@ allows root with a key (`roles::opkssh::root_local_address`, matched on
 New phone: `scripts/ziti-enroll-phone.sh phone-mrcode --reenroll`. This
 drops the old certificate, so the old phone loses access at the same time.
 Lost phone: remove `ziti_identity.phone` from `phone.tf` and apply.
+
+## WD My Cloud (tunneler, no router)
+
+The EX2 Ultra (armv7, BusyBox) cannot run a router. It hosts its own
+services with `ziti-edge-tunnel run-host` (C7), installed and kept running
+from nuc by `roles::wd_mycloud_ziti_proxy`: pinned release under
+`/mnt/HD/HD_a2/ziti`, watchdog from cron and the clamAV boot hook.
+Identity and services: `ziti/tofu/wd-mycloud.tf` (`wd-mycloud-ssh`,
+`wd-mycloud-exporter`, both on the device's loopback).
+
+1. `./scripts/ziti-tofu.sh apply` from main (identity and services).
+2. Deploy nuc: installs the tunneler, watchdog, cron entry and boot hook.
+   The watchdog does nothing until step 3.
+3. `scripts/ziti-enroll-wd-mycloud.sh`: one-time token from the
+   controller, piped through nuc onto the device and enrolled there; then
+   starts the tunneler. `--reenroll` replaces a lost or broken identity.
+4. Check: `ziti edge list terminators 'service.name contains "wd-mycloud"'`
+   on the controller shows both services; `tail
+   /mnt/HD/HD_a2/ziti/ziti-edge-tunnel.log` on the device.
+
+Device traps: `/tmp` is `noexec`, and the release zip drops the exec bit,
+so the install unpacks and `chmod`s on the data partition.

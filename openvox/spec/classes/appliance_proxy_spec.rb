@@ -118,6 +118,38 @@ describe 'roles::wd_mycloud_node_exporter_proxy' do
   end
 end
 
+describe 'roles::wd_mycloud_ziti_proxy' do
+  it { is_expected.to compile.with_all_deps }
+
+  it 'installs the pinned tunneler release behind a read-only check' do
+    is_expected.to contain_exec('wd-mycloud-ziti-install').with(
+      command: %r{install-apply\.sh v\d+\.\d+\.\d+ \h{64}\z},
+      unless: %r{\Atest -f \S+/install-check\.sh && /bin/bash \S+/install-check\.sh v\d+\.\d+\.\d+\z},
+      timeout: 300,
+    )
+  end
+
+  it 'starts it from cron and the clamAV boot hook, after the install' do
+    {
+      'watchdog-script' => 'watchdog',
+      'watchdog-cron' => 'cron',
+      'clamav-hook' => 'clamav',
+    }.each do |action, script|
+      is_expected.to contain_exec("wd-mycloud-ziti-#{action}").with(
+        command: %r{#{script}-apply\.sh},
+        unless: %r{\Atest -f \S+/#{script}-check\.sh && },
+        require: 'Exec[wd-mycloud-ziti-install]',
+      )
+    end
+  end
+
+  context 'with a malformed checksum' do
+    let(:params) { { sha256: 'abc' } }
+
+    it { is_expected.to compile.and_raise_error(%r{sha256}) }
+  end
+end
+
 describe 'roles::unraid_host_facts_proxy' do
   let(:hiera_config) { File.expand_path('../fixtures/healthreport_hiera.yaml', __dir__) }
 

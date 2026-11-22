@@ -15,6 +15,7 @@ class role::nuc {
 
   include roles::wd_mycloud_proxy
   include roles::wd_mycloud_node_exporter_proxy
+  include roles::wd_mycloud_ziti_proxy
   include roles::unraid_proxy
   include roles::unraid_backup_proxy
   include roles::unraid_aoostar_proxy
