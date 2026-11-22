@@ -535,6 +535,15 @@ services_catalog:
     domain: "home.mljr.eu"
     port: 8123
     host: homeassistant
+    # Home Assistant OS runs no router: nuc's hosts its services and
+    # forwards them over the LAN (DHCP reservation .31). SSH is the
+    # Advanced SSH & Web Terminal add-on.
+    ziti_via_caddy: true
+    ziti_bind:
+      router: nuc
+      address: 192.168.50.31
+    ziti_ports:
+      ssh: 22
     description: "Home Automation"
     icon: "mdi:home-assistant"
 
