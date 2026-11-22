@@ -68,8 +68,6 @@ roles::backup::verification_restore_schedule: 'Sun *-*-01..07 08:30:00'
 
 roles::services::hostname: 'mljr'
 
-roles::hawser_agent::tailscale_ip: '100.100.20.1'
-
 roles::host_facts_endpoint::os_family: 'rocky'
 roles::host_facts_endpoint::hostname: 'mljr'
 roles::host_facts_endpoint::dest: '/usr/local/bin/homelab-facts'
