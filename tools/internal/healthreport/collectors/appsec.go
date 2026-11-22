@@ -11,6 +11,9 @@ package collectors
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
+	"time"
 
 	hr "github.com/MrCodeEU/homelab-automation/tools/internal/healthreport"
 )
@@ -26,12 +29,38 @@ func init() {
 	hr.RegisterCollector("appsec", collectAppSec)
 }
 
-func countLokiLines(streams []lokiStream) int {
-	n := 0
+// appsecLoggedTS is Caddy's own event time in the JSON part of the line.
+var appsecLoggedTS = regexp.MustCompile(`"ts":([0-9]+(?:\.[0-9]+)?)`)
+
+// splitAppSecLines counts the lines outside the maintenance windows (kept)
+// and inside them (suppressed). A reboot in the window starts Caddy before
+// AppSec is up, a known fail-open of a minute or two. It is judged by the
+// time Caddy logged, not by Loki's timestamp: logs that queue while the
+// path to Loki is down arrive with the time they were shipped (2026-11-22:
+// mljr's 01:33 reboot lines reached Loki at 08:37). Without a ts field the
+// Loki timestamp is used.
+func splitAppSecLines(streams []lokiStream, windows []maintenanceWindow) (kept, suppressed int) {
 	for _, s := range streams {
-		n += len(s.Values)
+		for _, v := range s.Values {
+			t := time.Time{}
+			if m := appsecLoggedTS.FindStringSubmatch(v[1]); m != nil {
+				if sec, err := strconv.ParseFloat(m[1], 64); err == nil {
+					t = time.Unix(int64(sec), 0)
+				}
+			}
+			if t.IsZero() {
+				if ns, err := strconv.ParseInt(v[0], 10, 64); err == nil {
+					t = time.Unix(0, ns)
+				}
+			}
+			if !t.IsZero() && inWindow(t, windows) {
+				suppressed++
+			} else {
+				kept++
+			}
+		}
 	}
-	return n
+	return kept, suppressed
 }
 
 func collectAppSec(cfg hr.Config, rules hr.RulesFile) *hr.CollectorResult {
@@ -59,12 +88,13 @@ func collectAppSec(cfg hr.Config, rules hr.RulesFile) *hr.CollectorResult {
 	if err != nil {
 		panic(err)
 	}
-	if n := countLokiLines(streams); n > 0 {
+	n, inMaintenance := splitAppSecLines(streams, parseMaintenanceWindows(cfg.MaintenanceWindows))
+	if n > 0 {
 		result.Observations = append(result.Observations, &hr.Observation{
 			ID: "appsec_unavailable.mljr.", Collector: "appsec", Subject: "mljr",
 			Kind: "appsec_unavailable_24h", Value: int64(n), Unit: "requests",
 			Message:  fmt.Sprintf("mljr: Caddy could not reach AppSec for %d request(s) (failing open, those were not inspected)", n),
-			Evidence: map[string]any{"logql": appsecUnavailableQuery}, Severity: "info",
+			Evidence: map[string]any{"logql": appsecUnavailableQuery, "in_maintenance": inMaintenance}, Severity: "info",
 		})
 	}
 	return result
