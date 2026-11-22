@@ -16,8 +16,9 @@ locals {
     # management SSH and healthreport/backup-dashboard facts (nas-ssh.tf);
     # healthreport's triage LLM (ollama on nas)
     "m2m-nuc" = ["backup-sftp-ugreen", "facts-ssh-mljr", "facts-ssh-ugreen", "nas-ssh", "ollama", "wd-mycloud-exporter", "wd-mycloud-ssh"]
-    # Alloy on nas -> VictoriaMetrics and Loki on nuc; nas backup -> ugreen
-    "m2m-nas" = ["grafana-victoriametrics", "grafana-loki", "backup-sftp-ugreen"]
+    # Alloy on nas -> VictoriaMetrics and Loki on nuc; nas backup -> ugreen;
+    # Dockhand -> Hawser on mljr and nuc (hawser.tf)
+    "m2m-nas" = ["grafana-victoriametrics", "grafana-loki", "backup-sftp-ugreen", "hawser-mljr", "hawser-nuc"]
     # Alloy on ugreen -> the same; Trivy imports -> DefectDojo;
     # syncthing-ugreen's provisioning -> nas Syncthing's REST API
     "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki", "defectdojo", "syncthing"]
@@ -47,7 +48,7 @@ locals {
   }
 
   # Dialable by name: catalog services, iperf3, SSH, mail SMTP, backup SFTP
-  m2m_services = merge(ziti_service.catalog, local.iperf3_services, local.facts_ssh_services, ziti_service.wd_mycloud, {
+  m2m_services = merge(ziti_service.catalog, local.iperf3_services, local.facts_ssh_services, local.hawser_services, ziti_service.wd_mycloud, {
     (ziti_service.nas_ssh.name)        = ziti_service.nas_ssh,
     (ziti_service.mail_smtp_mljr.name) = ziti_service.mail_smtp_mljr,
     (ziti_service.backup_sftp.name)    = ziti_service.backup_sftp,

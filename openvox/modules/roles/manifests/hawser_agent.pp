@@ -1,10 +1,11 @@
 # Port of ansible/roles/hawser-agent (cross-checked against its
 # already-verified migration/spot port, commit e7efaad). Rocky hosts only
 # (mljr, nuc). Lightweight Docker agent for Dockhand remote management -
-# listens on this host's own Tailscale IP so the central Dockhand
-# instance on nas can connect inbound; no public exposure.
+# listens on loopback; the central Dockhand instance on nas reaches it over
+# Ziti (ziti/tofu/hawser.tf: this host's router dials 127.0.0.1:$port, only
+# nas's m2m-nas proxy may dial it). Was this host's Tailscale IP.
 class roles::hawser_agent (
-  String  $tailscale_ip,
+  Stdlib::IP::Address::Nosubnet $bind_address = '127.0.0.1',
   Integer $port           = 2376,
   String  $install_script = 'https://raw.githubusercontent.com/Finsys/hawser/main/scripts/install.sh',
   String  $binary         = '/usr/local/bin/hawser',
@@ -33,7 +34,7 @@ class roles::hawser_agent (
   file { '/etc/systemd/system/hawser.service.d/override.conf':
     ensure  => file,
     mode    => '0644',
-    content => "[Service]\nEnvironment=HAWSER_PORT=${port}\nEnvironment=HAWSER_BIND_ADDRESS=${tailscale_ip}\n# Disable namespace hardening — incompatible with some Rocky Linux kernels\nProtectSystem=false\nProtectHome=false\nReadWritePaths=\n",
+    content => "[Service]\nEnvironment=HAWSER_PORT=${port}\nEnvironment=HAWSER_BIND_ADDRESS=${bind_address}\n# Disable namespace hardening — incompatible with some Rocky Linux kernels\nProtectSystem=false\nProtectHome=false\nReadWritePaths=\n",
     require => File['/etc/systemd/system/hawser.service.d'],
   }
 
@@ -47,8 +48,10 @@ class roles::hawser_agent (
     subscribe   => File['/etc/systemd/system/hawser.service.d/override.conf'],
   }
 
+  # The port was open in the trusted zone (the tailnet) while Hawser
+  # listened there; loopback needs no rule.
   roles::firewalld::port { 'hawser-agent-tcp':
-    ensure   => present,
+    ensure   => absent,
     zone     => 'trusted',
     port     => $port,
     protocol => 'tcp',

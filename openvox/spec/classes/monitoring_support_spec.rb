@@ -23,17 +23,16 @@ describe 'roles::container_reconcile' do
 end
 
 describe 'roles::hawser_agent' do
-  let(:params) { { tailscale_ip: '100.64.0.10' } }
   let(:pre_condition) { 'service { "firewalld": ensure => running }' }
 
   it { is_expected.to compile.with_all_deps }
 
-  it 'binds the management agent only to Tailscale and the trusted zone' do
+  it 'binds the management agent to loopback only and closes the old trusted-zone port' do
     is_expected.to contain_file('/etc/systemd/system/hawser.service.d/override.conf').with(
-      content: %r{HAWSER_BIND_ADDRESS=100\.64\.0\.10},
+      content: %r{HAWSER_BIND_ADDRESS=127\.0\.0\.1\n},
     )
     is_expected.to contain_roles__firewalld__port('hawser-agent-tcp').with(
-      zone: 'trusted', port: 2376, protocol: 'tcp',
+      ensure: 'absent', zone: 'trusted', port: 2376, protocol: 'tcp',
     )
     is_expected.to contain_exec('hawser-agent-daemon-reload').with(refreshonly: true)
   end

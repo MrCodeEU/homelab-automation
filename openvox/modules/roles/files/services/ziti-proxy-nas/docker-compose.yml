@@ -1,6 +1,7 @@
 # Ziti client for processes on nas that cannot dial Ziti themselves (Grafana
-# Alloy, rclone's SFTP to ugreen in the nas backup script): `ziti-tcp-proxy`
-# opens one listener per service, published on 127.0.0.1 only, as identity
+# Alloy, rclone's SFTP to ugreen in the nas backup script, Dockhand):
+# `ziti-tcp-proxy` opens one listener per service, published on 127.0.0.1
+# (docker0's 172.17.0.1 for Dockhand, a bridged container), as identity
 # m2m-nas (ziti/tofu/m2m.tf). That identity may dial only the services
 # listed there. Same ports as on mljr and ugreen.
 #
@@ -27,11 +28,17 @@ services:
       - grafana-victoriametrics:19090
       - grafana-loki:3100
       - backup-sftp-ugreen:2422
+      - hawser-nuc:2376
+      - hawser-mljr:2377
     ports:
       - "127.0.0.1:19090:19090"
       - "127.0.0.1:3100:3100"
       # SFTP to ugreen for the nas backup (roles::unraid_backup_proxy)
       - "127.0.0.1:2422:2422"
+      # Dockhand (Unraid template, default bridge) -> Hawser on nuc and mljr.
+      # Its environments point here: NUC 172.17.0.1:2376, MLJR 172.17.0.1:2377.
+      - "172.17.0.1:2376:2376"
+      - "172.17.0.1:2377:2377"
     volumes:
       - ./data:/identity
       - /mnt/user/appdata/homelab/ziti-tcp-proxy:/opt/ziti-tcp-proxy:ro
