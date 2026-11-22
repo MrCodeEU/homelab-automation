@@ -123,7 +123,9 @@ prometheus.scrape "smart" {
 <% if $hostname == 'nuc' and $homeassistant_token =~ NotUndef { -%>
 // Home Assistant is its own host (proxy_only group, no Alloy of its own -
 // it's a HAOS appliance, not a Docker host), so this scrapes it remotely
-// over Tailscale instead of running an agent there. Reuses the same token
+// over the LAN (DHCP reservation .31) instead of running an agent there -
+// the same plaintext nuc -> Home Assistant hop the Ziti service
+// homeassistant takes (catalog ziti_bind, Phase 5). Reuses the same token
 // already set up for the healthreport HA collector (secrets.homeassistant.
 // token / vault_homeassistant_token) - HA long-lived tokens are full-account
 // scope, not endpoint-restricted, so no separate token was needed.
@@ -137,7 +139,7 @@ prometheus.scrape "smart" {
 prometheus.scrape "homeassistant" {
   targets = [
     {
-      "__address__" = "100.100.10.200:8123",
+      "__address__" = "192.168.50.31:8123",
       "job"         = "homeassistant",
       "instance"    = "homeassistant",
       "host"        = "homeassistant",
@@ -189,12 +191,12 @@ prometheus.scrape "uptime_kuma" {
 // ppc64le/s390x releases published), so it runs a bare node_exporter binary
 // instead (roles/wd-mycloud-node-exporter) and gets remote-scraped here,
 // same mechanism as the Home Assistant block above. node_exporter binds
-// directly to WD's own Tailscale IP (not 0.0.0.0), so this is the only
-// path that can reach it at all.
+// to the device's loopback only; this scrapes it over Ziti through
+// services/ziti-proxy-nuc (127.0.0.1:2426 -> wd-mycloud-exporter).
 prometheus.scrape "wd_mycloud" {
   targets = [
     {
-      "__address__" = "100.100.10.5:9100",
+      "__address__" = "127.0.0.1:2426",
       "job"         = "node",
       "instance"    = "wd-mycloud",
       "host"        = "wd-mycloud",

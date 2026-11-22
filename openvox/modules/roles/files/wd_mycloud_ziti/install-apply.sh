@@ -17,7 +17,7 @@
 # session) contains the pattern text, which a plain pattern matches too -
 # pkill then kills the session itself (seen live 2026-11-22).
 set -euo pipefail
-TARGET="root@wd-mycloud.tail33930.ts.net"
+TARGET="wd-mycloud-mgmt"
 VERSION="$1"
 SHA256="$2"
 URL="https://github.com/openziti/ziti-tunnel-sdk-c/releases/download/${VERSION}/ziti-edge-tunnel-Linux_arm.zip"

@@ -4,7 +4,7 @@
 # the tunneler after one) - same block-replace as roles::wd_mycloud_proxy's
 # own clamav-apply.sh, sent as a heredoc over `ssh ... bash -s`.
 set -euo pipefail
-TARGET="root@wd-mycloud.tail33930.ts.net"
+TARGET="wd-mycloud-mgmt"
 
 ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" bash -s <<'REMOTE'
 set -e

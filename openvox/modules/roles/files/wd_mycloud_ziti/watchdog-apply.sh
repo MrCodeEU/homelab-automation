@@ -3,7 +3,7 @@
 # script) onto wd-mycloud via scp - avoids any shell-quoting risk from
 # embedding the script body in a command string.
 set -euo pipefail
-TARGET="root@wd-mycloud.tail33930.ts.net"
+TARGET="wd-mycloud-mgmt"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 scp -q -o StrictHostKeyChecking=accept-new "$DIR/watchdog-content.sh" "$TARGET:/mnt/HD/HD_a2/ziti/watchdog.sh"

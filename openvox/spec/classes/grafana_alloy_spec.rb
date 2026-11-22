@@ -39,9 +39,9 @@ describe 'roles::grafana_alloy' do
 
     expect(config).to include(
       'prometheus.scrape "homeassistant"',
-      '"__address__" = "100.100.10.200:8123"',
+      '"__address__" = "192.168.50.31:8123"',
       'prometheus.scrape "wd_mycloud"',
-      '"__address__" = "100.100.10.5:9100"',
+      '"__address__" = "127.0.0.1:2426"',
       'forward_to      = [prometheus.remote_write.homelab.receiver]',
     )
   end

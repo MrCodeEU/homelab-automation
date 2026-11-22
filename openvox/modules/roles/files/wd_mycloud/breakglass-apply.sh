@@ -10,12 +10,12 @@
 #     / home /home/root, i.e. root; adding `root` lets the normal name be
 #     used too - both resolve to the same account and key file)
 #   - PasswordAuthentication no, PermitEmptyPasswords no
-# Daily access is Tailscale SSH, served by tailscaled (not sshd), so it is
-# unaffected by AllowUsers and stays available as a recovery path even if
-# this edit were wrong. The config is validated with `sshd -t` before the
+# Daily access is sshd itself (nuc's wd-mycloud-mgmt key over Ziti, Phase 5,
+# root via AllowUsers); Tailscale SSH (tailscaled, not sshd) stays a
+# recovery path until Tailscale goes, and the LAN break-glass keys after. The config is validated with `sshd -t` before the
 # running sshd is reloaded, so a bad edit can never take sshd down.
 set -euo pipefail
-TARGET="root@wd-mycloud.tail33930.ts.net"
+TARGET="wd-mycloud-mgmt"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" 'mkdir -p /mnt/HD/HD_a2/breakglass && chmod 0700 /mnt/HD/HD_a2/breakglass'

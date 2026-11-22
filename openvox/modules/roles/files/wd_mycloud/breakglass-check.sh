@@ -6,7 +6,7 @@
 # sshd config is hardened (root allowed, passwords off).
 # Read-only: safe as an exec guard under --noop.
 set -euo pipefail
-TARGET="root@wd-mycloud.tail33930.ts.net"
+TARGET="wd-mycloud-mgmt"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KEYS="$DIR/breakglass-authorized_keys"
 

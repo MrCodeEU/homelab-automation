@@ -4,7 +4,7 @@
 # host (real curl/python3), not on wd-mycloud's busybox - simpler, same
 # data. Deployed by roles::wd_mycloud_proxy; used as an exec unless-guard.
 set -euo pipefail
-TARGET="root@wd-mycloud.tail33930.ts.net"
+TARGET="wd-mycloud-mgmt"
 BASE="/mnt/HD/HD_a2/tailscale"
 
 LATEST_VERSION=$(curl -s "https://pkgs.tailscale.com/stable/?mode=json" \
