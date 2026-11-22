@@ -46,6 +46,11 @@
       "description": "go.socket.io 0.2.0 makes provision-kuma hang on login against a fresh Kuma 2.5.7 (autosetup), tested 2026-10-24 on a throwaway container; the Kuma client lives in tools/thirdparty and tools/go.mod replaces it, so its version line is never used",
       "matchPackageNames": ["github.com/maldikhan/go.socket.io", "github.com/breml/go-uptime-kuma-client"],
       "enabled": false
+    },
+    {
+      "description": "sdk-golang 1.9.x is retracted by its maintainers (\"Published from main before the module moved to github.com/openziti/sdk-golang/v2; the supported v1 line is 1.8.x\"), and Renovate proposed 1.9.1 anyway (#657, closed 2026-11-22). Stay on 1.8.x; the move to /v2 is its own change.",
+      "matchPackageNames": ["github.com/openziti/sdk-golang"],
+      "allowedVersions": "<1.9.0"
     }
   ]
 }
