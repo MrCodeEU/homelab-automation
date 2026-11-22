@@ -31,10 +31,15 @@ class roles::hawser_agent (
   # migration retyped an em dash as a plain ASCII hyphen in a comment
   # and it silently broke byte-exact idempotency checks despite reading
   # identically to a human - worth being deliberate about here too.
+  # Hawser reads PORT and BIND_ADDRESS (`hawser --help`). The drop-in set
+  # HAWSER_PORT/HAWSER_BIND_ADDRESS until 2026-11-22, which it ignores, so it
+  # listened on 0.0.0.0 and only firewalld kept it off the LAN and the
+  # internet. /etc/hawser/config (the installer's EnvironmentFile) sets PORT
+  # too and wins over Environment=; it has no BIND_ADDRESS.
   file { '/etc/systemd/system/hawser.service.d/override.conf':
     ensure  => file,
     mode    => '0644',
-    content => "[Service]\nEnvironment=HAWSER_PORT=${port}\nEnvironment=HAWSER_BIND_ADDRESS=${bind_address}\n# Disable namespace hardening — incompatible with some Rocky Linux kernels\nProtectSystem=false\nProtectHome=false\nReadWritePaths=\n",
+    content => "[Service]\nEnvironment=PORT=${port}\nEnvironment=BIND_ADDRESS=${bind_address}\n# Disable namespace hardening — incompatible with some Rocky Linux kernels\nProtectSystem=false\nProtectHome=false\nReadWritePaths=\n",
     require => File['/etc/systemd/system/hawser.service.d'],
   }
 

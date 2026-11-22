@@ -29,7 +29,7 @@ describe 'roles::hawser_agent' do
 
   it 'binds the management agent to loopback only and closes the old trusted-zone port' do
     is_expected.to contain_file('/etc/systemd/system/hawser.service.d/override.conf').with(
-      content: %r{HAWSER_BIND_ADDRESS=127\.0\.0\.1\n},
+      content: %r{^Environment=BIND_ADDRESS=127\.0\.0\.1$},
     )
     is_expected.to contain_roles__firewalld__port('hawser-agent-tcp').with(
       ensure: 'absent', zone: 'trusted', port: 2376, protocol: 'tcp',
