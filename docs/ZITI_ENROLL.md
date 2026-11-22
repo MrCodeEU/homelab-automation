@@ -204,5 +204,12 @@ Identity and services: `ziti/tofu/wd-mycloud.tf` (`wd-mycloud-ssh`,
    on the controller shows both services; `tail
    /mnt/HD/HD_a2/ziti/ziti-edge-tunnel.log` on the device.
 
+Management SSH from nuc (`roles::wd_mycloud_mgmt_key`): `ssh
+wd-mycloud-mgmt` goes through `ziti-proxy-nuc` (127.0.0.1:2425, m2m-nuc)
+to the device's sshd, with a dedicated key (nuc eyaml
+`vault_wd_mycloud_mgmt_ssh_key`), authorized on the device for
+`from="127.0.0.1"` only, and the device's pinned host key. node_exporter
+is scraped through 127.0.0.1:2426.
+
 Device traps: `/tmp` is `noexec`, and the release zip drops the exec bit,
 so the install unpacks and `chmod`s on the data partition.

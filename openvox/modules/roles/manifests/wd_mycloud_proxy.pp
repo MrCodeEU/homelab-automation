@@ -55,10 +55,17 @@ class roles::wd_mycloud_proxy (
 
   # Break-glass SSH keys (docs/ZERO_TRUST_PLAN.md, Phase 1). Written next
   # to the scripts so breakglass-check/apply.sh can compare and scp it.
+  # Plus nuc's management key (roles::wd_mycloud_mgmt_key), usable only
+  # from 127.0.0.1: connections the device's Ziti tunneler forwards.
+  $mgmt_key = lookup('wd_mycloud_mgmt_pubkey', { 'default_value' => '' })
+  $mgmt_line = $mgmt_key ? {
+    ''      => [],
+    default => ["from=\"127.0.0.1\",no-agent-forwarding,no-port-forwarding,no-X11-forwarding ${mgmt_key}"],
+  }
   file { "${work_dir}/breakglass-authorized_keys":
     ensure  => file,
     mode    => '0644',
-    content => "${lookup('breakglass_pubkeys', Array[String, 1]).join("\n")}\n",
+    content => "${(lookup('breakglass_pubkeys', Array[String, 1]) + $mgmt_line).join("\n")}\n",
     require => File[$work_dir],
   }
 

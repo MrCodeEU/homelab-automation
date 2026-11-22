@@ -68,7 +68,7 @@ describe 'roles::wd_mycloud_proxy' do
 
   it 'installs the break-glass keys behind a read-only guard' do
     is_expected.to contain_file('/usr/local/libexec/openvox-wd-mycloud/breakglass-authorized_keys')
-      .with_content(%r{homelab-recovery\n.*homelab-breakglass-yk1\n\z}m)
+      .with_content(%r{homelab-recovery\n.*homelab-breakglass-yk1\nfrom="127\.0\.0\.1",no-agent-forwarding,no-port-forwarding,no-X11-forwarding ssh-ed25519 \S+ homelab-wd-mycloud-mgmt\n\z}m)
     is_expected.to contain_exec('wd-mycloud-breakglass').with(
       command: %r{breakglass-apply\.sh},
       unless: %r{breakglass-check\.sh},
@@ -115,6 +115,24 @@ describe 'roles::wd_mycloud_node_exporter_proxy' do
       )
       is_expected.to contain_exec(resource).with(timeout: timeout) if timeout
     end
+  end
+end
+
+describe 'roles::wd_mycloud_mgmt_key' do
+  let(:hiera_config) { File.expand_path('../fixtures/ssh_hardening_hiera.yaml', __dir__) }
+  let(:conf) { '/etc/ssh/ssh_config.d/40-wd-mycloud-mgmt.conf' }
+
+  it { is_expected.to compile.with_all_deps }
+
+  it 'writes the key from eyaml without showing it in diffs' do
+    is_expected.to contain_file('/opt/wd-mycloud-mgmt/ssh/id_ed25519').with(mode: '0600', show_diff: false)
+  end
+
+  it 'pins the device host key and dials it through the m2m proxy' do
+    is_expected.to contain_file('/opt/wd-mycloud-mgmt/ssh/known_hosts')
+      .with_content("wd-mycloud ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQFixtureHostKey\n")
+    is_expected.to contain_file(conf).with_content(%r{^Host wd-mycloud-mgmt\n    HostName 127\.0\.0\.1\n    Port 2425\n})
+    is_expected.to contain_file(conf).with_content(%r{^    StrictHostKeyChecking yes$})
   end
 end
 

@@ -2,3 +2,7 @@
 breakglass_pubkeys:
   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAItestkeytestkeytestkeytestkeytestkeytestkeyAA homelab-recovery"
   - "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAItestkeytestkeytestkey homelab-breakglass-yk1"
+# roles::wd_mycloud_mgmt_key / roles::wd_mycloud_proxy
+wd_mycloud_mgmt_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureMgmtKeyOnlyForSpecsXXXXXXXXXXXXXXX homelab-wd-mycloud-mgmt"
+wd_mycloud_host_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQFixtureHostKey"
+vault_wd_mycloud_mgmt_ssh_key: "fixture-private-key"
