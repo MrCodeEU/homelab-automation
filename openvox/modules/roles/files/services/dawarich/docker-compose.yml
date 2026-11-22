@@ -28,7 +28,7 @@ services:
       - RAILS_ENV=production
       - SELF_HOSTED=true
       - APPLICATION_PROTOCOL=https
-      - APPLICATION_HOSTS=localhost,192.168.50.80:3001,dawarich.${DOMAIN:-mljr.eu},nas:3001,nas.tail33930.ts.net:3001
+      - APPLICATION_HOSTS=localhost,192.168.50.80:3001,dawarich.${DOMAIN:-mljr.eu},nas:3001
       - TIME_ZONE=UTC
       # Database and cache are only reachable on the compose network; the
       # geocoder (Photon) is a separate project, reached via the host's
