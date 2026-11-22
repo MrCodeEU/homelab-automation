@@ -161,6 +161,20 @@ describe 'roles::nas_mgmt_key' do
   end
 end
 
+describe 'roles::nas_ziti_tcp_proxy' do
+  let(:hiera_config) { File.expand_path('../fixtures/ssh_hardening_hiera.yaml', __dir__) }
+  let(:pre_condition) { 'include roles::ziti_tcp_proxy include roles::nas_mgmt_key' }
+
+  it { is_expected.to compile.with_all_deps }
+
+  it 'copies the binary only when nas has a different one' do
+    is_expected.to contain_exec('nas-ziti-tcp-proxy-binary').with(
+      unless: %r{\Atest -f \S+/binary-check\.sh && },
+      require: ['File[/usr/local/libexec/openvox-nas-ziti-tcp-proxy]', 'Class[Roles::Ziti_tcp_proxy]', 'Class[Roles::Nas_mgmt_key]'],
+    )
+  end
+end
+
 describe 'roles::wd_mycloud_ziti_proxy' do
   it { is_expected.to compile.with_all_deps }
 

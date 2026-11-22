@@ -20,9 +20,9 @@ locals {
     "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki", "defectdojo"]
     # homepage on mljr (live homelab panel) -> VictoriaMetrics, PromQL
     "homepage-mljr" = ["grafana-victoriametrics"]
-    # CrowdSec agent on nuc -> mljr's LAPI (crowdsec-nas stays on the
-    # tailnet until nas is on Ziti, Phase 5)
+    # CrowdSec agents on nuc and nas -> mljr's LAPI
     "crowdsec-nuc" = ["crowdsec-lapi"]
+    "crowdsec-nas" = ["crowdsec-lapi"]
     # Uptime Kuma on nuc: checks that would otherwise need the tailnet
     # (services/kuma, kuma-ziti-proxy)
     "kuma-nuc" = ["crowdsec-lapi", "mail-smtp-mljr", "defectdojo"]
@@ -37,6 +37,7 @@ locals {
     "m2m-nuc"       = "at-home"
     "m2m-ugreen"    = "at-home"
     "crowdsec-nuc"  = "at-home"
+    "crowdsec-nas"  = "at-home"
     "kuma-nuc"      = "at-home"
     "speedtest-nuc" = "at-home"
   }
