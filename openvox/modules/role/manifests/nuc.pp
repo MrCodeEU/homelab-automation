@@ -15,6 +15,8 @@ class role::nuc {
 
   include roles::wd_mycloud_mgmt_key
   include roles::nas_mgmt_key
+  # nas is managed over `ssh nas-mgmt`: key and ssh_config first
+  Class['roles::nas_mgmt_key'] -> Class['roles::unraid_proxy', 'roles::unraid_backup_proxy', 'roles::unraid_aoostar_proxy', 'roles::canary_decoys_nas', 'roles::services_nas', 'roles::unraid_host_facts_proxy']
   include roles::wd_mycloud_proxy
   include roles::wd_mycloud_node_exporter_proxy
   include roles::wd_mycloud_ziti_proxy

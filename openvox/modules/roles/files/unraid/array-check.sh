@@ -4,7 +4,7 @@
 # whose `unless` is always-false, so this always runs and its exit code
 # is what determines success/failure (not gated by any drift check).
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 
 STATE=$(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" "mdcmd status 2>/dev/null | grep -o 'mdState=[A-Z_]*'" || true)
 if [ "$STATE" != "mdState=STARTED" ]; then

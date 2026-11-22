@@ -14,7 +14,7 @@
 set -euo pipefail
 local_dir="$1"
 remote_dir="$2"
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 
 ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" "mkdir -p '${remote_dir}'"
 # --delete must not touch what only exists on nas: a service's runtime

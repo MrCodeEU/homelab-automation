@@ -8,7 +8,7 @@
 # reboot. Best-effort, matches ghcr-login-apply.sh's own rocky/ugreen sibling:
 # never blocks the rest of the apply.
 set -uo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 BASE=/mnt/user/appdata/homelab
 
 if [ -z "${GHCR_USER:-}" ] || [ -z "${GHCR_TOKEN:-}" ]; then

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # See key-check.sh for why the entry crosses the ssh boundary base64-encoded.
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENTRY_B64=$(printf '%s' "${OPENVOX_HEALTHREPORT_AUTH_ENTRY}" | base64 -w0)
 

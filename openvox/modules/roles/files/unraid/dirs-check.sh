@@ -2,7 +2,7 @@
 # Exits 0 (no work needed) if all 3 array-side directories already exist
 # with the expected mode.
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 
 ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" bash -s <<'REMOTE'
 set -e

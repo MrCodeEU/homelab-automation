@@ -9,7 +9,7 @@
 set -euo pipefail
 remote_dir="$1"
 build_from_source="${2:-false}"
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 BASE=/mnt/user/appdata/homelab
 
 if [ "$build_from_source" = "true" ]; then
