@@ -2,7 +2,7 @@
 # are looked up here to bind services. A router's identity is named after
 # its certname.
 data "ziti_identity" "router" {
-  for_each = toset(["mljr.int.mljr.eu", "nuc.int.mljr.eu", "ugreen.int.mljr.eu"])
+  for_each = toset(["mljr.int.mljr.eu", "nuc.int.mljr.eu", "ugreen.int.mljr.eu", "nas.int.mljr.eu"])
   name     = each.key
 }
 
