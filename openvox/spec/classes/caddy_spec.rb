@@ -76,7 +76,7 @@ describe 'roles::caddy' do
     let(:conf) { catalogue.resource('file', '/etc/logrotate-caddy.conf')[:content] }
 
     it 'leaves rotation to logrotate: SELinux lets httpd_t append, not rename' do
-      snippet = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/ziti-upstream.caddy')[:content]
+      snippet = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/local-authelia.caddy')[:content]
       caddyfile = catalogue.resource('file', '/etc/caddy/Caddyfile.openvox-staging')[:content]
       [snippet, caddyfile].each do |c|
         expect(c).to include('roll_disabled')
@@ -87,8 +87,7 @@ describe 'roles::caddy' do
     it 'rotates every Caddy log by copytruncate as caddy, uncompressed' do
       expect(conf).to match(%r{^/var/log/caddy/access\.log( \{)?$})
       expect(conf).to match(%r{^/var/log/caddy/deploy\.log( \{)?$})
-      expect(conf).to match(%r{^/var/log/caddy/ziti-upstream\.log( \{)?$})
-      expect(conf).to match(%r{^/var/log/caddy/local-authelia-staging\.log( \{)?$})
+      expect(conf).to match(%r{^/var/log/caddy/local-authelia\.log( \{)?$})
       expect(conf).to match(%r{^    su caddy caddy$})
       expect(conf).to match(%r{^    size 100M$})
       expect(conf).to match(%r{^    rotate 3$})
@@ -169,6 +168,7 @@ describe 'roles::caddy' do
   end
 
   context 'Ziti transport' do
+    let(:hiera_config) { File.expand_path('../fixtures/caddy_ziti_hiera.yaml', __dir__) }
     let(:custom) do
       { 'tag' => 'caddy-v2.11.9-crowdsec-v0.15.0-5b1be5e7',
         'sha256' => 'c632c9554c78b5aa81609b84c7b5e5ad71fb63d66b80fab33129c9ae26f1676b' }
@@ -176,31 +176,8 @@ describe 'roles::caddy' do
     let(:snippet) { catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/ziti-upstream.caddy')[:content] }
 
     context 'disabled (the default)' do
-      it 'proxies a ziti_via_caddy entry over Tailscale' do
-        expect(snippet).to include('reverse_proxy nuc.tail33930.ts.net:3001')
-        expect(snippet).to include('reverse_proxy nuc.tail33930.ts.net:13001')
-        expect(snippet).not_to include('transport ziti')
-        is_expected.not_to contain_file('/etc/caddy/ziti')
-      end
-
-      it 'resolves catalog: references and ziti_staging over Tailscale' do
-        ref = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/catalog-ref.caddy')[:content]
-        expect(ref).to include("    handle_path /zu* {\n        reverse_proxy nuc.tail33930.ts.net:3001\n    }\n")
-        stage = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/ziti-staging-only.caddy')[:content]
-        expect(stage).to include('reverse_proxy localhost:3002')
-        expect(stage).to include('reverse_proxy nuc.tail33930.ts.net:13002')
-        expect(stage).not_to include('transport ziti')
-      end
-
-      it 'resolves the block form of a catalog: reference over Tailscale' do
-        block = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/catalog-block-ref.caddy')[:content]
-        expect(block).to include(
-          "    reverse_proxy nuc.tail33930.ts.net:3001 {\n" \
-          "        request_buffers 16m\n" \
-          "    }\n",
-        )
-        expect(block).not_to include('transport ziti')
-        expect(block).not_to include('localhost:3004')
+      it 'fails: a service on another host has no other transport' do
+        is_expected.to compile.and_raise_error(%r{ziti-upstream \(host nuc\) has no transport from mljr's Caddy})
       end
     end
 
@@ -273,10 +250,10 @@ describe 'roles::caddy' do
         expect(stage).not_to include('tail33930')
       end
 
-      it 'leaves entries without the flag on Tailscale' do
-        other = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/appsec-log.caddy')[:content]
-        expect(other).to include('reverse_proxy nuc.tail33930.ts.net:7001')
-        expect(other).not_to include('transport ziti')
+      it 'rotates the staging logs too' do
+        conf = catalogue.resource('file', '/etc/logrotate-caddy.conf')[:content]
+        expect(conf).to match(%r{^/var/log/caddy/ziti-upstream-staging\.log( \{)?$})
+        expect(conf).to match(%r{^/var/log/caddy/ziti-staging-only-staging\.log( \{)?$})
       end
 
       it 'makes the binary install require the ziti transport' do
@@ -287,6 +264,17 @@ describe 'roles::caddy' do
         is_expected.to contain_file('/etc/caddy/ziti').with(ensure: 'directory', owner: 'root', group: 'caddy', mode: '0750')
       end
     end
+  end
+
+  context 'a service on another host without ziti_via_caddy' do
+    let(:hiera_config) { File.expand_path('../fixtures/caddy_no_transport_hiera.yaml', __dir__) }
+    let(:params) do
+      { custom_build: { 'tag' => 'caddy-v2.11.7-crowdsec-v0.14.1-17a1e5a5',
+                        'sha256' => 'c67e050c3fc66ece9c39332ea2f963b8edfa3e44444b0ff38391ffcfd1a7e6c6' },
+        ziti_transport: true }
+    end
+
+    it { is_expected.to compile.and_raise_error(%r{tailnet-only \(host nuc\) has no transport.*no Tailscale fallback}) }
   end
 
   context 'AppSec' do

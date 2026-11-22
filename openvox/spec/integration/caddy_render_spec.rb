@@ -23,18 +23,17 @@ describe 'roles::caddy', type: :class do
     expect(rendered_file('/etc/caddy/conf.d.openvox-staging/local-authelia.caddy')).to include(
       'reverse_proxy localhost:8080',
       'import authelia_auth',
-      'local.dev.example.test',
     )
     expect(rendered_file('/etc/caddy/conf.d.openvox-staging/000-snippets.caddy')).to include(
       'forward_auth http://localhost:9091',
     )
     expect(rendered_file('/etc/caddy/conf.d.openvox-staging/remote-https.caddy')).to include(
       'app.example.test, alt.example.test',
-      'reverse_proxy https://nuc.tail33930.ts.net:8443',
+      'reverse_proxy https://localhost:8443',
       'tls_insecure_skip_verify',
     )
     expect(rendered_file('/etc/caddy/conf.d.openvox-staging/custom-upstream.caddy')).to include(
-      'reverse_proxy nuc.tail33930.ts.net:9000',
+      'reverse_proxy localhost:9000',
       'reverse_proxy http://custom-backend:9000',
     )
   end

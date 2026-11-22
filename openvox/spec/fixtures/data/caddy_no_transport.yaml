@@ -1,0 +1,9 @@
+---
+# A service on another host without ziti_via_caddy: no transport from
+# mljr's Caddy, the compile must fail (caddy_spec.rb).
+services_catalog:
+  - name: tailnet-only
+    enabled: true
+    host: nuc
+    port: 4001
+    domain: tailnet.example.test

@@ -1,0 +1,41 @@
+---
+# roles::caddy over Ziti (caddy_spec.rb, "Ziti transport").
+services_catalog:
+  # Over Ziti when roles::caddy::ziti_transport is true; without it the
+  # compile fails (no Tailscale fallback).
+  - name: ziti-upstream
+    enabled: true
+    domain: ziti.example.test
+    port: 3001
+    host: nuc
+    staging: true
+    ziti_via_caddy: true
+  # Prod next to Caddy on mljr; only the staging vhost goes over Ziti.
+  - name: ziti-staging-only
+    enabled: true
+    domain: zstage.example.test
+    port: 3002
+    host: mljr
+    staging: true
+    ziti_staging: true
+  # `reverse_proxy catalog:<name>` resolves to that entry's upstream.
+  - name: catalog-ref
+    enabled: true
+    domain: ref.example.test
+    port: 3003
+    host: mljr
+    caddy_extra_config: |
+      handle_path /zu* {
+          reverse_proxy catalog:ziti-upstream
+      }
+  # Block form, as nextcloud uses it: its own options, no default proxy.
+  - name: catalog-block-ref
+    enabled: true
+    domain: block.example.test
+    port: 3004
+    host: mljr
+    caddy_suppress_default_proxy: true
+    caddy_extra_config: |
+      reverse_proxy catalog:ziti-upstream {
+          request_buffers 16m
+      }

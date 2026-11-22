@@ -16,10 +16,9 @@
 # constructs needed real design decisions to port, not a 1:1 syntax
 # swap:
 #   - hostvars[service.host]['ansible_host'] (Ansible's cross-host
-#     inventory lookup) becomes "${service.host}.tail33930.ts.net" -
-#     every host in ansible/inventory/hosts.yml follows that exact
-#     ansible_host naming convention, so no per-service host_ip catalog
-#     data was needed.
+#     inventory lookup) became the host's Tailscale name. Since
+#     2026-11-22 a service on another host is reached over Ziti only
+#     (see $ziti_transport); there is no Tailscale fallback.
 #   - the has_dev_folder Jinja check does a live fileglob against
 #     services/<name>/dev/docker-compose.yml on the Ansible controller
 #     at render time; Puppet's compiler has no controller-side
@@ -58,13 +57,16 @@
 # days, and gzip. Uncompressed by default, as Caddy's roll_uncompressed was.
 #
 # $ziti_transport (needs $custom_build): catalog entries with
-# `ziti_via_caddy: true` are proxied over OpenZiti instead of Tailscale,
-# with the ziti reverse_proxy transport built into the custom Caddy
+# `ziti_via_caddy: true` are proxied over OpenZiti, with the ziti
+# reverse_proxy transport built into the custom Caddy
 # (services/caddy-poc/ziti-caddy), dialing <name>.<host>.int.mljr.eu:<port>
 # as identity caddy-mljr ($ziti_identity, enrolled by
-# scripts/ziti-enroll-caddy.sh; services and policy in ziti/tofu/). Off
-# switch for all of them at once: false, and those entries go back to
-# Tailscale on the next apply. Per entry: drop the catalog flag.
+# scripts/ziti-enroll-caddy.sh; services and policy in ziti/tofu/). It is
+# the only way to a service on another host: an upstream that would need
+# one without it (no flag, $ziti_transport false, or a path the ziti
+# transport does not cover: https_backend, goaccess, __TARGET_HOST__ in
+# caddy_extra_config) renders $no_transport and fails the compile. The
+# Tailscale fallback was removed on 2026-11-22 (Phase 5); rollback is a revert.
 class roles::caddy (
   String $work_dir               = '/usr/local/libexec/openvox-caddy',
   String $email                  = 'admin@mljr.eu',
@@ -104,7 +106,10 @@ class roles::caddy (
   $caddy_services = $services_catalog.filter |$svc| {
     pick($svc['enabled'], true) and 'domain' in $svc and pick($svc['caddy_vhost'], true)
   }
-  $staging_target = "${staging_host}.tail33930.ts.net"
+  # Stands in for the address of an upstream that has no transport; a
+  # snippet containing it fails the compile (below).
+  $no_transport = '__NO_TRANSPORT__'
+  $staging_target = $no_transport
 
   $auth_user = Sensitive(lookup('vault_caddy_auth_user', { 'default_value' => 'admin' }))
   $auth_hash = Sensitive(lookup('vault_caddy_auth_hash', { 'default_value' => '' }))
@@ -315,7 +320,7 @@ class roles::caddy (
       true    => "${s['name']}.${s['host']}.int.mljr.eu:${s['port']}",
       default => $s['host'] ? {
         'mljr'  => "localhost:${s['port']}",
-        default => "${s['host']}.tail33930.ts.net:${s['port']}",
+        default => "${no_transport}:${s['port']}",
       },
     }
     $acc + { $s['name'] => { 'address' => $s_address, 'ziti' => $s_ziti } }
@@ -323,7 +328,7 @@ class roles::caddy (
 
   $service_files = $caddy_services.map |$svc| {
     $svc_is_local = $svc['host'] == 'mljr'
-    $svc_target_host = $svc_is_local ? { true => 'localhost', default => "${svc['host']}.tail33930.ts.net" }
+    $svc_target_host = $svc_is_local ? { true => 'localhost', default => $no_transport }
     $svc_ziti_identity = ($ziti_transport and pick($svc['ziti_via_caddy'], false)) ? {
       true    => $ziti_identity,
       default => '',
@@ -334,23 +339,27 @@ class roles::caddy (
       true    => $ziti_identity,
       default => '',
     }
+    $svc_content = epp('roles/caddy/service_snippet.caddy.epp', {
+      'service'               => $svc,
+      'target_host'           => $svc_target_host,
+      'log_path'              => $log_path,
+      'is_staging_deployment' => $is_staging_deployment,
+      'staging_domain_prefix' => $staging_domain_prefix,
+      'staging_target'        => $staging_target,
+      'staging_host'          => $staging_host,
+      'appsec_enabled'        => $appsec_enabled,
+      'ziti_identity'         => $svc_ziti_identity,
+      'staging_ziti_identity' => $svc_staging_ziti_identity,
+      'catalog_upstreams'     => $catalog_upstreams,
+      'caddy_ziti_identity'   => $ziti_identity,
+    })
+    if $no_transport in $svc_content {
+      fail("roles::caddy: ${svc['name']} (host ${svc['host']}) has no transport from mljr's Caddy: set ziti_via_caddy (ziti_staging for only its dev vhost) and roles::caddy::ziti_transport; there is no Tailscale fallback")
+    }
     file { "/etc/caddy/conf.d.openvox-staging/${svc['name']}.caddy":
       ensure  => file,
       mode    => '0644',
-      content => epp('roles/caddy/service_snippet.caddy.epp', {
-        'service'               => $svc,
-        'target_host'           => $svc_target_host,
-        'log_path'              => $log_path,
-        'is_staging_deployment' => $is_staging_deployment,
-        'staging_domain_prefix' => $staging_domain_prefix,
-        'staging_target'        => $staging_target,
-        'staging_host'          => $staging_host,
-        'appsec_enabled'        => $appsec_enabled,
-        'ziti_identity'         => $svc_ziti_identity,
-        'staging_ziti_identity' => $svc_staging_ziti_identity,
-        'catalog_upstreams'     => $catalog_upstreams,
-        'caddy_ziti_identity'   => $ziti_identity,
-      }),
+      content => $svc_content,
       require => File['/etc/caddy/conf.d.openvox-staging'],
     }
   }
