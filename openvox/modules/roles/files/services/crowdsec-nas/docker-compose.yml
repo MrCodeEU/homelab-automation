@@ -31,6 +31,34 @@ services:
       # the docker source to exactly these two container names.
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
+  # Ziti client for LOCAL_API_URL: `ziti-tcp-proxy` as identity
+  # crowdsec-nas (ziti/tofu/m2m.tf), which may dial mljr's LAPI only.
+  # Reachable from this compose network only, no published port. Same
+  # shape as services/crowdsec-nuc; nas has no Puppet agent, so the binary
+  # is copied from nuc (roles::nas_ziti_tcp_proxy) to the array, which
+  # survives a reboot (/usr/local is tmpfs on Unraid).
+  # Enrolment: scripts/ziti-enroll-proxy.sh crowdsec-nas nas crowdsec-nas
+  # writes data/crowdsec-nas.json (uid 2171, 0600); data/ is kept by the
+  # rsync deploy (roles::services_nas).
+  ziti-proxy:
+    image: gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+    container_name: crowdsec-nas-ziti-proxy
+    restart: unless-stopped
+    user: "2171:2171"
+    labels:
+      # restarted by roles::nas_ziti_tcp_proxy when the binary changes
+      homelab.ziti-tcp-proxy: "true"
+    entrypoint: ["/opt/ziti-tcp-proxy/ziti-tcp-proxy"]
+    command:
+      - -identity
+      - /identity/crowdsec-nas.json
+      - crowdsec-lapi:8088
+    volumes:
+      - ./data:/identity
+      - /mnt/user/appdata/homelab/ziti-tcp-proxy:/opt/ziti-tcp-proxy:ro
+    environment:
+      - TZ=${TZ}
+
 volumes:
   crowdsec-nas-config:
     name: crowdsec-nas-config

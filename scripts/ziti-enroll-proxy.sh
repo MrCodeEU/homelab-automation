@@ -15,6 +15,9 @@
 #   e.g. scripts/ziti-enroll-proxy.sh m2m-mljr mljr ziti-proxy
 #        scripts/ziti-enroll-proxy.sh m2m-ugreen ugreen ziti-proxy-ugreen
 #        scripts/ziti-enroll-proxy.sh homepage-mljr mljr homepage
+#        scripts/ziti-enroll-proxy.sh crowdsec-nas nas crowdsec-nas
+#   nas has no SSH on Ziti of its own and no node file: the commands run
+#   through nuc's management key (`ssh nas-mgmt`, roles::nas_mgmt_key).
 #   --reenroll  replace an existing enrolment (lost or broken file): drops
 #               the identity's certificate authenticator, issues a new token
 # shellcheck disable=SC2029  # remote commands are built locally on purpose
@@ -45,14 +48,28 @@ repo=$(cd "$(dirname "$0")/.." && pwd)
 compose=$repo/services/$SERVICE/docker-compose.yml
 node=$repo/openvox/data/nodes/$HOST.int.mljr.eu.yaml
 [ -f "$compose" ] || die "no $compose"
-[ -f "$node" ] || die "no $node"
+[ "$HOST" = nas ] || [ -f "$node" ] || die "no $node"
 grep -q -- "/identity/$NAME.json" "$compose" || die "$compose does not use identity $NAME"
 iddir=$(sed -n 's|^ *- *\./\([a-z0-9_-]*\):/identity$|\1|p' "$compose" | head -1)
 [ -n "$iddir" ] || die "$compose has no ./<dir>:/identity volume"
-base=$(sed -n "s/^roles::services::base_path: *['\"]\{0,1\}\([^'\"]*\).*/\1/p" "$node")
+if [ "$HOST" = nas ]; then
+  base=/mnt/user/appdata/homelab  # roles::services_nas::base_path
+else
+  base=$(sed -n "s/^roles::services::base_path: *['\"]\{0,1\}\([^'\"]*\).*/\1/p" "$node")
+fi
 
 CTRL_HOST=root@mljr.ziti
 TARGET=root@$HOST.ziti
+HOP=
+if [ "$HOST" = nas ]; then TARGET=root@nuc.ziti; HOP=nas-mgmt; fi
+# Run a shell command on $HOST (through nuc for nas); stdin passes through.
+on_target() {
+  if [ -n "$HOP" ]; then
+    ssh "$TARGET" "ssh -o BatchMode=yes $HOP $(printf %q "$1")"
+  else
+    ssh "$TARGET" "$1"
+  fi
+}
 DIR=${base:-/opt}/$SERVICE/$iddir
 DEST=$DIR/$NAME.json
 # The sidecars run ziti-tcp-proxy on a distroless image, which has no
@@ -69,7 +86,7 @@ zcli() {
 id=$(zcli "edge list identities 'name=\"$NAME\"' -j" | jq -r '.data[0].id // empty')
 [ -n "$id" ] || die "identity $NAME not found; run scripts/ziti-tofu.sh apply first"
 
-if ssh "$TARGET" "test -s $DEST"; then
+if on_target "test -s $DEST"; then
   $reenroll || die "$DEST exists on $HOST; rerun with --reenroll to replace it"
 fi
 
@@ -90,7 +107,7 @@ fi
 [ -n "$jwt" ] || die "no one-time token for $NAME"
 
 say "Enrolling on $HOST into $DEST"
-printf '%s' "$jwt" | ssh "$TARGET" "set -eu; umask 077
+printf '%s' "$jwt" | on_target "set -eu; umask 077
   install -d -m 0700 -o 2171 -g 2171 $DIR
   cat > $DIR/$NAME.jwt; chown 2171:2171 $DIR/$NAME.jwt
   out=\$(docker run --rm --network host --entrypoint ziti -v $DIR:/w -w /w $IMAGE \
