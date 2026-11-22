@@ -11,6 +11,11 @@
 # device runs over Ziti, killing the tunneler drops the connection running
 # this script. Unlike the Tailscale update, sshd (not the tunneler) is the
 # session's parent, so a nohup'd child survives it.
+#
+# Every pgrep/pkill pattern is written [z]iti-...: the command line of the
+# shell running it (and over Tailscale SSH, tailscaled's be-child for the
+# session) contains the pattern text, which a plain pattern matches too -
+# pkill then kills the session itself (seen live 2026-11-22).
 set -euo pipefail
 TARGET="root@wd-mycloud.tail33930.ts.net"
 VERSION="$1"
@@ -52,8 +57,8 @@ for d in "$BASE"/releases/*/; do
   d="${d%/}"
   [ "$d" = "$NEWDIR" ] || [ "$d" = "$OLDDIR" ] || rm -rf "$d"
 done
-if pgrep -f "ziti-edge-tunnel run-host" >/dev/null 2>&1; then
-  nohup sh -c "sleep 2; pkill -f 'ziti-edge-tunnel run-host'; sleep 3; sh $BASE/watchdog.sh" </dev/null >/dev/null 2>&1 &
+if pgrep -f "[z]iti-edge-tunnel run-host" >/dev/null 2>&1; then
+  nohup sh -c "sleep 2; pkill -f '[z]iti-edge-tunnel run-host'; sleep 3; sh $BASE/watchdog.sh" </dev/null >/dev/null 2>&1 &
   echo "ziti-edge-tunnel $VERSION installed, restart scheduled"
 else
   echo "ziti-edge-tunnel $VERSION installed"

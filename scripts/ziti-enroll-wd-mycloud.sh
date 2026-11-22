@@ -78,7 +78,7 @@ remote="set -eu; umask 077
   rm -f $BASE/identity/$NAME.jwt
   [ -s $DEST.new ] || { rm -f $DEST.new; printf '%s\n' \"\$out\" | tail -5 >&2; echo 'enrolment produced no identity file' >&2; exit 1; }
   chmod 0600 $DEST.new
-  pkill -f 'ziti-edge-tunnel run-host' || true
+  pkill -f '[z]iti-edge-tunnel run-host' || true
   mv $DEST.new $DEST
   sh $BASE/watchdog.sh"
 printf '%s' "$jwt" | ssh "$PROXY" "ssh -o BatchMode=yes $DEVICE $(printf '%q' "$remote")" \

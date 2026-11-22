@@ -7,7 +7,9 @@ BASE=/mnt/HD/HD_a2/ziti
 ID="$BASE/identity/wd-mycloud.json"
 LOG="$BASE/ziti-edge-tunnel.log"
 [ -f "$ID" ] || exit 0
-if ! pgrep -f "ziti-edge-tunnel run-host" >/dev/null 2>&1; then
+# [z]: the pattern must not match a command line that merely contains it
+# (a remote shell running this script).
+if ! pgrep -f "[z]iti-edge-tunnel run-host" >/dev/null 2>&1; then
     i=0
     while [ ! -x "$BASE/current/ziti-edge-tunnel" ] && [ "$i" -lt 12 ]; do
         sleep 5
