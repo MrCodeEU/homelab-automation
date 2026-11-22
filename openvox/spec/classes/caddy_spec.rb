@@ -72,6 +72,11 @@ describe 'roles::caddy' do
     )
   end
 
+  it 'redirects www to the apex, keeping path and query' do
+    expect(catalogue.resource('file', '/etc/caddy/Caddyfile.openvox-staging')[:content])
+      .to include("www.mljr.eu {\n    redir https://mljr.eu{uri} permanent\n}\n")
+  end
+
   context 'log rotation' do
     let(:conf) { catalogue.resource('file', '/etc/logrotate-caddy.conf')[:content] }
 
