@@ -13,6 +13,12 @@
 #              mljr's Caddy dials them (caddy.tf)
 # Consumers get Dial policies by attribute, added with the consumer.
 #
+# `ziti_bind: {router: <host>, address: <ip>}` is for appliances without a
+# router of their own (Home Assistant OS, wd_mycloud): <router>'s router
+# hosts the entry's services (main port and ziti_ports) and forwards them
+# to <address> over the LAN instead of 127.0.0.1. Names keep the entry's
+# own host: homeassistant.homeassistant.int.mljr.eu:8123.
+#
 # Short names for people: every entry (and its -staging twin) is also
 # intercepted as <name>.ziti on port 80, forwarded to the real port, so
 # http://kuma.ziti works without knowing the host or port. The tunneler
@@ -40,30 +46,36 @@ locals {
   ziti_catalog = merge(
     {
       for s in local.catalog : s.name => {
-        host  = s.host
-        port  = try(s.port, 0)
-        caddy = try(s.ziti_via_caddy, false)
-        web   = true
+        host    = s.host
+        port    = try(s.port, 0)
+        caddy   = try(s.ziti_via_caddy, false)
+        web     = true
+        router  = try(s.ziti_bind.router, s.host)
+        address = try(s.ziti_bind.address, "127.0.0.1")
       }
       if(try(s.ziti, false) || try(s.ziti_via_caddy, false)) && try(s.enabled, true)
     },
     merge([
       for s in local.catalog : {
         for k, p in try(s.ziti_ports, {}) : "${s.name}-${k}" => {
-          host  = s.host
-          port  = p
-          caddy = false
-          web   = false
+          host    = s.host
+          port    = p
+          caddy   = false
+          web     = false
+          router  = try(s.ziti_bind.router, s.host)
+          address = try(s.ziti_bind.address, "127.0.0.1")
         }
       }
       if try(s.enabled, true)
     ]...),
     {
       for s in local.catalog : "${s.name}-staging" => {
-        host  = local.staging_host
-        port  = try(s.port, 0) + 10000
-        caddy = true
-        web   = true
+        host    = local.staging_host
+        port    = try(s.port, 0) + 10000
+        caddy   = true
+        web     = true
+        router  = local.staging_host
+        address = "127.0.0.1"
       }
       if(try(s.ziti_via_caddy, false) || try(s.ziti_staging, false)) && try(s.staging, false) && try(s.enabled, true)
     },
@@ -85,8 +97,8 @@ resource "ziti_intercept_v1_config" "catalog" {
 
   lifecycle {
     precondition {
-      condition     = contains(keys(local.router), each.value.host) && each.value.port > 0
-      error_message = "services_catalog ${each.key}: ziti needs a host with a router (${join(", ", keys(local.router))}) and a port > 0."
+      condition     = contains(keys(local.router), each.value.router) && each.value.port > 0
+      error_message = "services_catalog ${each.key}: ziti needs a host with a router, or ziti_bind.router naming one (${join(", ", keys(local.router))}), and a port > 0."
     }
   }
 }
@@ -95,7 +107,7 @@ resource "ziti_host_v1_config" "catalog" {
   for_each = local.ziti_catalog
   name     = "${each.key}-host"
   protocol = "tcp"
-  address  = "127.0.0.1"
+  address  = each.value.address
   port     = each.value.port
 }
 
@@ -105,13 +117,15 @@ resource "ziti_service" "catalog" {
   configs  = sort([ziti_intercept_v1_config.catalog[each.key].id, ziti_host_v1_config.catalog[each.key].id])
   role_attributes = sort(concat(
     ["admin-services", "catalog", "catalog-${each.value.host}"],
+    each.value.router != each.value.host ? ["catalog-${each.value.router}"] : [],
     each.value.caddy ? ["caddy"] : [],
   ))
 }
 
-# One Bind policy per host: its router hosts that host's catalog services.
+# One Bind policy per router: it hosts its host's catalog services and
+# those of the appliances it binds for (ziti_bind).
 resource "ziti_service_policy" "catalog_bind" {
-  for_each      = toset([for s in local.ziti_catalog : s.host])
+  for_each      = toset([for s in local.ziti_catalog : s.router])
   name          = "catalog-${each.key}-bind"
   type          = "Bind"
   semantic      = "AnyOf"

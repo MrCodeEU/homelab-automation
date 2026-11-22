@@ -765,8 +765,12 @@ Assistant.
   better physical path, while nuc reaches both through the FRITZ!Box to
   repeater segment.
 - Home Assistant: nuc-hosted Ziti services forwarding to its LAN address
-  (SSH, 8123, scrape target), unless a Ziti add-on for Home Assistant OS
-  proved viable in Phase 3.
+  (SSH, 8123, scrape target), catalog `ziti_bind`. The two Ziti add-ons
+  were reviewed 2026-11-22 and not used: bertybuttface/zititunneller keeps
+  its identity outside `/data` (lost on every add-on update), and
+  NicFragale/HA-NetFoundry rewrites Home Assistant's DNS to the tunneler
+  and runs with `hassio_role: manager`. 8123 stays on the LAN anyway, so
+  an add-on would only have encrypted the nuc to Home Assistant hop.
 - Test all three with a **real reboot**; earlier work found boot races only
   that way.
 - Then remove the Tailscale fallbacks: PR C (Caddy tailnet fallback), the
