@@ -899,6 +899,7 @@ services_catalog:
     domain: "nas.mljr.eu"
     port: 80
     host: nas
+    ziti_via_caddy: true
     description: "NAS Management"
     icon: "mdi:server"
     # Authelia gate in front of the Unraid login page, plus Unraid's own OIDC
@@ -912,6 +913,7 @@ services_catalog:
     domain: "immich.mljr.eu"
     port: 8080
     host: nas
+    ziti_via_caddy: true
     description: "Photo Management"
     icon: "mdi:image-multiple"
     caddy_extra_config: |
@@ -932,6 +934,7 @@ services_catalog:
     domain: "sort.mljr.eu"
     port: 8186
     host: nas
+    ziti_via_caddy: true
     caddy_auth: "authelia"
     description: "Auto Media Sort"
     icon: "mdi:folder-move-outline"
@@ -942,18 +945,16 @@ services_catalog:
     domain: "cloud.mljr.eu"
     port: 11000
     host: nas
+    ziti_via_caddy: true
     description: "Cloud Storage"
     icon: "mdi:cloud"
     caddy_suppress_default_proxy: true
     caddy_extra_config: |
-      reverse_proxy __TARGET_HOST__:__TARGET_PORT__ {
+      reverse_proxy catalog:nextcloud {
           # Buffer upload bodies so slow mobile clients don't trickle into
           # Apache's mod_reqtimeout (body=20,MinRate=500) -> 408 storms.
           # Sized above the 10MB Nextcloud client chunk size.
           request_buffers 16m
-          transport http {
-              versions 1.1
-          }
       }
 
   - name: dockhand
@@ -962,6 +963,7 @@ services_catalog:
     domain: "dockhand.mljr.eu"
     port: 3054
     host: nas
+    ziti_via_caddy: true
     description: "Docker Management"
     icon: "mdi:docker"
     caddy_auth: authelia
@@ -972,9 +974,9 @@ services_catalog:
     domain: "sync.mljr.eu"
     port: 8384
     host: nas
+    ziti_via_caddy: true
     description: "File Sync"
     icon: "mdi:sync"
-    https_backend: true
     # Syncthing's own GUI login stays; Authelia in front keeps the login page
     # and the dashboard off the open internet (Nuclei: "Syncthing Dashboard
     # Exposure"). API consumers use the NAS address directly, not this vhost.
@@ -1016,6 +1018,7 @@ services_catalog:
     domain: "projects.mljr.eu"
     port: 6528
     host: nas
+    ziti_via_caddy: true
     description: "Vikunja Projects and TODOs"
     icon: "mdi:clipboard-list"
 
@@ -1034,6 +1037,7 @@ services_catalog:
     domain: "dawarich.mljr.eu"
     port: 3001
     host: nas
+    ziti_via_caddy: true
     description: "Location History & Travel Tracking"
     icon: "mdi:map-marker-path"
 
@@ -1043,6 +1047,7 @@ services_catalog:
     domain: "paperless.mljr.eu"
     port: 8102
     host: nas
+    ziti_via_caddy: true
     description: "Document management (paperless-ngx). Authelia two_factor at Caddy plus OIDC login."
     icon: "mdi:file-document-multiple"
     caddy_auth: authelia

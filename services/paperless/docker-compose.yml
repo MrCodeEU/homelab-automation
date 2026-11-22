@@ -27,6 +27,8 @@ services:
         condition: service_started
     ports:
       - "${BIND_ADDR:-100.100.10.2}:8102:8000"
+      # nas's Ziti router (host network) dials it on loopback.
+      - "127.0.0.1:8102:8000"
     environment:
       TZ: ${TZ:-Europe/Vienna}
       PAPERLESS_TIME_ZONE: ${TZ:-Europe/Vienna}

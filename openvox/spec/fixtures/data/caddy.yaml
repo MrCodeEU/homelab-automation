@@ -75,3 +75,14 @@ services_catalog:
       handle_path /zu* {
           reverse_proxy catalog:ziti-upstream
       }
+  # Block form, as nextcloud uses it: its own options, no default proxy.
+  - name: catalog-block-ref
+    enabled: true
+    domain: block.example.test
+    port: 3004
+    host: mljr
+    caddy_suppress_default_proxy: true
+    caddy_extra_config: |
+      reverse_proxy catalog:ziti-upstream {
+          request_buffers 16m
+      }

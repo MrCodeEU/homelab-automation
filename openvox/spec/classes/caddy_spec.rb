@@ -191,6 +191,17 @@ describe 'roles::caddy' do
         expect(stage).to include('reverse_proxy nuc.tail33930.ts.net:13002')
         expect(stage).not_to include('transport ziti')
       end
+
+      it 'resolves the block form of a catalog: reference over Tailscale' do
+        block = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/catalog-block-ref.caddy')[:content]
+        expect(block).to include(
+          "    reverse_proxy nuc.tail33930.ts.net:3001 {\n" \
+          "        request_buffers 16m\n" \
+          "    }\n",
+        )
+        expect(block).not_to include('transport ziti')
+        expect(block).not_to include('localhost:3004')
+      end
     end
 
     context 'enabled without a custom build' do
@@ -240,6 +251,19 @@ describe 'roles::caddy' do
           "    }\n",
         )
         expect(ref).to include('reverse_proxy localhost:3003')
+      end
+
+      it 'puts the Ziti transport first in the block form of a catalog: reference' do
+        block = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/catalog-block-ref.caddy')[:content]
+        expect(block).to include(
+          "    reverse_proxy ziti-upstream.nuc.int.mljr.eu:3001 {\n" \
+          "        transport ziti {\n" \
+          "            identity /etc/caddy/ziti/caddy-mljr.json\n" \
+          "        }\n" \
+          "        request_buffers 16m\n" \
+          "    }\n",
+        )
+        expect(block).not_to include('localhost:3004')
       end
 
       it 'puts only the staging vhost of a ziti_staging entry on Ziti' do
