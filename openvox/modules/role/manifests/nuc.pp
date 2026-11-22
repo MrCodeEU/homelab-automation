@@ -20,6 +20,8 @@ class role::nuc {
   include roles::nas_ziti_tcp_proxy
   # opkssh login on nas (root@nas-ssh.ziti)
   include roles::nas_opkssh
+  # Dockhand on nas -> Hawser on nuc and mljr (hosts, ports, tokens)
+  include roles::dockhand_environments
   Class['roles::nas_ziti_tcp_proxy'] -> Class['roles::services_nas']
   Class['roles::nas_mgmt_key'] -> Class['roles::unraid_proxy', 'roles::unraid_backup_proxy', 'roles::unraid_aoostar_proxy', 'roles::canary_decoys_nas', 'roles::services_nas', 'roles::unraid_host_facts_proxy']
   include roles::wd_mycloud_proxy

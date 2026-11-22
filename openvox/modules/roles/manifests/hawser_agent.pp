@@ -4,7 +4,12 @@
 # listens on loopback; the central Dockhand instance on nas reaches it over
 # Ziti (ziti/tofu/hawser.tf: this host's router dials 127.0.0.1:$port, only
 # nas's m2m-nas proxy may dial it). Was this host's Tailscale IP.
+#
+# $token: Hawser's TOKEN (Dockhand authenticates with it), from this host's
+# eyaml as vault_hawser_token_<host>. nuc's eyaml holds every host's token
+# too, for Dockhand's side (roles::dockhand_environments).
 class roles::hawser_agent (
+  Optional[Sensitive[String[1]]] $token = undef,
   Stdlib::IP::Address::Nosubnet $bind_address = '127.0.0.1',
   Integer $port           = 2376,
   String  $install_script = 'https://raw.githubusercontent.com/Finsys/hawser/main/scripts/install.sh',
@@ -17,6 +22,23 @@ class roles::hawser_agent (
   exec { 'hawser-agent-install':
     command => "/usr/bin/curl -sSL -o /tmp/hawser-install.sh ${install_script} && /usr/bin/bash /tmp/hawser-install.sh",
     creates => $binary,
+  }
+
+  $_token = $token ? {
+    undef   => Sensitive(lookup("vault_hawser_token_${split($trusted['certname'], '[.]')[0]}")),
+    default => $token,
+  }
+
+  # The installer's EnvironmentFile. Owned here so the token is set: the
+  # installer generates none unless asked, and nuc's Hawser ran without one.
+  file { '/etc/hawser/config':
+    ensure    => file,
+    owner     => 'root',
+    group     => 'root',
+    mode      => '0600',
+    content   => Sensitive("# Managed by OpenVox (roles::hawser_agent)\nDOCKER_SOCKET=/var/run/docker.sock\nPORT=${port}\nTOKEN=${_token.unwrap}\n"),
+    show_diff => false,
+    require   => Exec['hawser-agent-install'],
   }
 
   file { '/etc/systemd/system/hawser.service.d':
@@ -65,7 +87,7 @@ class roles::hawser_agent (
   service { 'hawser':
     ensure    => running,
     enable    => true,
-    subscribe => File['/etc/systemd/system/hawser.service.d/override.conf'],
+    subscribe => File['/etc/systemd/system/hawser.service.d/override.conf', '/etc/hawser/config'],
     require   => [
       Exec['hawser-agent-install'],
       Exec['hawser-agent-daemon-reload'],

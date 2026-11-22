@@ -23,7 +23,13 @@ describe 'roles::container_reconcile' do
 end
 
 describe 'roles::hawser_agent' do
+  let(:params) { { token: sensitive('spec-token') } }
   let(:pre_condition) { 'service { "firewalld": ensure => running }' }
+
+  it 'sets the token in the EnvironmentFile, 0600, and restarts Hawser on change' do
+    is_expected.to contain_file('/etc/hawser/config').with(mode: '0600', show_diff: false)
+    is_expected.to contain_service('hawser').that_subscribes_to('File[/etc/hawser/config]')
+  end
 
   it { is_expected.to compile.with_all_deps }
 

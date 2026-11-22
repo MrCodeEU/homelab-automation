@@ -10,3 +10,5 @@ vault_wd_mycloud_mgmt_ssh_key: "fixture-private-key"
 nas_mgmt_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureNasMgmtKeyOnlyForSpecsXXXXXXXXXXXXXX homelab-nas-mgmt"
 nas_host_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureNasHostKey"
 vault_nas_mgmt_ssh_key: "fixture-private-key"
+vault_hawser_token_nuc: test-token-nuc
+vault_hawser_token_mljr: test-token-mljr
