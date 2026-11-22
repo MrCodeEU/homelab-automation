@@ -830,7 +830,9 @@ services_catalog:
     managed: true
     port: 11434
     host: nas
-    description: "Ollama LLM runtime (health report triage). Tailscale-only, no Caddy route."
+    # healthreport on nuc dials it over Ziti (ziti-proxy-nuc, m2m-nuc)
+    ziti: true
+    description: "Ollama LLM runtime (health report triage). Ziti only, no Caddy route."
     icon: "mdi:robot"
 
   - name: immich-kiosk

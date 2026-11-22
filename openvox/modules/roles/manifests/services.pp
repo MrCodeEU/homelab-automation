@@ -214,9 +214,6 @@ class roles::services (
       'oidc_client_secret'     => lookup('vault_grafana_oidc_client_secret', { 'default_value' => '' }),
     },
     'healthreport' => {
-      'nas_ip'                 => '100.100.10.2',
-      'mljr_ip'                => '100.100.20.1',
-      'ugreen_ip'              => '100.100.10.4',
       # LAN (DHCP reservation): Home Assistant has no Ziti identity of its own;
       # nuc reaches it directly, as nuc's router does for the Ziti service.
       'homeassistant_ip'       => '192.168.50.31',
@@ -262,9 +259,6 @@ class roles::services (
       'dmarc_domains'          => $domain,
     },
     'backup-dashboard' => {
-      'nuc_ip'           => '100.100.10.1',
-      'mljr_ip'          => '100.100.20.1',
-      'nas_ip'           => '100.100.10.2',
       'refresh_interval' => '*:0/15',
     },
     },
