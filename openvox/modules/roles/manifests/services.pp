@@ -321,7 +321,6 @@ class roles::services (
         'postgres_password' => lookup('vault_oxicloud_postgres_password', { 'default_value' => '' }),
       },
       'syncthing-ugreen' => {
-        'nas_ip'                => '100.100.10.2',
         'nas_syncthing_api_key' => lookup('vault_syncthing_nas_api_key', { 'default_value' => '' }),
       },
     },
