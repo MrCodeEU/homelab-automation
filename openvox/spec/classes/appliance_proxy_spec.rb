@@ -203,6 +203,31 @@ describe 'roles::nas_opkssh' do
   end
 end
 
+describe 'roles::dockhand_environments' do
+  let(:hiera_config) { File.expand_path('../fixtures/ssh_hardening_hiera.yaml', __dir__) }
+  let(:pre_condition) { 'include roles::nas_mgmt_key' }
+  let(:params) do
+    {
+      environments: {
+        'NUC' => { 'host' => '172.17.0.1', 'port' => 2376, 'token_key' => 'vault_hawser_token_nuc' },
+        'MLJR - VPS' => { 'host' => '172.17.0.1', 'port' => 2377, 'token_key' => 'vault_hawser_token_mljr' },
+      },
+    }
+  end
+
+  it { is_expected.to compile.with_all_deps }
+
+  it 'writes the wanted rows, tokens included, to a 0600 file without diffs' do
+    is_expected.to contain_file('/var/lib/openvox-dockhand-environments/environments.tsv')
+      .with(mode: '0600', show_diff: false)
+      .with_content(sensitive("MLJR - VPS\t172.17.0.1\t2377\ttest-token-mljr\nNUC\t172.17.0.1\t2376\ttest-token-nuc\n"))
+  end
+
+  it 'applies on nas only when the check fails' do
+    is_expected.to contain_exec('dockhand-environments').with(unless: %r{\Atest -f \S+/check\.sh && })
+  end
+end
+
 describe 'roles::wd_mycloud_ziti_proxy' do
   it { is_expected.to compile.with_all_deps }
 

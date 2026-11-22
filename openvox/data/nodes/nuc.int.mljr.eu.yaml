@@ -35,6 +35,18 @@ roles::backup::verification_restore_schedule: 'Sun *-*-01..07 10:30:00'
 
 roles::services::hostname: 'nuc'
 
+# Dockhand (nas) -> Hawser on nuc and mljr over ziti-proxy-nas's docker0
+# listeners (roles::dockhand_environments). Names as created in Dockhand.
+roles::dockhand_environments::environments:
+  'NUC':
+    host: '172.17.0.1'
+    port: 2376
+    token_key: 'vault_hawser_token_nuc'
+  'MLJR - VPS':
+    host: '172.17.0.1'
+    port: 2377
+    token_key: 'vault_hawser_token_mljr'
+
 roles::host_facts_endpoint::os_family: 'rocky'
 roles::host_facts_endpoint::hostname: 'nuc'
 roles::host_facts_endpoint::dest: '/usr/local/bin/homelab-facts'
