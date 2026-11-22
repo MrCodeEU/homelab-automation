@@ -4,10 +4,11 @@ services:
     container_name: Photon
     restart: unless-stopped
     ports:
-      # Geocoder for Dawarich only. Bound to nas's Tailscale IP like the other
-      # nas services (was 0.0.0.0, i.e. reachable from the whole LAN with no
-      # auth). Dawarich reaches it on the same address; see its PHOTON_API_HOST.
-      - "${BIND_ADDR:-127.0.0.1}:2322:2322"
+      # Geocoder for Dawarich only, no auth. Bound to docker0's gateway
+      # address: reachable from containers on nas (Dawarich's own compose
+      # network routes to it, see its PHOTON_API_HOST) and nas itself, not
+      # from the LAN. Was nas's Tailscale IP, and before that 0.0.0.0.
+      - "172.17.0.1:2322:2322"
     environment:
       - TZ=${TZ:-Europe/Vienna}
       - PUID=99

@@ -71,7 +71,7 @@ define roles::services_nas::service (
 
   if pick($service['port'], 0) > 0 {
     exec { "services-nas-${svc_name}-healthcheck":
-      command => "${work_dir}/remote-healthcheck.sh ${svc_name} ${bind_addr} ${service['port']}",
+      command => "${work_dir}/remote-healthcheck.sh ${svc_name} ${service['port']}",
       path    => ['/usr/bin', '/bin'],
       require => Exec["services-nas-${svc_name}-deploy"],
     }

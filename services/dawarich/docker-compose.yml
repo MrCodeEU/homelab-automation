@@ -31,13 +31,13 @@ services:
       - APPLICATION_HOSTS=localhost,192.168.50.80:3001,dawarich.${DOMAIN:-mljr.eu},nas:3001
       - TIME_ZONE=UTC
       # Database and cache are only reachable on the compose network; the
-      # geocoder (Photon) is a separate project, reached via the host's
-      # Tailscale address (its port is bound to BIND_ADDR only, not the LAN).
+      # geocoder (Photon) is a separate project, reached on docker0's gateway
+      # address, the only address its port is bound to (not the LAN).
       - DATABASE_HOST=dawarich_db
       - DATABASE_PORT=5432
       - DATABASE_USERNAME=postgres
       - DATABASE_NAME=dawarich_development
-      - PHOTON_API_HOST=${BIND_ADDR:-100.100.10.2}:2322
+      - PHOTON_API_HOST=172.17.0.1:2322
       - PHOTON_API_USE_HTTPS=false
       - STORE_GEODATA=true
       - MIN_MINUTES_SPENT_IN_CITY=60
