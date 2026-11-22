@@ -214,13 +214,32 @@ class roles::mailcow (
 
       cd "$MAILCOW_DIR"
 
-      if ./update.sh --check 2>"$LOG_FILE"; then
-          echo "Updates available, running update..." | tee -a "$LOG_FILE"
-          ./update.sh --force 2>&1 | tee -a "$LOG_FILE"
-          echo "Mailcow update complete" | tee -a "$LOG_FILE"
-      else
-          echo "Mailcow is already up to date"
-      fi
+      # update.sh --check exits 0 (updates available), 3 (none), 99 (could
+      # not reach GitHub) or 2: it pulled its own _modules first, they
+      # changed, "Please restart the update script". Every non-zero exit used
+      # to read as "up to date", so 2 skipped the update (2026-11-22): check
+      # once more after a 2, and fail the unit on anything but 0 or 3.
+      for attempt in 1 2; do
+          rc=0
+          ./update.sh --check >"$LOG_FILE" 2>&1 || rc=$?
+          [ "$rc" -eq 2 ] || break
+      done
+      cat "$LOG_FILE"
+
+      case "$rc" in
+          0)
+              echo "Updates available, running update..." | tee -a "$LOG_FILE"
+              ./update.sh --force 2>&1 | tee -a "$LOG_FILE"
+              echo "Mailcow update complete" | tee -a "$LOG_FILE"
+              ;;
+          3)
+              echo "Mailcow is already up to date"
+              ;;
+          *)
+              echo "update.sh --check failed (exit $rc after $attempt check(s))" >&2
+              exit 1
+              ;;
+      esac
       | UPDATESH
   }
 
