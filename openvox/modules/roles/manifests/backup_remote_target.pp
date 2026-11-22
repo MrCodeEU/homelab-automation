@@ -19,7 +19,7 @@
 # Since 2026-11 mljr and nuc reach this over OpenZiti instead
 # (backup-sftp-ugreen -> 127.0.0.1:22): there the real sshd answers, so the
 # Match block, ChrootDirectory and the key's from="127.0.0.1" are the
-# boundary for them. Only nas still comes in over Tailscale SSH (Phase 5).
+# boundary for them. nas followed on 2026-11-22 (services/ziti-proxy-nas).
 #
 # Consequence: the user's real home directory must be a genuine,
 # absolute, writable path, not a chroot-relative one - Tailscale SSH's
@@ -38,9 +38,9 @@ class roles::backup_remote_target (
   String $snapshot_schedule              = '*-*-* 05:30:00',
   String $pubkey       = lookup('backup_remote_pubkey'),
   # from= on the key: only connections from ugreen itself, i.e. from the
-  # Ziti router (backup-sftp-ugreen -> 127.0.0.1:22). Tailscale SSH (nas until
-  # Phase 5) does not read authorized_keys at all, so it is unaffected; a
-  # leaked key from the LAN or the internet is refused by sshd.
+  # Ziti router (backup-sftp-ugreen -> 127.0.0.1:22), which mljr, nuc and
+  # nas all use. A leaked key from the LAN or the internet is refused by
+  # sshd.
   String $key_from     = '127.0.0.1',
 ) {
   $work_dir = '/usr/local/libexec/openvox-backup-remote-target'

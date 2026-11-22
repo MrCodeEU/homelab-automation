@@ -40,11 +40,11 @@ Provisioned datasources use stable UIDs:
 
 ## NAS / Unraid
 
-NAS metrics and logs will appear automatically once a manually installed Alloy
-or compatible Prometheus/Loki agent writes to:
+NAS metrics and logs come from `services/nas-alloy`, which writes through
+nas's Ziti proxy (`services/ziti-proxy-nas`) to nuc:
 
-- Prometheus remote write: `http://100.100.10.1:19090/api/v1/write`
-- Loki push API: `http://100.100.10.1:3100/loki/api/v1/push`
+- Prometheus remote write: `http://127.0.0.1:19090/api/v1/write`
+- Loki push API: `http://127.0.0.1:3100/loki/api/v1/push`
 
 Use `instance="nas"` and `host="nas"` labels so the dashboards pick it up in
 the same host variable as `mljr` and `nuc`.
