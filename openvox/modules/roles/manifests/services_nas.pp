@@ -40,7 +40,7 @@ class roles::services_nas (
   String $bind_addr = '100.100.10.2',
   # Ported 1:1 from ansible/inventory/group_vars/all/all.yml's
   # post_deploy_hook_services, filtered to nas-managed entries only.
-  Array[String] $post_deploy_hook_services = ['ollama', 'crowdsec-nas'],
+  Array[String] $post_deploy_hook_services = ['ollama', 'crowdsec-nas', 'ziti-router-nas'],
 ) {
   $work_dir = '/usr/local/libexec/openvox-services-nas'
   $staging_dir = '/var/lib/openvox-services-nas-staging'

@@ -88,6 +88,21 @@ The router id exists only now (`ziti edge list edge-routers`). Add it to
 `ziti-router-offline` and one in `ziti-link-down` for `<h> -> mljr`,
 then sync, PR and deploy nuc.
 
+## nas (Unraid)
+
+nas has no OpenVox agent: `roles::services_nas` on nuc deploys its
+`managed: true` catalog entries over SSH (rsync, then compose). Differences
+from the steps above:
+
+- Catalog entry with `host: nas` and `managed: true`; the hook list is
+  `roles::services_nas`'s `post_deploy_hook_services`, not services.pp's.
+- `rsync-deploy.sh` runs with `--delete` but protects `data/` and the
+  hooks' `.*.sha256` stamps: the enrolled identity lives only on nas.
+- `scripts/ziti-enroll-router.sh nas` reaches nas through nuc (nuc's key is
+  the one nas trusts), so it needs `ssh root@nuc.ziti` only.
+- Deploy with `limit=nuc`: nuc's catalog applies the nas services.
+- ssh over Ziti (`ssh_hosts`) waits until nas trusts opkssh.
+
 ## Phone (Android, Ziti Mobile Edge)
 
 The phone is identity `phone-mrcode` (`ziti/tofu/phone.tf`, attribute
