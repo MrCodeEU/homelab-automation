@@ -8,8 +8,9 @@
 #
 # The token is fetched on mljr (controller) and piped over SSH through nuc,
 # the device's management proxy, so the private key never leaves the
-# device. Device SSH: nuc's management path (Tailscale SSH until the
-# switch to wd-mycloud-ssh over Ziti).
+# device. Device SSH: nuc's `wd-mycloud-mgmt` (roles::wd_mycloud_mgmt_key),
+# itself over Ziti: a --reenroll of a broken identity needs Tailscale SSH
+# or the LAN break-glass keys instead (docs/BREAKGLASS.md).
 #
 # Usage: scripts/ziti-enroll-wd-mycloud.sh [--reenroll]
 #   --reenroll  replace an existing enrolment (lost or broken file): drops
@@ -33,7 +34,7 @@ esac
 NAME=wd-mycloud
 CTRL_HOST=root@mljr.ziti
 PROXY=root@nuc.ziti
-DEVICE=root@wd-mycloud.tail33930.ts.net
+DEVICE=wd-mycloud-mgmt
 BASE=/mnt/HD/HD_a2/ziti
 DEST=$BASE/identity/$NAME.json
 

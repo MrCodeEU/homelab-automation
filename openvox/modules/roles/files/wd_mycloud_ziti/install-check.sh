@@ -3,7 +3,7 @@
 # already the pinned release ($1). Deployed by roles::wd_mycloud_ziti_proxy;
 # used as an exec unless-guard.
 set -euo pipefail
-TARGET="root@wd-mycloud.tail33930.ts.net"
+TARGET="wd-mycloud-mgmt"
 VERSION="$1"
 BASE="/mnt/HD/HD_a2/ziti"
 

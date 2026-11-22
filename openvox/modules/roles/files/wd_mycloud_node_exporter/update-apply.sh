@@ -10,7 +10,7 @@
 # tear down the connection running the script. No nohup/disown/poll
 # dance needed.
 set -euo pipefail
-TARGET="root@wd-mycloud.tail33930.ts.net"
+TARGET="wd-mycloud-mgmt"
 
 ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" bash -s <<'REMOTE'
 set -e
@@ -54,7 +54,7 @@ pkill -f "node_exporter --web.listen-address" || true
 sleep 2
 ln -sfn "$NEWDIR" "$BASE/current"
 cd "$BASE/current"
-nohup ./node_exporter --web.listen-address=100.100.10.5:$PORT >>"$BASE/node_exporter.log" 2>&1 &
+nohup ./node_exporter --web.listen-address=127.0.0.1:$PORT >>"$BASE/node_exporter.log" 2>&1 &
 disown
 
 for d in "$BASE"/releases/*/; do

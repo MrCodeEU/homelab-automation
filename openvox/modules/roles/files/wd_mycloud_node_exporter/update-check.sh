@@ -5,7 +5,7 @@
 # data. Deployed by roles::wd_mycloud_node_exporter_proxy; used as an
 # exec unless-guard.
 set -euo pipefail
-TARGET="root@wd-mycloud.tail33930.ts.net"
+TARGET="wd-mycloud-mgmt"
 BASE="/mnt/HD/HD_a2/node_exporter"
 
 LATEST_JSON=$(curl -fsSL https://api.github.com/repos/prometheus/node_exporter/releases/latest)

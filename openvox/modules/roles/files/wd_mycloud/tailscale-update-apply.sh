@@ -27,7 +27,7 @@
 # self-removing crontab entry. crond's process tree is completely
 # independent of tailscaled, so killing tailscaled can't touch it.
 set -euo pipefail
-TARGET="root@wd-mycloud.tail33930.ts.net"
+TARGET="wd-mycloud-mgmt"
 BASE="/mnt/HD/HD_a2/tailscale"
 
 LATEST_JSON=$(curl -s "https://pkgs.tailscale.com/stable/?mode=json")
