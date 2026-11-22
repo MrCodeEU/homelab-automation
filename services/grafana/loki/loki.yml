@@ -2,6 +2,12 @@ auth_enabled: false
 
 server:
   http_listen_port: 3100
+  # The querier hands results to the query frontend over gRPC, 4 MiB by
+  # default. healthreport's 5000-line error sample is larger when lines are
+  # long (ziti-controller JSON during the 2026-11-22 nuc router outage):
+  # the frontend never got an answer and the query hit its 60s timeout.
+  grpc_server_max_recv_msg_size: 16777216
+  grpc_server_max_send_msg_size: 16777216
 
 common:
   path_prefix: /loki

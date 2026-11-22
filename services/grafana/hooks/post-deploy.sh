@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# compose-deploy.sh does not recreate a container for a bind-mounted file
+# change, so a loki.yml edit alone never reaches Loki. Restart it when
+# loki.yml differs from the one it was last restarted with (stamp, as in the
+# ntfy hook), not on every deploy.
+stamp=.loki-config-restarted.sha256
+want=$(sha256sum loki/loki.yml | cut -d" " -f1)
+if [ "$(cat "$stamp" 2>/dev/null)" != "$want" ]; then
+  docker restart loki >/dev/null
+  printf "%s\n" "$want" >"$stamp"
+  echo "loki: loki.yml changed - restarted"
+else
+  echo "loki: loki.yml unchanged - not restarted"
+fi
+
 GRAFANA_URL="http://127.0.0.1:3000"
 GRAFANA_USER="${GRAFANA_ADMIN_USER:-admin}"
 
