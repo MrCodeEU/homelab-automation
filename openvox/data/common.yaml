@@ -1003,7 +1003,8 @@ services_catalog:
     icon: "mdi:sync"
     # Syncthing's own GUI login stays; Authelia in front keeps the login page
     # and the dashboard off the open internet (Nuclei: "Syncthing Dashboard
-    # Exposure"). API consumers use the NAS address directly, not this vhost.
+    # Exposure"). API consumers dial the Ziti service, not this vhost
+    # (syncthing-ugreen's provisioning: ziti-proxy-ugreen, m2m-ugreen).
     caddy_auth: authelia
 
   - name: opencloud

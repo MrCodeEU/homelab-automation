@@ -1,5 +1,5 @@
 # Ziti client for apps on ugreen that cannot dial Ziti themselves (Grafana
-# Alloy, DefectDojo imports): `ziti-tcp-proxy` opens one listener per service, published on
+# Alloy, DefectDojo imports, syncthing-ugreen's provisioning): `ziti-tcp-proxy` opens one listener per service, published on
 # 127.0.0.1 only, as identity m2m-ugreen (ziti/tofu/m2m.tf). That identity may
 # dial only the services listed there.
 #
@@ -22,12 +22,16 @@ services:
       - grafana-victoriametrics:19090
       - grafana-loki:3100
       - defectdojo:19101
+      - syncthing:8385
     ports:
       - "127.0.0.1:19090:19090"
       - "127.0.0.1:3100:3100"
       # Trivy imports -> DefectDojo on nuc (roles::vuln_scan; same port as
       # on mljr)
       - "127.0.0.1:19101:19101"
+      # syncthing-ugreen's provisioning -> nas Syncthing's REST API (8384 is
+      # ugreen's own Syncthing)
+      - "127.0.0.1:8385:8385"
     volumes:
       - ./data:/identity
       - /usr/local/libexec/ziti-tcp-proxy:/opt/ziti-tcp-proxy:ro

@@ -16,8 +16,9 @@ locals {
     # management SSH and healthreport/backup-dashboard facts (nas-ssh.tf);
     # healthreport's triage LLM (ollama on nas)
     "m2m-nuc" = ["backup-sftp-ugreen", "facts-ssh-mljr", "facts-ssh-ugreen", "nas-ssh", "ollama", "wd-mycloud-exporter", "wd-mycloud-ssh"]
-    # Alloy on ugreen -> the same; Trivy imports -> DefectDojo
-    "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki", "defectdojo"]
+    # Alloy on ugreen -> the same; Trivy imports -> DefectDojo;
+    # syncthing-ugreen's provisioning -> nas Syncthing's REST API
+    "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki", "defectdojo", "syncthing"]
     # homepage on mljr (live homelab panel) -> VictoriaMetrics, PromQL
     "homepage-mljr" = ["grafana-victoriametrics"]
     # CrowdSec agents on nuc and nas -> mljr's LAPI
