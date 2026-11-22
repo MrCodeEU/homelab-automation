@@ -6,3 +6,7 @@ breakglass_pubkeys:
 wd_mycloud_mgmt_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureMgmtKeyOnlyForSpecsXXXXXXXXXXXXXXX homelab-wd-mycloud-mgmt"
 wd_mycloud_host_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQFixtureHostKey"
 vault_wd_mycloud_mgmt_ssh_key: "fixture-private-key"
+# roles::nas_mgmt_key
+nas_mgmt_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureNasMgmtKeyOnlyForSpecsXXXXXXXXXXXXXX homelab-nas-mgmt"
+nas_host_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureNasHostKey"
+vault_nas_mgmt_ssh_key: "fixture-private-key"

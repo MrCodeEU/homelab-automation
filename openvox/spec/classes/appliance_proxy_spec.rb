@@ -136,6 +136,31 @@ describe 'roles::wd_mycloud_mgmt_key' do
   end
 end
 
+describe 'roles::nas_mgmt_key' do
+  let(:hiera_config) { File.expand_path('../fixtures/ssh_hardening_hiera.yaml', __dir__) }
+  let(:conf) { '/etc/ssh/ssh_config.d/40-nas-mgmt.conf' }
+
+  it { is_expected.to compile.with_all_deps }
+
+  it 'writes the key from eyaml without showing it in diffs' do
+    is_expected.to contain_file('/opt/nas-mgmt/ssh/id_ed25519').with(mode: '0600', show_diff: false)
+  end
+
+  it 'pins the nas host key and dials it through the m2m proxy' do
+    is_expected.to contain_file('/opt/nas-mgmt/ssh/known_hosts')
+      .with_content("nas ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureNasHostKey\n")
+    is_expected.to contain_file(conf).with_content(%r{^Host nas-mgmt\n    HostName 127\.0\.0\.1\n    Port 2427\n})
+    is_expected.to contain_file(conf).with_content(%r{^    StrictHostKeyChecking yes$})
+  end
+
+  it 'authorizes the key on nas for connections from nas itself only' do
+    is_expected.to contain_exec('nas-mgmt-key').with(
+      unless: %r{\Atest -f \S+/key-check\.sh && },
+      environment: [%r{\AOPENVOX_NAS_MGMT_ENTRY=from="192\.168\.50\.80",no-agent-forwarding,no-port-forwarding,no-X11-forwarding ssh-ed25519 \S+ homelab-nas-mgmt\z}],
+    )
+  end
+end
+
 describe 'roles::wd_mycloud_ziti_proxy' do
   it { is_expected.to compile.with_all_deps }
 

@@ -190,6 +190,12 @@ unraid_backup_excluded:
 # key, authorized on the device for 127.0.0.1 only (connections the
 # tunneler forwards), and the device's own sshd host key, persistent in
 # /usr/local/config since 2024 (copied to the RAM-disk /etc/ssh at boot).
+# nas management over Ziti (roles::nas_mgmt_key): nuc's key, authorized on
+# nas for from="192.168.50.80" only, and nas's ed25519 host key (on the
+# flash, /boot/config/ssh, since 2025).
+nas_mgmt_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHiyPN18aWv9/tuzL0ffE8xy4VAae24k4tLSaGuOjf1r homelab-nas-mgmt"
+nas_host_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIABZWEgRNBW/oPXlenXvyR/NlKDl8CT4LIPE/bRL4nj9"
+
 wd_mycloud_mgmt_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP+Z3OuDS+3SlCIHXF/I3LjRjSKzBdZ8HiTscQ3XWcFe homelab-wd-mycloud-mgmt"
 wd_mycloud_host_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDLm19l41IKu7OmBfKkjjz20WbJZR2G+C5D0Y6ZBAUjNaviiV+5gcj+h6W9DIFcOGbXlHGyXy1EqZBeCcsyCVLaA0NXHsgU0d8nLp+WdHfmTogwsOV5Wrgc7Alb7ugx3RRQQVMH8qvIgviJ1MSGfU8FB+BF6h42vgBwCUAiiDCQxY1A8Etng7fmCQ1J+618JRVvVpJEnh/jbleuUd4zFS7iIjyI91RHvEfEbjcn/DmQU6bSqTcooXzZcwclAZO2YjTVOlqHXPHSexEm5u2DesEm6BbB4laOBK484woG9RZ9AzN4JTu7+72OH1brDYO5Qb6KvX3QqsqAi80WtdhVQFFJzTXWnVjUSThdKnCmzSwCjmpSz/dAbWPiPBWY8QQTdUdhbp5JHdPc4yD4pGkqbA2INdd0ouu2OPoLAHvyNwVerHUVCykkLteQMq5jRFCyTP9HeugkklA7U/ORHMOoOUxSrvzMsNwy7xFb9v5EicJ2erLZdiBXH4P3g29DCIKNMl20Vne9o8u2AZHIOFibLC6/IBrEMIX4mRjtUVT60F2NxHQalokf8Ru1P5IEKEApJr+X2nAyai2W8uhbd9hcWkJ29MrO1WIG0rUxhThwxpqOhr9y+iNZSv3qwNhQrrKVM9tNH5zdJsPTDegyvY0TdnOPsq+SmeBMQfnXyChq0JILGQ=="
 
