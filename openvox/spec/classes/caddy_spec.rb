@@ -170,8 +170,8 @@ describe 'roles::caddy' do
 
   context 'Ziti transport' do
     let(:custom) do
-      { 'tag' => 'caddy-v2.11.8-crowdsec-v0.14.1-98e517ff',
-        'sha256' => 'fe01d115590785912a659066f3acbdfdf87450d47c8ef325e9b2721df4ce1330' }
+      { 'tag' => 'caddy-v2.11.9-crowdsec-v0.15.0-5b1be5e7',
+        'sha256' => 'c632c9554c78b5aa81609b84c7b5e5ad71fb63d66b80fab33129c9ae26f1676b' }
     end
     let(:snippet) { catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/ziti-upstream.caddy')[:content] }
 
