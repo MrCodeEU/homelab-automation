@@ -291,12 +291,16 @@ step "Creating branch $branch"
 current_branch="$(git branch --show-current)"
 [ "$current_branch" = "main" ] || confirm "Not on main (on '$current_branch') - branch off here anyway?" || die "aborted, switch to main first"
 git checkout -b "$branch"
+# Back to main on every exit from here on: a later rotation run from this
+# branch would stack its branch on this one (2026-11-22: three rotate PRs
+# stacked, one never opened).
+trap 'git checkout -q main' EXIT
 git add "${changed_files[@]}"
 git commit -m "chore: $(if [ "$new_key" = true ]; then echo add; elif [ "$append" = true ]; then echo "append a line to"; else echo rotate; fi) ${target_key}"
 
 confirm "Push $branch and open a PR?" || die "left committed locally on $branch, not pushed"
-git push -u origin "$branch"
-pr_url="$(gh pr create --fill --head "$branch")"
+git push -u origin "$branch" || die "push failed, $branch is committed locally"
+pr_url="$(gh pr create --fill --head "$branch")" || die "gh pr create failed, open the PR for $branch by hand"
 bold "PR opened: $pr_url"
 
 # ---------------------------------------------------------------------------
@@ -313,7 +317,7 @@ if confirm "Merge $pr_url now (squash)?"; then
   git pull --ff-only
 else
   bold "Not merged. Re-run the deploy steps below yourself once it's merged:"
-  info "git checkout main && git pull --ff-only"
+  info "git pull --ff-only   # the script switches back to main on exit"
   for short in $hosts; do
     info "make openvox-check-$short   # then make openvox-deploy-$short"
   done
