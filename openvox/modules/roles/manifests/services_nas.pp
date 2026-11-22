@@ -33,11 +33,10 @@ class roles::services_nas (
   String $domain     = 'mljr.eu',
   String $email      = 'admin@mljr.eu',
   String $timezone   = 'Europe/Vienna',
-  # nas's own Tailscale IP - used both as BIND_ADDR (so only Tailscale-
-  # reachable hosts, like nuc's health report, can reach these services)
-  # and as the healthcheck target host, since the healthcheck itself
-  # curls from nuc rather than through an SSH proxy.
-  String $bind_addr = '100.100.10.2',
+  # BIND_ADDR for the nas services: loopback, like roles::services. Other
+  # hosts reach them over Ziti (nas's router dials 127.0.0.1). Was nas's
+  # Tailscale IP.
+  String $bind_addr = '127.0.0.1',
   # Ported 1:1 from ansible/inventory/group_vars/all/all.yml's
   # post_deploy_hook_services, filtered to nas-managed entries only.
   Array[String] $post_deploy_hook_services = ['ollama', 'crowdsec-nas', 'ziti-router-nas', 'nas-alloy'],

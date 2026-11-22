@@ -4,13 +4,9 @@ services:
     container_name: ollama
     restart: unless-stopped
     ports:
-      # BIND_ADDR resolves to the NAS Tailscale IP, so the health report on nuc
-      # can reach it while the LAN and public interfaces cannot.
-      - "${BIND_ADDR:-127.0.0.1}:11434:11434"
-      # Loopback too, so the services role's post-deploy health check against
-      # http://localhost:11434 reports HEALTHY instead of a permanent PENDING.
-      # Safe only because this service is pinned to host: nas, where BIND_ADDR
-      # is always the Tailscale IP - on mljr the two would collide.
+      # Loopback only: nas's Ziti router (host network) dials it for the
+      # health report on nuc (ollama service, m2m-nuc port 2428), and the
+      # post-deploy health check runs on nas against http://localhost:11434.
       - "127.0.0.1:11434:11434"
     environment:
       - TZ=${TZ:-Europe/Vienna}
