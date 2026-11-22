@@ -3,7 +3,7 @@ module github.com/MrCodeEU/homelab-automation/tools
 go 1.26.0
 
 require (
-	github.com/ProtonMail/go-crypto v1.1.6
+	github.com/ProtonMail/go-crypto v1.5.2
 	github.com/breml/go-uptime-kuma-client v0.4.2
 	github.com/go-git/go-billy/v5 v5.9.2
 	github.com/go-git/go-git/v5 v5.19.3
