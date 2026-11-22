@@ -27,6 +27,7 @@ services:
       - facts-ssh-ugreen:2424
       - wd-mycloud-ssh:2425
       - wd-mycloud-exporter:2426
+      - nas-ssh:2427
     ports:
       # SFTP to ugreen for roles::backup (2222 is taken on nuc)
       - "127.0.0.1:2422:2422"
@@ -35,6 +36,7 @@ services:
       - "127.0.0.1:2424:2424"
       - "127.0.0.1:2425:2425"
       - "127.0.0.1:2426:2426"
+      - "127.0.0.1:2427:2427"
     volumes:
       - ./data:/identity
       - /usr/local/libexec/ziti-tcp-proxy:/opt/ziti-tcp-proxy:ro

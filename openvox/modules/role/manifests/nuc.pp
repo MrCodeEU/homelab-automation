@@ -14,6 +14,7 @@ class role::nuc {
   include roles::iperf3
 
   include roles::wd_mycloud_mgmt_key
+  include roles::nas_mgmt_key
   include roles::wd_mycloud_proxy
   include roles::wd_mycloud_node_exporter_proxy
   include roles::wd_mycloud_ziti_proxy

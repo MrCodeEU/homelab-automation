@@ -12,8 +12,9 @@ locals {
     "m2m-mljr" = ["grafana-victoriametrics", "grafana-loki", "backup-sftp-ugreen", "home-ip-nuc", "defectdojo"]
     # Backups on nuc -> ugreen; healthreport and backup-dashboard facts
     # over SSH -> mljr, ugreen; wd_mycloud management SSH and its
-    # node_exporter scrape (services/ziti-proxy-nuc, wd-mycloud.tf)
-    "m2m-nuc" = ["backup-sftp-ugreen", "facts-ssh-mljr", "facts-ssh-ugreen", "wd-mycloud-exporter", "wd-mycloud-ssh"]
+    # node_exporter scrape (services/ziti-proxy-nuc, wd-mycloud.tf); nas
+    # management SSH (nas-ssh.tf)
+    "m2m-nuc" = ["backup-sftp-ugreen", "facts-ssh-mljr", "facts-ssh-ugreen", "nas-ssh", "wd-mycloud-exporter", "wd-mycloud-ssh"]
     # Alloy on ugreen -> the same; Trivy imports -> DefectDojo
     "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki", "defectdojo"]
     # homepage on mljr (live homelab panel) -> VictoriaMetrics, PromQL
@@ -41,6 +42,7 @@ locals {
 
   # Dialable by name: catalog services, iperf3, SSH, mail SMTP, backup SFTP
   m2m_services = merge(ziti_service.catalog, local.iperf3_services, local.facts_ssh_services, ziti_service.wd_mycloud, {
+    (ziti_service.nas_ssh.name)        = ziti_service.nas_ssh,
     (ziti_service.mail_smtp_mljr.name) = ziti_service.mail_smtp_mljr,
     (ziti_service.backup_sftp.name)    = ziti_service.backup_sftp,
     (ziti_service.home_ip_nuc.name)    = ziti_service.home_ip_nuc
