@@ -875,6 +875,16 @@ services_catalog:
     description: "SMART metrics exporter (nuc disks) for Grafana/Alloy"
     icon: "mdi:harddisk"
 
+  # nas hosts its own services (docs/ZITI_ENROLL.md, Phase 5). Deployed by
+  # roles::services_nas over SSH from nuc like the other managed nas entries.
+  - name: ziti-router-nas
+    enabled: true
+    managed: true
+    port: 0
+    host: nas
+    description: "OpenZiti private edge router (LAN)"
+    icon: "mdi:router-network"
+
   - name: smartctl-exporter-nas
     enabled: true
     managed: true

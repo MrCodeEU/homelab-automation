@@ -12,7 +12,7 @@
 #   4. restart the router container, wait until the controller reports it
 #      online, then delete the token
 #
-# Usage: scripts/ziti-enroll-router.sh <mljr|nuc|ugreen> [--reenroll]
+# Usage: scripts/ziti-enroll-router.sh <mljr|nuc|ugreen|nas> [--reenroll]
 # Deploy the router service first (the container restart-loops until the
 # token is there; that is expected).
 # Remote commands are built locally on purpose (names and paths are local
@@ -36,7 +36,10 @@ case "$name" in
   mljr) host=root@mljr.ziti; svc=ziti-router;     attr=public; base=/opt ;;
   nuc)  host=root@nuc.ziti;  svc=ziti-router-nuc; attr=lan;    base=/opt ;;
   ugreen) host=root@ugreen.ziti; svc=ziti-router-ugreen; attr=lan; base=/volume1/homelab ;;
-  *) die "usage: $0 <mljr|nuc|ugreen> [--reenroll]" ;;
+  # nas: no SSH of its own on Ziti yet, and only nuc's key logs in there
+  # (roles::services_nas deploys over the same path): through nuc.
+  nas) host=root@nas.tail33930.ts.net; via=root@nuc.ziti; svc=ziti-router-nas; attr=lan; base=/mnt/user/appdata/homelab ;;
+  *) die "usage: $0 <mljr|nuc|ugreen|nas> [--reenroll]" ;;
 esac
 # base: roles::services::base_path of that host (docs/ZITI_ENROLL.md).
 data="$base/$svc/data"
@@ -44,6 +47,17 @@ data="$base/$svc/data"
 # wildcard ssh service can address it (ziti/tofu/services.tf). The
 # local name ($name) stays the router's file and container naming.
 ctrl_name="$name.int.mljr.eu"
+
+# Run a shell command on the router's host, through $via when it is set
+# (stdin passes through both hops).
+via="${via:-}"
+rsh() {
+  if [ -n "$via" ]; then
+    ssh -o BatchMode=yes "$via" "ssh -o BatchMode=yes $host $(printf %q "$1")"
+  else
+    ssh -o BatchMode=yes "$host" "$1"
+  fi
+}
 
 # Run a ziti CLI command inside the controller container, logged in. The
 # password is read from .env on mljr and passed on mljr only.
@@ -54,14 +68,14 @@ zcli() {
 }
 
 say "Router $name ($svc on ${host#root@})"
-ssh -o BatchMode=yes "$host" "docker inspect $svc >/dev/null 2>&1" \
+rsh "docker inspect $svc >/dev/null 2>&1" \
   || die "container $svc not found on ${host#root@}; deploy it first"
 
 if zcli "edge list edge-routers 'name=\"$ctrl_name\"' -j" | grep -q "\"name\": *\"$ctrl_name\""; then
   $reenroll || die "router $ctrl_name already exists; rerun with --reenroll to issue a new token"
   say "Issuing a new enrolment token"
   zcli "edge re-enroll edge-router $ctrl_name -o /tmp/$name.jwt" >/dev/null
-  ssh "$host" "f=$data/$name.cert; [ -f \$f ] && mv \$f \$f.\$(date +%Y%m%dT%H%M%S); true"
+  rsh "f=$data/$name.cert; [ -f \$f ] && mv \$f \$f.\$(date +%Y%m%dT%H%M%S); true"
 else
   say "Creating edge router $ctrl_name (attribute #$attr)"
   zcli "edge create edge-router $ctrl_name --tunneler-enabled -a $attr -o /tmp/$name.jwt" >/dev/null
@@ -69,7 +83,7 @@ fi
 
 say "Handing the token to $svc"
 ssh "$CTRL_HOST" "docker exec ziti-controller sh -c 'cat /tmp/$name.jwt && rm -f /tmp/$name.jwt'" \
-  | ssh "$host" "set -eu; umask 077
+  | rsh "set -eu; umask 077
       install -d -m 700 -o $ZUID -g $ZUID $data
       cat > $data/enroll.jwt
       [ -s $data/enroll.jwt ]
@@ -85,6 +99,6 @@ for _ in $(seq 1 30); do
   fi
   sleep 3
 done
-ssh "$host" "rm -f $data/enroll.jwt"
+rsh "rm -f $data/enroll.jwt"
 $online || die "router $name did not come online; check: ssh ${host} docker logs $svc"
 say "Router $name is enrolled and online."

@@ -17,5 +17,9 @@ remote_dir="$2"
 TARGET="root@nas.tail33930.ts.net"
 
 ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" "mkdir -p '${remote_dir}'"
-rsync -az --delete -e "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new" \
+# --delete must not touch what only exists on nas: a service's runtime
+# data/ (ziti-router-nas keeps its enrolled identity there) and the hooks'
+# restart stamps (.*.sha256; deleted, every deploy would restart).
+rsync -az --delete --filter='P /data/' --filter='P /.*.sha256' \
+  -e "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new" \
   "${local_dir}/" "${TARGET}:${remote_dir}/"
