@@ -56,5 +56,11 @@ deploy.<%= $domain %> {
     }
 }
 
+# www: the public `*` DNS wildcard resolves it, so without a vhost it got
+# a TLS alert. Permanent redirect to the apex, path and query kept.
+www.<%= $domain %> {
+    redir https://<%= $domain %>{uri} permanent
+}
+
 # Per-service snippets (auth macros + individual service configs)
 import /etc/caddy/conf.d/*.caddy
