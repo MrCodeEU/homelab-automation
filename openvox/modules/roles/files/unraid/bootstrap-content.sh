@@ -58,4 +58,14 @@ for dir in "$BASE"/*/; do
     fi
 done
 
+# 4. opkssh for sshd (roles::nas_opkssh): user, binary and /etc/opk are on
+#    tmpfs; setup.sh restores them from the array copy.
+if [ -f "$BASE/opkssh/setup.sh" ]; then
+    if bash "$BASE/opkssh/setup.sh" 2>&1 | tee -a "$LOG"; then
+        log "opkssh restored"
+    else
+        log "ERROR: opkssh setup failed"
+    fi
+fi
+
 log "bootstrap complete"

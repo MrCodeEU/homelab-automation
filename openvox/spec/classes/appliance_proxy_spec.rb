@@ -175,6 +175,34 @@ describe 'roles::nas_ziti_tcp_proxy' do
   end
 end
 
+describe 'roles::nas_opkssh' do
+  let(:hiera_config) { File.expand_path('../fixtures/ssh_hardening_hiera.yaml', __dir__) }
+  let(:facts) { { os: { family: 'RedHat', selinux: { enabled: false } } } }
+  let(:pre_condition) do
+    <<~PP
+      class { 'roles::opkssh':
+        auth_ids => [{ 'user' => 'root', 'identity' => 'spec-sub', 'issuer' => 'https://auth.mljr.eu' }],
+      }
+      include roles::nas_mgmt_key
+    PP
+  end
+
+  it { is_expected.to compile.with_all_deps }
+
+  it 'stages nuc\'s pinned binary and the same /etc/opk content as nuc' do
+    is_expected.to contain_file('/var/lib/openvox-nas-opkssh/opkssh')
+      .with(source: '/usr/local/bin/opkssh', require: 'Exec[opkssh-binary]')
+    is_expected.to contain_file('/var/lib/openvox-nas-opkssh/etc/providers')
+      .with_content(%r{^https://auth\.mljr\.eu opkssh 24h$})
+    is_expected.to contain_file('/var/lib/openvox-nas-opkssh/etc/auth_id')
+      .with_content(%r{^root spec-sub https://auth\.mljr\.eu$})
+  end
+
+  it 'applies on nas only when the check fails' do
+    is_expected.to contain_exec('nas-opkssh').with(unless: %r{\Atest -f \S+/check\.sh && })
+  end
+end
+
 describe 'roles::wd_mycloud_ziti_proxy' do
   it { is_expected.to compile.with_all_deps }
 

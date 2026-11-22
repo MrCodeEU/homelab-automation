@@ -18,6 +18,8 @@ class role::nuc {
   # nas is managed over `ssh nas-mgmt`: key and ssh_config first
   # nas's m2m sidecars run nuc's ziti-tcp-proxy binary, copied before they deploy
   include roles::nas_ziti_tcp_proxy
+  # opkssh login on nas (root@nas-ssh.ziti)
+  include roles::nas_opkssh
   Class['roles::nas_ziti_tcp_proxy'] -> Class['roles::services_nas']
   Class['roles::nas_mgmt_key'] -> Class['roles::unraid_proxy', 'roles::unraid_backup_proxy', 'roles::unraid_aoostar_proxy', 'roles::canary_decoys_nas', 'roles::services_nas', 'roles::unraid_host_facts_proxy']
   include roles::wd_mycloud_proxy
