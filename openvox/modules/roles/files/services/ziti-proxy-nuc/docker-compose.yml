@@ -28,6 +28,7 @@ services:
       - wd-mycloud-ssh:2425
       - wd-mycloud-exporter:2426
       - nas-ssh:2427
+      - ollama:2428
     ports:
       # SFTP to ugreen for roles::backup (2222 is taken on nuc)
       - "127.0.0.1:2422:2422"
@@ -36,7 +37,10 @@ services:
       - "127.0.0.1:2424:2424"
       - "127.0.0.1:2425:2425"
       - "127.0.0.1:2426:2426"
+      # nas: management SSH and the facts endpoint (both keys)
       - "127.0.0.1:2427:2427"
+      # healthreport -> ollama on nas
+      - "127.0.0.1:2428:2428"
     volumes:
       - ./data:/identity
       - /usr/local/libexec/ziti-tcp-proxy:/opt/ziti-tcp-proxy:ro

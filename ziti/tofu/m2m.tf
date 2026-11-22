@@ -13,8 +13,9 @@ locals {
     # Backups on nuc -> ugreen; healthreport and backup-dashboard facts
     # over SSH -> mljr, ugreen; wd_mycloud management SSH and its
     # node_exporter scrape (services/ziti-proxy-nuc, wd-mycloud.tf); nas
-    # management SSH (nas-ssh.tf)
-    "m2m-nuc" = ["backup-sftp-ugreen", "facts-ssh-mljr", "facts-ssh-ugreen", "nas-ssh", "wd-mycloud-exporter", "wd-mycloud-ssh"]
+    # management SSH and healthreport/backup-dashboard facts (nas-ssh.tf);
+    # healthreport's triage LLM (ollama on nas)
+    "m2m-nuc" = ["backup-sftp-ugreen", "facts-ssh-mljr", "facts-ssh-ugreen", "nas-ssh", "ollama", "wd-mycloud-exporter", "wd-mycloud-ssh"]
     # Alloy on ugreen -> the same; Trivy imports -> DefectDojo
     "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki", "defectdojo"]
     # homepage on mljr (live homelab panel) -> VictoriaMetrics, PromQL

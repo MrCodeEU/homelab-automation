@@ -46,7 +46,10 @@ class roles::unraid_host_facts_proxy (
 
   $pubkey       = lookup('healthreport_pubkey')
   $pubkey_bare  = regsubst($pubkey, '^(\S+\s+\S+).*$', '\1')
-  $auth_entry   = "restrict,from=\"100.100.10.1\",command=\"/usr/local/bin/homelab-facts\" ${pubkey_bare} homelab-healthreport"
+  # healthreport and backup-dashboard reach nas over Ziti (nas-ssh, hosted
+  # by nas's router with host networking): connections come from nas's own
+  # LAN address, not from nuc.
+  $auth_entry   = "restrict,from=\"192.168.50.80\",command=\"/usr/local/bin/homelab-facts\" ${pubkey_bare} homelab-healthreport"
 
   exec { 'unraid-host-facts-script':
     command => "${work_dir}/script-apply.sh",
