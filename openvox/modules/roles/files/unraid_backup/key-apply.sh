@@ -3,7 +3,7 @@
 # reading the key straight from nuc's own local disk - never printed,
 # never echoed, transferred via scp only (real SFTP content transfer).
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_KEY="/opt/backup-remote/ssh/id_ed25519"
 REMOTE_DIR="/mnt/user/appdata/homelab/backup-remote"

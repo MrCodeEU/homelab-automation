@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Exits 0 (no work needed) if every installed AOOSTAR file matches the repo.
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="/mnt/user/appdata/aoostar"
 US_DIR="/boot/config/plugins/user.scripts/scripts"

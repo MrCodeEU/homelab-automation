@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 US_DIR="/boot/config/plugins/user.scripts/scripts/nas-backup"
 

@@ -3,7 +3,7 @@
 # matches the vendored copy exactly - same cmp-based guard as
 # roles::unraid_proxy's own bootstrap-script-check.sh.
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEST="/mnt/user/Fotos/Passwords-Backup.docx"
 

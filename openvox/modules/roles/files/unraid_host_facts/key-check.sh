@@ -7,7 +7,7 @@
 # quoting fragility this migration already hit once (see
 # roles::wd_mycloud_proxy's own header comment).
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENTRY_B64=$(printf '%s' "${OPENVOX_HEALTHREPORT_AUTH_ENTRY}" | base64 -w0)
 

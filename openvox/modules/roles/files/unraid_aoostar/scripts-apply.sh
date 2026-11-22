@@ -5,7 +5,7 @@
 # Nothing is started here: the start script runs at the next array start, or
 # by hand with `/mnt/user/appdata/aoostar/aoostar-ctl.sh start`.
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="/mnt/user/appdata/aoostar"
 US_DIR="/boot/config/plugins/user.scripts/scripts"

@@ -48,7 +48,7 @@ class roles::vuln_scan (
   # DefectDojo host only: hosts that push scans here. Each gets an account
   # import-<name> and a product <name>.
   Array[String] $importers = [],
-  # product name => DOCKER_HOST, e.g. { nas => 'ssh://root@nas.tail33930.ts.net' }.
+  # product name => DOCKER_HOST, e.g. { nas => 'ssh://nas-mgmt' }.
   # Use the FQDN: that is the name already in root's known_hosts.
   Hash[String, String] $remote_docker_scans = {},
   # Staggered after $scan_schedule so the scans do not compete for disk.

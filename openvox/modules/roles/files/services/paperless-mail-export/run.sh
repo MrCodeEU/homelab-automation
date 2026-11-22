@@ -12,7 +12,7 @@ set -uo pipefail
 MODE="${1:-incremental}"
 SERVICE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUTBOX=/var/lib/paperless-mail-export/outbox
-TARGET="root@nas.tail33930.ts.net:/mnt/user/appdata/paperless/consume/"
+TARGET="nas-mgmt:/mnt/user/appdata/paperless/consume/"
 
 exec 9>/var/lock/paperless-mail-export.lock
 flock -n 9 || { echo "another run holds the lock, exiting"; exit 0; }

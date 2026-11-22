@@ -10,7 +10,7 @@ set -uo pipefail
 svc_name="$1"
 remote_dir="$2"
 critical="${3:-false}"
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 
 remote_script=$(cat <<REMOTE
 set -uo pipefail

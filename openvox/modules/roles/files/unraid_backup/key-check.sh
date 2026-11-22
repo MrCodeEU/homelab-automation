@@ -7,7 +7,7 @@
 # needed at all (unlike spot's controller-in-the-middle model, which had
 # to pull-then-push through a separate machine).
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_KEY="/opt/backup-remote/ssh/id_ed25519"
 REMOTE_DIR="/mnt/user/appdata/homelab/backup-remote"

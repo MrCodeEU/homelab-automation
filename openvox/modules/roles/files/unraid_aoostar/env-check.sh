@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Exit 0 when controller.env on nas equals the rendered content and is mode 600.
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$DIR/env-render.sh"
