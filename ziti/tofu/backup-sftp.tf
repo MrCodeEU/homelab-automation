@@ -4,7 +4,7 @@
 # bound by ugreen's router only (host networking). The real sshd answers
 # there, with the rclone-backup user's chroot and key, unlike over the
 # tailnet, where Tailscale SSH took the connection. Dialled by the host
-# proxies on mljr and nuc (m2m.tf). nas stays on the tailnet until Phase 5.
+# proxies on mljr, nuc and nas (m2m.tf).
 resource "ziti_intercept_v1_config" "backup_sftp" {
   name      = "backup-sftp-ugreen-intercept"
   addresses = ["sftp.ugreen.int.mljr.eu"]

@@ -19,3 +19,6 @@ ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" \
 
 ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" \
   "cat $REMOTE_DIR/rclone-ugreen.conf 2>/dev/null" | cmp -s - "$DIR/rclone-ugreen-content.conf"
+
+ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" \
+  "cat $REMOTE_DIR/rclone-ugreen-known_hosts 2>/dev/null" | cmp -s - "$DIR/rclone-ugreen-known_hosts"

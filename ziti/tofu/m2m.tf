@@ -16,6 +16,8 @@ locals {
     # management SSH and healthreport/backup-dashboard facts (nas-ssh.tf);
     # healthreport's triage LLM (ollama on nas)
     "m2m-nuc" = ["backup-sftp-ugreen", "facts-ssh-mljr", "facts-ssh-ugreen", "nas-ssh", "ollama", "wd-mycloud-exporter", "wd-mycloud-ssh"]
+    # Alloy on nas -> VictoriaMetrics and Loki on nuc; nas backup -> ugreen
+    "m2m-nas" = ["grafana-victoriametrics", "grafana-loki", "backup-sftp-ugreen"]
     # Alloy on ugreen -> the same; Trivy imports -> DefectDojo;
     # syncthing-ugreen's provisioning -> nas Syncthing's REST API
     "m2m-ugreen" = ["grafana-victoriametrics", "grafana-loki", "defectdojo", "syncthing"]
@@ -37,6 +39,7 @@ locals {
     "homepage-mljr" = "at-mljr"
     "m2m-nuc"       = "at-home"
     "m2m-ugreen"    = "at-home"
+    "m2m-nas"       = "at-home"
     "crowdsec-nuc"  = "at-home"
     "crowdsec-nas"  = "at-home"
     "kuma-nuc"      = "at-home"

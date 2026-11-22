@@ -17,6 +17,7 @@ ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" \
   "mkdir -p $REMOTE_DIR/ssh && chmod 700 $REMOTE_DIR/ssh"
 scp -q -o StrictHostKeyChecking=accept-new "$LOCAL_KEY" "$TARGET:$REMOTE_DIR/ssh/id_ed25519"
 scp -q -o StrictHostKeyChecking=accept-new "$DIR/rclone-ugreen-content.conf" "$TARGET:$REMOTE_DIR/rclone-ugreen.conf"
+scp -q -o StrictHostKeyChecking=accept-new "$DIR/rclone-ugreen-known_hosts" "$TARGET:$REMOTE_DIR/rclone-ugreen-known_hosts"
 ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" \
-  "chmod 600 $REMOTE_DIR/ssh/id_ed25519 $REMOTE_DIR/rclone-ugreen.conf"
-echo "backup-remote key + rclone-ugreen.conf installed"
+  "chmod 600 $REMOTE_DIR/ssh/id_ed25519 $REMOTE_DIR/rclone-ugreen.conf && chmod 644 $REMOTE_DIR/rclone-ugreen-known_hosts"
+echo "backup-remote key + rclone-ugreen.conf + known_hosts installed"

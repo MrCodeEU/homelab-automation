@@ -533,6 +533,15 @@ services_catalog:
     description: "OpenZiti proxy for machine-to-machine traffic"
     icon: "mdi:router-network"
 
+  # Same for nas (Alloy; rclone's SFTP to ugreen), as m2m-nas. Deployed from
+  # nuc by roles::services_nas.
+  - name: ziti-proxy-nas
+    enabled: true
+    port: 0
+    host: nas
+    description: "OpenZiti proxy for machine-to-machine traffic"
+    icon: "mdi:router-network"
+
   - name: goaccess
     enabled: true
     domain: "logs.mljr.eu"

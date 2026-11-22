@@ -1,0 +1,39 @@
+# Ziti client for processes on nas that cannot dial Ziti themselves (Grafana
+# Alloy, rclone's SFTP to ugreen in the nas backup script): `ziti-tcp-proxy`
+# opens one listener per service, published on 127.0.0.1 only, as identity
+# m2m-nas (ziti/tofu/m2m.tf). That identity may dial only the services
+# listed there. Same ports as on mljr and ugreen.
+#
+# The binary is copied from nuc (roles::nas_ziti_tcp_proxy): nas has no
+# Puppet agent, and /usr/local is tmpfs on Unraid.
+#
+# Enrolment: scripts/ziti-enroll-proxy.sh m2m-nas nas ziti-proxy-nas writes
+# data/m2m-nas.json (uid 2171, 0600); data/ is kept by the rsync deploy
+# (roles::services_nas). Without it the container restarts until the file
+# exists; Alloy buffers in its WAL meanwhile.
+services:
+  ziti-proxy-nas:
+    image: gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+    container_name: ziti-proxy-nas
+    restart: unless-stopped
+    user: "2171:2171"
+    labels:
+      # restarted by roles::nas_ziti_tcp_proxy when the binary changes
+      homelab.ziti-tcp-proxy: "true"
+    entrypoint: ["/opt/ziti-tcp-proxy/ziti-tcp-proxy"]
+    command:
+      - -identity
+      - /identity/m2m-nas.json
+      - grafana-victoriametrics:19090
+      - grafana-loki:3100
+      - backup-sftp-ugreen:2422
+    ports:
+      - "127.0.0.1:19090:19090"
+      - "127.0.0.1:3100:3100"
+      # SFTP to ugreen for the nas backup (roles::unraid_backup_proxy)
+      - "127.0.0.1:2422:2422"
+    volumes:
+      - ./data:/identity
+      - /mnt/user/appdata/homelab/ziti-tcp-proxy:/opt/ziti-tcp-proxy:ro
+    environment:
+      - TZ=${TZ}
