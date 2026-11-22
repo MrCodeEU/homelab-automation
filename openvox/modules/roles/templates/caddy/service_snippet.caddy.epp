@@ -113,6 +113,20 @@
 <% } else { -%>
 <%= $indent %>reverse_proxy <%= $ref['address'] %>
 <% } -%>
+<% } elsif $line =~ /^( *)reverse_proxy catalog:([a-z0-9-]+) \{$/ {
+  # Block form: the block's own lines (options, closing brace) follow
+  # unchanged; over Ziti the transport comes first, so the block must not
+  # set a transport of its own.
+  $indent = "    ${1}"
+  $ref = $catalog_upstreams[$2]
+  if $ref == undef { fail("caddy_extra_config of ${name}: no catalog entry ${2} with host and port") }
+-%>
+<%= $indent %>reverse_proxy <%= $ref['address'] %> {
+<% if $ref['ziti'] { -%>
+<%= $indent %>    transport ziti {
+<%= $indent %>        identity <%= $caddy_ziti_identity %>
+<%= $indent %>    }
+<% } -%>
 <% } else { -%>
     <%= $line %>
 <% } -%>
