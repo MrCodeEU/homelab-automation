@@ -981,14 +981,16 @@ services_catalog:
     caddy_auth: authelia
 
   - name: opencloud
-    enabled: true
+    # Disabled 2026-11-22 (owner): the migration is on hold and nothing
+    # listens on 9200, so files.mljr.eu only answered 502; Tailscale, its
+    # only path, goes in Phase 5.
+    enabled: false
     managed: false
     domain: "files.mljr.eu"
     port: 9200
     host: nas
     description: "OpenCloud server"
     icon: "mdi:cloud"
-    # Migration on hold, the container is stopped (502).
     monitor: false
 
   - name: test-ocis
