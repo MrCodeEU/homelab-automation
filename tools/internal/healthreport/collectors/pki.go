@@ -57,6 +57,7 @@ var pkiTargets = []pkiTarget{
 	{Addr: "router.ziti.mljr.eu:8442", ServerName: "router.ziti.mljr.eu", Leaf: "router-mljr"},
 	{Addr: "192.168.50.30:8442", ServerName: "192.168.50.30", Leaf: "router-nuc"},
 	{Addr: "192.168.50.86:8442", ServerName: "192.168.50.86", Leaf: "router-ugreen"},
+	{Addr: "192.168.50.80:8442", ServerName: "192.168.50.80", Leaf: "router-nas"},
 }
 
 func init() {

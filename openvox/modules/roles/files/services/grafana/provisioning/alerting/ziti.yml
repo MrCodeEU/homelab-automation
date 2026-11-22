@@ -127,6 +127,9 @@ groups:
                   or
                   label_replace(vector(1) unless on() group(ziti_edge_connections{source_id="6mzqty60F"}),
                     "router", "ugreen.int.mljr.eu", "", "")
+                  or
+                  label_replace(vector(1) unless on() group(ziti_edge_connections{source_id="wktwxxXdX"}),
+                    "router", "nas.int.mljr.eu", "", "")
                 )
                 and on() (max(up{job="ziti-controller"}) == 1)
               instant: true
@@ -172,6 +175,10 @@ groups:
                   label_replace(
                     vector(1) unless on() group(ziti_link_tx_msgrate{sourceRouterId="6mzqty60F",targetRouterId="TxITxNDzp"}),
                     "link", "ugreen.int.mljr.eu -> mljr.int.mljr.eu", "", "")
+                  or
+                  label_replace(
+                    vector(1) unless on() group(ziti_link_tx_msgrate{sourceRouterId="wktwxxXdX",targetRouterId="TxITxNDzp"}),
+                    "link", "nas.int.mljr.eu -> mljr.int.mljr.eu", "", "")
                 )
                 and on() (max(up{job="ziti-controller"}) == 1)
               instant: true
