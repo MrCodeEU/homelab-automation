@@ -4,29 +4,17 @@ services:
     container_name: crowdsec
     restart: unless-stopped
     ports:
-      # 8080 (LAPI) is intentionally NOT ${BIND_ADDR} - that shared var
-      # also drives crowdsec-web-ui's port below, and mljr's other
-      # services stay loopback-only by design (Caddy+Authelia is the
-      # only gate meant to reach them). The LAPI needs to be tailnet-
-      # reachable specifically so remote agents (nuc's forgejo agent,
-      # see services/crowdsec-nuc/) can register and push detections -
-      # a narrower, deliberate exception, not a blanket exposure.
-      # 100.100.20.1 is mljr's own tailscale IP - already a hardcoded
-      # non-secret literal elsewhere in this repo (see
-      # openvox/data/common.yaml's tailscale_hosts and
-      # openvox/data/nodes/mljr.int.mljr.eu.yaml).
+      # 8080 (LAPI) on loopback only. The remote agents (crowdsec-nuc,
+      # crowdsec-nas) reach it over Ziti (service crowdsec-lapi, hosted by
+      # mljr's router on 127.0.0.1:8088); the tailnet binding
+      # (100.100.20.1:8088) was dropped on 2026-11-22 once both were moved.
       #
-      # 127.0.0.1:8088 is ALSO still required alongside the tailnet one -
-      # docker's -p/ports binds only the given IP, it does not also imply
-      # loopback. crowdsec-firewall-bouncer-nftables' own config
+      # crowdsec-firewall-bouncer-nftables' own config
       # (/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml, outside
       # this repo) talks to api_url: http://127.0.0.1:8088/ - dropping
-      # this binding silently breaks the bouncer's LAPI polling. Found
-      # live 2026-09-07: right after this port moved to a single
-      # tailnet-only mapping, the bouncer stopped pulling new decisions
-      # (existing nftables sets stayed enforced, but nothing new was
-      # added) until this second binding was restored.
-      - "100.100.20.1:8088:8080"
+      # this binding silently breaks the bouncer's LAPI polling (found live
+      # 2026-09-07: the bouncer stopped pulling new decisions until it was
+      # restored).
       - "127.0.0.1:8088:8080"
       - "127.0.0.1:6060:6060"
       # AppSec (WAF) component, for the host's production Caddy

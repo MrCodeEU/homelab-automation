@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ExecStartPre for docker.service (see roles::base). Containers published on
-# the host's tailnet IP (e.g. crowdsec's LAPI on 100.100.20.1:8088) fail
+# the host's tailnet IP (e.g. caddy-poc on 100.100.20.1:8444) fail
 # their port bind with "cannot assign requested address" when dockerd starts
 # before tailscaled has put the address on tailscale0. `restart: unless-stopped`
 # does not retry a failed network setup, so the container stays down until
