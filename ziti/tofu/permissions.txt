@@ -5,3 +5,4 @@
 # The identity itself is a tofu resource with ignore_changes = all (the
 # provider's PUT would drop the permissions).
 mesh-exporter admin_readonly
+zac-readonly admin_readonly

@@ -517,6 +517,17 @@ services_catalog:
     description: "OpenZiti proxy for machine-to-machine traffic"
     icon: "mdi:router-network"
 
+  # Ziti's web console (ZAC), read-only: http://ziti-console.ziti for
+  # admins over Ziti, login zac / vault_ziti_zac_password (identity
+  # zac-readonly, admin_readonly), writes blocked in the proxy as well.
+  - name: ziti-console
+    enabled: true
+    port: 8446
+    host: mljr
+    ziti: true
+    description: "Ziti web console (ZAC), read-only. Ziti only, no Caddy route."
+    icon: "mdi:console-network"
+
   # State of the Ziti overlay for Grafana's "Ziti mesh" dashboard, read-only
   # from the controller next to it (services/ziti-mesh-exporter).
   - name: ziti-mesh-exporter
