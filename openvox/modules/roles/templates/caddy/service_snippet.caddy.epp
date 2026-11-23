@@ -149,6 +149,11 @@
             identity <%= $ziti_identity %>
         }
     }
+<% } elsif $service['caddy_upstream_secret'] { -%>
+    # The upstream checks this (roles::caddy, upstream-secrets.env)
+    reverse_proxy <%= $target_host %>:<%= $target_port %> {
+        header_up X-Upstream-Secret {env.UPSTREAM_SECRET_<%= upcase(regsubst($name, '-', '_', 'G')) %>}
+    }
 <% } else { -%>
     reverse_proxy <%= $target_host %>:<%= $target_port %>
 <% } -%>

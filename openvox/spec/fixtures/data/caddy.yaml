@@ -49,3 +49,11 @@ services_catalog:
     domain: block.example.test
     appsec: block
     appsec_exclude_paths: ['/upload/*', '/dav/*']
+  # Upstream checks a shared secret from Caddy (roles::caddy env file).
+  - name: secret-upstream
+    enabled: true
+    host: mljr
+    port: 8446
+    domain: secret.example.test
+    caddy_auth: authelia
+    caddy_upstream_secret: vault_test_upstream_secret

@@ -5,6 +5,10 @@
 // talks to the management and fabric APIs on the same origin, so
 // everything is proxied there (services/ziti-console).
 //
+//   - Only Caddy gets in: every request must carry X-Upstream-Secret
+//     (ZAC_UPSTREAM_SECRET, sent by mljr's Caddy from an env file only Caddy
+//     reads, roles::caddy), so neither a local process nor anything else
+//     that reaches 127.0.0.1:8446 can claim an Authelia user.
 //   - Reads (GET, HEAD, OPTIONS) pass through with the browser's session.
 //   - Every write is refused (403), except logout.
 //   - Login: the proxy logs in to the controller itself as the read-only
@@ -20,6 +24,7 @@
 // Environment:
 //
 //	ZAC_PASSWORD     password of ZAC_USER (required)
+//	ZAC_UPSTREAM_SECRET  value of X-Upstream-Secret from Caddy (required)
 //	ZAC_USER         default zac-readonly
 //	ZAC_UPSTREAM     admin listener (default https://127.0.0.1:8440)
 //	ZAC_SERVER_NAME  name in its certificate (default localhost)
@@ -31,6 +36,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -81,9 +87,12 @@ type proxy struct {
 	rp       *httputil.ReverseProxy
 	user     string
 	password string
+	secret   []byte // X-Upstream-Secret
 }
 
-func newProxy(upstream *url.URL, transport http.RoundTripper, user, password string) *proxy {
+const secretHeader = "X-Upstream-Secret"
+
+func newProxy(upstream *url.URL, transport http.RoundTripper, user, password, secret string) *proxy {
 	rp := httputil.NewSingleHostReverseProxy(upstream)
 	rp.Transport = transport
 	return &proxy{
@@ -92,14 +101,22 @@ func newProxy(upstream *url.URL, transport http.RoundTripper, user, password str
 		rp:       rp,
 		user:     user,
 		password: password,
+		secret:   []byte(secret),
 	}
 }
 
 func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
-	switch {
-	case path == "/healthz":
+	if path == "/healthz" {
 		_, _ = w.Write([]byte("ok\n"))
+		return
+	}
+	if subtle.ConstantTimeCompare([]byte(r.Header.Get(secretHeader)), p.secret) != 1 {
+		http.Error(w, "Only through https://ziti.mljr.eu.", http.StatusForbidden)
+		return
+	}
+	r.Header.Del(secretHeader) // not for the controller
+	switch {
 	case path == "/":
 		http.Redirect(w, r, "/zac/", http.StatusFound)
 	case path == mgmt+"/authenticate" && r.Method == http.MethodPost:
@@ -251,9 +268,9 @@ func main() {
 		}
 		os.Exit(0)
 	}
-	password := os.Getenv("ZAC_PASSWORD")
-	if password == "" {
-		fatal("config", errors.New("ZAC_PASSWORD is empty"))
+	password, secret := os.Getenv("ZAC_PASSWORD"), os.Getenv("ZAC_UPSTREAM_SECRET")
+	if password == "" || secret == "" {
+		fatal("config", errors.New("ZAC_PASSWORD or ZAC_UPSTREAM_SECRET is empty"))
 	}
 	upstream, err := url.Parse(env("ZAC_UPSTREAM", "https://127.0.0.1:8440"))
 	if err != nil {
@@ -273,7 +290,7 @@ func main() {
 		ServerName: env("ZAC_SERVER_NAME", "localhost"),
 		MinVersion: tls.VersionTLS12,
 	}
-	p := newProxy(upstream, transport, env("ZAC_USER", "zac-readonly"), password)
+	p := newProxy(upstream, transport, env("ZAC_USER", "zac-readonly"), password, secret)
 	slog.Info("listening", "addr", listen, "upstream", upstream.String())
 	srv := &http.Server{Addr: listen, Handler: p, ReadHeaderTimeout: 5 * time.Second}
 	if err := srv.ListenAndServe(); err != nil {

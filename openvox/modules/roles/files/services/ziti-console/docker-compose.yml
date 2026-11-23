@@ -19,6 +19,7 @@ services:
     environment:
       - TZ=${TZ}
       - ZAC_PASSWORD=${ZITI_ZAC_PASSWORD}
+      - ZAC_UPSTREAM_SECRET=${ZITI_CONSOLE_UPSTREAM_SECRET}
       - ZAC_LISTEN=127.0.0.1:8446
     volumes:
       - /opt/ziti-controller/data/pki/root/certs/root.cert:/ca/root.cert:ro

@@ -249,6 +249,35 @@ class roles::caddy (
     $env_override = ''
   }
 
+  # Shared secrets Caddy sends to upstreams that check where a request came
+  # from: catalog entries with `caddy_upstream_secret: <eyaml key>` get
+  # header X-Upstream-Secret from {env.UPSTREAM_SECRET_<NAME>}
+  # (service_snippet.caddy.epp). In an env file readable by Caddy only,
+  # not in the world-readable snippets. A missing key renders empty, and
+  # the upstream then refuses everything (fails closed).
+  $upstream_secret_services = $caddy_services.filter |$svc| { 'caddy_upstream_secret' in $svc }
+  if $upstream_secret_services.empty {
+    $secrets_override = ''
+  } else {
+    $upstream_secrets_env = $upstream_secret_services.map |$svc| {
+      $var = "UPSTREAM_SECRET_${upcase(regsubst($svc['name'], '-', '_', 'G'))}"
+      $value = lookup($svc['caddy_upstream_secret'], { 'default_value' => '' })
+      "${var}=${value}\n"
+    }.join('')
+    file { '/etc/caddy/upstream-secrets.env':
+      ensure    => file,
+      owner     => 'root',
+      group     => 'caddy',
+      mode      => '0640',
+      content   => Sensitive($upstream_secrets_env),
+      show_diff => false,
+      require   => Exec['caddy-dirs'],
+      before    => File['/etc/systemd/system/caddy.service.d/override.conf'],
+      notify    => Exec['caddy-restart-on-override'],
+    }
+    $secrets_override = "EnvironmentFile=/etc/caddy/upstream-secrets.env\n"
+  }
+
   file { '/etc/systemd/system/caddy.service.d':
     ensure  => directory,
     mode    => '0755',
@@ -279,7 +308,7 @@ class roles::caddy (
       # The upstream unit enables ProtectSystem=full. Keep Caddy's log directory
       # explicitly writable so timberjack can rename files during log rotation.
       ReadWritePaths=/var/log/caddy
-      ${env_override}${exec_override}
+      ${env_override}${secrets_override}${exec_override}
       | OVERRIDE
     require => File['/etc/systemd/system/caddy.service.d'],
     notify  => Exec['caddy-restart-on-override'],

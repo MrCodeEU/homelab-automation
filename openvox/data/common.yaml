@@ -527,6 +527,8 @@ services_catalog:
     host: mljr
     build_from_source: true
     caddy_auth: authelia
+    # The proxy accepts only requests carrying this (roles::caddy)
+    caddy_upstream_secret: vault_ziti_console_upstream_secret
     description: "Ziti web console (ZAC), read-only"
     icon: "mdi:console-network"
 

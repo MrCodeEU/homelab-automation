@@ -282,6 +282,26 @@ describe 'roles::caddy' do
     it { is_expected.to compile.and_raise_error(%r{tailnet-only \(host nuc\) has no transport.*no Tailscale fallback}) }
   end
 
+  context 'upstream secrets (caddy_upstream_secret)' do
+    it 'keeps them in a root:caddy 0640 env file and sends them from the vhost' do
+      is_expected.to contain_file('/etc/caddy/upstream-secrets.env').with(
+        owner: 'root',
+        group: 'caddy',
+        mode: '0640',
+        show_diff: false,
+        notify: 'Exec[caddy-restart-on-override]',
+      )
+      env = catalogue.resource('file', '/etc/caddy/upstream-secrets.env')[:content]
+      env = env.unwrap if env.respond_to?(:unwrap)
+      expect(env).to match(%r{^UPSTREAM_SECRET_SECRET_UPSTREAM=})
+      is_expected.to contain_file('/etc/systemd/system/caddy.service.d/override.conf')
+        .with_content(%r{^EnvironmentFile=/etc/caddy/upstream-secrets\.env$})
+      snippet = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/secret-upstream.caddy')[:content]
+      expect(snippet).to include("reverse_proxy localhost:8446 {\n        header_up X-Upstream-Secret {env.UPSTREAM_SECRET_SECRET_UPSTREAM}\n    }")
+      expect(snippet).not_to match(%r{X-Upstream-Secret [^\{]})
+    end
+  end
+
   context 'AppSec' do
     let(:sha) { 'ebd5a88596a13c4aa6148e679fa08e1814789131e0349a53631219884b0431c9' }
     let(:custom) { { 'tag' => 'caddy-v2.11.7-crowdsec-v0.14.1-b38ae651', 'sha256' => sha } }
