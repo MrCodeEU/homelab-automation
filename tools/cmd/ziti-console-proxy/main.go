@@ -65,7 +65,7 @@ var summaryLists = map[string]string{
 	"identityTypes":             mgmt + "/identity-types",
 	"postureCheckTypes":         mgmt + "/posture-check-types",
 	"postureChecks":             mgmt + "/posture-checks",
-	"routers":                   "/fabric/v1/routers",
+	"routers":                   mgmt + "/routers",
 	"routers.edge":              mgmt + "/edge-routers",
 	"serviceEdgeRouterPolicies": mgmt + "/service-edge-router-policies",
 	"servicePolicies":           mgmt + "/service-policies",
@@ -145,7 +145,21 @@ func (p *proxy) login(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, resp.Body)
 }
 
-var errSession = errors.New("session not valid")
+// valid reports whether the browser's session is (still) a session.
+func (p *proxy) valid(r *http.Request) (bool, error) {
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet,
+		p.upstream.JoinPath(mgmt, "current-api-session").String(), nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("zt-session", r.Header.Get("zt-session"))
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return false, err
+	}
+	resp.Body.Close()
+	return resp.StatusCode == http.StatusOK, nil
+}
 
 // count reads one list endpoint's total with the browser's session.
 func (p *proxy) count(r *http.Request, path string) (int, error) {
@@ -156,17 +170,11 @@ func (p *proxy) count(r *http.Request, path string) (int, error) {
 		return 0, err
 	}
 	req.Header.Set("zt-session", r.Header.Get("zt-session"))
-	if a := r.Header.Get("Authorization"); a != "" {
-		req.Header.Set("Authorization", a)
-	}
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return 0, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusUnauthorized {
-		return 0, errSession
-	}
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("%s: %s", path, resp.Status)
 	}
@@ -183,12 +191,25 @@ func (p *proxy) count(r *http.Request, path string) (int, error) {
 	return page.Meta.Pagination.TotalCount, nil
 }
 
+// summary answers ZAC's dashboard counters. An invalid session gets the
+// controller's 401 (ZAC then asks for a login); a list the identity may
+// not read (401/403 with a valid session) is left out.
 func (p *proxy) summary(w http.ResponseWriter, r *http.Request) {
+	ok, err := p.valid(r)
+	if err != nil {
+		http.Error(w, "controller unreachable", http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"code":"UNAUTHORIZED","message":"The request could not be completed. The session is not authorized or the credentials are invalid"},"meta":{}}`))
+		return
+	}
 	var (
-		mu      sync.Mutex
-		wg      sync.WaitGroup
-		data    = map[string]int{}
-		expired bool
+		mu   sync.Mutex
+		wg   sync.WaitGroup
+		data = map[string]int{}
 	)
 	for key, path := range summaryLists {
 		wg.Add(1)
@@ -197,23 +218,14 @@ func (p *proxy) summary(w http.ResponseWriter, r *http.Request) {
 			n, err := p.count(r, path)
 			mu.Lock()
 			defer mu.Unlock()
-			switch {
-			case errors.Is(err, errSession):
-				expired = true
-			case err != nil:
+			if err != nil {
 				slog.Warn("summary", "key", key, "err", err)
-			default:
-				data[key] = n
+				return
 			}
+			data[key] = n
 		}()
 	}
 	wg.Wait()
-	w.Header().Set("Content-Type", "application/json")
-	if expired {
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"error":{"code":"UNAUTHORIZED","message":"The request could not be completed. The session is not authorized or the credentials are invalid"},"meta":{}}`))
-		return
-	}
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": data, "meta": map[string]any{}})
 }
 
