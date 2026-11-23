@@ -35,7 +35,8 @@ func (f *fakeController) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":{"code":"UNAUTHORIZED"}}`, http.StatusUnauthorized)
 		return
 	}
-	if r.URL.Path == mgmt+"/summary" {
+	if r.URL.Path == mgmt+"/summary" || r.URL.Path == mgmt+"/enrollments" {
+		// admin only, also with a valid session
 		http.Error(w, "admin only", http.StatusUnauthorized)
 		return
 	}
@@ -126,8 +127,11 @@ func TestSummary(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &s); err != nil {
 		t.Fatal(err)
 	}
-	if len(s.Data) != len(summaryLists) || s.Data["identities"] != 3 || s.Data["routers.edge"] != 3 {
+	if len(s.Data) != len(summaryLists)-1 || s.Data["identities"] != 3 || s.Data["routers.edge"] != 3 {
 		t.Errorf("summary data: %v", s.Data)
+	}
+	if _, ok := s.Data["enrollments"]; ok {
+		t.Error("a list the identity may not read must be left out, not fail the summary")
 	}
 	if code, _ := do(t, "GET", px.URL+mgmt+"/summary", map[string]string{"zt-session": "bad"}, ""); code != http.StatusUnauthorized {
 		t.Errorf("summary with a bad session: got %d, want 401", code)

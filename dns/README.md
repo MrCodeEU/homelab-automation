@@ -21,7 +21,8 @@ cd dns && DESEC_TOKEN=... dnscontrol preview
 `A("*")` and `AAAA("*")` point every otherwise-unlisted `mljr.eu` name at the
 ingress (mljr). Adding a service to `services_catalog` is enough: Caddy issues
 the certificate on first request. Edit this file only for names the wildcard
-does not cover.
+does not cover. That includes a name with records below it (`ziti` has
+`ctrl.ziti`): the wildcard never answers such an empty non-terminal.
 
 ## Not managed here
 

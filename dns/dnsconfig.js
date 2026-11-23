@@ -33,6 +33,11 @@ D("mljr.eu", REG_NONE, DnsProvider(DSP_DESEC),
   AAAA("ctrl.ziti", VPS_V6),
   A("router.ziti", VPS_V4),
   AAAA("router.ziti", VPS_V6),
+  // ziti.mljr.eu itself (the read-only web console, services/ziti-console):
+  // the names above make it an empty non-terminal, which the wildcard does
+  // not cover, so it needs its own records.
+  A("ziti", VPS_V4),
+  AAAA("ziti", VPS_V6),
 
   // int.mljr.eu is identity-only (certnames, Ziti intercepts) and must not
   // resolve publicly. Without a node of its own, the "*" wildcard above
