@@ -518,7 +518,7 @@ services_catalog:
     icon: "mdi:router-network"
 
   # Ziti's web console (ZAC), read-only: http://ziti-console.ziti for
-  # admins over Ziti, login zac / vault_ziti_zac_password (identity
+  # admins over Ziti, login zac-readonly / vault_ziti_zac_password (identity
   # zac-readonly, admin_readonly), writes blocked in the proxy as well.
   - name: ziti-console
     enabled: true

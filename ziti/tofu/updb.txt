@@ -3,4 +3,6 @@
 # them after every apply/auto run and resets the password when a login
 # with the expected one fails; check reports drift. One per line:
 #   <identity name> <username> <variable in /opt/ziti-controller/.env>
-zac-readonly zac ZITI_ZAC_PASSWORD
+# Usernames need 4+ characters: the controller creates shorter ones but
+# refuses them at login (COULD_NOT_VALIDATE).
+zac-readonly zac-readonly ZITI_ZAC_PASSWORD
