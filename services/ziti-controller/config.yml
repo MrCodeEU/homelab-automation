@@ -9,7 +9,7 @@
 #
 # The admin listener also serves the bundled web console (ZAC, files in the
 # image's /ziti-console) at /zac/. People reach it read-only through
-# services/ziti-console (http://ziti-console.ziti, identity zac-readonly).
+# services/ziti-console (https://ziti.mljr.eu, Authelia, zac-readonly).
 #
 # Trust domain (spiffe://ziti.mljr.eu) comes from the intermediate CA's URI
 # SAN; it must never change, enrolled identities depend on it.

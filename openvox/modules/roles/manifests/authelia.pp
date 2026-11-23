@@ -201,6 +201,15 @@ class roles::authelia (
         - domain: "paperless.${domain}"
           policy: two_factor
 
+        # Ziti's web console (read-only, services/ziti-console): admins
+        # with a second factor, nobody else (without the deny, everyone
+        # else would fall through to the one_factor wildcard below).
+        - domain: "ziti.${domain}"
+          policy: two_factor
+          subject: "group:admins"
+        - domain: "ziti.${domain}"
+          policy: deny
+
         # Cockpit is root-level host administration, also reachable from
         # the public internet, so it gets a second factor too.
         - domain:

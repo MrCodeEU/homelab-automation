@@ -1,32 +1,27 @@
-# Read-only front for Ziti's web console (ZAC), see Caddyfile.
-# http://ziti-console.ziti (admins over Ziti), login: zac-readonly, password:
-# scripts/eyaml-get.sh mljr vault_ziti_zac_password.
+# Ziti's web console (ZAC), read-only, at https://ziti.mljr.eu: mljr's
+# Caddy with Authelia (two factors, group admins) in front of
+# tools/cmd/ziti-console-proxy on 127.0.0.1:8446, which proxies to the
+# controller's admin listener (ZAC at /zac/ plus the APIs). The proxy
+# refuses every write, answers the dashboard's admin-only summary itself
+# and logs in as zac-readonly (admin_readonly) for anyone Authelia let
+# through: after the Authelia login, click LOG IN with empty fields.
 services:
   ziti-console:
-    image: docker.io/library/caddy:2.11.9@sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b
+    build: .
+    image: ziti-console-proxy:local
     container_name: ziti-console
     restart: unless-stopped
     # The admin listener and this proxy are on mljr's loopback.
     network_mode: host
-    # The controller's uid: the root CA it reads is 2171:2171 0600.
-    user: "2171:2171"
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     environment:
       - TZ=${TZ}
-      - XDG_DATA_HOME=/tmp
-      - XDG_CONFIG_HOME=/tmp
-    tmpfs:
-      - /tmp
+      - ZAC_PASSWORD=${ZITI_ZAC_PASSWORD}
+      - ZAC_LISTEN=127.0.0.1:8446
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - /opt/ziti-controller/data/pki/root/certs/root.cert:/ca/root.cert:ro
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8446/zac/"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
     logging:
       driver: json-file
       options:
