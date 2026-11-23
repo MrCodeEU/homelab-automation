@@ -1,5 +1,5 @@
 # Read-only front for Ziti's web console (ZAC), see Caddyfile.
-# http://ziti-console.ziti (admins over Ziti), login: zac, password:
+# http://ziti-console.ziti (admins over Ziti), login: zac-readonly, password:
 # scripts/eyaml-get.sh mljr vault_ziti_zac_password.
 services:
   ziti-console:
