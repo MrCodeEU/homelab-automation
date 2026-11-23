@@ -517,15 +517,17 @@ services_catalog:
     description: "OpenZiti proxy for machine-to-machine traffic"
     icon: "mdi:router-network"
 
-  # Ziti's web console (ZAC), read-only: http://ziti-console.ziti for
-  # admins over Ziti, login zac-readonly / vault_ziti_zac_password (identity
-  # zac-readonly, admin_readonly), writes blocked in the proxy as well.
+  # Ziti's web console (ZAC), read-only, behind Authelia (two factors,
+  # group admins; roles::authelia). The proxy logs in as zac-readonly
+  # (admin_readonly) itself and refuses every write (services/ziti-console).
   - name: ziti-console
     enabled: true
+    domain: "ziti.mljr.eu"
     port: 8446
     host: mljr
-    ziti: true
-    description: "Ziti web console (ZAC), read-only. Ziti only, no Caddy route."
+    build_from_source: true
+    caddy_auth: authelia
+    description: "Ziti web console (ZAC), read-only"
     icon: "mdi:console-network"
 
   # State of the Ziti overlay for Grafana's "Ziti mesh" dashboard, read-only

@@ -1,5 +1,6 @@
-# Login for Ziti's web console (ZAC, services/ziti-console on mljr):
-# username/password, permission admin_readonly. Neither is something the
+# Login for Ziti's web console (ZAC, services/ziti-console on mljr; the
+# proxy there logs in with it after Authelia): username/password,
+# permission admin_readonly. Neither is something the
 # provider knows: scripts/ziti-tofu.sh sets the permission from
 # permissions.txt and the password authenticator from updb.txt (password
 # vault_ziti_zac_password, in /opt/ziti-controller/.env). ignore_changes =

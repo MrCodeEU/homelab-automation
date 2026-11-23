@@ -316,6 +316,9 @@ class roles::services (
         'tofu_key'       => lookup('vault_ziti_tofu_key', { 'default_value' => '' }),
         'zac_password'   => lookup('vault_ziti_zac_password', { 'default_value' => '' }),
       },
+      'ziti-console' => {
+        'zac_password' => lookup('vault_ziti_zac_password', { 'default_value' => '' }),
+      },
     },
     'ugreen' => {
       'oxicloud' => {
@@ -341,6 +344,7 @@ class roles::services (
     'paperless-mail-export' => ['paperless-mail-export', 'run.sh'],
     'speedtest-metrics' => ['speedtest-metrics'],
     'ziti-mesh-exporter' => ['ziti-mesh-exporter'],
+    'ziti-console'      => ['ziti-console-proxy'],
   }
 
   # Explicit, one-shot major-version migrations. The persistent marker is
