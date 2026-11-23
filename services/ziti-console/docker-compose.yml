@@ -8,7 +8,8 @@ services:
     restart: unless-stopped
     # The admin listener and this proxy are on mljr's loopback.
     network_mode: host
-    user: "65534:65534"
+    # The controller's uid: the root CA it reads is 2171:2171 0600.
+    user: "2171:2171"
     read_only: true
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
