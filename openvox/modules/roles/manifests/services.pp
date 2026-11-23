@@ -339,6 +339,7 @@ class roles::services (
     'csp-reports'       => ['csp-reports'],
     'paperless-mail-export' => ['paperless-mail-export', 'run.sh'],
     'speedtest-metrics' => ['speedtest-metrics'],
+    'ziti-mesh-exporter' => ['ziti-mesh-exporter'],
   }
 
   # Explicit, one-shot major-version migrations. The persistent marker is
