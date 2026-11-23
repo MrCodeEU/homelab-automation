@@ -1,0 +1,30 @@
+# State of the Ziti overlay as Prometheus metrics (tools/cmd/ziti-mesh-exporter):
+# routers, links, identities, terminators and circuits, read from the
+# controller's admin listener on 127.0.0.1:8440 as identity mesh-exporter
+# (ziti/tofu/mesh-exporter.tf, permission admin_readonly: it can read
+# everything and change nothing). mljr's Alloy scrapes 127.0.0.1:9479;
+# Grafana dashboard "Ziti mesh" (services/grafana/dashboards/homelab-ziti-mesh.json).
+#
+# Enrolment: scripts/ziti-enroll-proxy.sh mesh-exporter mljr ziti-mesh-exporter
+# writes ziti/mesh-exporter.json (uid 2171, 0600). roles::ziti_renew renews
+# it; the exporter reloads the file when it changes.
+services:
+  ziti-mesh-exporter:
+    build: .
+    image: ziti-mesh-exporter:local
+    container_name: ziti-mesh-exporter
+    restart: unless-stopped
+    # The admin listener and the metrics port are on mljr's loopback.
+    network_mode: host
+    environment:
+      - TZ=${TZ}
+      - MESH_IDENTITY=/identity/mesh-exporter.json
+      - MESH_API=https://127.0.0.1:8440
+      - MESH_LISTEN=127.0.0.1:9479
+    volumes:
+      - ./ziti:/identity
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

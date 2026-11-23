@@ -517,6 +517,16 @@ services_catalog:
     description: "OpenZiti proxy for machine-to-machine traffic"
     icon: "mdi:router-network"
 
+  # State of the Ziti overlay for Grafana's "Ziti mesh" dashboard, read-only
+  # from the controller next to it (services/ziti-mesh-exporter).
+  - name: ziti-mesh-exporter
+    enabled: true
+    port: 0
+    host: mljr
+    build_from_source: true
+    description: "Ziti overlay state (routers, links, circuits) for Grafana"
+    icon: "mdi:graph-outline"
+
   # Same for ugreen's Alloy, as identity m2m-ugreen.
   - name: ziti-proxy-ugreen
     enabled: true

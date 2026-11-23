@@ -89,6 +89,20 @@ prometheus.scrape "ziti" {
   forward_to = [prometheus.relabel.ziti.receiver]
 }
 
+// Overlay state from tools/cmd/ziti-mesh-exporter (services/ziti-mesh-exporter):
+// routers, links, identities, terminators, circuits; Grafana "Ziti mesh".
+prometheus.scrape "ziti_mesh" {
+  targets = [
+    {
+      "__address__" = "127.0.0.1:9479",
+      "job"         = "ziti-mesh",
+      "instance"    = "<%= $hostname %>",
+    },
+  ]
+  scrape_interval = "30s"
+  forward_to      = [prometheus.relabel.identity.receiver]
+}
+
 // Ziti's *_bucket series are quantiles labelled le, not histogram buckets,
 // and the controller exposes some of them twice under the same labels
 // (Alloy logs "different value but same timestamp" every scrape). Drop them;
