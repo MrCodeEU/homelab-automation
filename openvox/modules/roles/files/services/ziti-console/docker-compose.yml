@@ -1,0 +1,33 @@
+# Read-only front for Ziti's web console (ZAC), see Caddyfile.
+# http://ziti-console.ziti (admins over Ziti), login: zac, password:
+# scripts/eyaml-get.sh mljr vault_ziti_zac_password.
+services:
+  ziti-console:
+    image: docker.io/library/caddy:2.11.9@sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b
+    container_name: ziti-console
+    restart: unless-stopped
+    # The admin listener and this proxy are on mljr's loopback.
+    network_mode: host
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      - TZ=${TZ}
+      - XDG_DATA_HOME=/tmp
+      - XDG_CONFIG_HOME=/tmp
+    tmpfs:
+      - /tmp
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/ziti-controller/data/pki/root/certs/root.cert:/ca/root.cert:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8446/zac/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

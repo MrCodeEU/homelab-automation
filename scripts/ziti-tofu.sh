@@ -13,9 +13,10 @@
 # files that are no longer in the repo are removed from $WORK, so a
 # deleted resource is deleted on the controller too.
 #
-# Identity permissions (admin_readonly, ...) are not in the provider:
-# ziti/tofu/permissions.txt lists them, and apply/auto set them after tofu
-# (also when tofu had nothing to change); check reports them as drift.
+# Identity permissions (admin_readonly, ...) and password logins are not in
+# the provider: ziti/tofu/permissions.txt and updb.txt list them, and
+# apply/auto set them after tofu with ziti/tofu/extras.sh (also when tofu
+# had nothing to change); check reports them as drift.
 #
 # Usage: scripts/ziti-tofu.sh plan            show what apply would change
 #        scripts/ziti-tofu.sh apply [--yes]   plan, confirm, apply that plan
@@ -61,33 +62,13 @@ sync_config() {
   cp_ctrl "${files[@]}" "$WORK/"
   cp_ctrl "$REPO/openvox/data/common.yaml" "$WORK/openvox-data/"
   cp_ctrl "$REPO"/openvox/data/nodes/*.int.mljr.eu.yaml "$WORK/openvox-data/nodes/"
-  cp_ctrl "$SRC/permissions.txt" "$WORK/"
+  cp_ctrl "$SRC/permissions.txt" "$SRC/updb.txt" "$SRC/extras.sh" "$WORK/"
 }
 
-# permissions [--check]: make every identity in permissions.txt carry
-# exactly the listed permissions (sorted compare, update only on a
-# difference). --check only reports; exit 2 on drift. An identity that does
-# not exist yet is skipped: tofu creates it in the same run, the next run
-# sets it.
+# permissions [--check]: ziti/tofu/extras.sh on the controller (identity
+# permissions and password logins the provider cannot manage).
 permissions() {
-  local mode=set
-  [ "${1:-}" = --check ] && mode=check
-  on_ctrl "set -euo pipefail; set -a; . /opt/ziti-controller/.env; set +a
-    z() { docker exec ziti-controller ziti \"\$@\"; }
-    z edge login localhost:8440 -u admin -p \"\$ZITI_ADMIN_PASSWORD\" -y >/dev/null
-    drift=0
-    while read -r name want; do
-      case \$name in ''|'#'*) continue ;; esac
-      cur=\$(z edge list identities \"name=\\\"\$name\\\"\" -j | jq -r '.data[0] // empty | (.permissions // []) | sort | join(\",\")')
-      have=\$(z edge list identities \"name=\\\"\$name\\\"\" -j | jq -r '.data | length')
-      [ \"\$have\" = 1 ] || { echo \"permissions: \$name does not exist yet, skipped\"; continue; }
-      want=\$(tr ',' '\\n' <<<\"\$want\" | sort | paste -sd, -)
-      [ \"\$cur\" = \"\$want\" ] && continue
-      if [ $mode = check ]; then echo \"permissions drift: \$name has '\$cur', wants '\$want'\"; drift=1; continue; fi
-      z edge update identity \"\$name\" --permissions \"\$want\" >/dev/null
-      echo \"permissions: \$name set to \$want\"
-    done < $WORK/permissions.txt
-    [ \$drift = 0 ] || exit 2"
+  on_ctrl "bash $WORK/extras.sh ${1:-}"
 }
 
 # tofu <args>: one OpenTofu run in $WORK. Secrets go from .env into the

@@ -7,6 +7,10 @@
 # cert). Password: `scripts/eyaml-get.sh mljr vault_ziti_admin_password`.
 # The CLI logs in via OIDC, so the admin listener needs edge-oidc too.
 #
+# The admin listener also serves the bundled web console (ZAC, files in the
+# image's /ziti-console) at /zac/. People reach it read-only through
+# services/ziti-console (http://ziti-console.ziti, identity zac-readonly).
+#
 # Trust domain (spiffe://ziti.mljr.eu) comes from the intermediate CA's URI
 # SAN; it must never change, enrolled identities depend on it.
 v: 3
@@ -74,6 +78,12 @@ web:
       # scrapeCert, which is why it stays on this loopback listener; mljr's
       # Alloy scrapes it (C11).
       - binding: metrics
+      # ZAC (the web console) at /zac/, see services/ziti-console.
+      - binding: spa
+        options:
+          path: zac
+          location: /ziti-console
+          indexFile: index.html
 
 # Event stream for alerts (C11): mljr's Alloy tails it into Loki (job
 # ziti-events). Rotated by the controller itself.

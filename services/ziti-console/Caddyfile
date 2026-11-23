@@ -1,0 +1,39 @@
+# Read-only front for the Ziti web console (ZAC) on mljr. ZAC is served by
+# the controller's admin listener (https://127.0.0.1:8440/zac/,
+# services/ziti-controller/config.yml) and talks to the management and
+# fabric APIs on the same origin, so everything is proxied there.
+#
+# The admin listener is loopback only; this listens on 127.0.0.1:8446,
+# which mljr's router hosts as the Ziti service ziti-console
+# (http://ziti-console.ziti for admins, ziti/tofu/catalog.tf). Plain HTTP
+# is fine on that path: Ziti encrypts it end to end.
+#
+# Read-only twice: the login for people is zac-readonly (admin_readonly,
+# ziti/tofu/permissions.txt), and this proxy lets only reads through, plus
+# login and logout. Even the admin's password cannot change anything here.
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+http://:8446 {
+	bind 127.0.0.1
+
+	@write {
+		not method GET HEAD OPTIONS
+		not path /edge/management/v1/authenticate /edge/management/v1/current-api-session
+	}
+	respond @write "Read-only console: changes go through the repo (ziti/tofu)." 403
+
+	redir / /zac/ 302
+
+	reverse_proxy https://127.0.0.1:8440 {
+		transport http {
+			# The admin listener's certificate names localhost and is
+			# signed by the overlay root CA.
+			tls_server_name localhost
+			tls_trust_pool file /ca/root.cert
+		}
+	}
+}

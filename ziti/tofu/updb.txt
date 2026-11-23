@@ -1,0 +1,6 @@
+# Username/password authenticators (identity can log in with a password)
+# the netfoundry/ziti provider cannot manage: scripts/ziti-tofu.sh creates
+# them after every apply/auto run and resets the password when a login
+# with the expected one fails; check reports drift. One per line:
+#   <identity name> <username> <variable in /opt/ziti-controller/.env>
+zac-readonly zac ZITI_ZAC_PASSWORD

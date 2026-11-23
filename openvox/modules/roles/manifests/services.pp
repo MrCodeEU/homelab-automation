@@ -314,6 +314,7 @@ class roles::services (
       'ziti-controller' => {
         'admin_password' => lookup('vault_ziti_admin_password', { 'default_value' => '' }),
         'tofu_key'       => lookup('vault_ziti_tofu_key', { 'default_value' => '' }),
+        'zac_password'   => lookup('vault_ziti_zac_password', { 'default_value' => '' }),
       },
     },
     'ugreen' => {
