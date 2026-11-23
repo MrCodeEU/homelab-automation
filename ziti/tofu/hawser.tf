@@ -34,8 +34,9 @@ resource "ziti_host_v1_config" "hawser" {
 resource "ziti_service" "hawser" {
   for_each        = toset(local.hawser_hosts)
   name            = "hawser-${each.key}"
-  configs         = sort([ziti_intercept_v1_config.hawser[each.key].id, ziti_host_v1_config.hawser[each.key].id])
-  role_attributes = []
+  # No role_attributes (not even []: the provider stores null and would plan
+  # a change on every run), so no admin-services: only m2m.tf's policy dials.
+  configs = sort([ziti_intercept_v1_config.hawser[each.key].id, ziti_host_v1_config.hawser[each.key].id])
 }
 
 resource "ziti_service_policy" "hawser_bind" {

@@ -13,6 +13,10 @@
 # files that are no longer in the repo are removed from $WORK, so a
 # deleted resource is deleted on the controller too.
 #
+# Identity permissions (admin_readonly, ...) are not in the provider:
+# ziti/tofu/permissions.txt lists them, and apply/auto set them after tofu
+# (also when tofu had nothing to change); check reports them as drift.
+#
 # Usage: scripts/ziti-tofu.sh plan            show what apply would change
 #        scripts/ziti-tofu.sh apply [--yes]   plan, confirm, apply that plan
 #        scripts/ziti-tofu.sh lock            refresh ziti/tofu/.terraform.lock.hcl
@@ -57,6 +61,33 @@ sync_config() {
   cp_ctrl "${files[@]}" "$WORK/"
   cp_ctrl "$REPO/openvox/data/common.yaml" "$WORK/openvox-data/"
   cp_ctrl "$REPO"/openvox/data/nodes/*.int.mljr.eu.yaml "$WORK/openvox-data/nodes/"
+  cp_ctrl "$SRC/permissions.txt" "$WORK/"
+}
+
+# permissions [--check]: make every identity in permissions.txt carry
+# exactly the listed permissions (sorted compare, update only on a
+# difference). --check only reports; exit 2 on drift. An identity that does
+# not exist yet is skipped: tofu creates it in the same run, the next run
+# sets it.
+permissions() {
+  local mode=set
+  [ "${1:-}" = --check ] && mode=check
+  on_ctrl "set -euo pipefail; set -a; . /opt/ziti-controller/.env; set +a
+    z() { docker exec ziti-controller ziti \"\$@\"; }
+    z edge login localhost:8440 -u admin -p \"\$ZITI_ADMIN_PASSWORD\" -y >/dev/null
+    drift=0
+    while read -r name want; do
+      case \$name in ''|'#'*) continue ;; esac
+      cur=\$(z edge list identities \"name=\\\"\$name\\\"\" -j | jq -r '.data[0] // empty | (.permissions // []) | sort | join(\",\")')
+      have=\$(z edge list identities \"name=\\\"\$name\\\"\" -j | jq -r '.data | length')
+      [ \"\$have\" = 1 ] || { echo \"permissions: \$name does not exist yet, skipped\"; continue; }
+      want=\$(tr ',' '\\n' <<<\"\$want\" | sort | paste -sd, -)
+      [ \"\$cur\" = \"\$want\" ] && continue
+      if [ $mode = check ]; then echo \"permissions drift: \$name has '\$cur', wants '\$want'\"; drift=1; continue; fi
+      z edge update identity \"\$name\" --permissions \"\$want\" >/dev/null
+      echo \"permissions: \$name set to \$want\"
+    done < $WORK/permissions.txt
+    [ \$drift = 0 ] || exit 2"
 }
 
 # tofu <args>: one OpenTofu run in $WORK. Secrets go from .env into the
@@ -89,7 +120,7 @@ case $cmd in
     rc=0
     tofu plan -input=false -detailed-exitcode -out=tfplan || rc=$?
     case $rc in
-      0) echo "No changes."; on_ctrl "rm -f $WORK/tfplan"; exit 0 ;;
+      0) echo "No changes."; on_ctrl "rm -f $WORK/tfplan"; permissions; exit 0 ;;
       2) ;;
       *) die "plan failed" ;;
     esac
@@ -99,6 +130,7 @@ case $cmd in
     fi
     tofu apply -input=false tfplan
     on_ctrl "rm -f $WORK/tfplan"
+    permissions
     ;;
   auto)
     # Unattended: a merge to main is the approval for additions and
@@ -110,7 +142,7 @@ case $cmd in
     rc=0
     tofu plan -input=false -no-color -detailed-exitcode -out=tfplan || rc=$?
     case $rc in
-      0) echo "No changes."; on_ctrl "rm -f $WORK/tfplan"; exit 0 ;;
+      0) echo "No changes."; on_ctrl "rm -f $WORK/tfplan"; permissions; exit 0 ;;
       2) ;;
       *) on_ctrl "rm -f $WORK/tfplan"; die "plan failed" ;;
     esac
@@ -125,11 +157,19 @@ case $cmd in
     fi
     tofu apply -input=false -no-color tfplan
     on_ctrl "rm -f $WORK/tfplan"
+    permissions
     ;;
   check)
     sync_config
     tofu init -input=false -lockfile=readonly >/dev/null
-    tofu plan -input=false -no-color -detailed-exitcode
+    rc=0
+    tofu plan -input=false -no-color -detailed-exitcode || rc=$?
+    [ "$rc" = 1 ] && exit 1
+    prc=0
+    permissions --check || prc=$?
+    [ "$prc" = 0 ] || [ "$prc" = 2 ] || exit 1
+    [ "$rc" = 2 ] || [ "$prc" = 2 ] && exit 2
+    exit 0
     ;;
   lock)
     [ "$LOCAL" = 1 ] && die "lock runs from a checkout, not on the controller"

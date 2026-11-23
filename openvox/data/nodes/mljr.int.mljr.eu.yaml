@@ -116,6 +116,8 @@ roles::ziti_renew::identities:
     restart: 'docker restart ziti-proxy'
   - file: '/opt/homepage/ziti/homepage-mljr.json'
     restart: 'docker restart homepage-ziti-proxy'
+  # The exporter reloads its identity file when it changes.
+  - file: '/opt/ziti-mesh-exporter/ziti/mesh-exporter.json'
   - file: '/opt/ziti-router/data/mljr.cert'
   - file: '/opt/ziti-controller/data/pki/intermediate/certs/server.cert'
   - file: '/opt/ziti-controller/data/pki/intermediate/certs/intermediate.cert'

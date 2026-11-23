@@ -184,6 +184,20 @@ func (id *Identity) client(key crypto.Signer, certPEM []byte) (*http.Client, err
 	}, nil
 }
 
+// HTTPClient is a client that authenticates with the identity's own key and
+// certificate and verifies the server against id.ca. serverName overrides
+// the name checked in the server's certificate (e.g. "localhost" when
+// dialing the controller's admin listener on 127.0.0.1); empty keeps the
+// dialed host.
+func (id *Identity) HTTPClient(serverName string) (*http.Client, error) {
+	c, err := id.client(id.Key, id.certPEM)
+	if err != nil {
+		return nil, err
+	}
+	c.Transport.(*http.Transport).TLSClientConfig.ServerName = serverName
+	return c, nil
+}
+
 type session struct {
 	c     *http.Client
 	api   string

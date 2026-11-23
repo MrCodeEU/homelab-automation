@@ -1,0 +1,7 @@
+# Identity permissions (OpenZiti 2.0, beta) the netfoundry/ziti provider
+# cannot set: scripts/ziti-tofu.sh applies them after every apply/auto run
+# and reports drift in `check`. One identity per line:
+#   <identity name> <permission>[,<permission>...]
+# The identity itself is a tofu resource with ignore_changes = all (the
+# provider's PUT would drop the permissions).
+mesh-exporter admin_readonly

@@ -33,6 +33,12 @@ Provisioned datasources use stable UIDs:
   upload, latency, jitter, failed runs) and iperf3 between nuc and
   mljr/ugreen over Ziti every 2h, written by services/speedtest-metrics
   straight into VictoriaMetrics.
+- `homelab-ziti-mesh.json`: the Ziti overlay as a map (Node Graph: routers,
+  client identities, services, router links with latency, open circuits),
+  plus routers/links/identities online, offline identities, link latency,
+  circuits by service, faults and the controller's event log. From
+  services/ziti-mesh-exporter on mljr (read-only identity mesh-exporter).
+  The View variable hides services or clients.
 - `homelab-healthreport.json`: the health report's findings (crit, warn,
   notices with "open since"), failing collectors and history, pushed by
   services/healthreport on every run: the daily report at 06:15 and
