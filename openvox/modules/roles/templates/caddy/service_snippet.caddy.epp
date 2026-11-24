@@ -17,6 +17,8 @@
   $is_domain_string = $domain =~ String
   $target_port = $service['port']
   $auth_type = pick_default($service['caddy_auth'], '')
+  # Paths left open when caddy_auth is authelia (authelia_auth_protected).
+  $auth_bypass = pick_default($service['caddy_auth_bypass'], [])
   $has_dev_folder = pick_default($service['staging'], false)
   # appsec: 'log' reports matches only, 'block' answers 403. The mode travels in
   # a request header that the AppSec config (services/crowdsec) reads; Caddy
@@ -85,7 +87,12 @@
 <% if $auth_type == 'basicauth' { -%>
     import basicauth_block
 <% } elsif $auth_type == 'authelia' { -%>
+<% if $auth_bypass.empty { -%>
     import authelia_auth
+<% } else { -%>
+    @authelia_protected not path <%= $auth_bypass.join(' ') %>
+    import authelia_auth_protected
+<% } -%>
 <% } -%>
 <%
   $extra_config_raw = pick_default($service['caddy_extra_config'], '')

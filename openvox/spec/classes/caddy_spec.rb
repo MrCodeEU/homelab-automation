@@ -282,6 +282,23 @@ describe 'roles::caddy' do
     it { is_expected.to compile.and_raise_error(%r{tailnet-only \(host nuc\) has no transport.*no Tailscale fallback}) }
   end
 
+  context 'Authelia with open paths (caddy_auth_bypass)' do
+    it 'protects everything except the listed paths' do
+      snippet = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/open-paths.caddy')[:content]
+      expect(snippet).to include("    @authelia_protected not path /status/* /api/push/*\n    import authelia_auth_protected\n")
+      expect(snippet).not_to include("    import authelia_auth\n")
+      shared = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/000-snippets.caddy')[:content]
+      shared = shared.unwrap if shared.respond_to?(:unwrap)
+      expect(shared).to include('forward_auth @authelia_protected http://localhost:9091 {')
+    end
+
+    it 'keeps plain Authelia for services without open paths' do
+      snippet = catalogue.resource('file', '/etc/caddy/conf.d.openvox-staging/secret-upstream.caddy')[:content]
+      expect(snippet).to include("    import authelia_auth\n")
+      expect(snippet).not_to include('authelia_protected')
+    end
+  end
+
   context 'upstream secrets (caddy_upstream_secret)' do
     it 'keeps them in a root:caddy 0640 env file and sends them from the vhost' do
       is_expected.to contain_file('/etc/caddy/upstream-secrets.env').with(
