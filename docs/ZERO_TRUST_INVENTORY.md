@@ -117,8 +117,8 @@ app's own login (or OIDC client) is the only gate.
 
 healthreport, crowdsec-nuc, crowdsec-nas, paperless-mail-export,
 dmarc-monitor, diun, nas-alloy, iperf3-nas, ollama,
-immich-kiosk, photon, nextcloud-notify, syncthing-ugreen, oxicloud,
-smartctl-exporter (ugreen, nuc, nas), caddy-poc. Their flows are listed
+immich-kiosk, photon, nextcloud-notify, syncthing-ugreen,
+smartctl-exporter (ugreen, nuc, nas). Their flows are listed
 below.
 
 ### Category 4: external, unauthenticated inbound

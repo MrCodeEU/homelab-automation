@@ -327,8 +327,7 @@ or mismatched files). The temporary directory was removed afterward.
 
 ## ugreen (UGreen NAS, UGOS)
 
-OpenVox-managed subset only: `syncthing-ugreen`, `oxicloud`
-(explicitly an initial test, no backup), `smartctl-exporter`, plus
+OpenVox-managed subset only: `syncthing-ugreen`, `smartctl-exporter`, plus
 `roles::host_facts_endpoint`, `roles::grafana_alloy`, `roles::iperf3`,
 `roles::ugreen_tailscale` (version-check only, UGOS itself isn't
 `dnf`-managed by design), and `roles::backup_remote_target` (the SFTP

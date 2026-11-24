@@ -128,7 +128,7 @@ Next:
 1. Watch the log-only week: `cscli metrics show appsec`, alerts by rule and vhost, healthreport. Any rule that matches real traffic is tuned away with a `pre_eval` rule removal and written down here.
 2. If clean, add more vhosts in log-only. Before Nextcloud, Immich and Mailcow, set `appsec_exclude_paths` (WebDAV, asset upload, ActiveSync/SOGo) and test with real clients.
 3. Switch vhosts to `appsec: block` one by one, starting with the ten hobby vhosts.
-4. Remove the PoC (`caddy-poc` catalog entry, `services/caddy-poc`, bouncer key `caddy_poc`), rename the `homelab/poc` AppSec config.
+4. Remove the PoC: done 2026-11-24 (catalog entry, compose file and Caddyfile.poc, bouncer key `caddy_poc`). `services/caddy-poc` stays as the build source of production Caddy; the `homelab/poc` AppSec config keeps its name.
 
 ## Rollout if go (separate plans and PRs)
 

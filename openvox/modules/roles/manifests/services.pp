@@ -286,14 +286,8 @@ class roles::services (
         'smtp_from'            => lookup('vault_smtp_from', { 'default_value' => "admin@${domain}" }),
         'contact_to'           => lookup('vault_homepage_contact_to', { 'default_value' => '' }),
       },
-      'caddy-poc' => {
-        'bouncer_key' => lookup('vault_crowdsec_caddy_poc_bouncer_key', { 'default_value' => '' }),
-      },
       'crowdsec' => {
         'firewall_bouncer_key'       => lookup('vault_crowdsec_firewall_bouncer_key', { 'default_value' => '' }),
-        # AppSec PoC (docs/APPSEC_POC_PLAN.md): the crowdsec container registers
-        # this bouncer, caddy-poc authenticates with it.
-        'caddy_poc_bouncer_key'      => lookup('vault_crowdsec_caddy_poc_bouncer_key', { 'default_value' => '' }),
         # Production Caddy's AppSec bouncer; roles::caddy reads the same lookup.
         'caddy_bouncer_key'          => lookup('vault_crowdsec_caddy_bouncer_key', { 'default_value' => '' }),
         'web_ui_password'            => lookup('vault_crowdsec_web_ui_password', { 'default_value' => '' }),
@@ -328,9 +322,6 @@ class roles::services (
       },
     },
     'ugreen' => {
-      'oxicloud' => {
-        'postgres_password' => lookup('vault_oxicloud_postgres_password', { 'default_value' => '' }),
-      },
       'syncthing-ugreen' => {
         'nas_syncthing_api_key' => lookup('vault_syncthing_nas_api_key', { 'default_value' => '' }),
       },
