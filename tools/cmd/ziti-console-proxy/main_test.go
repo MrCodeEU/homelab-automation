@@ -49,7 +49,7 @@ func setup(t *testing.T) (*fakeController, *httptest.Server) {
 	up := httptest.NewServer(fake)
 	t.Cleanup(up.Close)
 	u, _ := url.Parse(up.URL)
-	px := httptest.NewServer(newProxy(u, http.DefaultTransport, "zac-readonly", "secret"))
+	px := httptest.NewServer(newProxy(u, http.DefaultTransport, "zac-readonly", "secret", "from-caddy"))
 	t.Cleanup(px.Close)
 	return fake, px
 }
@@ -57,6 +57,9 @@ func setup(t *testing.T) (*fakeController, *httptest.Server) {
 func do(t *testing.T, method, url string, headers map[string]string, body string) (int, string) {
 	t.Helper()
 	req, _ := http.NewRequest(method, url, strings.NewReader(body))
+	if _, set := headers[secretHeader]; !set {
+		req.Header.Set(secretHeader, "from-caddy")
+	}
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
@@ -86,6 +89,25 @@ func TestWritesRefused(t *testing.T) {
 	}
 	if len(fake.writes) != 1 || fake.writes[0] != "DELETE "+mgmt+"/current-api-session" {
 		t.Errorf("only logout may reach the controller, got %v", fake.writes)
+	}
+}
+
+func TestOnlyCaddy(t *testing.T) {
+	fake, px := setup(t)
+	for _, s := range []string{"", "wrong"} {
+		h := map[string]string{secretHeader: s, "Remote-User": "mrcode", "zt-session": "good"}
+		if code, _ := do(t, "POST", px.URL+mgmt+"/authenticate", h, ""); code != http.StatusForbidden {
+			t.Errorf("login with secret %q: got %d, want 403", s, code)
+		}
+		if code, _ := do(t, "GET", px.URL+mgmt+"/identities", h, ""); code != http.StatusForbidden {
+			t.Errorf("read with secret %q: got %d, want 403", s, code)
+		}
+	}
+	if fake.login != nil {
+		t.Error("no login may reach the controller without Caddy's secret")
+	}
+	if code, _ := do(t, "GET", px.URL+"/healthz", map[string]string{secretHeader: ""}, ""); code != 200 {
+		t.Errorf("healthz must work without the secret, got %d", code)
 	}
 }
 

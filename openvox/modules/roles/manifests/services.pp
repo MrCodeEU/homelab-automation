@@ -317,7 +317,8 @@ class roles::services (
         'zac_password'   => lookup('vault_ziti_zac_password', { 'default_value' => '' }),
       },
       'ziti-console' => {
-        'zac_password' => lookup('vault_ziti_zac_password', { 'default_value' => '' }),
+        'zac_password'    => lookup('vault_ziti_zac_password', { 'default_value' => '' }),
+        'upstream_secret' => lookup('vault_ziti_console_upstream_secret', { 'default_value' => '' }),
       },
     },
     'ugreen' => {
