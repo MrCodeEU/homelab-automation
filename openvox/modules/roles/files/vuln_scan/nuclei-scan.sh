@@ -13,6 +13,11 @@
 # scan is not banned; it also means this scan does not exercise CrowdSec's
 # blocking.
 #
+# The rate is kept low (100 requests/s): at 300/s the 2026-11-24 run pushed
+# mljr to load 11, Authelia timed out and the Ziti routers lost the
+# controller for minutes. Default-login templates stay in; Authelia only
+# accepts its session cookie, so their basic-auth guesses cannot ban anyone.
+#
 # Usage: nuclei-scan.sh [--dry-run]    (dry run: scan and summarise, no import)
 # Env:   NUCLEI_IMAGE   pinned Nuclei container image (required)
 #        NUCLEI_TARGETS file with one URL per line (required)
@@ -59,7 +64,7 @@ fi
 echo "== scanning $(wc -l < "$workdir/targets.txt") targets"
 if ! nuclei -list /work/targets.txt -severity "$severity" \
     -exclude-tags dos,fuzz,intrusive -no-interactsh -disable-update-check \
-    -rate-limit 300 -concurrency 50 -bulk-size 50 -timeout 10 -retries 1 \
+    -rate-limit 100 -concurrency 25 -bulk-size 25 -timeout 10 -retries 1 \
     -jsonl -silent -output /work/report.jsonl; then
   echo "FAILED: nuclei scan" >&2
   exit 1
