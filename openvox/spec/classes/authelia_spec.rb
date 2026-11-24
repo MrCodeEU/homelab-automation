@@ -35,6 +35,16 @@ describe 'roles::authelia' do
     )
   end
 
+  it 'accepts only the session cookie for forward auth and bans IPs, not users' do
+    config = rendered_file('/opt/authelia/configuration.yml')
+
+    expect(config).to include(
+      "        authn_strategies:\n          - name: 'CookieSession'\n",
+      "regulation:\n  modes:\n    - 'ip'\n",
+    )
+    expect(config).not_to include('HeaderAuthorization')
+  end
+
   it 'does not regenerate users or restart Authelia on every apply' do
     is_expected.to contain_exec('authelia-users-database').with(
       creates: '/opt/authelia/users_database.yml',

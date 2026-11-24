@@ -147,6 +147,27 @@ class roles::authelia (
     server:
       host: 0.0.0.0
       port: 9091
+      # Forward auth accepts only the session cookie from the login portal.
+      # With the default strategies an Authorization: Basic header was
+      # checked too, so any scanner guessing basic-auth logins (the nightly
+      # Nuclei run, 2026-11-24) counted as failed logins and got the real
+      # user banned. Nothing logs in to the Authelia-protected hosts with
+      # basic auth.
+      endpoints:
+        authz:
+          forward-auth:
+            implementation: 'ForwardAuth'
+            authn_strategies:
+              - name: 'CookieSession'
+
+    # Failed logins ban the source IP, not the user name, so a guesser
+    # cannot lock the owner out. The numbers are Authelia's defaults.
+    regulation:
+      modes:
+        - 'ip'
+      max_retries: 3
+      find_time: '2 minutes'
+      ban_time: '5 minutes'
 
     theme: light
 
