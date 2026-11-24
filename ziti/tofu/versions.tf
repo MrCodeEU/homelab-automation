@@ -15,6 +15,8 @@
 # through sort() or it never converges (C3).
 
 terraform {
+  # OpenTofu, not Terraform: moves with TOFU_IMAGE in scripts/ziti-tofu.sh
+  # (Renovate leaves it alone, see renovate.json).
   required_version = "~> 1.13.0"
 
   required_providers {
