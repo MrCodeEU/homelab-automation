@@ -191,6 +191,8 @@ class roles::services (
     'forgejo' => {
       'postgres_password' => lookup('vault_forgejo_postgres_password', { 'default_value' => '' }),
       'runner_secret'     => lookup('vault_forgejo_runner_secret', { 'default_value' => '' }),
+      # Plaintext of authelia_oidc_clients' forgejo secret_digest (common.yaml)
+      'oidc_client_secret' => lookup('vault_forgejo_oidc_client_secret', { 'default_value' => '' }),
     },
     'crowdsec-nuc' => {
       # Machine credential registered on mljr's LAPI via
