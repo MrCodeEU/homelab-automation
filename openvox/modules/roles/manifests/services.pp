@@ -129,6 +129,10 @@ class roles::services (
       'db_password'    => lookup('vault_mailarchiver_db_password', { 'default_value' => '' }),
       'admin_user'     => lookup('vault_mailarchiver_admin_user', { 'default_value' => 'admin' }),
       'admin_password' => lookup('vault_mailarchiver_admin_password', { 'default_value' => '' }),
+      # Plaintext of authelia_oidc_clients' mail-archiver secret_digest (common.yaml)
+      'oidc_client_secret' => lookup('vault_mailarchiver_oidc_client_secret', { 'default_value' => '' }),
+      # Email of the Authelia user who becomes admin at the first OIDC login
+      'oidc_admin_email'   => lookup('vault_mailarchiver_oidc_admin_email', { 'default_value' => '' }),
     },
     'dmarc-monitor' => {
       'db_password' => lookup('vault_dmarcmonitor_db_password', { 'default_value' => '' }),

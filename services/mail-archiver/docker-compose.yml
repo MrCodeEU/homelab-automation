@@ -16,6 +16,16 @@ services:
       # needs a browser session and is not wanted.
       Api__Enabled: "true"
       Api__EnableSwaggerUi: "false"
+      # Login through Authelia (OIDC client "mail-archiver", common.yaml): an
+      # SSO button next to the local login, which stays as the fallback
+      # (AutoRedirect would need DisablePasswordLogin). The Authelia user with
+      # this email becomes admin; anyone else waits for approval.
+      OAuth__Enabled: "true"
+      OAuth__Authority: https://auth.${DOMAIN:-mljr.eu}
+      OAuth__ClientId: mail-archiver
+      OAuth__ClientSecret: ${MAILARCHIVER_OIDC_CLIENT_SECRET:?}
+      OAuth__DisplayName: Authelia
+      OAuth__AdminEmails__0: ${MAILARCHIVER_OIDC_ADMIN_EMAIL:?}
     volumes:
       - mail-archiver-dp-keys:/app/DataProtection-Keys
       - mail-archiver-logs:/app/logs
