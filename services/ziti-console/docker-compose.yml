@@ -4,7 +4,8 @@
 # controller's admin listener (ZAC at /zac/ plus the APIs). The proxy
 # refuses every write, answers the dashboard's admin-only summary itself
 # and logs in as zac-readonly (admin_readonly) for anyone Authelia let
-# through: after the Authelia login, click LOG IN with empty fields.
+# through. A script the proxy adds to ZAC's page does that login before
+# ZAC starts, so after the Authelia login ZAC opens on the dashboard.
 services:
   ziti-console:
     build: .
