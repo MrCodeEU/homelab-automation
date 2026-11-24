@@ -346,6 +346,15 @@ authelia_oidc_clients:
     redirect_uris:
       - https://mail-archive.mljr.eu/oidc-signin-completed
     scopes: [openid, profile, email]
+  # Dockhand's login provider "Authelia" (roles::dockhand_environments sets
+  # it in Dockhand's database on nas). Dockhand sends the secret in the POST
+  # body and reads groups from userinfo; group admins become Dockhand admins.
+  - id: dockhand
+    name: Dockhand
+    secret_digest: '$pbkdf2-sha512$310000$mpYkce/3IHOVXz24WLMoug$ikquQQ5bGB1OlaK310NKV.pVnsdWnahw5dIiIPJWn4UHeS.G86qTn0BEV9Wlp9UtuKfZdo7InCHOgCPec8laSg'
+    redirect_uris:
+      - https://dockhand.mljr.eu/api/auth/oidc/callback
+    scopes: [openid, profile, email, groups]
     authorization_policy: two_factor
     token_endpoint_auth_method: client_secret_post
 

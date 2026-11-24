@@ -46,6 +46,8 @@ roles::dockhand_environments::environments:
     host: '172.17.0.1'
     port: 2377
     token_key: 'vault_hawser_token_mljr'
+# Login provider "Authelia" in Dockhand (Authelia client "dockhand").
+roles::dockhand_environments::oidc_secret_key: 'vault_dockhand_oidc_client_secret'
 
 roles::host_facts_endpoint::os_family: 'rocky'
 roles::host_facts_endpoint::hostname: 'nuc'
