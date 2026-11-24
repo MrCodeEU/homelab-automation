@@ -14,8 +14,10 @@
 //   - Login: the proxy logs in to the controller itself as the read-only
 //     identity (ZAC_USER, permission admin_readonly) with ZAC_PASSWORD,
 //     whatever the form held, and only for a request Authelia let through
-//     (Remote-User set by Caddy's forward_auth). So clicking LOG IN with
-//     empty fields is enough after the Authelia login.
+//     (Remote-User set by Caddy's forward_auth).
+//   - Auto-login: ZAC's HTML pages get a script (autologin.js) that does
+//     that login before ZAC starts when ZAC has no valid session, so after
+//     the Authelia login ZAC opens on the dashboard.
 //   - GET /edge/management/v1/summary (the dashboard's counters) is
 //     admin-only in the controller; admin_readonly gets 401 there and ZAC
 //     shows "Session Expired". The proxy answers it from the list
@@ -36,9 +38,11 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -48,6 +52,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -92,9 +98,22 @@ type proxy struct {
 
 const secretHeader = "X-Upstream-Secret"
 
+// autologin runs in the browser before ZAC starts and logs in when ZAC has no
+// valid session (autologin.js). Every HTML page ZAC is served under /zac/
+// gets the script tag, so a reload on any route works too.
+//
+//go:embed autologin.js
+var autologin []byte
+
+const (
+	autologinPath = "/zac/zac-autologin.js"
+	autologinTag  = `<script src="/zac/zac-autologin.js"></script>`
+)
+
 func newProxy(upstream *url.URL, transport http.RoundTripper, user, password, secret string) *proxy {
 	rp := httputil.NewSingleHostReverseProxy(upstream)
 	rp.Transport = transport
+	rp.ModifyResponse = injectAutologin
 	return &proxy{
 		upstream: upstream,
 		client:   &http.Client{Transport: transport, Timeout: 20 * time.Second},
@@ -125,6 +144,10 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		p.rp.ServeHTTP(w, r) // logout
 	case path == mgmt+"/summary" && r.Method == http.MethodGet:
 		p.summary(w, r)
+	case path == autologinPath && r.Method == http.MethodGet:
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		_, _ = w.Write(autologin)
 	case r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions:
 		p.rp.ServeHTTP(w, r)
 	default:
@@ -296,4 +319,34 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil {
 		fatal("listen", err)
 	}
+}
+
+// injectAutologin adds autologinTag to the head of ZAC's HTML pages.
+func injectAutologin(resp *http.Response) error {
+	if resp.Request == nil || !strings.HasPrefix(resp.Request.URL.Path, "/zac/") ||
+		!strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
+		return nil
+	}
+	var body io.Reader = resp.Body
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		zr, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return err
+		}
+		body = zr
+	}
+	page, err := io.ReadAll(io.LimitReader(body, 4<<20))
+	resp.Body.Close()
+	if err != nil {
+		return err
+	}
+	if i := bytes.Index(page, []byte("</head>")); i >= 0 {
+		page = append(page[:i:i], append([]byte(autologinTag), page[i:]...)...)
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(page))
+	resp.Header.Del("Content-Encoding")
+	resp.Header.Del("ETag")
+	resp.Header.Set("Content-Length", strconv.Itoa(len(page)))
+	resp.ContentLength = int64(len(page))
+	return nil
 }

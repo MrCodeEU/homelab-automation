@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +20,10 @@ type fakeController struct {
 }
 
 func (f *fakeController) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasPrefix(r.URL.Path, "/zac/") {
+		serveZAC(w, r)
+		return
+	}
 	if r.URL.Path == mgmt+"/authenticate" {
 		_ = json.NewDecoder(r.Body).Decode(&f.login)
 		if r.URL.Query().Get("method") != "password" || f.login["password"] != "secret" {
@@ -157,5 +162,45 @@ func TestSummary(t *testing.T) {
 	}
 	if code, _ := do(t, "GET", px.URL+mgmt+"/summary", map[string]string{"zt-session": "bad"}, ""); code != http.StatusUnauthorized {
 		t.Errorf("summary with a bad session: got %d, want 401", code)
+	}
+}
+
+// serveZAC answers like the controller's spa binding: index.html for any
+// route, gzipped when the client accepts it, and a script file as is.
+func serveZAC(w http.ResponseWriter, r *http.Request) {
+	if strings.HasSuffix(r.URL.Path, ".js") {
+		w.Header().Set("Content-Type", "text/javascript")
+		fmt.Fprint(w, "zac();")
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	page := `<html><head><base href="/zac/"></head><body><app-root></app-root></body></html>`
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		w.Header().Set("Content-Encoding", "gzip")
+		zw := gzip.NewWriter(w)
+		fmt.Fprint(zw, page)
+		_ = zw.Close()
+		return
+	}
+	fmt.Fprint(w, page)
+}
+
+func TestAutologinInjected(t *testing.T) {
+	_, px := setup(t)
+	for _, path := range []string{"/zac/", "/zac/dashboard"} {
+		code, body := do(t, http.MethodGet, px.URL+path, nil, "")
+		if code != http.StatusOK || !strings.Contains(body, autologinTag+"</head>") {
+			t.Errorf("%s: %d %q, want the autologin tag before </head>", path, code, body)
+		}
+	}
+	if _, body := do(t, http.MethodGet, px.URL+"/zac/main.js", nil, ""); body != "zac();" {
+		t.Errorf("script changed: %q", body)
+	}
+	code, body := do(t, http.MethodGet, px.URL+autologinPath, nil, "")
+	if code != http.StatusOK || !strings.Contains(body, "ziti.settings") {
+		t.Errorf("autologin script: %d %q", code, body)
+	}
+	if code, _ := do(t, http.MethodGet, px.URL+autologinPath, map[string]string{secretHeader: ""}, ""); code != http.StatusForbidden {
+		t.Errorf("autologin script without the Caddy secret: %d, want 403", code)
 	}
 }
