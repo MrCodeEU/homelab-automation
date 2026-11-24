@@ -23,13 +23,15 @@ services:
       GLUCAVA_ADMIN_PASSWORD: ${GLUCAVA_ADMIN_PASSWORD:?}
       GLUCAVA_SECRET_KEY: ${GLUCAVA_SECRET_KEY:?}
       GLUCAVA_PUBLIC_URL: https://glucava.${DOMAIN:-mljr.eu}
-      # Caddy on mljr reaches this container over Ziti (#562): the peer is
-      # nuc's router, which dials the published port on nuc's Tailscale IP.
-      # Caddy sets X-Forwarded-For/-Proto; only identities allowed to dial
-      # glucava over Ziti (caddy-mljr, admins) or processes on nuc reach the
-      # container from 100.100.10.1. Caddy's tailnet fallback (100.100.20.1)
-      # is gone since #683.
-      GLUCAVA_TRUSTED_PROXIES: 100.100.10.1
+      # Caddy on mljr reaches this container over Ziti (#562): nuc's router
+      # dials the port published on 127.0.0.1, so the container sees the
+      # compose network's gateway as the peer (from docker's default pool
+      # 172.16.0.0/12; the /24 is picked at creation). Caddy sets
+      # X-Forwarded-For/-Proto; only identities allowed to dial glucava over
+      # Ziti (caddy-mljr, admins) or processes on nuc arrive that way. Was
+      # nuc's Tailscale IP, which stopped matching when the bind moved to
+      # loopback, so every client shared the gateway address.
+      GLUCAVA_TRUSTED_PROXIES: 172.16.0.0/12
       GLUCAVA_DEXCOM_USERNAME: ${GLUCAVA_DEXCOM_USERNAME:-}
       GLUCAVA_DEXCOM_PASSWORD: ${GLUCAVA_DEXCOM_PASSWORD:-}
       GLUCAVA_DEXCOM_REGION: ous

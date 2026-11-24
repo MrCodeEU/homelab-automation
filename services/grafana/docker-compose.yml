@@ -83,7 +83,7 @@ services:
 
 networks:
   # dmarc-monitor's network (services/dmarc-monitor), created by that
-  # project; the same cross-project pattern as caddy-poc and crowdsec.
+  # project (external network).
   dmarc:
     external: true
     name: dmarc-monitor_dmarc-monitor-internal

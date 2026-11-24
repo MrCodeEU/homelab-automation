@@ -742,7 +742,7 @@ first, each a small change.
   2026-11-21 run) and one high-EPSS CVE.
 - ugreen: failed UGOS units `cameramgr_serv` and `smbftpd`; the C6 test
   container `c6-host` is still running.
-- CrowdSec: stale bouncer registration `caddy_poc`.
+- CrowdSec: stale bouncer registration `caddy_poc` (PoC removed 2026-11-24).
 
 **Gate:** healthreport shows no crit that is not an accepted risk.
 
