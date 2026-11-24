@@ -17,7 +17,7 @@
 # and some contain database migrations), then run
 # `make sync-openvox-services`.
 x-django: &django
-  image: docker.io/defectdojo/defectdojo-django:3.5.103
+  image: docker.io/defectdojo/defectdojo-django:3.5.200
   restart: unless-stopped
   security_opt:
     - no-new-privileges:true
