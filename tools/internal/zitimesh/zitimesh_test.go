@@ -155,3 +155,38 @@ func TestEscape(t *testing.T) {
 		t.Fatalf("got %s", got)
 	}
 }
+
+// After a controller restart, links reported latencies of minutes to hours
+// while they were fast; those values are dropped, not graphed.
+func TestImpossibleLatencyDropped(t *testing.T) {
+	nuc := ref{ID: "R1", Name: "nuc.int.mljr.eu"}
+	mljr := ref{ID: "R2", Name: "mljr.int.mljr.eu"}
+	nas := ref{ID: "R3", Name: "nas.int.mljr.eu"}
+	st := &State{Links: []link{
+		// One end bogus (8888.9 s), the other a real 20 ms.
+		{ID: "L1", SourceRouter: nuc, DestRouter: mljr, State: "Connected",
+			SourceLatency: 8888900000000, DestLatency: 20000000},
+		// Neither end has a real measurement.
+		{ID: "L2", SourceRouter: nas, DestRouter: mljr, State: "Connected",
+			SourceLatency: 4444450000000, DestLatency: 0},
+	}}
+	var b strings.Builder
+	if err := st.Render(&b); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+	for _, want := range []string{
+		`ziti_mesh_link_latency_seconds{source="nuc",target="mljr",measured_by="mljr"} 0.02`,
+		`ziti_mesh_edge{id="link:L1",source="router:nuc",target="router:mljr",kind="link",state="connected"} 20`,
+		`ziti_mesh_edge{id="link:L2",source="router:nas",target="router:mljr",kind="link",state="connected"} NaN`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %s", want)
+		}
+	}
+	for _, bad := range []string{`measured_by="nuc"`, `source="nas",target="mljr",measured_by`} {
+		if strings.Contains(out, bad) {
+			t.Errorf("bogus latency rendered: %s", bad)
+		}
+	}
+}

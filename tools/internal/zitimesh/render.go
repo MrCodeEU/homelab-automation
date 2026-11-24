@@ -3,8 +3,10 @@ package zitimesh
 import (
 	"fmt"
 	"io"
+	"math"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Node Graph colours: online, offline, nothing behind it.
@@ -88,6 +90,21 @@ func b2f(b bool) float64 {
 	return 0
 }
 
+// MaxLatency is the highest link latency taken as a real measurement. After a
+// controller restart the controller reported links with latencies of minutes
+// to hours (8888.9 s divided by small integers) for many hours while the
+// links were up and fast; a link that slow would have been torn down.
+const MaxLatency = 60 * time.Second
+
+// latency converts a reported link latency to seconds; ok is false for a
+// value that cannot be a measurement (not positive, or above MaxLatency).
+func latency(ns int64) (seconds float64, ok bool) {
+	if ns <= 0 || time.Duration(ns) > MaxLatency {
+		return 0, false
+	}
+	return time.Duration(ns).Seconds(), true
+}
+
 func (s *State) families() []*family {
 	routerName := map[string]string{}
 	for _, r := range s.Routers {
@@ -118,8 +135,12 @@ func (s *State) families() []*family {
 	for _, l := range s.Links {
 		src, dst := short(l.SourceRouter.Name), short(l.DestRouter.Name)
 		linkUp.add(b2f(l.State == "Connected" && !l.Down), "source", src, "target", dst)
-		linkLatency.add(float64(l.SourceLatency)/1e9, "source", src, "target", dst, "measured_by", src)
-		linkLatency.add(float64(l.DestLatency)/1e9, "source", src, "target", dst, "measured_by", dst)
+		if v, ok := latency(l.SourceLatency); ok {
+			linkLatency.add(v, "source", src, "target", dst, "measured_by", src)
+		}
+		if v, ok := latency(l.DestLatency); ok {
+			linkLatency.add(v, "source", src, "target", dst, "measured_by", dst)
+		}
 	}
 
 	terminators := &family{name: "ziti_mesh_terminators", help: "Terminators of a service, by hosting router."}
@@ -223,12 +244,18 @@ func (s *State) families() []*family {
 
 	for _, l := range s.Links {
 		src, dst := routerNode(l.SourceRouter.Name), routerNode(l.DestRouter.Name)
-		lat := max(l.SourceLatency, l.DestLatency)
+		// The higher valid measurement; NaN (shown as such) if neither is.
+		lat := math.NaN()
+		for _, ns := range []int64{l.SourceLatency, l.DestLatency} {
+			if v, ok := latency(ns); ok && (math.IsNaN(lat) || v*1e3 > lat) {
+				lat = v * 1e3
+			}
+		}
 		state := "connected"
 		if l.State != "Connected" || l.Down {
 			state = strings.ToLower(l.State)
 		}
-		edges.add(float64(lat)/1e6,
+		edges.add(lat,
 			"id", "link:"+l.ID, "source", src, "target", dst, "kind", "link", "state", state)
 	}
 	for k, n := range clientEdge {
