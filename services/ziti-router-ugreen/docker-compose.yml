@@ -10,7 +10,7 @@
 # the router certificate.
 services:
   ziti-router-ugreen:
-    image: openziti/ziti-router:2.0.8@sha256:540e5450f2ecd72cdc0db94bb7d969814f826e19d3bd4bbde192483c38bb5423
+    image: openziti/ziti-router:2.0.9@sha256:7680cf38b77a4b0302bfa74b9973d9a9afb44a74a48d383a3264a19b8641b73d
     container_name: ziti-router-ugreen
     restart: unless-stopped
     network_mode: host
