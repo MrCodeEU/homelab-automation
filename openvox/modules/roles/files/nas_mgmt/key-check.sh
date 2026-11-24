@@ -6,7 +6,7 @@
 # (from="..."). /root/.ssh/authorized_keys is a symlink to the flash
 # (/boot/config/ssh/root), so it survives a reboot.
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 ENTRY_B64=$(printf '%s' "${OPENVOX_NAS_MGMT_ENTRY}" | base64 -w0)
 
 ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" bash -s -- "$ENTRY_B64" <<'REMOTE'

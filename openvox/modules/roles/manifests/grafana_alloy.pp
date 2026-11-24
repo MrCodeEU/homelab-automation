@@ -30,11 +30,10 @@ class roles::grafana_alloy (
   # dependency twice in one Puppet catalog would be redundant, not
   # self-contained.
   Boolean $manage_docker_sdk  = false,
-  # Both hardcode nuc's own Tailscale IP: the fixed target host is
-  # stable, no need to look it up generically. Hosts on Ziti override
-  # them with their proxy (node hiera).
-  String $prometheus_remote_write_url = 'http://100.100.10.1:19090/api/v1/write',
-  String $loki_push_url               = 'http://100.100.10.1:3100/loki/api/v1/push',
+  # Defaults for nuc itself, where VictoriaMetrics and Loki run (was nuc's
+  # Tailscale IP). Other hosts point them at their Ziti proxy (node hiera).
+  String $prometheus_remote_write_url = 'http://127.0.0.1:19090/api/v1/write',
+  String $loki_push_url               = 'http://127.0.0.1:3100/loki/api/v1/push',
 ) {
   if $manage_docker_sdk {
     package { 'python3-docker':

@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Installs $OPENVOX_NAS_MGMT_ENTRY in nas's root authorized_keys, replacing
-# any older line for the same key (see key-check.sh).
+# any older line for the same key (see key-check.sh). It connects as
+# nas-mgmt, i.e. with this key over Ziti, so it can only replace an entry
+# whose key still logs in (options such as from= changed). The first
+# install, or one after the key was rotated, goes through the recovery key:
+# docs/DISASTER_RECOVERY.md.
 set -euo pipefail
-TARGET="root@nas.tail33930.ts.net"
+TARGET="nas-mgmt"
 ENTRY_B64=$(printf '%s' "${OPENVOX_NAS_MGMT_ENTRY}" | base64 -w0)
 
 ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$TARGET" bash -s -- "$ENTRY_B64" <<'REMOTE'

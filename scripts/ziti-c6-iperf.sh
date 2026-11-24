@@ -62,12 +62,12 @@ EDGE_TUNNEL=docker.io/openziti/ziti-edge-tunnel@sha256:2a103bdd5d242bccd7627e7b8
 
 case "$MODE" in
   external)
-    CLIENT=root@mljr.ziti; SERVER=root@nas.tail33930.ts.net
-    SERVER_DIRECT=100.100.10.2 # nas over Tailscale
+    CLIENT=root@mljr.ziti; SERVER=root@nas-ssh.ziti
+    SERVER_DIRECT=100.100.10.2 # nas over Tailscale: historical, the baseline went with Tailscale
     FORBIDDEN=nuc.int.mljr.eu; PASS_PCT=90
     IPERF_BIN="docker run --rm --network host $ALPINE sh -c 'apk add -q iperf3 >/dev/null && iperf3 \"\$@\"' iperf3" ;;
   lan)
-    CLIENT=root@nas.tail33930.ts.net; SERVER=root@ugreen.ziti
+    CLIENT=root@nas-ssh.ziti; SERVER=root@ugreen.ziti
     SERVER_DIRECT=192.168.50.86 # ugreen on the LAN
     CLIENT_LAN=192.168.50.80    # nas, for CLIENT_TUNNELER=router
     FORBIDDEN=mljr.int.mljr.eu; PASS_PCT=75

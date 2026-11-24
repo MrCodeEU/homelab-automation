@@ -1,12 +1,12 @@
 name: mljr/local-allowlist
-description: "Ignore trusted owner/Tailscale sources and known app-specific false positives"
+description: "Ignore known app-specific false positives"
 whitelist:
-  reason: "Tailscale network, and Nocturne auth and Nextcloud client preview/upload-check false positives are trusted"
+  reason: "Nocturne auth and Nextcloud client preview/upload-check false positives are trusted"
   # The home connection is not listed here: it changes, so home-ip sync
   # (roles::home_ip) keeps it in the centralized allowlist "home"
-  # (cscli allowlists inspect home).
-  cidr:
-    - "100.64.0.0/10"
+  # (cscli allowlists inspect home). Tailscale's 100.64.0.0/10 left with
+  # the tailnet (Phase 5); Ziti traffic arrives from loopback, which
+  # crowdsecurity/whitelists already covers.
   expression:
     - "evt.Meta.log_type == 'http_access-log' && evt.Meta.target_fqdn == 'nc.mljr.eu'"
     # Nextcloud clients after an upload: a preview is 404 until Nextcloud has

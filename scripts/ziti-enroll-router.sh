@@ -36,9 +36,10 @@ case "$name" in
   mljr) host=root@mljr.ziti; svc=ziti-router;     attr=public; base=/opt ;;
   nuc)  host=root@nuc.ziti;  svc=ziti-router-nuc; attr=lan;    base=/opt ;;
   ugreen) host=root@ugreen.ziti; svc=ziti-router-ugreen; attr=lan; base=/volume1/homelab ;;
-  # nas: no SSH of its own on Ziti yet, and only nuc's key logs in there
-  # (roles::services_nas deploys over the same path): through nuc.
-  nas) host=root@nas.tail33930.ts.net; via=root@nuc.ziti; svc=ziti-router-nas; attr=lan; base=/mnt/user/appdata/homelab ;;
+  # nas: nas-ssh is hosted by nas's own router (opkssh, roles::nas_opkssh),
+  # so a first enrolment, or one while that router is down, needs the LAN:
+  # NAS_SSH=root@192.168.50.80.
+  nas) host=${NAS_SSH:-root@nas-ssh.ziti}; svc=ziti-router-nas; attr=lan; base=/mnt/user/appdata/homelab ;;
   *) die "usage: $0 <mljr|nuc|ugreen|nas> [--reenroll]" ;;
 esac
 # base: roles::services::base_path of that host (docs/ZITI_ENROLL.md).
