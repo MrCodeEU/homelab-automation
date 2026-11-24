@@ -16,7 +16,7 @@
 # cluster init with the admin password instead.
 services:
   ziti-controller:
-    image: openziti/ziti-controller:2.0.8@sha256:834cb8a784b55716a56c0aab15d8809bc553834a534dbb8986d0711cb5c34dfc
+    image: openziti/ziti-controller:2.0.9@sha256:279db01cf8fdc252a9fbe1d91bf3bb9fde329c59ab2ab71792055beebb356969
     container_name: ziti-controller
     restart: unless-stopped
     network_mode: host
