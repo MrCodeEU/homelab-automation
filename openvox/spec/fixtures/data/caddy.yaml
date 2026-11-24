@@ -57,3 +57,11 @@ services_catalog:
     domain: secret.example.test
     caddy_auth: authelia
     caddy_upstream_secret: vault_test_upstream_secret
+  # Authelia except for some open paths.
+  - name: open-paths
+    enabled: true
+    host: mljr
+    port: 8447
+    domain: open.example.test
+    caddy_auth: authelia
+    caddy_auth_bypass: ['/status/*', '/api/push/*']

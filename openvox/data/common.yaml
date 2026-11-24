@@ -412,6 +412,20 @@ services_catalog:
     # Ziti service kuma.nuc.int.mljr.eu:3001 (ziti/tofu/catalog.tf), and
     # Caddy on mljr reaches it over Ziti instead of Tailscale
     ziti_via_caddy: true
+    # Authelia in front of the dashboard. Left open: the public status page
+    # and its API (homepage's HOMELAB_KUMA_URL reads /api/status-page),
+    # push monitors, badges and the static files those pages load.
+    caddy_auth: authelia
+    caddy_auth_bypass:
+      - /status/*
+      - /api/status-page/*
+      - /api/push/*
+      - /api/badge/*
+      - /assets/*
+      - /upload/*
+      - /icon.svg
+      - /favicon.ico
+      - /serviceWorker.js
 
   - name: healthreport
     enabled: true
@@ -767,6 +781,12 @@ services_catalog:
     description: "Umami Analytics"
     icon: "mdi:chart-bar"
     ziti_via_caddy: true
+    # Authelia in front of the dashboard. The tracker (script and /api/send)
+    # stays open; homepage uses it through mljr.eu/umami anyway.
+    caddy_auth: authelia
+    caddy_auth_bypass:
+      - /script.js
+      - /api/send
 
   - name: forgejo
     enabled: true
@@ -1080,6 +1100,9 @@ services_catalog:
     port: 6528
     host: nas
     ziti_via_caddy: true
+    # Authelia in front, Vikunja's own login behind it. Not Vikunja's OIDC:
+    # it creates a separate account and cannot link the existing one.
+    caddy_auth: authelia
     description: "Vikunja Projects and TODOs"
     icon: "mdi:clipboard-list"
 
