@@ -8,12 +8,20 @@
 # host's own eyaml for roles::hawser_agent). The rows must exist (created
 # once in the UI); this only sets them. Host and port are ziti-proxy-nas's
 # listeners on docker0 (services/ziti-proxy-nas, ziti/tofu/hawser.tf).
+#
+# $oidc_secret_key: eyaml key of the client secret of the Authelia OIDC
+# client "dockhand" (authelia_oidc_clients, common.yaml). When set, the
+# login provider "Authelia" is created or updated in Dockhand (oidc.tsv):
+# Authelia group admins become Dockhand admins. Dockhand encrypts the
+# secret at its next start, like the Hawser tokens.
 class roles::dockhand_environments (
   Hash[String[1], Struct[{
     host      => Stdlib::Host,
     port      => Stdlib::Port,
     token_key => Pattern[/\Avault_[a-z0-9_]+\z/],
   }]] $environments = {},
+  Optional[Pattern[/\Avault_[a-z0-9_]+\z/]] $oidc_secret_key = undef,
+  String $domain = 'mljr.eu',
   String $work_dir = '/usr/local/libexec/openvox-dockhand-environments',
   String $data_dir = '/var/lib/openvox-dockhand-environments',
 ) {
@@ -39,6 +47,22 @@ class roles::dockhand_environments (
     show_diff => false,
   }
 
+  # Issuer, client id, redirect URI and secret (tab-separated); empty when
+  # $oidc_secret_key is unset, which leaves Dockhand's OIDC settings alone.
+  $oidc_line = $oidc_secret_key ? {
+    undef   => '',
+    default => "https://auth.${domain}\tdockhand\thttps://dockhand.${domain}/api/auth/oidc/callback\t${Sensitive(lookup($oidc_secret_key)).unwrap}\n",
+  }
+
+  file { "${data_dir}/oidc.tsv":
+    ensure    => file,
+    owner     => 'root',
+    group     => 'root',
+    mode      => '0600',
+    content   => Sensitive($oidc_line),
+    show_diff => false,
+  }
+
   file { $work_dir:
     ensure  => directory,
     mode    => '0755',
@@ -54,6 +78,6 @@ class roles::dockhand_environments (
     unless   => "test -f ${work_dir}/check.sh && /bin/bash ${work_dir}/check.sh",
     provider => shell,
     path     => ['/usr/bin', '/bin'],
-    require  => [File[$work_dir, "${data_dir}/environments.tsv"], Class['roles::nas_mgmt_key']],
+    require  => [File[$work_dir, "${data_dir}/environments.tsv", "${data_dir}/oidc.tsv"], Class['roles::nas_mgmt_key']],
   }
 }
