@@ -42,11 +42,18 @@ x-django-env: &django-env
 
 services:
   nginx:
+    # Same release as defectdojo-django (one Renovate group, renovate.json).
     image: docker.io/defectdojo/defectdojo-nginx:3.5.200
     container_name: defectdojo-nginx
     restart: unless-stopped
+    # nginx resolves the uwsgi host once at start. When an update recreated
+    # uwsgi with a new IP (2026-11-24, 3.5.200), nginx kept the old one and
+    # every request got 502 until nginx was restarted; restart: true makes
+    # compose restart nginx whenever it restarts or recreates uwsgi.
     depends_on:
-      - uwsgi
+      uwsgi:
+        condition: service_started
+        restart: true
     environment:
       NGINX_METRICS_ENABLED: "false"
       DD_UWSGI_HOST: uwsgi

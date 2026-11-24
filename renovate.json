@@ -31,6 +31,11 @@
       "automergeType": "pr"
     },
     {
+      "description": "DefectDojo's django and nginx images are one release and must move together: on 2026-11-24 only django was bumped (3.5.103 -> 3.5.200, #708).",
+      "matchPackageNames": ["docker.io/defectdojo/defectdojo-django", "docker.io/defectdojo/defectdojo-nginx", "defectdojo/defectdojo-django", "defectdojo/defectdojo-nginx"],
+      "groupName": "DefectDojo"
+    },
+    {
       "description": "Keep OpenVox Forge updates separate and manually reviewed",
       "matchManagers": ["puppet"],
       "groupName": "OpenVox Forge modules",
