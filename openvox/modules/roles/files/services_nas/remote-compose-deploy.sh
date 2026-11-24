@@ -7,7 +7,9 @@
 # Unconditional, no unless-guard - same reasoning as compose-deploy.sh's
 # own rocky/ugreen sibling: `docker compose up -d` is itself idempotent.
 #
-# The compose run is detached from the SSH session (setsid nohup) and
+# The compose run is detached from the SSH session (setsid -f: forks into
+# its own session at once; with a plain `setsid ... &` Unraid's sshd kept
+# the call open until the job ended) and
 # leaves its exit code in a status file, which is then polled over fresh
 # connections. nas-mgmt goes over Ziti through nas's own router, so
 # recreating ziti-router-nas cut the session that was doing it: on
@@ -29,7 +31,7 @@ fi
 
 # Status and log live in the service directory; one run at a time per service.
 run="${remote_dir}/.openvox-deploy"
-"${SSH[@]}" "cd '${remote_dir}' && rm -f '${run}.status' && setsid nohup sh -c '${steps}; echo \$? > ${run}.status' > '${run}.log' 2>&1 < /dev/null &"
+"${SSH[@]}" "cd '${remote_dir}' && rm -f '${run}.status' && setsid -f nohup sh -c '${steps}; echo \$? > ${run}.status' > '${run}.log' 2>&1 < /dev/null"
 
 # Until shortly before the exec's 300 s timeout (roles::services_nas::service);
 # SSH failures while the router comes back are expected and retried.
