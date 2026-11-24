@@ -48,6 +48,40 @@ for attempt in $(seq 1 60); do
   sleep 2
 done
 
+# Login through Authelia: the OAuth2 login source "authelia" (client
+# "forgejo" in authelia_oidc_clients, common.yaml), created or updated on
+# every deploy. Only group admins may use it, and they become Forgejo admins.
+# Authelia already asks for the second factor, so Forgejo's own is skipped.
+# The first login links to the existing account once (sign in with its
+# password on the "link account" page). Without the secret it is left alone.
+OIDC_SECRET="${FORGEJO_OIDC_CLIENT_SECRET:-}"
+if [ -n "${OIDC_SECRET}" ]; then
+  oauth_args=(
+    --name authelia
+    --provider openidConnect
+    --key forgejo
+    --secret "${OIDC_SECRET}"
+    --auto-discover-url "https://auth.${DOMAIN:-mljr.eu}/.well-known/openid-configuration"
+    --scopes openid --scopes profile --scopes email --scopes groups
+    --skip-local-2fa
+    --group-claim-name groups
+    --admin-group admins
+    --required-claim-name groups
+    --required-claim-value admins
+  )
+  source_id="$(docker exec --user 1000:1000 forgejo-app forgejo admin auth list \
+    | awk -F'\t' '$2 == "authelia" { print $1 }')"
+  if [ -z "${source_id}" ]; then
+    docker exec --user 1000:1000 forgejo-app forgejo admin auth add-oauth "${oauth_args[@]}" \
+      || { echo "FAILED: adding the Authelia login source."; exit 1; }
+    echo "Authelia login source added."
+  else
+    docker exec --user 1000:1000 forgejo-app forgejo admin auth update-oauth --id "${source_id}" "${oauth_args[@]}" \
+      || { echo "FAILED: updating the Authelia login source."; exit 1; }
+    echo "Authelia login source ${source_id} updated."
+  fi
+fi
+
 register_output="$(docker exec --user 1000:1000 forgejo-app forgejo forgejo-cli actions register \
   --name nuc-runner \
   --secret "${RUNNER_SECRET}" 2>&1)" || {
