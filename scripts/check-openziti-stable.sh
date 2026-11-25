@@ -7,6 +7,8 @@
 #
 # Only tags the change adds are checked (diff against BASE_REF), so a
 # pre-release that is already running on purpose does not fail every PR.
+# A tag that is already pinned somewhere in BASE_REF is no new version
+# either (a new router copying the fleet's pin), so it passes as well.
 # Usage: BASE_REF=origin/main scripts/check-openziti-stable.sh
 # Needs gh (GH_TOKEN in CI).
 set -euo pipefail
@@ -21,6 +23,10 @@ if [ -z "$tags" ]; then
 fi
 fail=0
 for t in $tags; do
+  if git grep -q -E "openziti/ziti-(controller|router|cli|tunnel):${t//./\\.}([^0-9.]|$)" "$base" -- services scripts openvox ziti; then
+    echo "ok   ${t}: already pinned in ${base}"
+    continue
+  fi
   if ! pre=$(gh api "repos/openziti/ziti/releases/tags/v${t}" -q .prerelease 2>/dev/null); then
     echo "FAIL ${t}: no GitHub release v${t} in openziti/ziti"
     fail=1
