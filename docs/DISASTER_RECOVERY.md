@@ -115,7 +115,10 @@ controllable host by itself. The order, with the reasons:
 4. **Restore that host's EYaml key pair** from Bitwarden, see
    [EYaml key recovery](#eyaml-key-recovery).
 5. **First apply**: with `OPK_SKIP=1` and `OPENVOX_SSH_CONFIG` set as in
-   step 3, `make openvox-check-<h>`, then `make openvox-deploy-<h>`. This brings up base, firewall,
+   step 3, `make openvox-check-<h>`, then `make openvox-deploy-<h>`.
+   On a fresh host the noop reports errors for exec guards that do not
+   exist yet (`Could not find command '/usr/local/libexec/openvox-base/...'`,
+   `firewall-cmd`): the apply installs them. Any other error is real. This brings up base, firewall,
    sshd hardening, opkssh, Docker, the deploy agent and every catalog
    service; services that need Ziti (proxies, the router) restart-loop
    until step 7, which is expected. On EL10, reboot into the newest kernel

@@ -8,7 +8,7 @@ set -euo pipefail
 "$(dirname "${BASH_SOURCE[0]}")/opk-ready.sh"
 
 usage() {
-  echo "usage: $0 <mljr|nuc|ugreen>" >&2
+  echo "usage: $0 <mljr|nuc|ugreen|drill>" >&2
   exit 2
 }
 
@@ -17,6 +17,7 @@ case "$host" in
   mljr|mljr.ziti|mljr.int.mljr.eu) canonical_host='mljr.ziti'; key_name='mljr'; certname='mljr.int.mljr.eu' ;;
   nuc|nuc.ziti|nuc.int.mljr.eu) canonical_host='nuc.ziti'; key_name='nuc'; certname='nuc.int.mljr.eu' ;;
   ugreen|ugreen.ziti|ugreen.int.mljr.eu) canonical_host='ugreen.ziti'; key_name='ugreen'; certname='ugreen.int.mljr.eu' ;;
+  drill|drill.ziti|drill.int.mljr.eu) canonical_host='drill.ziti'; key_name='drill'; certname='drill.int.mljr.eu' ;;
   *) usage ;;
 esac
 

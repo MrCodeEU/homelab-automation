@@ -1,0 +1,27 @@
+# Ziti client for rclone on the DR drill VM (roles::backup's [ugreen] SFTP
+# remote), as identity m2m-drill (ziti/tofu/m2m.tf). Same pattern as
+# services/ziti-proxy-nuc. Removed with the drill host.
+#
+# Enrolment: scripts/ziti-enroll-proxy.sh m2m-drill drill ziti-proxy-drill
+# writes data/m2m-drill.json (uid 2171, 0600).
+services:
+  ziti-proxy:
+    image: gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+    container_name: ziti-proxy-drill
+    restart: unless-stopped
+    user: "2171:2171"
+    labels:
+      # restarted by roles::ziti_tcp_proxy when the binary changes
+      homelab.ziti-tcp-proxy: "true"
+    entrypoint: ["/opt/ziti-tcp-proxy/ziti-tcp-proxy"]
+    command:
+      - -identity
+      - /identity/m2m-drill.json
+      - backup-sftp-ugreen:2422
+    ports:
+      - "127.0.0.1:2422:2422"
+    volumes:
+      - ./data:/identity
+      - /usr/local/libexec/ziti-tcp-proxy:/opt/ziti-tcp-proxy:ro
+    environment:
+      - TZ=${TZ}
