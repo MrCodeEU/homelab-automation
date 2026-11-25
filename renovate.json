@@ -65,6 +65,11 @@
       "enabled": false
     },
     {
+      "description": "OpenZiti images (controller, router, cli) only from stable GitHub releases of openziti/ziti. Docker Hub also has tags for GitHub pre-releases (2.0.9 came in that way, #715), which the docker datasource cannot tell apart, so the CI job openziti-stable (scripts/check-openziti-stable.sh) fails such a PR and Renovate cannot automerge it. Not automerged even when stable: a controller or router update is applied host by host.",
+      "matchPackageNames": ["openziti/ziti-controller", "openziti/ziti-router", "openziti/ziti-cli", "docker.io/openziti/ziti-cli", "docker.io/openziti/ziti-router"],
+      "automerge": false
+    },
+    {
       "description": "sdk-golang 1.9.x is retracted by its maintainers (\"Published from main before the module moved to github.com/openziti/sdk-golang/v2; the supported v1 line is 1.8.x\"), and Renovate proposed 1.9.1 anyway (#657, closed 2026-11-22). Stay on 1.8.x; the move to /v2 is its own change.",
       "matchPackageNames": ["github.com/openziti/sdk-golang"],
       "allowedVersions": "<1.9.0"
