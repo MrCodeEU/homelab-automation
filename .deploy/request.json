@@ -1,1 +1,1 @@
-{"id":"20261125T162649Z-45653820522","host":"mljr","commit":"ddc4aa8f95fddce11b80413705cc6a5be181e896","trigger":"repository_dispatch","service":"newsletter","staging_services":"","docker_prune":false,"reboot_if_needed":false}
+{"id":"20261125T163740Z-45655834127","host":"mljr","commit":"14f0533ca0c906ece580c8d0ace0b9c071b24181","trigger":"workflow_dispatch","service":"","staging_services":"","docker_prune":false,"reboot_if_needed":false}
