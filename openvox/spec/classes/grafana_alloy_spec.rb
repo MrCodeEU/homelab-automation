@@ -28,8 +28,8 @@ describe 'roles::grafana_alloy' do
     )
     expect(manifest).to match(/content\s*=>\s*Sensitive\(epp\(/)
     expect(config).to include(
-      'url = "http://100.100.10.1:19090/api/v1/write"',
-      'url = "http://100.100.10.1:3100/loki/api/v1/push"',
+      'url = "http://127.0.0.1:19090/api/v1/write"',
+      'url = "http://127.0.0.1:3100/loki/api/v1/push"',
       'bearer_token    = "test-homeassistant-token"',
     )
   end
