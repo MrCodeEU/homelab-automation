@@ -184,6 +184,13 @@ openvox-deploy-nuc:
 openvox-deploy-ugreen:
 	@./scripts/openvox-sync.sh ugreen.ziti apply
 
+# DR drill VM (docs/DISASTER_RECOVERY.md), removed after the drill
+openvox-check-drill:
+	@./scripts/openvox-sync.sh drill.ziti noop
+
+openvox-deploy-drill:
+	@./scripts/openvox-sync.sh drill.ziti apply
+
 # Explicit staging deployment on nuc. Usage:
 #   make openvox-staging SERVICE=homepage
 openvox-staging:

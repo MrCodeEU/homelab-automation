@@ -33,11 +33,13 @@ declare -A HOST_CERTNAME=(
   [mljr]="mljr.int.mljr.eu"
   [nuc]="nuc.int.mljr.eu"
   [ugreen]="ugreen.int.mljr.eu"
+  [drill]="drill.int.mljr.eu"
 )
 declare -A HOST_SSH=(
   [mljr]="mljr.ziti"
   [nuc]="nuc.ziti"
   [ugreen]="ugreen.ziti"
+  [drill]="drill.ziti"
 )
 
 bold() { printf '\033[1m%s\033[0m\n' "$*"; }

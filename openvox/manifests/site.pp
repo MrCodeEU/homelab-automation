@@ -19,3 +19,8 @@ node 'nuc.int.mljr.eu' {
 node 'ugreen.int.mljr.eu' {
   include role::ugreen
 }
+
+# DR drill VM on nuc (docs/DISASTER_RECOVERY.md), removed after the drill
+node 'drill.int.mljr.eu' {
+  include role::drill
+}

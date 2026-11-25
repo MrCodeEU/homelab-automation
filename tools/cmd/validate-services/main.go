@@ -34,6 +34,8 @@ var validHosts = map[string]bool{
 	"nas":           true,
 	"wd_mycloud":    true,
 	"homeassistant": true,
+	// DR drill VM on nuc (docs/DISASTER_RECOVERY.md), removed after the drill
+	"drill": true,
 }
 
 type serviceEntry struct {
