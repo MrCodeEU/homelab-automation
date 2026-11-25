@@ -31,8 +31,10 @@ releases_dir="${env_base}/releases"
 shared_modules_dir="${env_base}/vendor-modules"
 module_path="${env_dir}/modules:${shared_modules_dir}:/etc/puppetlabs/code/modules:/opt/puppetlabs/puppet/modules"
 
+# No workstation SSH config, except an explicit OPENVOX_SSH_CONFIG (the DR
+# bootstrap block, see scripts/openvox-sync.sh).
 ssh_opts=(
-  -F /dev/null
+  -F "${OPENVOX_SSH_CONFIG:-/dev/null}"
   -o BatchMode=yes
   -o ConnectTimeout=10
   -o ServerAliveInterval=15
