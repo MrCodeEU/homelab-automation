@@ -20,6 +20,7 @@
 #   OPENVOX_WEEKLY_MAINTENANCE   true: FACTER_openvox_weekly_maintenance=true
 #   OPENVOX_STAGING_SERVICES     comma list: FACTER_openvox_staging_services
 #   OPENVOX_RECOVERY_SERVICES    comma list: FACTER_openvox_recovery_services
+#   OPENVOX_RECOVERY_FROM        pcloud|ugreen: FACTER_openvox_recovery_from
 #   OPENVOX_PULL_SERVICES        comma list: FACTER_openvox_pull_services
 #                                (deploy-agent; only these services pull)
 #   OPENVOX_IMAGE_TAGS           service=tag list: FACTER_openvox_image_tags
@@ -72,6 +73,10 @@ for pair in "STAGING:staging" "RECOVERY:recovery" "PULL:pull"; do
   [[ "$val" =~ $list_re ]] || { echo "invalid ${var}: expected comma-separated service names" >&2; exit 2; }
   facts+=("FACTER_openvox_${pair##*:}_services=${val}")
 done
+if [ -n "${OPENVOX_RECOVERY_FROM:-}" ]; then
+  [[ "$OPENVOX_RECOVERY_FROM" =~ ^(pcloud|ugreen)$ ]] || { echo "invalid OPENVOX_RECOVERY_FROM: pcloud or ugreen" >&2; exit 2; }
+  facts+=("FACTER_openvox_recovery_from=${OPENVOX_RECOVERY_FROM}")
+fi
 # Docker's tag grammar after the '='; the value lands in a .env file.
 tags_re='^[A-Za-z0-9][A-Za-z0-9._-]*=[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}(,[A-Za-z0-9][A-Za-z0-9._-]*=[A-Za-z0-9_][A-Za-z0-9_.-]{0,127})*$'
 if [ -n "${OPENVOX_IMAGE_TAGS:-}" ]; then

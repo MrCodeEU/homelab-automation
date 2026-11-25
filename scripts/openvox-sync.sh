@@ -24,7 +24,8 @@
 # $weekly_maintenance fact read. OPENVOX_STAGING_SERVICES is an optional,
 # comma-separated catalog selection that explicitly deploys staging instances
 # on nuc; normal applies deliberately leave those containers alone.
-# OPENVOX_RECOVERY_SERVICES is a separate, explicit fresh-host-only selection.
+# OPENVOX_RECOVERY_SERVICES is a separate, explicit fresh-host-only selection;
+# OPENVOX_RECOVERY_FROM (pcloud|ugreen) is where it restores from.
 #
 # Every line of remote output is prefixed with the host's short label
 # (e.g. "[mljr]") - this is the main readability fix over the old plain
@@ -122,6 +123,14 @@ if [ -n "$recovery_services" ]; then
     exit 2
   fi
   apply_env+="OPENVOX_RECOVERY_SERVICES=${recovery_services} "
+fi
+recovery_from="${OPENVOX_RECOVERY_FROM:-}"
+if [ -n "$recovery_from" ]; then
+  if [[ ! "$recovery_from" =~ ^(pcloud|ugreen)$ ]]; then
+    echo "invalid OPENVOX_RECOVERY_FROM: pcloud or ugreen" >&2
+    exit 2
+  fi
+  apply_env+="OPENVOX_RECOVERY_FROM=${recovery_from} "
 fi
 
 # Short label for prefixing/log naming, e.g. "mljr.ziti" -> "mljr".

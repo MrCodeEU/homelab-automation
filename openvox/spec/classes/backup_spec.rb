@@ -227,7 +227,7 @@ describe 'roles::backup' do
 
     it do
       is_expected.to contain_exec('backup-recovery-forgejo').with(
-        command: %r{/opt/backups/scripts/restore\.sh --force --skip-volumes forgejo-db-data --service forgejo},
+        command: %r{/opt/backups/scripts/restore\.sh --force --from pcloud --skip-volumes forgejo-db-data --service forgejo},
         require: 'Exec[backup-recovery-fresh-host-guard]',
       )
     end
@@ -238,10 +238,26 @@ describe 'roles::backup' do
 
     it do
       is_expected.to contain_exec('backup-recovery-umami').with(
-        command: %r{/opt/backups/scripts/restore\.sh --force --skip-volumes umami_umami-db-data-v18 --service umami},
+        command: %r{/opt/backups/scripts/restore\.sh --force --from pcloud --skip-volumes umami_umami-db-data-v18 --service umami},
         require: 'Exec[backup-recovery-fresh-host-guard]',
       )
     end
+  end
+
+  context 'when fresh-host recovery reads from ugreen' do
+    let(:facts) { { openvox_recovery_services: 'forgejo', openvox_recovery_from: 'ugreen' } }
+
+    it do
+      is_expected.to contain_exec('backup-recovery-forgejo').with(
+        command: %r{/opt/backups/scripts/restore\.sh --force --from ugreen --skip-volumes forgejo-db-data --service forgejo},
+      )
+    end
+  end
+
+  context 'when recovery names an unknown source' do
+    let(:facts) { { openvox_recovery_services: 'forgejo', openvox_recovery_from: 'wd' } }
+
+    it { is_expected.to compile.and_raise_error(%r{Unknown recovery source: wd}) }
   end
 
   context 'when recovery selects a service not backed up by this host' do

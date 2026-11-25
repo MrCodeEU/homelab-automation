@@ -155,8 +155,8 @@ openvox-deploy:
 	$(call openvox_run,apply)
 
 openvox-recovery:
-	@test -n "$(HOST)" && test -n "$(SERVICE)" || (echo "Usage: make openvox-recovery HOST=<mljr|nuc> SERVICE=<service>[,<service>...]" >&2; exit 2)
-	@OPENVOX_RECOVERY_SERVICES="$(SERVICE)" ./scripts/openvox-sync.sh "$(HOST).ziti" apply
+	@test -n "$(HOST)" && test -n "$(SERVICE)" || (echo "Usage: make openvox-recovery HOST=<mljr|nuc> SERVICE=<service>[,<service>...] [FROM=pcloud|ugreen]" >&2; exit 2)
+	@OPENVOX_RECOVERY_SERVICES="$(SERVICE)" OPENVOX_RECOVERY_FROM="$(FROM)" ./scripts/openvox-sync.sh "$(HOST).ziti" apply
 
 # Rolls a host's `production` symlink back to a previous release and
 # re-applies (see scripts/openvox-rollback.sh). STEPS defaults to 1 (the
