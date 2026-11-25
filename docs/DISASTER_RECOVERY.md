@@ -23,8 +23,9 @@ secret) - see `docs/OPENVOX_BACKLOG.md` for the full correction.
 `mljr` was rebuilt from scratch for real on 2026-10-24 (Rocky 9 to 10, see
 [mljr rebuild notes](#mljr-rebuild-2026-10-24)), and `ugreen` was rebuilt
 after the 2026-07-31 failure. Both were before the move to Ziti. The
-procedure below has not been drilled end to end yet; the DR drill is the
-Phase 5 gate item.
+agent-host procedure below was drilled end to end on 2026-11-25 on a
+throwaway VM (`drill`, see [DR drill 2026-11-25](#dr-drill-2026-11-25)),
+and its findings are folded in.
 
 ## What has to exist outside the lab
 
@@ -85,8 +86,11 @@ controllable host by itself. The order, with the reasons:
    (`breakglass_pubkeys` in `openvox/data/common.yaml`): Rocky Linux 10 for
    both, mljr from the Contabo panel's reinstall dialog (it takes an SSH
    key), nuc from the installer or a kickstart. Without a key there, log
-   in with the password once and add the keys by hand. Unraid, UGOS and WD
-   are vendor images, see their sections below.
+   in with the password once and add the keys by hand. Then `dnf -y
+   upgrade` and reboot: on EL10 the first apply's own upgrade otherwise
+   pulls a newer kernel, Docker fails to start on the old one (netfilter
+   module mismatch) and the apply has to be repeated after a reboot.
+   Unraid, UGOS and WD are vendor images, see their sections below.
 2. **Point `<h>.ziti` at the real address for now.** The repo's scripts
    address hosts only as `<h>.ziti` (and `<h>.int.mljr.eu`), and that name
    has to work before the host is on Ziti. A file that sorts before the
@@ -121,9 +125,16 @@ controllable host by itself. The order, with the reasons:
    `firewall-cmd`): the apply installs them. Any other error is real. This brings up base, firewall,
    sshd hardening, opkssh, Docker, the deploy agent and every catalog
    service; services that need Ziti (proxies, the router) restart-loop
-   until step 7, which is expected. On EL10, reboot into the newest kernel
-   after the first apply (netfilter module mismatch, see the 2026-10-24
-   notes). On mljr, switch the bootstrap block to port 2299 afterwards.
+   until step 7, which is expected. If Docker fails to start with
+   `failed to add jump rules to ipv4 NAT table`, the host runs an older
+   kernel than the one installed: reboot and apply again. On mljr, switch
+   the bootstrap block to port 2299 afterwards.
+
+   This first apply creates `/opt/.homelab-initialized`, after which
+   `make openvox-recovery` refuses the host. To restore through recovery
+   mode, make it this first apply instead: `make openvox-recovery
+   HOST=<h> SERVICE=<names>`, from pCloud only (ugreen needs Ziti, which
+   is not back until step 7). Otherwise restore in step 9.
 6. **mljr only: restore the Ziti controller** before anything else Ziti,
    following [ZITI_DR.md](ZITI_DR.md) "Restore onto a rebuilt mljr". Take
    the bundle **from pCloud** (age, key from Bitwarden): mljr's copy on
@@ -135,7 +146,15 @@ controllable host by itself. The order, with the reasons:
    <h> --reenroll`. The router still exists in the controller, but its key
    and certificate were on the lost disk; `--reenroll` issues a new token
    for the same router, so policies, terminators and the router id stay.
-   The proxies and the host's `ssh` service come up with it.
+   The host's `ssh` service comes up with it.
+
+   Then **re-enrol every other Ziti identity of the host**: each `.json`
+   in its `roles::ziti_renew::identities` (node data) lost its key with
+   the disk too. `scripts/ziti-enroll-proxy.sh <identity> <h> <service>
+   --reenroll` for the m2m proxies and the app sidecars (e.g. `m2m-nuc
+   nuc ziti-proxy-nuc`, `kuma-nuc nuc kuma`), `scripts/ziti-enroll-caddy.sh
+   --reenroll` for mljr's Caddy. Backups to ugreen need the host's m2m
+   proxy.
 8. **Back to the daily path**: delete the bootstrap block, unset
    `OPENVOX_SSH_CONFIG` and `OPK_SKIP`, `opkssh login`,
    then `ssh root@<h>.ziti true`. The host key is new: check it on the
@@ -143,8 +162,12 @@ controllable host by itself. The order, with the reasons:
    /etc/ssh/ssh_host_ed25519_key.pub`), then replace the old entry
    (`ssh-keygen -R <h>.ziti`). From here, deploys run through
    `deploy.yml` and the deploy agent as usual.
-9. **Restore data**, see the host sections below. Backups from ugreen work
-   again now (they go through Ziti as well).
+9. **Restore data**, see the host sections below. ugreen is reachable
+   again now (through the m2m proxy). On the now-initialized host the way
+   is per service: stop its containers, `restore.sh --from ugreen
+   --service <name> --force` (or without `--from` for pCloud), start them
+   again. Then run one backup (`systemctl start homelab-backup.service`)
+   and check it succeeds.
 
 ### Controller and its backups lost
 
@@ -308,7 +331,8 @@ the dump straight in.
 
 **Recovery sequencing**: PostgreSQL dumps are imported only after the target
 container is running. For a fresh OpenVox host rebuild, use the explicit
-recovery mode before the normal service apply, for example:
+recovery mode as the host's first apply (step 5 above; the first normal
+apply marks the host initialized), for example:
 
 ```bash
 make openvox-recovery HOST=nuc SERVICE=forgejo,umami
@@ -323,8 +347,9 @@ dump into the same database.
 For an already-running service, the targeted manual restore remains available
 for the common case of restoring one service after loss or corruption.
 
-**Source**: both read from pCloud by default. `FROM=ugreen` (recovery mode)
-or `restore.sh --from ugreen` reads the host's on-prem copy on ugreen
+**Source**: both read from pCloud by default. `restore.sh --from ugreen`
+(and `FROM=ugreen` in recovery mode, which in practice only works when
+the host's Ziti identities survived) reads the host's on-prem copy on ugreen
 instead (`ugreen:<host>/...`, same layout, over Ziti), for when pCloud or
 its token is unavailable, or simply because the LAN is faster. The ugreen
 copy has no history beyond ugreen's Btrfs snapshots.
@@ -666,6 +691,37 @@ working, just local-only; see the nas section above for the full
 correction), and Syncthing content has multi-peer replication plus
 30-day pCloud deleted/overwritten-file recovery via rclone's backup directory.
 
+## DR drill 2026-11-25
+
+Phase 5 gate item. A throwaway Rocky 10 VM on nuc (libvirt NAT,
+192.168.122.50, cut off from the LAN, the tailnet and nuc's Docker
+networks), host `drill.int.mljr.eu` with its own router, m2m proxy and a
+test volume backed up to pCloud and ugreen (#734, #733). Round 1 set it
+up as a new host; round 2 destroyed the disk and rebuilt it from a fresh
+cloud image with only this runbook: bootstrap block, OpenVox, the eyaml
+private key pasted from Bitwarden by the owner, first apply,
+`--reenroll` of router and proxy, `restore.sh --from ugreen`.
+
+Result: the restored volume's SHA-256 sums (1 MiB random blob, marker
+file) matched the originals, and the next backup succeeded. Round 2 took
+about 30 minutes, most of it the first apply and waiting for the key.
+
+Found and fixed on the way:
+
+- The deploy scripts ignore every SSH config (`-F /dev/null`), so the
+  bootstrap block did not reach `openvox-modules.sh`: `OPENVOX_SSH_CONFIG`
+  (#732).
+- No scripted restore without pCloud: `restore.sh --from ugreen` (#731).
+- A fresh host's noop fails on guard scripts the apply installs (step 5).
+- EL10: upgrade and reboot before the first apply (step 1); round 1's
+  first apply failed on Docker without it, round 2's ran clean.
+- Recovery mode works only as the first apply, so only from pCloud
+  (step 5); later restores are per service with `restore.sh` (step 9).
+- The host's other Ziti identities need `--reenroll` too, not just the
+  router (step 7).
+- `openvox-stable` blocked a new router that copies the fleet's pinned
+  pre-release; a tag already pinned on main now passes (#734).
+
 ## Follow-up backlog items generated by this audit
 
 - FIXED: the generic Postgres-restore gap (`restore.sh` imports logical
@@ -687,10 +743,10 @@ correction), and Syncthing content has multi-peer replication plus
   over Ziti with opkssh, break-glass keys and a temporary `<h>.ziti`
   bootstrap block before a host is on Ziti, controller restore from its
   own backups, router re-enrolment with `--reenroll`.
-- OPEN (Phase 5 gate): the DR drill - rebuild one host from a fresh OS
-  with only this runbook, ideally a throwaway VM. Everything above is
-  verified by reading code and by the 2026-11-07 controller restore test
-  (ZITI_DR.md), not by a full rebuild since the move to Ziti.
+- DONE (2026-11-25): the DR drill for an agent host, see
+  [DR drill 2026-11-25](#dr-drill-2026-11-25). Not drilled: the mljr
+  controller restore inside a rebuild (tested on its own 2026-11-07,
+  ZITI_DR.md), ugreen's UGOS bootstrap and the WD firmware-reset outline.
 - FIXED (2026-09-02): host-scoped EYaml keys and ciphertext. Each agent has
   `data/secrets/<certname>.eyaml`, a distinct private key at
   `/etc/puppetlabs/puppet/eyaml/hosts/<certname>/`, and only its own required
