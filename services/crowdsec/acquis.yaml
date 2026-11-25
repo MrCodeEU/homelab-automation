@@ -47,8 +47,8 @@ labels:
 
 ---
 # AppSec (WAF) component (docs/APPSEC_POC_PLAN.md). Published on 127.0.0.1:7422
-# for the host's Caddy; caddy-poc reaches it as crowdsec:7422. homelab/poc
-# (kept under this name so the PoC keeps working) only reports a match unless
+# for the host's Caddy. homelab/poc (named after the PoC, which is gone)
+# only reports a match unless
 # the request carries X-Appsec-Mode: block, which Caddy sets per vhost.
 source: appsec
 listen_addr: 0.0.0.0:7422
