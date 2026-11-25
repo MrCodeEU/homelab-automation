@@ -2,6 +2,7 @@
       String $remote_name,
       String $remote_path,
       String $local_path,
+      String $hostname,
 | -%>
 #!/bin/bash
 # Homelab Restore Script
@@ -9,8 +10,13 @@
 
 set -euo pipefail
 
-# Configuration
-REMOTE="<%= $remote_name %>:<%= $remote_path %>"
+# Configuration. --from picks the source: pCloud (default) or this host's
+# on-prem copy on ugreen, which backup.sh writes with the same layout
+# (volumes/<name>, paths/<name>) under ugreen:<hostname>. The [ugreen]
+# remote in rclone.conf carries the backup key.
+PCLOUD_REMOTE="<%= $remote_name %>:<%= $remote_path %>"
+UGREEN_REMOTE="ugreen:<%= $hostname %>"
+REMOTE="$PCLOUD_REMOTE"
 LOCAL_PATH="<%= $local_path %>"
 
 LOG_FILE="${LOCAL_PATH}/logs/restore-$(date +%Y%m%d).log"
@@ -45,7 +51,7 @@ usage() {
     cat << USAGEEOF
 Usage: $0 [OPTIONS] <service|volume|path>
 
-Restore data from pCloud backup.
+Restore data from the pCloud backup, or from the copy on ugreen.
 
 Options:
     -l, --list              List available backups
@@ -55,6 +61,7 @@ Options:
     -d, --dry-run           Show what would be restored without doing it
     -f, --force             Skip confirmation prompts
         --skip-volumes LIST  Comma-separated volumes to leave empty (recovery only)
+        --from SOURCE       pcloud (default) or ugreen
     -h, --help              Show this help message
 
 Examples:
@@ -62,6 +69,7 @@ Examples:
     $0 --service mailcow         # Restore all mailcow data
     $0 --volume kuma_uptime-kuma-sqlite  # Restore specific volume
     $0 --dry-run --service kuma  # Preview kuma restore
+    $0 --from ugreen --service kuma  # Restore kuma from ugreen
 
 Available services:
 <% $host_configs.keys.each |$n| { -%>
@@ -255,6 +263,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-volumes)
             SKIP_VOLUMES="$2"
+            shift 2
+            ;;
+        --from)
+            case "$2" in
+                pcloud) REMOTE="$PCLOUD_REMOTE" ;;
+                ugreen) REMOTE="$UGREEN_REMOTE" ;;
+                *) log_error "Unknown source: $2 (pcloud or ugreen)"; exit 2 ;;
+            esac
             shift 2
             ;;
         -h|--help)

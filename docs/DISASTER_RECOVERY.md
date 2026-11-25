@@ -315,6 +315,12 @@ dump into the same database.
 For an already-running service, the targeted manual restore remains available
 for the common case of restoring one service after loss or corruption.
 
+**Source**: both read from pCloud by default. `FROM=ugreen` (recovery mode)
+or `restore.sh --from ugreen` reads the host's on-prem copy on ugreen
+instead (`ugreen:<host>/...`, same layout, over Ziti), for when pCloud or
+its token is unavailable, or simply because the LAN is faster. The ugreen
+copy has no history beyond ugreen's Btrfs snapshots.
+
 ## nas (Unraid)
 
 **Unraid's boot flash drive is backed up** - `/boot` → pCloud daily,

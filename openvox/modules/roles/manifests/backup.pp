@@ -422,6 +422,15 @@ class roles::backup (
     fail("Unknown or non-local-backup recovery selection: ${unknown_recovery.join(', ')}")
   }
   $recovery_services = $requested_recovery
+  # Where recovery reads from: pCloud unless the run asks for ugreen
+  # (make openvox-recovery FROM=ugreen), e.g. when pCloud is unreachable.
+  $recovery_from = $facts['openvox_recovery_from'] ? {
+    undef    => 'pcloud',
+    ''       => 'pcloud',
+    'pcloud' => 'pcloud',
+    'ugreen' => 'ugreen',
+    default  => fail("Unknown recovery source: ${facts['openvox_recovery_from']} (pcloud or ugreen)"),
+  }
 
   # backup.sh / restore.sh are rendered from real EPP templates
   # (templates/backup/{backup,restore}.sh.epp) instead of the
@@ -456,6 +465,7 @@ class roles::backup (
     'remote_name'  => $remote_name,
     'remote_path'  => $remote_path,
     'local_path'   => $local_path,
+    'hostname'     => $hostname,
   })
 
   $verify_sh_content = epp('roles/backup/verify.sh.epp', {
@@ -587,7 +597,7 @@ class roles::backup (
       $skip_volumes = pick($host_configs[$service]['recovery_skip_volumes'], []).join(',')
       $skip_arg = $skip_volumes ? { '' => '', default => " --skip-volumes ${skip_volumes}" }
       exec { "backup-recovery-${service}":
-        command => "${local_path}/scripts/restore.sh --force${skip_arg} --service ${service}",
+        command => "${local_path}/scripts/restore.sh --force --from ${recovery_from}${skip_arg} --service ${service}",
         timeout => 21600,
         path    => ['/usr/local/bin', '/usr/bin', '/bin'],
         require => Exec['backup-recovery-fresh-host-guard'],
