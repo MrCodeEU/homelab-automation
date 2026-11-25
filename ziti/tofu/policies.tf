@@ -9,8 +9,7 @@ resource "ziti_service_policy" "admin_dial" {
 }
 
 # Edge routers by where an identity runs (C6, docs/ZERO_TRUST_PLAN.md
-# Phase 4). Routers: mljr #public, nuc, ugreen and nas #lan, the DR drill
-# VM #drill. A machine identity
+# Phase 4). Routers: mljr #public, nuc, ugreen and nas #lan. A machine identity
 # connects only to the routers of its own site, so its circuits start
 # there: from home never through mljr, from mljr never into a LAN listener
 # over Tailscale's subnet route. People's devices roam and may use any
@@ -30,16 +29,9 @@ resource "ziti_edge_router_policy" "at_home" {
   edgerouterroles = ["#lan"]
 }
 
-# The DR drill VM's router (#drill) is behind nuc's libvirt NAT, so only
-# the VM's own proxy can reach it: its own policy, and roaming devices get
-# #public and #lan instead of #all.
-resource "ziti_edge_router_policy" "at_drill" {
-  name            = "at-drill-router"
-  semantic        = "AnyOf"
-  identityroles   = ["#at-drill"]
-  edgerouterroles = ["#drill"]
-}
-
+# Roaming devices get the routers they can reach, #public and #lan, not
+# #all: a router outside both (the DR drill VM's, 2026-11-25) may sit
+# behind a NAT no client can reach.
 resource "ziti_edge_router_policy" "roaming" {
   name            = "roaming-all-routers"
   semantic        = "AnyOf"

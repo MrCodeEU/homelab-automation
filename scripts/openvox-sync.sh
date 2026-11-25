@@ -53,7 +53,6 @@ case "$host" in
   mljr.ziti)   certname='mljr.int.mljr.eu' ;;
   nuc.ziti)    certname='nuc.int.mljr.eu' ;;
   ugreen.ziti) certname='ugreen.int.mljr.eu' ;;
-  drill.ziti)  certname='drill.int.mljr.eu' ;;  # DR drill VM
   *)                       certname='' ;;
 esac
 

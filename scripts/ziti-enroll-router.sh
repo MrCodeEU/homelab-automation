@@ -12,7 +12,7 @@
 #   4. restart the router container, wait until the controller reports it
 #      online, then delete the token
 #
-# Usage: scripts/ziti-enroll-router.sh <mljr|nuc|ugreen|nas|drill> [--reenroll]
+# Usage: scripts/ziti-enroll-router.sh <mljr|nuc|ugreen|nas> [--reenroll]
 # Deploy the router service first (the container restart-loops until the
 # token is there; that is expected).
 # Remote commands are built locally on purpose (names and paths are local
@@ -36,13 +36,11 @@ case "$name" in
   mljr) host=root@mljr.ziti; svc=ziti-router;     attr=public; base=/opt ;;
   nuc)  host=root@nuc.ziti;  svc=ziti-router-nuc; attr=lan;    base=/opt ;;
   ugreen) host=root@ugreen.ziti; svc=ziti-router-ugreen; attr=lan; base=/volume1/homelab ;;
-  # DR drill VM (docs/DISASTER_RECOVERY.md): own attribute, not #lan
-  drill) host=root@drill.ziti; svc=ziti-router-drill; attr=drill; base=/opt ;;
   # nas: nas-ssh is hosted by nas's own router (opkssh, roles::nas_opkssh),
   # so a first enrolment, or one while that router is down, needs the LAN:
   # NAS_SSH=root@192.168.50.80.
   nas) host=${NAS_SSH:-root@nas-ssh.ziti}; svc=ziti-router-nas; attr=lan; base=/mnt/user/appdata/homelab ;;
-  *) die "usage: $0 <mljr|nuc|ugreen|nas|drill> [--reenroll]" ;;
+  *) die "usage: $0 <mljr|nuc|ugreen|nas> [--reenroll]" ;;
 esac
 # base: roles::services::base_path of that host (docs/ZITI_ENROLL.md).
 data="$base/$svc/data"
