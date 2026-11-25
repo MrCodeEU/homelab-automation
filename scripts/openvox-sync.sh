@@ -83,8 +83,11 @@ fi
 # Deployment addressing and authentication are explicit; do not inherit an
 # operator workstation's ProxyCommand/Host overrides (or fail because an
 # unrelated system SSH fragment has unsafe ownership/mode).
+# OPENVOX_SSH_CONFIG names the one config file to use instead: the DR
+# bootstrap block for a host that is not on Ziti yet
+# (docs/DISASTER_RECOVERY.md, "Rebuilding an agent host").
 ssh_opts=(
-  -F /dev/null
+  -F "${OPENVOX_SSH_CONFIG:-/dev/null}"
   -o BatchMode=yes
   -o ConnectTimeout=10
   -o ConnectionAttempts=3

@@ -104,14 +104,18 @@ controllable host by itself. The order, with the reasons:
 
    For nuc: `HostName 192.168.50.30`, port 22, from the home LAN. Run the
    scripts with `OPK_SKIP=1` while this block is in place, since the host
-   has no opkssh yet.
-3. **Install OpenVox**: `OPK_SKIP=1 scripts/install-openvox.sh
-   <h>.int.mljr.eu`. It takes the certname from the name it is given, so
+   has no opkssh yet. The deploy scripts (`openvox-sync.sh`,
+   `openvox-modules.sh`, `openvox-rollback.sh`) ignore every SSH config on
+   purpose (`-F /dev/null`); `OPENVOX_SSH_CONFIG=~/.ssh/config.d/00-dr-bootstrap.conf`
+   makes them read this one file instead, so the block has to be complete
+   on its own (no `Include`, every option it needs written out).
+3. **Install OpenVox**: `OPK_SKIP=1 OPENVOX_SSH_CONFIG=~/.ssh/config.d/00-dr-bootstrap.conf
+   scripts/install-openvox.sh <h>.int.mljr.eu`. It takes the certname from the name it is given, so
    use the `int.mljr.eu` name, not `<h>.ziti`.
 4. **Restore that host's EYaml key pair** from Bitwarden, see
    [EYaml key recovery](#eyaml-key-recovery).
-5. **First apply**: `OPK_SKIP=1 make openvox-check-<h>`, then
-   `OPK_SKIP=1 make openvox-deploy-<h>`. This brings up base, firewall,
+5. **First apply**: with `OPK_SKIP=1` and `OPENVOX_SSH_CONFIG` set as in
+   step 3, `make openvox-check-<h>`, then `make openvox-deploy-<h>`. This brings up base, firewall,
    sshd hardening, opkssh, Docker, the deploy agent and every catalog
    service; services that need Ziti (proxies, the router) restart-loop
    until step 7, which is expected. On EL10, reboot into the newest kernel
@@ -129,7 +133,8 @@ controllable host by itself. The order, with the reasons:
    and certificate were on the lost disk; `--reenroll` issues a new token
    for the same router, so policies, terminators and the router id stay.
    The proxies and the host's `ssh` service come up with it.
-8. **Back to the daily path**: delete the bootstrap block, `opkssh login`,
+8. **Back to the daily path**: delete the bootstrap block, unset
+   `OPENVOX_SSH_CONFIG` and `OPK_SKIP`, `opkssh login`,
    then `ssh root@<h>.ziti true`. The host key is new: check it on the
    console or over the break-glass session (`ssh-keygen -lf
    /etc/ssh/ssh_host_ed25519_key.pub`), then replace the old entry
@@ -513,8 +518,9 @@ hardware. The repeatable boundary is deliberately clear:
    [EYaml key recovery](#eyaml-key-recovery), then sync and apply:
 
    ```bash
-   OPK_SKIP=1 make openvox-check-ugreen
-   OPK_SKIP=1 make openvox-deploy-ugreen
+   export OPK_SKIP=1 OPENVOX_SSH_CONFIG=~/.ssh/config.d/00-dr-bootstrap.conf
+   make openvox-check-ugreen
+   make openvox-deploy-ugreen
    ```
 
    The apply recreates `/volume1/homelab`, the managed Compose services
