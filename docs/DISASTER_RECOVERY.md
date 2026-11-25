@@ -6,7 +6,10 @@ covered today. Originally written from a real audit (2026-08-13);
 updated 2026-09-02 to reflect OpenVox as the real production deploy
 mechanism since 2026-08-23 and its host-scoped EYaml keys (see
 `openvox/README.md`) - every gap below was verified against the actual
-role/catalog code, not assumed.
+role/catalog code, not assumed. Rewritten 2026-11-25 for OpenZiti: no
+step depends on Tailscale any more (docs/ZERO_TRUST_PLAN.md, Phase 5).
+tailscaled is still installed on the hosts until the zero-trust plan is
+finished, but nothing here uses it.
 
 `ansible/` was removed 2026-09-02 after a full parity audit confirmed
 every role had a real OpenVox equivalent - see `git log` before that date
@@ -19,47 +22,32 @@ secret) - see `docs/OPENVOX_BACKLOG.md` for the full correction.
 
 `mljr` was rebuilt from scratch for real on 2026-10-24 (Rocky 9 to 10, see
 [mljr rebuild notes](#mljr-rebuild-2026-10-24)), and `ugreen` was rebuilt
-after the 2026-07-31 failure. The other hosts and the Unraid flash restore
-have not been drilled. A scheduled restore drill is still a backlog item.
+after the 2026-07-31 failure. Both were before the move to Ziti. The
+procedure below has not been drilled end to end yet; the DR drill is the
+Phase 5 gate item.
 
-## Before any of this works at all
+## What has to exist outside the lab
 
-If Tailscale itself is down or a host is unreachable through it, start
-with [BREAKGLASS.md](BREAKGLASS.md): YubiKey and Bitwarden SSH keys that
-work on every host without Tailscale.
+Bootstrap must never depend on a service that only runs inside the lab.
+Everything a rebuild needs is here:
 
-Nothing in this repo can turn a bare OS install into an OpenVox-
-controllable host by itself. These are manual, one-time, outside-Git
-prerequisites:
+| What | Where | Used for |
+|---|---|---|
+| This repo | GitHub, and the laptop's clone | everything |
+| Laptop with the Ziti tunneler, the `laptop-mrcode` identity and opkssh | `scripts/ziti-laptop-tunnel.sh`, `scripts/opkssh-laptop.sh` | daily SSH (`<host>.ziti`), the enrol scripts |
+| YubiKey 1 (on person) and YubiKey 2 (at home) | FIDO2 SSH key `homelab-breakglass-yk1/2`; PIV slot `9c` holds the Ziti root CA | break-glass SSH ([BREAKGLASS.md](BREAKGLASS.md)); a new Ziti PKI ([ZITI_PKI.md](ZITI_PKI.md)) |
+| Bitwarden | per-host eyaml private keys (labelled by certname), `homelab-recovery` SSH key, `homelab ziti backup age key`, `homelab ziti root CA` | secrets, break-glass without a YubiKey, the controller backup |
+| Contabo customer panel | web | mljr: reinstall, console, stop/start |
+| deSEC | web, and `DESEC_*` tokens in GitHub | DNS (`dns/`, dnscontrol) |
+| pCloud | rclone token in the eyaml (`vault_pcloud_token`) | offsite backups, incl. the age-encrypted Ziti controller bundle |
 
-1. **Install the base OS.** Rocky Linux for `mljr`/`nuc`. Unraid/UGOS/WD
-   firmware are vendor images, reinstalled from their own recovery media
-   (see host-specific sections below).
-2. **Enroll the host into Tailscale interactively**, with `tailscale up
-   --ssh`. There is no Tailscale-install role for `mljr`/`nuc` in this
-   repo - both hosts are assumed already enrolled. SSH access to every
-   managed host is Tailscale SSH, not a repo-tracked keypair
-   (`.github/workflows/README.md`: *"No SSH keys in repository: Uses
-   Tailscale authentication"*). Whoever does this needs access to the
-   Tailscale admin console to approve the new device and confirm it has
-   the right ACL tags.
-3. **Install OpenVox itself** on the target host (`scripts/install-openvox.sh`
-   handles the Rocky package install; Ugreen's Debian bootstrap is specified
-   in its host section below). See `openvox/README.md` for the masterless
-   model this repo relies on - no puppetserver, no PuppetDB, every host
-   applies its own copy of `manifests/site.pp` locally.
-4. **Restore that host's existing EYaml key pair.** This is required only
-   for an existing recovered host; see [EYaml key recovery](#eyaml-key-recovery)
-   below. Without its original private key, any class that does
-   `lookup('vault_...')` fails outright - there is no puppetserver to
-   fall back on for decryption.
-5. **Sync the environment and apply**: `make openvox-deploy-<host>` (or
-   `make openvox-check-<host>` first, to noop it) runs
-   `scripts/openvox-sync.sh`, which rsyncs (scp for `ugreen`) the whole
-   `openvox/` tree to `/etc/puppetlabs/code/environments/production/` on
-   the target, then runs `puppet apply` locally there.
-6. **`git config core.hooksPath .githooks`** - repo-standard pre-commit
-   hooks, unrelated to any specific host.
+**The Ziti controller is recoverable from backup**, which is the big
+difference to the Tailscale era: its PKI and raft database are backed up
+nightly to ugreen and, age-encrypted, to pCloud ([ZITI_DR.md](ZITI_DR.md));
+the policy is code (`ziti/tofu/`, `scripts/ziti-tofu.sh`); and the root CA
+lives offline on the YubiKeys and in Bitwarden. Losing all of that at once
+means a new PKI and re-enrolling every router and identity (see
+[Controller and its backups lost](#controller-and-its-backups-lost)).
 
 **Each agent host has its own EYaml private key and encrypted secret file.**
 The private keys are outside Git and are backed up in Bitwarden, labelled by
@@ -75,11 +63,101 @@ secret, it's deployed straight to hosts, and CI has no host access since
 `DESEC_READ_TOKEN` (repository) and `DESEC_WRITE_TOKEN` (environment
 `dns-production`).
 
-**The single biggest thing this repo cannot back up or reproduce**: the
-Tailscale admin console configuration itself - ACLs, device tags, and
-every node's one-time interactive login.
-If that's gone, every host needs re-enrolling and re-approving by hand
-before OpenVox can reach any of them.
+## How you reach a host
+
+| Path | Needs | Works when |
+|---|---|---|
+| `ssh root@<host>.ziti` (opkssh key, `opkssh login` once a day) | laptop tunneler, Authelia, the controller on mljr, **that host's own router** (each host hosts its own `ssh` service) | daily |
+| Break-glass key, direct address ([BREAKGLASS.md](BREAKGLASS.md)) | YubiKey or Bitwarden; mljr on its public port 2299, home hosts only from the home LAN | Ziti or Authelia is down, or the host is not on Ziti yet |
+| Console | Contabo panel (mljr), keyboard and screen (home hosts) | SSH is gone too |
+
+From outside the home, a home host whose router is down can be reached
+only through another home host that is still on Ziti, for example
+`ssh -J root@nuc.ziti root@192.168.50.80` for nas (the jump goes over
+Ziti, the last hop over the LAN).
+
+## Rebuilding an agent host (mljr, nuc)
+
+Nothing in this repo can turn a bare OS install into an OpenVox-
+controllable host by itself. The order, with the reasons:
+
+1. **Install the base OS** with the break-glass public keys for root
+   (`breakglass_pubkeys` in `openvox/data/common.yaml`): Rocky Linux 10 for
+   both, mljr from the Contabo panel's reinstall dialog (it takes an SSH
+   key), nuc from the installer or a kickstart. Without a key there, log
+   in with the password once and add the keys by hand. Unraid, UGOS and WD
+   are vendor images, see their sections below.
+2. **Point `<h>.ziti` at the real address for now.** The repo's scripts
+   address hosts only as `<h>.ziti` (and `<h>.int.mljr.eu`), and that name
+   has to work before the host is on Ziti. A file that sorts before the
+   Ziti one, e.g. `~/.ssh/config.d/00-dr-bootstrap.conf`:
+
+   ```
+   # Temporary, remove after the host is back on Ziti (step 8).
+   Host mljr.ziti mljr.int.mljr.eu
+     HostName 157.173.97.107
+     Port 22        # 2299 once the first apply has run (the tarpit takes 22)
+     User root
+     IdentityFile ~/.ssh/id_ed25519_sk_homelab_yk1
+     IdentitiesOnly yes
+   ```
+
+   For nuc: `HostName 192.168.50.30`, port 22, from the home LAN. Run the
+   scripts with `OPK_SKIP=1` while this block is in place, since the host
+   has no opkssh yet.
+3. **Install OpenVox**: `OPK_SKIP=1 scripts/install-openvox.sh
+   <h>.int.mljr.eu`. It takes the certname from the name it is given, so
+   use the `int.mljr.eu` name, not `<h>.ziti`.
+4. **Restore that host's EYaml key pair** from Bitwarden, see
+   [EYaml key recovery](#eyaml-key-recovery).
+5. **First apply**: `OPK_SKIP=1 make openvox-check-<h>`, then
+   `OPK_SKIP=1 make openvox-deploy-<h>`. This brings up base, firewall,
+   sshd hardening, opkssh, Docker, the deploy agent and every catalog
+   service; services that need Ziti (proxies, the router) restart-loop
+   until step 7, which is expected. On EL10, reboot into the newest kernel
+   after the first apply (netfilter module mismatch, see the 2026-10-24
+   notes). On mljr, switch the bootstrap block to port 2299 afterwards.
+6. **mljr only: restore the Ziti controller** before anything else Ziti,
+   following [ZITI_DR.md](ZITI_DR.md) "Restore onto a rebuilt mljr". Take
+   the bundle **from pCloud** (age, key from Bitwarden): mljr's copy on
+   ugreen is reachable only through Ziti (`roles::backup::ugreen_host`
+   127.0.0.1, the backup-sftp proxy), which needs the controller.
+   `ctrl.ziti.mljr.eu` keeps pointing at mljr when the IP stays; with a
+   new IP, update `dns/dnsconfig.js` and push it first.
+7. **Re-enrol the host's router**: `OPK_SKIP=1 scripts/ziti-enroll-router.sh
+   <h> --reenroll`. The router still exists in the controller, but its key
+   and certificate were on the lost disk; `--reenroll` issues a new token
+   for the same router, so policies, terminators and the router id stay.
+   The proxies and the host's `ssh` service come up with it.
+8. **Back to the daily path**: delete the bootstrap block, `opkssh login`,
+   then `ssh root@<h>.ziti true`. The host key is new: check it on the
+   console or over the break-glass session (`ssh-keygen -lf
+   /etc/ssh/ssh_host_ed25519_key.pub`), then replace the old entry
+   (`ssh-keygen -R <h>.ziti`). From here, deploys run through
+   `deploy.yml` and the deploy agent as usual.
+9. **Restore data**, see the host sections below. Backups from ugreen work
+   again now (they go through Ziti as well).
+
+### Controller and its backups lost
+
+Only if mljr, the ugreen copy and the pCloud copy (or the age key) are all
+gone. Then there is no overlay to recover, only one to rebuild:
+
+1. Sign a new intermediate CA with the offline root on a YubiKey
+   (`scripts/ziti-sign-intermediate.sh`, [ZITI_PKI.md](ZITI_PKI.md)).
+   If the root is gone too, `scripts/ziti-root-ca-ceremony.sh` first, and
+   every client then has to trust the new root.
+2. Converge mljr; the controller starts with the new PKI and an empty
+   database.
+3. Recreate all policy, services and identities from git:
+   `scripts/ziti-tofu.sh apply` (show the plan first, as always).
+4. Enrol everything again: every router (`scripts/ziti-enroll-router.sh`,
+   without `--reenroll`), the proxy and Caddy identities
+   (`scripts/ziti-enroll-proxy.sh`, `scripts/ziti-enroll-caddy.sh`), the
+   WD tunneler (`scripts/ziti-enroll-wd-mycloud.sh`), the laptop
+   (`scripts/ziti-laptop-tunnel.sh`) and the phone
+   (`scripts/ziti-enroll-phone.sh`). Until the routers are back, the home
+   hosts are reachable only with the break-glass keys from the LAN.
 
 ### EYaml key recovery
 
@@ -113,14 +191,17 @@ key pair and therefore cannot decrypt the already committed ciphertext. That
 script is only for a genuinely new host, after which its public key and a new
 host secret file must be committed.
 
+`git config core.hooksPath .githooks` sets up the repo's pre-commit hooks
+on a fresh clone; it is unrelated to any specific host.
+
 ## mljr (Rocky, production ingress)
 
-Once Tailscale-enrolled, OpenVox-installed, and its EYaml key restored
-(steps above), `make openvox-deploy-mljr` (or the normal CI deploy path
-via `.github/workflows/deploy.yml`) brings up: base packages/Docker/
-firewalld, CrowdSec + nftables bouncer, Caddy (reverse proxy/ingress +
-ACME TLS), Authelia (SSO), Mailcow, Glance, HetrixTools agent, and every
-service-catalog entry scoped to `host: mljr`.
+Once bootstrapped ([steps above](#rebuilding-an-agent-host-mljr-nuc),
+including the controller restore), the first apply brings up: base
+packages/Docker/firewalld, CrowdSec + nftables bouncer, Caddy (reverse
+proxy/ingress + ACME TLS), Authelia (SSO), Mailcow, Glance, HetrixTools
+agent, the Ziti controller and public router, and every service-catalog
+entry scoped to `host: mljr`.
 
 **Auto-restore on a fresh install is not ported.** Nothing restores data by
 itself after the first apply. Restore each service explicitly, either with
@@ -128,6 +209,10 @@ itself after the first apply. Restore each service explicitly, either with
 only, see the nuc section) or with `restore.sh --service <name> --force` on
 the host after stopping that service's containers. This applies to critical
 and non-critical services alike.
+
+**Order matters on mljr:** Authelia before anything that logs in through
+it (opkssh SSH, the OIDC apps, Ziti enrolment through Authelia). Until
+Authelia's database is restored, use the break-glass path.
 
 **Known friction, not data loss:**
 - Caddy's ACME/TLS certificate cache isn't backed up - Let's Encrypt just
@@ -150,10 +235,10 @@ and non-critical services alike.
 ### mljr rebuild (2026-10-24)
 
 No supported in-place Rocky 9 to 10 upgrade exists (ELevate dropped Rocky),
-so mljr was reinstalled from the Contabo Rocky 10 image on the same IP, with
-its Tailscale identity kept by restoring `tailscaled.state`. Then: OpenVox
-install, per-host eyaml key, apply, manual restore. Things that bite on a
-fresh host:
+so mljr was reinstalled from the Contabo Rocky 10 image on the same IP. At
+the time it got back onto the tailnet by restoring `tailscaled.state`;
+today that is steps 2-8 above instead. Then: OpenVox install, per-host
+eyaml key, apply, manual restore. Things that bite on a fresh host:
 
 - The first apply on a fresh EL10 host needs a reboot into the newest kernel
   (netfilter module mismatch).
@@ -174,10 +259,19 @@ fresh host:
 
 ## nuc (Rocky, staging + misc services)
 
-Same mechanism as mljr: `make openvox-deploy-nuc`. Covers TutaBridge CLI
-(headless Tuta export), health-report agent, Hawser Docker agent, and
-every service-catalog entry scoped to `host: nuc` (mail-archiver, umami,
-forgejo, kuma, grafana, and the various demo/utility services).
+Same mechanism as mljr ([steps above](#rebuilding-an-agent-host-mljr-nuc),
+from the home LAN, without step 6). Covers TutaBridge CLI (headless Tuta
+export), health-report agent, Hawser Docker agent, the home routers'
+management paths (nas, wd_mycloud, HA over its own router and proxies),
+VictoriaMetrics/Loki/Grafana, and every service-catalog entry scoped to
+`host: nuc` (mail-archiver, umami, forgejo, kuma, grafana, and the various
+demo/utility services).
+
+nuc also drives nas and wd_mycloud (`roles::services_nas`, the
+`unraid_*` and `wd_mycloud_*` proxies) over `ssh nas-mgmt` and
+`ssh wd-mycloud-mgmt`, both through Ziti. Those resources fail until
+nuc's router and proxy are back (step 7); the next apply after that
+catches up.
 
 **TutaBridge specifically** needs one extra thing beyond a plain deploy:
 `roles::tutabridge_cli` handles gnome-keyring bootstrapping and the
@@ -230,6 +324,15 @@ model). This is the single most important thing for Unraid recovery
 (Unraid's own guidance): it holds every array/share/plugin/
 Docker-template configuration and the license key. Recovery: boot from
 a fresh flash drive image, restore this backup onto it, boot.
+
+The flash also holds `/root/.ssh/authorized_keys` (the break-glass keys
+and the nas-mgmt key) and the opkssh files (`roles::nas_opkssh`), so a
+flash restore brings back SSH access as well. The Ziti router's data
+(`/mnt/user/appdata/homelab/ziti-router-nas/data`) is on the array, not
+the flash: after an array loss, re-enrol it with
+`NAS_SSH=root@192.168.50.80 scripts/ziti-enroll-router.sh nas --reenroll`
+from the home LAN (`roles::services_nas` deploys the router service
+first).
 
 **nuc's way in (`ssh nas-mgmt`) runs over Ziti through nas's own router**
 (`roles::nas_mgmt_key`). It needs that router running and the nas-mgmt
@@ -337,12 +440,14 @@ or mismatched files). The temporary directory was removed afterward.
 
 ## ugreen (UGreen NAS, UGOS)
 
-OpenVox-managed subset only: `syncthing-ugreen`, `smartctl-exporter`, plus
-`roles::host_facts_endpoint`, `roles::grafana_alloy`, `roles::iperf3`,
-`roles::ugreen_tailscale` (version-check only, UGOS itself isn't
-`dnf`-managed by design), and `roles::backup_remote_target` (the SFTP
-chroot other hosts push backups into). Unlike mljr/nuc, ugreen has no
-`roles::base` - see `role::ugreen`'s own comment for why.
+OpenVox-managed subset only: `syncthing-ugreen`, `smartctl-exporter`, the
+Ziti router `ziti-router-ugreen`, plus `roles::host_facts_endpoint`,
+`roles::grafana_alloy`, `roles::iperf3`, `roles::ugreen_tailscale`
+(version check only, removed together with tailscaled at the end of the
+zero-trust plan), and `roles::backup_remote_target` (the SFTP chroot
+other hosts push backups into, reached by them over Ziti). Unlike
+mljr/nuc, ugreen has no `roles::base` - see `role::ugreen`'s own comment
+for why.
 
 Everything else - UGOS's own storage pool layout (mdraid → LVM → btrfs),
 network share definitions, UGOS app-store installs - is vendor-appliance
@@ -363,10 +468,37 @@ hardware. The repeatable boundary is deliberately clear:
    mounted at `/volume1`, with a separate two-NVMe RAID1 bcache tier
    (`md2`). Verify `/volume1` is writable. OpenVox must never create,
    repair, or format this vendor-managed layout.
-2. **Restore connectivity.** Add the Debian 12 Tailscale package source,
-   install Tailscale, then authenticate with `tailscale up --ssh`. Approve
-   the device and its intended tags in the Tailscale admin console. This
-   is the first remote-management path after a factory reset.
+2. **Restore connectivity on the LAN.** UGOS keeps root login off, but
+   the repo's scripts log in as root. The way in is the one
+   `roles::opkssh` sets up later: root with a key, only on connections to
+   127.0.0.2. On a fresh UGOS it has to be made by hand once:
+   - Enable SSH in the UGOS UI and log in as `mrcode` (the UGOS admin
+     user, has sudo) at `192.168.50.86` with its password.
+   - Add the break-glass public keys to `~mrcode/.ssh/authorized_keys`
+     and to `/root/.ssh/authorized_keys` (directory 0700, file 0600).
+   - Write `/etc/ssh/sshd_config.d/11-openvox-opkssh-root.conf` (0600)
+     with the content `roles::opkssh` uses (`Match User root LocalAddress
+     127.0.0.2`, `PermitRootLogin prohibit-password`, `AuthenticationMethods
+     publickey`, `ForceCommand none`, `Match all`), then `sudo sshd -t &&
+     sudo systemctl reload ssh`. The first apply takes the file over.
+
+   The bootstrap block (as in [step 2 above](#rebuilding-an-agent-host-mljr-nuc))
+   then jumps through `mrcode` to that address:
+
+   ```
+   Host ugreen.ziti ugreen.int.mljr.eu
+     HostName 127.0.0.2
+     ProxyJump mrcode@192.168.50.86
+     User root
+     IdentityFile ~/.ssh/id_ed25519_sk_homelab_yk1
+     IdentitiesOnly yes
+   Host 192.168.50.86
+     IdentityFile ~/.ssh/id_ed25519_sk_homelab_yk1
+     IdentitiesOnly yes
+   ```
+
+   Remove the break-glass keys from root's file again after step 5;
+   `mrcode` keeps them (`roles::ssh_hardening`).
 3. **Install OpenVox for Debian 12.** Add the OpenVox Debian 12 apt source
    (`https://apt.voxpupuli.org`, suite `debian12 openvox8`) and install the
    OpenVox agent. Set its certname to `ugreen.int.mljr.eu`. The
@@ -375,26 +507,33 @@ hardware. The repeatable boundary is deliberately clear:
    [EYaml key recovery](#eyaml-key-recovery), then sync and apply:
 
    ```bash
-   make openvox-check-ugreen
-   make openvox-deploy-ugreen
+   OPK_SKIP=1 make openvox-check-ugreen
+   OPK_SKIP=1 make openvox-deploy-ugreen
    ```
 
-   The apply recreates `/volume1/homelab`, the managed Compose services,
-   `homelab-facts`, Grafana Alloy, iperf3, the SFTP backup
-   account and chroot (`/volume1/homelab-backups/data`), and the Btrfs
-   backup-history timer. It deliberately does not manage a firewall on
-   Ugreen; access is Tailscale-only.
-5. **Repopulate the backup target from authoritative sources.** A rebuilt
+   The apply recreates `/volume1/homelab`, the managed Compose services
+   (including the Ziti router, which restart-loops until step 5),
+   `homelab-facts`, Grafana Alloy, iperf3, the SFTP backup account and
+   chroot (`/volume1/homelab-backups/data`), the Btrfs backup-history
+   timer and the opkssh login for `mrcode` (`ugreen.ziti` dials
+   127.0.0.2, where root login over opkssh is allowed). It deliberately
+   does not manage a firewall on Ugreen.
+5. **Re-enrol the router**: `OPK_SKIP=1 scripts/ziti-enroll-router.sh
+   ugreen --reenroll`, then remove the bootstrap block and check
+   `ssh root@ugreen.ziti true` over Ziti (new host key, see step 8 above).
+6. **Repopulate the backup target from authoritative sources.** A rebuilt
    Ugreen is an empty *destination*, not a source of truth. Let the next
    backup runs from mljr/nuc/nas upload fresh data; do not try to make an
    incomplete old Ugreen copy authoritative. Its historical Btrfs
    snapshots are lost with the pool and start again after the first new
-   backup.
-6. **Verify before relying on it:** `tailscaled` and Docker are active,
-   the expected containers are healthy, the SFTP target is writable by the
-   restricted backup user, `homelab-backup-snapshot.timer` is enabled, and
-   the next source backup completes to Ugreen. Confirm Grafana and the
-   health report see the host again.
+   backup. The Ziti controller bundle is among them: until mljr's next
+   nightly backup, its only copy is the age-encrypted one on pCloud.
+7. **Verify before relying on it:** the router is online
+   (`ziti edge list edge-routers`), Docker and the expected containers are
+   healthy, the SFTP target is writable by the restricted backup user
+   (the next mljr/nuc backup run reaches it over `backup-sftp-ugreen`),
+   `homelab-backup-snapshot.timer` is enabled, and Grafana and the health
+   report see the host again.
 
 ## wd_mycloud (WD MyCloud EX2 Ultra)
 
@@ -407,6 +546,32 @@ after a reboot on this BusyBox device, no systemd/cron persistence
 otherwise). Full detail already written up separately: see the
 `wd-mycloud-reboot-persistence` memory/notes.
 
+nuc reaches it as `ssh wd-mycloud-mgmt` over Ziti, through the
+`ziti-edge-tunnel run-host` tunneler on the device itself (identity
+`wd-mycloud`, [ZITI_ENROLL.md](ZITI_ENROLL.md) "WD My Cloud"). Every
+piece of that (the tunneler, the management key, the boot hook) is
+installed over that same path, so after a firmware reset that wipes the
+data partition nothing can reach the device from nuc. **Not scripted and
+not tested**; the outline:
+
+1. From the LAN with a break-glass key, as `root@192.168.50.176`, add the
+   management public key (`wd_mycloud_mgmt_pubkey` in nuc's hiera)
+   without its `from=` restriction to root's `authorized_keys`.
+2. On nuc, a temporary `/etc/ssh/ssh_config.d/39-dr-wd.conf` with `Host
+   wd-mycloud-mgmt` and `HostName 192.168.50.176` (it sorts before the
+   managed `40-wd-mycloud-mgmt.conf`, so it wins). If the reset changed
+   the device's host key, update `wd_mycloud_host_key` first: the
+   managed config pins it.
+3. Deploy nuc: it writes the keys (with `from=` again), the boot hook and
+   the tunneler. Then `scripts/ziti-enroll-wd-mycloud.sh --reenroll`.
+4. Delete `39-dr-wd.conf` and check that `ssh wd-mycloud-mgmt true` on
+   nuc works over Ziti.
+
+Losing only the tunneler's identity file is the smaller case: the keys
+and boot hook survive. Steps 1 and 2 (the managed key line only accepts
+127.0.0.1, so the LAN needs the unrestricted one), then
+`scripts/ziti-enroll-wd-mycloud.sh --reenroll`, then step 4.
+
 This device is purely a backup **destination** (`wd_cloud: true` entries
 in `unraid_backup_paths`), never a source. Its own RAID/share
 configuration is vendor-firmware-level, untouched by OpenVox, and not
@@ -417,12 +582,14 @@ firmware/RAID-rebuild tooling provides.
 
 HA is `proxy_only` in the service catalog - `roles::services` only
 generates its Caddy route, nothing about the appliance itself is
-managed here. **Deliberately not being brought into OpenVox-managed
-backup either** - it already backs up to pCloud on its own, separately
-from this repo's backup system. This is an intentional independent
-backup path.
-Recovery for HA is entirely through its own backup/restore mechanism,
-not this repo.
+managed here. Caddy reaches it over Ziti through nuc's router
+(`ziti_bind` via nuc). **Deliberately not being brought into
+OpenVox-managed backup either** - it already backs up to pCloud on its
+own, separately from this repo's backup system. This is an intentional
+independent backup path. Recovery for HA is entirely through its own
+backup/restore mechanism, not this repo; after a restore, check that its
+trusted proxies still include the address nuc's router dials from
+(Settings > System > Network).
 
 ## Credentials checklist
 
@@ -440,11 +607,14 @@ regenerate identically, not just "annoying":
   this exact key, Authelia's existing SQLite DB (WebAuthn credentials,
   2FA enrollment) becomes undecryptable even if the DB file itself is
   restored perfectly from backup. Every user re-enrolls 2FA/WebAuthn
-  from scratch.
+  from scratch. Authelia is also the login for opkssh SSH and every OIDC
+  app, so this hurts more than before.
 - **`vault_pcloud_token`** - the OAuth token for the primary offsite
   backup remote. Without it, neither backup role can reach existing
   backups. Re-authenticating rclone against the same pCloud account gets
   a new token, but that's a manual step outside OpenVox.
+- **The Ziti backup age key** (Bitwarden only, not in eyaml) - the only
+  way to read the controller bundle on pCloud when ugreen is lost too.
 - **`vault_tuta_email` / `vault_tuta_password`**,
   **`vault_google_client_id/secret`**, **`vault_strava_*`**,
   **`vault_homeassistant_token`** - third-party identities, regenerable
@@ -462,10 +632,15 @@ regenerate identically, not just "annoying":
    Unraid flash backup ever turns out to not actually restore Docker
    templates cleanly (unverified) - their actual data (appdata + Immich's
    photo library) is now offsite-covered either way, see below.
-2. The Tailscale admin console configuration itself (ACLs, tags) - not
-   exportable/backed-up by anything here.
-3. Authelia's 2FA/WebAuthn enrollments, if `vault_authelia_storage_encryption_key`
+2. Authelia's 2FA/WebAuthn enrollments, if `vault_authelia_storage_encryption_key`
    is ever lost without the DB (see credentials checklist above).
+3. The overlay's identities, if the controller, both of its backup copies
+   (or the age key) are lost together: recoverable only by rebuilding the
+   PKI and re-enrolling everything ([above](#controller-and-its-backups-lost)).
+   Policy is never lost; it is in git.
+
+The Tailscale admin console (ACLs, tags, device logins) used to be on this
+list. Nothing depends on it since 2026-11-25.
 
 Fixed during this audit: mail-archiver's backup coverage (was inert,
 now real), the generic Postgres-restore gap, and - after re-checking
@@ -491,10 +666,16 @@ correction), and Syncthing content has multi-peer replication plus
   `managed: false` Docker containers cleanly - or write down manual
   recreation steps for each if it doesn't.
 - FIXED (2026-09-02): the `ugreen` section above now records the 2026-07-31
-  rebuild as a real procedure: vendor storage boundary, Tailscale/OpenVox
+  rebuild as a real procedure: vendor storage boundary, OpenVox
   bootstrap, backup-target repopulation, and validation checks.
-- Actually test this runbook against a throwaway VM once resources allow
-  - everything above is verified-by-reading-code, not verified-by-doing.
+- FIXED (2026-11-25): the bootstrap no longer depends on Tailscale: SSH
+  over Ziti with opkssh, break-glass keys and a temporary `<h>.ziti`
+  bootstrap block before a host is on Ziti, controller restore from its
+  own backups, router re-enrolment with `--reenroll`.
+- OPEN (Phase 5 gate): the DR drill - rebuild one host from a fresh OS
+  with only this runbook, ideally a throwaway VM. Everything above is
+  verified by reading code and by the 2026-11-07 controller restore test
+  (ZITI_DR.md), not by a full rebuild since the move to Ziti.
 - FIXED (2026-09-02): host-scoped EYaml keys and ciphertext. Each agent has
   `data/secrets/<certname>.eyaml`, a distinct private key at
   `/etc/puppetlabs/puppet/eyaml/hosts/<certname>/`, and only its own required
