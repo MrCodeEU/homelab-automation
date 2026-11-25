@@ -45,7 +45,7 @@ describe 'roles::base' do
   it 'limits the trusted firewall zone to the declared sources' do
     is_expected.to contain_roles__firewalld__zone_sources('trusted').with(
       zone: 'trusted',
-      sources: ['100.64.0.0/10'],
+      sources: [],
     )
   end
 
@@ -71,7 +71,6 @@ describe 'roles::base' do
     let(:params) do
       {
         public_ip: '203.0.113.10',
-        tailscale_ip: '100.64.0.10',
         ssh_breakglass_port: 2222,
       }
     end

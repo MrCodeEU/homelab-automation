@@ -2,12 +2,11 @@
 # Values here are ported verbatim from the site.pp literal class{} args
 # they replaced - zero behavior change, see docs/OPENVOX_BACKLOG.md.
 ---
-roles::base::tailscale_ip: '100.100.10.1'
-# nuc's own real LAN, not just Tailscale - the trusted zone is an
-# exact-set match in puppet-firewalld, so every source has to be listed
-# here explicitly or the native zone resource would drop it.
+# nuc's own real LAN - the trusted zone is an exact-set match in
+# puppet-firewalld, so every source has to be listed here explicitly or
+# the native zone resource would drop it. Tailscale's 100.64.0.0/10 left
+# with the tailnet (Phase 5).
 roles::base::trusted_zone_sources:
-  - '100.64.0.0/10'
   - '192.168.50.0/24'
 
 roles::iperf3::base_path: '/opt'

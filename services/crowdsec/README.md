@@ -36,8 +36,10 @@ Fail2ban logs are no longer collected because fail2ban is retired.
 
 ## Local Allowlist
 
-`parsers/s02-enrich/mljr-local-allowlist.yaml` ignores the Tailscale
-network (`100.64.0.0/10`) before decisions are created.
+`parsers/s02-enrich/mljr-local-allowlist.yaml` ignores known app-specific
+false positives (Nocturne auth, Nextcloud client preview and upload
+checks) before decisions are created. The Tailscale network
+(`100.64.0.0/10`) was listed here until the hosts left the tailnet.
 
 The home connection is in the centralized allowlist `home` instead
 (`cscli allowlists inspect home`), because its addresses change:

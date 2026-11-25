@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Scopes real sshd to Tailscale+loopback, frees the public interface's
+# Scopes real sshd to loopback (Ziti dials it there), frees the public interface's
 # port 22 for a tarpit, keeps a break-glass port reachable directly in
-# case Tailscale itself is ever down.
+# case Ziti itself is ever down.
 set -euo pipefail
 MARKER_BEGIN="# BEGIN OPENVOX MANAGED BLOCK - ssh honeypot cutover"
 MARKER_END="# END OPENVOX MANAGED BLOCK - ssh honeypot cutover"
@@ -15,7 +15,6 @@ sed '/# BEGIN \(OPENVOX\|ANSIBLE\) MANAGED BLOCK - ssh honeypot cutover/,/# END 
 {
   cat "$TMP"
   echo "$MARKER_BEGIN"
-  echo "ListenAddress ${TAILSCALE_IP}:22"
   echo "ListenAddress 127.0.0.1:22"
   echo "ListenAddress ${PUBLIC_IP}:${BREAKGLASS_PORT}"
   echo "$MARKER_END"

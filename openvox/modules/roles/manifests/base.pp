@@ -22,7 +22,6 @@ class roles::base (
   Integer $swap_size_mb           = 2048,
   Optional[String] $public_ip     = undef,
   Optional[Integer] $ssh_breakglass_port = undef,
-  String  $tailscale_ip           = '',
   Boolean $cockpit_console_enabled = false,
   Boolean $cockpit_disabled       = false,
   String  $domain                 = 'mljr.eu',
@@ -35,10 +34,10 @@ class roles::base (
   Boolean $docker_prune_enabled   = $facts['openvox_weekly_maintenance'] == 'true',
   Boolean $reboot_if_needed       = $facts['openvox_weekly_maintenance'] == 'true',
   Boolean $reboot_enabled         = true,
-  # nuc has a second, real LAN (192.168.50.0/24) that also needs to land
-  # in the trusted zone - not something a generic default can guess, so
-  # its node block in site.pp overrides this to include it explicitly.
-  Array[String] $trusted_zone_sources = ['100.64.0.0/10'],
+  # Exact set of the trusted zone. Empty by default: Tailscale's CGNAT
+  # range (100.64.0.0/10) was the default until the hosts left the tailnet
+  # (Phase 5). nuc's hiera adds its real LAN (192.168.50.0/24).
+  Array[String] $trusted_zone_sources = [],
 ) {
   $work_dir = '/usr/local/libexec/openvox-base'
 
@@ -129,27 +128,18 @@ class roles::base (
     require => Class['docker'],
   }
 
-  # Boot-order guard: hosts that publish containers on their tailnet IP need
-  # tailscale0 to hold that address before dockerd starts, or the port bind
-  # fails and `unless-stopped` never retries (crowdsec on mljr, 2026-10-18).
-  # Drop-in only takes effect on the next docker start - deliberately no
-  # notify/restart of docker.service here, that would bounce every container.
-  if $tailscale_ip != '' {
-    # The drop-in directory itself is owned by puppetlabs-docker
-    # (docker::service) - only the file is declared here.
-    file { '/etc/systemd/system/docker.service.d/10-wait-tailscale.conf':
-      ensure  => file,
-      mode    => '0644',
-      content => "[Unit]\nWants=tailscaled.service\nAfter=tailscaled.service\n\n[Service]\nExecStartPre=${work_dir}/wait-tailscale-ip.sh ${tailscale_ip}\nTimeoutStartSec=300\n",
-      require => [Class['docker'], File[$work_dir]],
-      notify  => Exec['base-docker-dropin-reload'],
-    }
+  # Removes the boot-order guard that held dockerd until tailscale0 had the
+  # host's tailnet IP (nothing publishes a port there any more). Drop this
+  # cleanup once applied on mljr and nuc.
+  file { '/etc/systemd/system/docker.service.d/10-wait-tailscale.conf':
+    ensure => absent,
+    notify => Exec['base-docker-dropin-reload'],
+  }
 
-    exec { 'base-docker-dropin-reload':
-      command     => 'systemctl daemon-reload',
-      provider    => shell,
-      refreshonly => true,
-    }
+  exec { 'base-docker-dropin-reload':
+    command     => 'systemctl daemon-reload',
+    provider    => shell,
+    refreshonly => true,
   }
 
   # ==========================================================================
@@ -231,7 +221,6 @@ class roles::base (
       command     => "${work_dir}/ssh-breakglass-apply.sh",
       unless      => "${work_dir}/ssh-breakglass-check.sh",
       environment => [
-        "TAILSCALE_IP=${tailscale_ip}",
         "PUBLIC_IP=${public_ip}",
         "BREAKGLASS_PORT=${ssh_breakglass_port}",
       ],

@@ -231,6 +231,16 @@ model). This is the single most important thing for Unraid recovery
 Docker-template configuration and the license key. Recovery: boot from
 a fresh flash drive image, restore this backup onto it, boot.
 
+**nuc's way in (`ssh nas-mgmt`) runs over Ziti through nas's own router**
+(`roles::nas_mgmt_key`). It needs that router running and the nas-mgmt
+key in `/root/.ssh/authorized_keys` (a symlink to the flash, so it
+survives a reboot and a flash restore). When either is missing, the
+owner logs in with the recovery key from the LAN, through nuc:
+`ssh -i ~/.ssh/homelab-recovery -J root@nuc.ziti root@192.168.50.80`.
+Start the router there (`cd /mnt/user/appdata/homelab/ziti-router-nas &&
+docker compose up -d`, or the Unraid Docker tab), or add the key line
+from `roles::nas_mgmt_key`; the next nuc apply checks and corrects it.
+
 Also backed up (all `tier: critical`, pCloud + best-effort ugreen/WD
 depending on entry): `Fotos/Fotos`, `Fotos/Videos`, `Fotos/Wichtiges
 Scans Adressen`, `Fotos/Musik`, and the Nextcloud borg repository.
