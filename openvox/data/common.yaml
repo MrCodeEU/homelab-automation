@@ -5,19 +5,6 @@
 # roles::services) reads from, so the catalog only needs updating in one
 # place instead of once per role's own copy of it.
 ---
-# Hosts' former tailnet IPs. Not secret (tailnet IPs only meaningful to
-# devices on the tailnet). Nothing in this repo reads them any more
-# (roles::base::tailscale_ip is gone). Only consumer: the mljr-web
-# homepage's Tailscale mesh panel fetches this raw file to filter the
-# tailnet device list down to infra hosts (mljr-web's homelab/tailscale.go).
-# Remove together with that panel.
-tailscale_hosts:
-  mljr: '100.100.20.1'
-  nuc: '100.100.10.1'
-  nas: '100.100.10.2'
-  ugreen: '100.100.10.4'
-  homeassistant: '100.100.10.200'
-
 # Public half of the backup-to-ugreen keypair (roles::backup_remote_key
 # generates it on nuc, regenerate: never; roles::backup_remote_target
 # authorizes it on ugreen). Not secret - a public key - so it lives here
