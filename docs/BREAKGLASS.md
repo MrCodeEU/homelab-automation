@@ -1,8 +1,9 @@
 # Break-glass SSH access
 
-How to get a root shell on any host when Tailscale, the laptop, or both are
-gone. Part of Phase 1 in [ZERO_TRUST_PLAN.md](ZERO_TRUST_PLAN.md). Daily
-access stays on Tailscale SSH; nothing here is needed while that works.
+How to get a root shell on any host when Ziti, Authelia (opkssh), the
+laptop, or all of them are gone. Part of Phase 1 in
+[ZERO_TRUST_PLAN.md](ZERO_TRUST_PLAN.md). Daily access is opkssh over Ziti
+(`ssh root@<host>.ziti`); nothing here is needed while that works.
 
 ## Keys
 
@@ -36,7 +37,7 @@ at home. Every command below works with YubiKey 2 by swapping `yk1` for
 
 ## Where each host accepts the keys
 
-| Host | Address without Tailscale | User | How the keys get there |
+| Host | Address without Ziti | User | How the keys get there |
 |---|---|---|---|
 | mljr | `157.173.97.107` port **2299** (public) | `root` | OpenVox, `roles::ssh_hardening` |
 | nuc | `192.168.50.30` port 22 (home LAN) | `root` | OpenVox, `roles::ssh_hardening` |
@@ -46,8 +47,8 @@ at home. Every command below works with YubiKey 2 by swapping `yk1` for
 | homeassistant | `192.168.50.31` port 22 (home LAN) | `hassio` | by hand, Advanced SSH & Web Terminal add-on config |
 
 The home LAN addresses only work on site. From outside, the home hosts
-are reachable only through Tailscale; mljr also through its Contabo panel
-(console), which needs no key at all.
+are reachable only through Ziti (e.g. `-J root@nuc.ziti`); mljr also
+through its Contabo panel (console), which needs no key at all.
 
 ## From this laptop
 
