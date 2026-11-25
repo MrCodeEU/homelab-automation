@@ -46,6 +46,21 @@ jobs:
           path: shellcheck.txt
           if-no-files-found: warn
 
+  openziti-stable:
+    # Blocks image tags that are GitHub pre-releases (scripts/check-openziti-stable.sh).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: New openziti/ziti-* tags are stable releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'HEAD~1' }}
+        run: scripts/check-openziti-stable.sh
+
   puppet-lint:
     runs-on: ubuntu-latest
     steps:
