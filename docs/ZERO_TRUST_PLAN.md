@@ -877,6 +877,61 @@ awaits the owner); VictoriaMetrics and Loki on nuc listen on 0.0.0.0
 configs.
 **Gate:** adopt Zitadel only on a clear win. Otherwise stay on Authelia.
 
+**Gate result, 2026-11-26: stay on Authelia** (proposed; owner decision
+with the merge of this change). Decided on paper, without a Zitadel
+deployment: the rule above can only flip on a failed login or a clear win,
+and neither needs a PoC to rule out.
+
+Pass/fail, the three human logins (Authelia v4.39.28 on mljr):
+
+- **Web apps, OIDC behind Caddy: pass.** 9 OIDC clients live (sure,
+  paperless, grafana, unraid, forgejo, mail-archiver, dockhand, plus the
+  two below), forward auth for the other vhosts.
+- **Ziti network login, external JWT signer (C15): pass** since
+  2026-11-07, public client `ziti`.
+- **SSH via opkssh (C14): pass**, public client `opkssh`, used daily
+  fleet-wide.
+
+Candidate wins for Zitadel:
+
+| Feature | Zitadel | Authelia 4.39 | Win? |
+|---|---|---|---|
+| SCIM | SCIM 2.0 server (preview) | none | no: one human user, no app here provisions over SCIM |
+| Passkey-first login | yes | yes since 4.39 (`webauthn.enable_passkey_login`), counts as one factor; full 2FA still asks for the password | small |
+| Device-code login (RFC 8628) | yes | yes since 4.39 | no |
+| Audit log | event-sourced, queryable | auth events in the container log, already in Loki | small |
+
+Beyond the three logins, what Zitadel offers lab-wide, and whether it
+would help here:
+
+- **User management for more than one person:** self-service sign-up and
+  invites, organisations, project roles granted per user and sent as
+  claims, an admin UI. Authelia's users file is edited by hand. The only
+  real gain on this list, and only once family or guests get accounts
+  (Immich, Paperless, Nextcloud sharing).
+- **Upstream IdPs (login with GitHub, Google, another OIDC or SAML IdP):**
+  Authelia has no brokering. Useful for guests, not for the owner.
+- **SAML apps:** Zitadel is a SAML IdP; Authelia's SAML is only in
+  planning. No app in this lab needs SAML today.
+- **Service accounts (JWT profile, PAT, client credentials) and token
+  exchange (RFC 8693):** m2m here is Ziti identities plus per-service
+  tokens, and Authelia 4.39 has client credentials too. No gain.
+- **Actions v2 (webhooks on login and token events):** e.g. an ntfy alert
+  on a login from a new device. Doable today from Authelia's log in Loki.
+- **IdP config through a Terraform provider:** Authelia's config is
+  already in git through OpenVox. Equal.
+
+Costs of switching: PostgreSQL plus Zitadel's separate login service (v4)
+in the DR chain of the one service that admin access depends on; moving 9
+OIDC clients, the Ziti JWT signer and opkssh's issuer, with every opkssh
+policy and Ziti identity tied to the new issuer; AGPL-3.0 is not a problem
+for private use. Two small wins do not outweigh that.
+
+Follow-ups, Authelia side (not gate items): try `enable_passkey_login`
+for the web logins (owner choice). Authelia's DR stays as it is
+(`/opt/authelia`, users file and SQLite, in `roles::backup`). Revisit an IdP switch when other people get
+accounts in the lab, or a SAML-only or SCIM app appears.
+
 ### Phase 7: Host-level and LAN lateral-movement controls
 
 - firewalld default-deny inbound per host, aligned with Ziti tags.
