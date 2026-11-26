@@ -42,7 +42,7 @@ resource "ziti_service_policy" "nuc_alloy_bind" {
 # for hosts still on Tailscale only. The router-embedded tunneler does not
 # resolve $tunneler_id.tag[...], hence routers named after their certname.
 locals {
-  ssh_hosts = ["mljr", "nuc", "ugreen", "drill"]
+  ssh_hosts = ["mljr", "nuc", "ugreen"]
 }
 
 resource "ziti_intercept_v1_config" "ssh" {

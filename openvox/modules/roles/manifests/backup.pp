@@ -274,11 +274,6 @@ class roles::backup (
         {'label' => 'mailcow.conf', 'path' => '/opt/mailcow-dockerized/mailcow.conf'},
       ],
     },
-    # DR drill VM only (docs/DISASTER_RECOVERY.md), removed with it
-    'drill-data' => {
-      'volumes'  => ['drill-data_data'],
-      'critical' => false,
-    },
     'kuma' => {
       'volumes'  => ['kuma_uptime-kuma-sqlite'],
       'critical' => false,

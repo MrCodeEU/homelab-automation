@@ -17,8 +17,7 @@ case "$host" in
   mljr)   cert="mljr.int.mljr.eu";        ssh_target="mljr.ziti" ;;
   nuc)    cert="nuc.int.mljr.eu";         ssh_target="nuc.ziti" ;;
   ugreen) cert="ugreen.int.mljr.eu";      ssh_target="ugreen.ziti" ;;
-  drill)  cert="drill.int.mljr.eu";       ssh_target="drill.ziti" ;;
-  *) echo "usage: $0 <mljr|nuc|ugreen|drill> [key]" >&2; exit 2 ;;
+  *) echo "usage: $0 <mljr|nuc|ugreen> [key]" >&2; exit 2 ;;
 esac
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

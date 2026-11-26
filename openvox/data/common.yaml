@@ -593,30 +593,6 @@ services_catalog:
     description: "OpenZiti proxy for machine-to-machine traffic"
     icon: "mdi:router-network"
 
-  # DR drill VM on nuc (docs/DISASTER_RECOVERY.md): its router, its m2m
-  # proxy (rclone -> ugreen, as m2m-drill) and a test volume to back up
-  # and restore. Removed with the drill host.
-  - name: ziti-router-drill
-    enabled: true
-    port: 0
-    host: drill
-    description: "OpenZiti edge router (DR drill VM)"
-    icon: "mdi:router-network"
-
-  - name: ziti-proxy-drill
-    enabled: true
-    port: 0
-    host: drill
-    description: "OpenZiti proxy for machine-to-machine traffic (DR drill VM)"
-    icon: "mdi:router-network"
-
-  - name: drill-data
-    enabled: true
-    port: 0
-    host: drill
-    description: "Test volume for the DR drill"
-    icon: "mdi:database"
-
   - name: goaccess
     enabled: true
     domain: "logs.mljr.eu"

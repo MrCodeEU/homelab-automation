@@ -32,8 +32,6 @@ locals {
     "kuma-nuc" = ["crowdsec-lapi", "mail-smtp-mljr", "defectdojo"]
     # speedtest-metrics on nuc -> iperf3 on mljr and ugreen (iperf3.tf)
     "speedtest-nuc" = ["iperf3-mljr", "iperf3-ugreen"]
-    # DR drill VM: its backups -> ugreen (removed after the drill)
-    "m2m-drill" = ["backup-sftp-ugreen"]
   }
 
   # Where each one runs, for its edge routers (policies.tf).
@@ -47,7 +45,6 @@ locals {
     "crowdsec-nas"  = "at-home"
     "kuma-nuc"      = "at-home"
     "speedtest-nuc" = "at-home"
-    "m2m-drill"     = "at-drill"
   }
 
   # Dialable by name: catalog services, iperf3, SSH, mail SMTP, backup SFTP
