@@ -34,6 +34,7 @@ done < <(git ls-files -- 'services/*docker-compose.yml')
 if [ ${#bad[@]} -gt 0 ]; then
   printf 'FAIL  published port without a host address (Docker binds 0.0.0.0):\n' >&2
   printf '  %s\n' "${bad[@]}" >&2
+  # shellcheck disable=SC2016 # a literal ${BIND_ADDR...}, not an expansion
   printf 'Fix: "${BIND_ADDR:-127.0.0.1}:<host>:<container>", or "0.0.0.0:..." with a comment if the LAN needs it\n' >&2
   exit 1
 fi
