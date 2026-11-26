@@ -41,13 +41,12 @@ class roles::backup (
   String        $base_path      = '/opt',
   String        $rclone_config_path = '/root/.config/rclone',
   String        $remote_name    = 'pcloud',
-  # The [ugreen] SFTP remote. Default: ugreen over the tailnet, where
-  # Tailscale SSH answers. Hosts with a Ziti proxy set 127.0.0.1 and the
-  # proxy port (backup-sftp-ugreen, ziti/tofu/backup-sftp.tf); there ugreen's
-  # real sshd answers, so its host key is pinned (backup_sftp_ugreen_hostkey
-  # in common.yaml).
-  String        $ugreen_host    = '100.100.10.4',
-  Integer       $ugreen_port    = 22,
+  # The [ugreen] SFTP remote: the host's Ziti proxy on 127.0.0.1:2422
+  # (backup-sftp-ugreen, ziti/tofu/backup-sftp.tf), where ugreen's real
+  # sshd answers, so its host key is pinned (backup_sftp_ugreen_hostkey in
+  # common.yaml). The tailnet default (100.100.10.4:22) went with Phase 5.
+  String        $ugreen_host    = '127.0.0.1',
+  Integer       $ugreen_port    = 2422,
   String        $ugreen_hostkey = lookup('backup_sftp_ugreen_hostkey', { 'default_value' => '' }),
   # Role default in ansible/roles/backup is "homelab-backup/{{ inventory_hostname }}"
   # (per-host); real production overrides this globally in

@@ -1,12 +1,12 @@
 # GitHub Actions Deployment Workflows
 
-This directory contains the GitHub Actions workflows for validating and deploying the homelab with OpenVox over Tailscale. The `ansible/` tree is retained only as a historical migration reference and has no deployment path of its own.
+This directory contains the GitHub Actions workflows for validating and deploying the homelab with OpenVox. No workflow reaches a host: deploys are signed requests the hosts' deploy agents pull (docs/DEPLOY_AGENT.md). The `ansible/` tree is retained only as a historical migration reference and has no deployment path of its own.
 
 ## Workflows
 
 ### Standard Deploy (`deploy.yml`)
 
-Sequential deployment: validate → set up Tailscale → run OpenVox → build deployment status page → notify.
+Creates one signed deploy request per host (job `request`); each host's deploy agent applies it and reports the result.
 
 - `workflow_dispatch`: manual run, any branch. Non-`main` branches automatically run in check mode (noop). Inputs: `limit` (`all`/`mljr`/`nuc`/`ugreen`), `staging_services`, `docker_prune`, `reboot_if_needed`.
 - `schedule`: weekly, Saturday 18:00 UTC, full apply of main on all hosts. Weekly maintenance (updates, docker prune, gated reboot) is the deploy agents' own window, Sundays from 01:00 local (docs/DEPLOY_AGENT.md).

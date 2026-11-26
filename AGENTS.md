@@ -106,12 +106,11 @@ a re-encryption plan.
 never start or recreate staging containers, and staging never runs a
 production `post-deploy.sh`.
 
-**SSH access is per-host, not uniform.** `nuc`/`ugreen` accept your own
-username. `mljr` (bare Contabo VPS) and `nas` (Unraid, no per-user accounts
-at all) both reject any other username via the Tailscale ACL
-(`tailnet policy does not permit you to SSH as user "<name>"`) — use
-`ssh root@mljr` / `ssh root@nas` (or the `.tail33930.ts.net` FQDN form) for
-those two.
+**SSH goes over Ziti with the opkssh key.** `opkssh login` once a day,
+then `ssh root@<host>.ziti` for mljr, nuc and ugreen (ugreen also takes
+`mrcode@ugreen.ziti`), `ssh root@nas-ssh.ziti` for nas. wd_mycloud is reached
+from nuc only (`ssh wd-mycloud-mgmt`). Without Ziti or Authelia:
+docs/BREAKGLASS.md.
 
 ## Key files
 

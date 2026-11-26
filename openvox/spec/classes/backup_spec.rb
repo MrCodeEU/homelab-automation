@@ -5,6 +5,7 @@ describe 'roles::backup' do
     {
       services: ['forgejo', 'umami'],
       hostname: 'spec-host',
+      ugreen_hostkey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHostKey',
     }
   end
 
@@ -47,28 +48,17 @@ describe 'roles::backup' do
     content.respond_to?(:unwrap) ? content.unwrap : content
   end
 
-  it 'reaches ugreen over the tailnet by default, without a pinned host key' do
-    expect(rclone_conf).to match(%r{\[ugreen\]\ntype = sftp\nhost = 100\.100\.10\.4\nuser = rclone-backup\n})
-    is_expected.not_to contain_file('/root/.config/rclone/ugreen_known_hosts')
-  end
-
-  context 'with ugreen over the Ziti proxy' do
-    let(:params) do
-      super().merge(ugreen_host: '127.0.0.1', ugreen_port: 2422, ugreen_hostkey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHostKey')
-    end
-
-    it 'dials the proxy port and pins the host key' do
-      expect(rclone_conf).to match(
-        %r{\[ugreen\]\ntype = sftp\nhost = 127\.0\.0\.1\nport = 2422\nknown_hosts_file = /root/\.config/rclone/ugreen_known_hosts\nhost_key_algorithms = ssh-ed25519\nuser = rclone-backup\n},
-      )
-      is_expected.to contain_file('/root/.config/rclone/ugreen_known_hosts').with_content(
-        "[127.0.0.1]:2422 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHostKey\n",
-      )
-    end
+  it 'reaches ugreen over the Ziti proxy by default and pins the host key' do
+    expect(rclone_conf).to match(
+      %r{\[ugreen\]\ntype = sftp\nhost = 127\.0\.0\.1\nport = 2422\nknown_hosts_file = /root/\.config/rclone/ugreen_known_hosts\nhost_key_algorithms = ssh-ed25519\nuser = rclone-backup\n},
+    )
+    is_expected.to contain_file('/root/.config/rclone/ugreen_known_hosts').with_content(
+      "[127.0.0.1]:2422 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHostKey\n",
+    )
   end
 
   context 'with ugreen over the Ziti proxy but no host key' do
-    let(:params) { super().merge(ugreen_host: '127.0.0.1', ugreen_port: 2422) }
+    let(:params) { super().merge(ugreen_hostkey: '') }
 
     it { is_expected.to compile.and_raise_error(%r{needs ugreen_hostkey}) }
   end

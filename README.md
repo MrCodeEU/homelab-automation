@@ -1,7 +1,7 @@
 # Homelab Automation
 
 OpenVox (a Puppet fork) automation for deploying and managing self-hosted
-services across the `mljr.eu` homelab over Tailscale. Masterless: every host
+services across the `mljr.eu` homelab over OpenZiti. Masterless: every host
 runs `puppet apply` against its own locally-synced copy of the manifests —
 there is no puppetserver/PuppetDB anywhere in this fleet.
 
@@ -29,9 +29,9 @@ make openvox-check
 ## Architecture
 
 ```
-GitHub Actions / local openvox-sync.sh
+deploy agents (pull) / local openvox-sync.sh
              |
-        Tailscale VPN (SSH, keyless via Tailscale ACLs)
+        OpenZiti overlay (SSH via opkssh + Authelia)
              |
    +---------+---------+---------+---------+
    |                   |         |         |
@@ -54,7 +54,7 @@ the appliance itself.
 
 NAS/Unraid services are mostly managed manually and only proxied or monitored where explicitly configured. `ugreen` is not a general deployment target for `roles/base`, but does run some Docker services (smartctl-exporter, syncthing-ugreen) plus host-facts-endpoint, Grafana Alloy, iperf3, and the SFTP backup target. During Ugreen storage recovery, set `role::ugreen::backup_remote_target_enabled: false` in its node data to pause management of that write path without deleting its existing contents.
 
-Two more hosts sit outside the diagram above: `wd_mycloud` (WD My Cloud EX2 Ultra - busybox, no Docker, backup-target-only; gets Tailscale and node_exporter as bare binaries with a boot-hook persistence mechanism, see AGENTS.md) and `homeassistant` (its own HAOS appliance, `proxy_only` - Caddy front door plus a remote Prometheus scrape only, no agent runs there).
+Two more hosts sit outside the diagram above: `wd_mycloud` (WD My Cloud EX2 Ultra - busybox, no Docker, backup-target-only; gets the Ziti tunneler and node_exporter as bare binaries with a boot-hook persistence mechanism, see AGENTS.md) and `homeassistant` (its own HAOS appliance, `proxy_only` - Caddy front door plus a remote Prometheus scrape only, no agent runs there).
 
 ## Features
 
@@ -74,8 +74,9 @@ Two more hosts sit outside the diagram above: `wd_mycloud` (WD My Cloud EX2 Ultr
 - Grafana/Loki/VictoriaMetrics monitoring with Grafana Alloy agents (mljr, nuc, ugreen, nas) plus bare node_exporter + remote scraping for hosts that can't run Alloy (wd_mycloud, Home Assistant). SMART, systemd, and btrfs collectors included where applicable.
 - CrowdSec security engine with nftables firewall enforcement on `mljr`.
 - Hourly internet speedtest and iperf3 over Ziti from `nuc` (`services/speedtest-metrics`), in Grafana.
-- GitHub Actions deployment over Tailscale — secrets decrypt host-side via
-  hiera-eyaml at apply time, so CI itself needs no vault-password secret.
+- Pull deploys: GitHub Actions only writes signed deploy requests, each
+  host's deploy agent applies them (docs/DEPLOY_AGENT.md); secrets decrypt
+  host-side via hiera-eyaml at apply time, so CI needs no secret for them.
 - Local deployment via `make openvox-check`/`openvox-deploy` (and per-host
   variants) — no GitHub Actions required.
 
@@ -169,8 +170,8 @@ the private key on that host and retrieves only its public key. Edit a host's
 file through that same host:
 
 The secrets file name and the on-host key dir use the host's Puppet certname
-(`nuc.int.mljr.eu` since the Phase 2 certname migration); the SSH target stays
-the Tailscale name until the OpenZiti phase:
+(`nuc.int.mljr.eu` since the Phase 2 certname migration); the SSH target is
+its Ziti name:
 
 ```bash
 scp openvox/data/secrets/nuc.int.mljr.eu.eyaml root@nuc.ziti:/tmp/nuc.eyaml
@@ -312,8 +313,9 @@ SSH to mljr, nuc and ugreen goes over Ziti with the opkssh key:
 `opkssh login` once a day, then `ssh root@<host>.ziti`
 (docs/ZITI_ENROLL.md). The scripts and make targets check the key first
 (`scripts/opk-ready.sh`) and run `opkssh login` when it is missing or about
-to expire; `OPK_SKIP=1` skips that for a YubiKey key. `nas` and
-`wd_mycloud` have no Ziti yet and stay on Tailscale (`ssh root@nas`).
+to expire; `OPK_SKIP=1` skips that for a YubiKey key. `nas` is
+`ssh root@nas-ssh.ziti`; `wd_mycloud` is reached from nuc only
+(`ssh wd-mycloud-mgmt`).
 
 ## GitHub Actions
 
