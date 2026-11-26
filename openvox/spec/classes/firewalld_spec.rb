@@ -29,4 +29,21 @@ describe 'roles::firewalld' do
       enable: true,
     )
   end
+
+  it 'leaves StrictForwardPorts off by default' do
+    is_expected.to contain_exec('firewalld-strict-forward-ports').with(
+      unless: "grep -qx 'StrictForwardPorts=no' /etc/firewalld/firewalld.conf",
+    )
+  end
+
+  context 'with strict forward ports' do
+    let(:params) { { strict_forward_ports: true } }
+
+    it 'sets StrictForwardPorts=yes and reloads firewalld' do
+      is_expected.to contain_exec('firewalld-strict-forward-ports').with(
+        command: %r{StrictForwardPorts=yes/' /etc/firewalld/firewalld.conf && firewall-cmd --reload},
+        unless: "grep -qx 'StrictForwardPorts=yes' /etc/firewalld/firewalld.conf",
+      )
+    end
+  end
 end

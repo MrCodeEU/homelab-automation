@@ -951,6 +951,30 @@ changes.
 inbound is on every host OpenVox manages, and no container publishes on
 `0.0.0.0` unintentionally.
 
+Progress, 2026-11-26:
+
+- **Published ports (#741):** 14 containers on nuc and 7 on nas published
+  on `0.0.0.0` because their compose files ignored `BIND_ADDR`; all on
+  loopback now. On the LAN on purpose, with an explicit `0.0.0.0`:
+  Syncthing's sync ports and immich-kiosk on nas.
+  `scripts/check-published-ports.sh` (`make test`) keeps it that way.
+- **nuc firewall:** the trusted zone held the whole LAN
+  (`192.168.50.0/24`), so every host port was open to it. Now empty; the
+  public zone allows ssh and the Ziti router (8442). firewalld's
+  `StrictForwardPorts=yes` drops whatever Docker DNATs from outside, so a
+  mistaken `0.0.0.0` publish stays closed. mljr keeps it off (mailcow
+  publishes the mail ports). Stale ports 8080, 4859 and 4317 closed.
+- **Shared Docker networks:** only `dmarc-monitor-internal`, which grafana
+  joins for its dmarc datasource; intended.
+- **Category-2 apps:** umami and projects are already behind Authelia;
+  forgejo (OIDC login, git over HTTPS) and glucava (phone posts to its
+  API) would break behind forward auth; kuma could gate its admin UI by
+  path with the status page public, a small gain. Owner, 2026-11-26: no
+  further change.
+- **Open:** nas (Unraid, INPUT accepts everything, about 25 LAN
+  listeners, most from Unraid-UI containers) and ugreen (UGOS firewall);
+  container egress limits; the CI exposure lint beyond published ports.
+
 ### Phase 8: Final gate
 
 - Confirm Tailscale's final role: break-glass only (expected), or remove it.

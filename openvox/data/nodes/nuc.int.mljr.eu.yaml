@@ -2,12 +2,13 @@
 # Values here are ported verbatim from the site.pp literal class{} args
 # they replaced - zero behavior change, see docs/OPENVOX_BACKLOG.md.
 ---
-# nuc's own real LAN - the trusted zone is an exact-set match in
-# puppet-firewalld, so every source has to be listed here explicitly or
-# the native zone resource would drop it. Tailscale's 100.64.0.0/10 left
-# with the tailnet (Phase 5).
-roles::base::trusted_zone_sources:
-  - '192.168.50.0/24'
+# The trusted zone is empty (roles::base default): nuc's LAN
+# (192.168.50.0/24) was in it until Phase 7, which opened every host port
+# to the whole LAN. The public zone now holds what the LAN needs: ssh and
+# the Ziti router (8442, roles::services).
+# No container on nuc has to be reachable from outside, so firewalld also
+# drops anything Docker DNATs from outside (StrictForwardPorts).
+roles::firewalld::strict_forward_ports: true
 
 roles::iperf3::base_path: '/opt'
 # Loopback only: the local Ziti router (host network) publishes it

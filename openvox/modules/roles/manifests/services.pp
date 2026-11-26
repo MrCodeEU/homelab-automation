@@ -497,9 +497,8 @@ class roles::services (
     }
   }
 
-  # Public router, edge and link listener on one port. nuc's router needs no
-  # rule: its LAN listener is covered by the trusted zone's 192.168.50.0/24.
-  if 'ziti-router' in $host_service_names {
+  # Router edge and link listener on one port: public on mljr, LAN on nuc.
+  if 'ziti-router' in $host_service_names or 'ziti-router-nuc' in $host_service_names {
     roles::firewalld::port { 'ziti-router':
       ensure   => present,
       zone     => 'public',

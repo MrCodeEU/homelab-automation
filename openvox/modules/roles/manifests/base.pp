@@ -158,18 +158,33 @@ class roles::base (
   }
 
   # ==========================================================================
-  # Firewall (Tailscale internal network)
+  # Firewall
   # ==========================================================================
 
   include roles::firewalld
 
   # `sources` is an exact-set match (not additive) in puppet-firewalld,
-  # so every source this zone needs - Tailscale plus any host-specific
-  # extras like nuc's own LAN - has to be listed here via
+  # so every source this zone needs has to be listed here via
   # $trusted_zone_sources, not layered on with separate resources.
   roles::firewalld::zone_sources { 'trusted':
     zone    => 'trusted',
     sources => $trusted_zone_sources,
+  }
+
+  # Ports nothing in this repo opened and nothing listens on (found in the
+  # Phase 7 inventory, 2026-11-26); closed wherever they are left.
+  $stale_ports = {
+    'stale-public-8080'  => ['public', 8080],
+    'stale-public-4859'  => ['public', 4859],
+    'stale-trusted-4317' => ['trusted', 4317],
+  }
+  $stale_ports.each |$name, $spec| {
+    roles::firewalld::port { $name:
+      ensure   => absent,
+      zone     => $spec[0],
+      port     => $spec[1],
+      protocol => 'tcp',
+    }
   }
 
   # ==========================================================================
