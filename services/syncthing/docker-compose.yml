@@ -5,12 +5,12 @@ services:
     restart: unless-stopped
     ports:
       # GUI: sync.mljr.eu is proxied to nas:8384 by Caddy (Authelia in front).
-      - "8384:8384"
+      - "${BIND_ADDR:-127.0.0.1}:8384:8384"
       # Sync protocol and local discovery, used directly by peers on the LAN
       # and over Tailscale.
-      - "22000:22000/tcp"
-      - "22000:22000/udp"
-      - "21027:21027/udp"
+      - "0.0.0.0:22000:22000/tcp"
+      - "0.0.0.0:22000:22000/udp"
+      - "0.0.0.0:21027:21027/udp"
     environment:
       - TZ=${TZ:-Europe/Vienna}
       - PUID=99

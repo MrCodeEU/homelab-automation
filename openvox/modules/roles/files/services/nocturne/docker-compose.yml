@@ -148,7 +148,7 @@ services:
       NOCTURNE_WEB_HTTP: "http://nocturne-web:8000"
       services__nocturne-web__http__0: "http://nocturne-web:8000"
     ports:
-      - "8093:5000"
+      - "${BIND_ADDR:-127.0.0.1}:8093:5000"
     depends_on:
       nocturne-api:
         condition: service_started

@@ -4,4 +4,4 @@ services:
     container_name: wordwiz
     restart: unless-stopped
     ports:
-      - "3601:3000"
+      - "${BIND_ADDR:-127.0.0.1}:3601:3000"

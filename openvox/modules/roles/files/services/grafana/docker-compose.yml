@@ -4,7 +4,7 @@ services:
     container_name: grafana
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${BIND_ADDR:-127.0.0.1}:3000:3000"
     # default: victoriametrics, loki; dmarc: the DMARC Postgres datasource
     networks:
       - default
@@ -66,7 +66,7 @@ services:
       - -retentionPeriod=10y
       - -selfScrapeInterval=30s
     ports:
-      - "19090:8428"
+      - "${BIND_ADDR:-127.0.0.1}:19090:8428"
     volumes:
       - victoriametrics-data:/storage
 
@@ -76,7 +76,7 @@ services:
     restart: unless-stopped
     command: -config.file=/etc/loki/loki.yml
     ports:
-      - "3100:3100"
+      - "${BIND_ADDR:-127.0.0.1}:3100:3100"
     volumes:
       - ./loki/loki.yml:/etc/loki/loki.yml:ro
       - loki-data:/loki

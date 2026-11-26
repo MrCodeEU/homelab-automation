@@ -4,4 +4,4 @@ services:
     container_name: cglab
     restart: unless-stopped
     ports:
-      - "3604:80"
+      - "${BIND_ADDR:-127.0.0.1}:3604:80"

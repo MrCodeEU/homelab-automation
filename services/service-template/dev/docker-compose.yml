@@ -4,7 +4,7 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-service-template-staging}
     restart: unless-stopped
     ports:
-      - "18181:18181"
+      - "${BIND_ADDR:-127.0.0.1}:18181:18181"
     environment:
       PORT: ${PORT:-18181}
       DISPLAY_MESSAGE: ${DISPLAY_MESSAGE:-Development staging service running}

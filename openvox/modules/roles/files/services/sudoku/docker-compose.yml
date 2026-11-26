@@ -4,7 +4,7 @@ services:
     container_name: sudoku
     restart: unless-stopped
     ports:
-      - "3602:3000"
+      - "${BIND_ADDR:-127.0.0.1}:3602:3000"
     environment:
       - SUDOKU_API_USER=${SUDOKU_API_USER}
       - SUDOKU_API_PASSWORD=${SUDOKU_API_PASSWORD}

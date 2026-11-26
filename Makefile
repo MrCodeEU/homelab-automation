@@ -29,7 +29,7 @@
 
 .PHONY: test test-quick test-services test-services-verbose test-healthreport test-openvox-unit test-openvox-caddy-render \
         help \
-        _check-validate _check-syntax _check-compose _check-binaries _check-exec-bits \
+        _check-validate _check-syntax _check-compose _check-binaries _check-exec-bits _check-ports \
         openvox-check openvox-deploy openvox-recovery openvox-rollback \
         rotate-secret rotate-secret-dry-run add-secret add-secret-line copy-secret catalog-diff catalog-check
 
@@ -37,7 +37,7 @@
 # DEFAULT: fast local tests (no Docker)
 ################################################################################
 
-test: _check-validate _check-syntax _check-compose _check-binaries _check-exec-bits
+test: _check-validate _check-syntax _check-compose _check-binaries _check-exec-bits _check-ports
 	@echo ""
 	@echo "All fast tests passed."
 
@@ -81,8 +81,14 @@ _check-binaries:
 ## 5. Scripts with a shebang are executable in git (core.fileMode=false
 ##    clones silently commit them as 100644)
 _check-exec-bits:
-	@echo "==> [5/5] Executable bits of scripts/"
+	@echo "==> [5/6] Executable bits of scripts/"
 	bash ./scripts/check-exec-bits.sh
+
+## 6. Published ports name their host address (Docker's bare "8080:80"
+##    binds 0.0.0.0 and bypasses firewalld)
+_check-ports:
+	@echo "==> [6/6] Published ports in services/"
+	bash ./scripts/check-published-ports.sh
 
 _check-compose:
 	@echo "==> [3/3] docker-compose.yml syntax"

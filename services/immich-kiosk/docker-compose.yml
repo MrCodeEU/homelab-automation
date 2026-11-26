@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     ports:
       # LAN-reachable on purpose: opened from wall tablets and photo frames.
-      - "3000:3000"
+      - "0.0.0.0:3000:3000"  # LAN on purpose: wall tablets
     environment:
       - TZ=${TZ:-Europe/Vienna}
       # From eyaml (vault_immich_kiosk_api_key) via the generated .env.
