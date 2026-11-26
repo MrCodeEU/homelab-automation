@@ -4,7 +4,7 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-service-template}
     restart: unless-stopped
     ports:
-      - "8181:8181"
+      - "${BIND_ADDR:-127.0.0.1}:8181:8181"
     environment:
       PORT: ${PORT:-8181}
       DISPLAY_MESSAGE: ${DISPLAY_MESSAGE:-Production service running}

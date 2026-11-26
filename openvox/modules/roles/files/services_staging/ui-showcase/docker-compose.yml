@@ -4,7 +4,7 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-ui-showcase-staging}
     restart: unless-stopped
     ports:
-      - "18083:8091"  # Staging port (+10000 offset)
+      - "${BIND_ADDR:-127.0.0.1}:18083:8091"  # Staging port (+10000 offset)
     environment:
       - PORT=8091
     networks:

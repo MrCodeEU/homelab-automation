@@ -12,8 +12,8 @@ services:
         condition: service_healthy
     ports:
       # dawarich.mljr.eu is proxied to nas:3001 by Caddy.
-      - "3001:3000"
-      - "9394:9394"
+      - "${BIND_ADDR:-127.0.0.1}:3001:3000"
+      - "${BIND_ADDR:-127.0.0.1}:9394:9394"
     environment: &dawarich-env
       - TZ=${TZ:-Europe/Vienna}
       # Secrets come from eyaml (vault_dawarich_*) via the generated .env.

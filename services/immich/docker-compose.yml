@@ -11,7 +11,7 @@ services:
     ports:
       # immich.mljr.eu is proxied to nas:8080 by Caddy; phones also use it
       # directly on the LAN.
-      - "8080:8080"
+      - "${BIND_ADDR:-127.0.0.1}:8080:8080"
     environment:
       - TZ=${TZ:-Europe/Vienna}
       # From eyaml (vault_immich_db_password) via the generated .env.

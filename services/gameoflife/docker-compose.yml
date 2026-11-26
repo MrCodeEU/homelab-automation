@@ -4,4 +4,4 @@ services:
     container_name: gameoflife
     restart: unless-stopped
     ports:
-      - "3603:80"
+      - "${BIND_ADDR:-127.0.0.1}:3603:80"

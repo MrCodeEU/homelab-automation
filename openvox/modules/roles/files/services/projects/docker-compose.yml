@@ -7,7 +7,7 @@ services:
     user: "99:100"
     ports:
       # projects.mljr.eu is proxied to nas:6528 by Caddy on mljr.
-      - "6528:3456"
+      - "${BIND_ADDR:-127.0.0.1}:6528:3456"
     environment:
       - TZ=${TZ:-Europe/Vienna}
       - VIKUNJA_SERVICE_PUBLICURL=https://projects.${DOMAIN:-mljr.eu}

@@ -13,7 +13,7 @@ services:
     # read them) before dropping them here.
     user: "99:100"
     ports:
-      - "8186:8186"
+      - "${BIND_ADDR:-127.0.0.1}:8186:8186"
     environment:
       TZ: ${TZ:-Europe/Vienna}
     volumes:

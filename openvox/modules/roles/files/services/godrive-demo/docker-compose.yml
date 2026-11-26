@@ -4,7 +4,7 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME:-godrive-demo}
     restart: unless-stopped
     ports:
-      - "3605:8121"
+      - "${BIND_ADDR:-127.0.0.1}:3605:8121"
     environment:
       GODRIVE_ADDR: "0.0.0.0:8121"
       GODRIVE_COOKIE_SECURE: "true"
