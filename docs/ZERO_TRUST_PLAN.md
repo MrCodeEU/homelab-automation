@@ -803,6 +803,65 @@ survive a real reboot; the Tailscale fallbacks are gone; the DR drill
 passes; the OpenBolt spike ends with adopt or drop, against its written
 criteria.
 
+**Gate result, 2026-11-26: go to Phase 6** (proposed; owner decision with
+the merge of this change). Each criterion:
+
+- **Appliances over Ziti, real reboot: pass.** nas has its own router
+  (#673-#676, 9 vhosts and its management SSH over Ziti), wd_mycloud runs
+  `ziti-edge-tunnel run-host` on the device (#679-#682), Home Assistant is
+  bound through nuc's router (#678). The owner rebooted all three on
+  2026-11-22; each came back without intervention (nas router after about
+  4.5 min, wd_mycloud's services after about 5 min, Home Assistant after
+  2 min).
+- **Tailscale fallbacks gone: pass.** Caddy's tailnet fallback is removed
+  and an upstream without a Ziti transport fails the compile (#683); every
+  m2m path, the CI path and the deploy path left the tailnet (#685-#699,
+  #725-#729). Live check 2026-11-26: no TCP connection to or from a
+  100.64.0.0/10 address on mljr, nuc, ugreen or nas, and tailscale0
+  carries only tailscaled's own 2-20 KB per minute. Left on purpose until
+  the end of the plan (owner decision 2026-11-25): tailscaled itself,
+  `roles::ugreen_tailscale`, wd_mycloud's tailscale update exec, and
+  Unraid's own listeners on nas's tailnet address. The last dead default
+  (`roles::backup::ugreen_host` 100.100.10.4) goes with this change.
+- **DR drill: pass** (docs/DISASTER_RECOVERY.md, "DR drill 2026-11-25").
+  An agent host was rebuilt from a fresh OS with only the runbook,
+  restored from ugreen with matching checksums; findings fixed in #731,
+  #732, #734, #735. Not drilled: the controller restore inside an mljr
+  rebuild (tested on its own 2026-11-07, docs/ZITI_DR.md), ugreen's UGOS
+  bootstrap, wd_mycloud after a firmware reset (written as an untested
+  outline).
+- **OpenBolt spike: drop** (#695, docs/OPENBOLT_SPIKE.md).
+
+Metrics against the Phase 0 baseline (docs/ZERO_TRUST_INVENTORY.md):
+
+| Metric | 2026-11-03 | 2026-11-26 |
+|---|---|---|
+| Shell glue in `openvox/` | 167 files, 5,955 lines | 194 files, 6,688 lines |
+| `exec` resources | 113 | 136 |
+| Puppet manifests | 5,646 lines | 7,213 lines |
+| Go tools | 15 commands, 13,660 lines | 24 commands, 20,433 lines |
+| Helper scripts | 13 | 35 |
+| Steps to onboard a host | 6 manual prerequisites, incl. interactive Tailscale enrolment and console approval | 6, none interactive outside the repo: OS (+ upgrade, reboot), OpenVox, eyaml key, apply, router enrol, tofu apply; plus node file, `site.pp` block, role class, and the host in 8 script and validator host lists (seen in the drill) |
+| Deploy wall time | 180-866 s per workflow, hosts in sequence | last agent apply 219 s (nuc), 225 s (mljr), 335 s (ugreen), hosts in parallel |
+| Tailscale name references | 130 in 85 files | 20 in 9 files, none a transport (docs history, spec assertions that it is absent, test fixtures, CI facts' FQDN) |
+| Hardcoded tailnet IPs | about 40 | none in live config: comments, docs history and test fixtures only |
+| LAN throughput nas to ugreen | 99 Mbit/s | not re-measured at this gate (C6 LAN fix, 2026-11-09: LAN links direct, nuc to ugreen about 900 Mbit/s); re-measure at the final gate |
+
+Growth in shell, execs and Go is the Ziti work itself (enrol scripts,
+the proxies, mesh exporter, console proxy, deploy agent, catalog diff).
+Qualitative: a DR drill from the docs alone now works for an agent host;
+trust boundaries are Ziti policy, firewalld, Authelia and app logins, three
+of the four in git (was two); a default-deny failure shows up as a dial
+error naming the service, and `ziti edge policy-advisor` or the read-only
+console says why. The one-page access flow is Phase 8's.
+
+Carried over: nas opkssh after a reboot (`roles::nas_opkssh` came after the
+reboot test; check at the next nas reboot); committed Go binaries built
+from source at deploy time (backlog, owner security item); a new host has
+to be added to 8 host lists by hand; the oxicloud volumes on ugreen (delete
+awaits the owner); VictoriaMetrics and Loki on nuc listen on 0.0.0.0
+(Phase 7).
+
 ### Phase 6: Identity provider PoC (Zitadel vs Authelia)
 
 - Write pass/fail criteria first. Must serve all three human logins: web
