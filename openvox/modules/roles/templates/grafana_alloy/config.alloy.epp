@@ -302,6 +302,16 @@ loki.source.file "system_logs" {
       "instance" = "<%= $hostname %>",
       "host"     = "<%= $hostname %>",
     },
+<% if $hostname == 'ugreen' { -%>
+    // UGOS (Debian) has no /var/log/messages; the kernel log carries the
+    // "homelab-in: " lines of roles::lan_firewall.
+    {
+      "__path__" = "/var/log/kern.log",
+      "job"      = "system",
+      "instance" = "<%= $hostname %>",
+      "host"     = "<%= $hostname %>",
+    },
+<% } -%>
 <% if $hostname == 'mljr' { -%>
     {
       "__path__"         = "/var/log/caddy/*.log",

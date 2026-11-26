@@ -1,0 +1,44 @@
+<%- |
+  Enum['4', '6']   $family,
+  Enum['log', 'enforce'] $mode,
+  Array[Integer]   $tcp_ports,
+  Array[Integer]   $udp_ports,
+  Array[String]    $interfaces,
+  String           $class_name,
+| -%>
+<%-
+  $verdict = $mode ? { 'enforce' => 'ACCEPT', default => 'RETURN' }
+  $icmp = $family ? { '6' => 'ipv6-icmp', default => 'icmp' }
+-%>
+# Managed by OpenVox (<%= $class_name %>). Loaded by setup.sh with
+# <%= $family ? { '6' => 'ip6tables', default => 'iptables' } %>-restore --noflush.
+#
+# mode=<%= $mode %>: <%= $mode ? { 'enforce' => 'allowed traffic is accepted, everything else dropped (after a rate-limited log line).', default => 'nothing is blocked. Allowed traffic returns to INPUT unchanged; anything else new and unicast gets a rate-limited "homelab-in: " kernel log line (Loki), then returns too.' } %>
+*filter
+:HOMELAB-INPUT - [0:0]
+-A HOMELAB-INPUT -m comment --comment "homelab-sha=@SHA@ mode=<%= $mode %>"
+-A HOMELAB-INPUT -i lo -j <%= $verdict %>
+-A HOMELAB-INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j <%= $verdict %>
+-A HOMELAB-INPUT -p <%= $icmp %> -j <%= $verdict %>
+<% $interfaces.each |$i| { -%>
+-A HOMELAB-INPUT -i <%= $i %> -j <%= $verdict %>
+<% } -%>
+<% if $family == '6' { -%>
+-A HOMELAB-INPUT -p udp --sport 547 --dport 546 -j <%= $verdict %>
+<% } else { -%>
+-A HOMELAB-INPUT -p udp --sport 67 --dport 68 -j <%= $verdict %>
+<% } -%>
+<% unless $tcp_ports.empty { -%>
+-A HOMELAB-INPUT -p tcp -m multiport --dports <%= $tcp_ports.sort.join(',') %> -j <%= $verdict %>
+<% } -%>
+<% unless $udp_ports.empty { -%>
+-A HOMELAB-INPUT -p udp -m multiport --dports <%= $udp_ports.sort.join(',') %> -j <%= $verdict %>
+<% } -%>
+<% if $mode == 'log' { -%>
+-A HOMELAB-INPUT -m pkttype ! --pkt-type unicast -j RETURN
+<% } -%>
+-A HOMELAB-INPUT -m conntrack --ctstate NEW -m limit --limit 30/min --limit-burst 60 -j LOG --log-prefix "homelab-in: " --log-level 6
+<% if $mode == 'enforce' { -%>
+-A HOMELAB-INPUT -j DROP
+<% } -%>
+COMMIT

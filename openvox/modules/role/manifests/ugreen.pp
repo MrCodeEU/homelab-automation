@@ -22,6 +22,8 @@ class role::ugreen (
   }
   include roles::ugreen_tailscale
   include roles::ugreen_ssh_loopback
+  # Inbound firewall, log mode first (Phase 7)
+  include roles::lan_firewall
   include roles::canary_decoys
   include roles::services
   include roles::host_facts_endpoint

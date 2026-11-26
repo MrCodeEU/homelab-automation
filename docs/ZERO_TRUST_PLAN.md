@@ -971,9 +971,26 @@ Progress, 2026-11-26:
   API) would break behind forward auth; kuma could gate its admin UI by
   path with the status page public, a small gain. Owner, 2026-11-26: no
   further change.
-- **Open:** nas (Unraid, INPUT accepts everything, about 25 LAN
-  listeners, most from Unraid-UI containers) and ugreen (UGOS firewall);
-  container egress limits; the CI exposure lint beyond published ports.
+- **nas and ugreen inbound:** neither has firewalld (nas: Unraid, INPUT
+  accepts everything, about 25 LAN listeners, most from Unraid-UI
+  containers; ugreen: the UGOS firewall is off). Owner, 2026-11-26:
+  iptables from OpenVox, not the Unraid UI or the UGOS firewall.
+  `roles::lan_firewall` (ugreen) and `roles::nas_lan_firewall` (nas,
+  driven from nuc) load one chain, `HOMELAB-INPUT`, hooked first into
+  INPUT for IPv4 and IPv6; vendor chains stay. Started in **log mode**:
+  nothing is blocked, new unicast traffic outside the lists gets a
+  `homelab-in: ` kernel line (Loki: `{host=~"nas|ugreen"} |= "homelab-in:"`).
+  About a week later the logs decide the port lists (SMB, NFS, the UGOS
+  and Unraid web UIs), then `mode: enforce`.
+- **Container egress, plan (owner, 2026-11-26):** (1) databases and
+  caches on `internal: true` networks; (2) containers to the LAN and the
+  host denied by default (firewalld policy on nuc, `DOCKER-USER` on nas
+  and ugreen), log mode first; exceptions per stack by a fixed bridge
+  name (Alloy to Home Assistant, Kuma's LAN monitors, Syncthing);
+  (3) per-container internet allowlists dropped, except for a single
+  high-risk container if one shows up. All log modes switch to
+  enforcing together.
+- **Open:** the CI exposure lint beyond published ports.
 
 ### Phase 8: Final gate
 
