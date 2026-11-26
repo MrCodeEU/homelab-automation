@@ -68,4 +68,14 @@ if [ -f "$BASE/opkssh/setup.sh" ]; then
     fi
 fi
 
+# 5. Inbound firewall chain HOMELAB-INPUT (roles::nas_lan_firewall): iptables
+#    state is lost at reboot; setup.sh reloads it from the array copy.
+if [ -f "$BASE/lan-firewall/setup.sh" ]; then
+    if bash "$BASE/lan-firewall/setup.sh" 2>&1 | tee -a "$LOG"; then
+        log "lan firewall loaded"
+    else
+        log "ERROR: lan firewall setup failed"
+    fi
+fi
+
 log "bootstrap complete"
