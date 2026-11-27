@@ -990,6 +990,22 @@ Progress, 2026-11-26:
   (3) per-container internet allowlists dropped, except for a single
   high-risk container if one shows up. All log modes switch to
   enforcing together.
+- **Container egress, step 1 (2026-11-27):** the databases and caches of
+  every compose stack but dmarc-monitor and mailcow sit on a
+  `<stack>-backend` network with `internal: true` (#746-#748). Immich's
+  Postgres also left the host network, so 5432 no longer answers on the
+  LAN. dmarc-monitor's Postgres publishes `127.0.0.1:5432` for
+  healthreport, which an internal network cannot do.
+- **Container egress, step 2, log mode:** `HOMELAB-FORWARD` in
+  `DOCKER-USER` (nuc, nas, ugreen; mljr has no LAN) logs new connections
+  from `docker0` and the compose bridges to `192.168.50.0/24`
+  (`{host=~"nuc|nas|ugreen"} |= "homelab-fwd:"`). Exceptions already
+  known from a conntrack snapshot: the Ziti proxy sidecars dialing the
+  routers (tcp 8442, every host) and Syncthing on nas syncing with LAN
+  peers (22000). Host-network containers (Alloy, the routers) do not pass
+  FORWARD. Containers to the host's own addresses (INPUT) are the next
+  piece: today `br-+` is allowed in `HOMELAB-INPUT`, and the docker zone
+  is `ACCEPT` on nuc. IPv4 only; mljr's containers have IPv6 on docker0.
 - **Open:** the CI exposure lint beyond published ports.
 
 ### Phase 8: Final gate

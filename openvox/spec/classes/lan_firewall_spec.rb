@@ -34,6 +34,39 @@ describe 'roles::lan_firewall' do
     end
   end
 
+  context 'container chain' do
+    let(:fwd) { catalogue.resource('File', "#{dir}/rules.fwd.v4")[:content] }
+
+    it 'logs new container connections to the LAN and blocks nothing by default' do
+      expect(fwd).to include(':HOMELAB-FORWARD - [0:0]')
+      expect(fwd).to include('-A HOMELAB-FORWARD -d 192.168.50.0/24 -p tcp -m tcp --dport 8442 -j RETURN')
+      expect(fwd).to include('-A HOMELAB-FORWARD -i docker0 -d 192.168.50.0/24 -m conntrack --ctstate NEW')
+      expect(fwd).to include('-A HOMELAB-FORWARD -i br-+ -d 192.168.50.0/24 -m conntrack --ctstate NEW')
+      expect(fwd).to include('--log-prefix "homelab-fwd: "')
+      expect(fwd).not_to match(%r{-j (REJECT|DROP|ACCEPT)})
+    end
+
+    context 'in enforce mode' do
+      let(:params) { { egress_mode: 'enforce', egress_exceptions: ['tcp:8442', 'udp:22000'] } }
+
+      it 'rejects after the exceptions' do
+        expect(fwd).to include('-A HOMELAB-FORWARD -d 192.168.50.0/24 -p udp -m udp --dport 22000 -j RETURN')
+        expect(fwd).to include('-A HOMELAB-FORWARD -i br-+ -d 192.168.50.0/24 -j REJECT')
+        expect(fwd.index('--dport 22000 -j RETURN')).to be < fwd.index('-j REJECT')
+      end
+    end
+  end
+
+  context 'with input_chain false (nuc, firewalld owns the input side)' do
+    let(:params) { { input_chain: false } }
+
+    it 'removes the input rules and keeps the container chain' do
+      is_expected.to contain_file("#{dir}/rules.v4").with_ensure('absent')
+      is_expected.to contain_file("#{dir}/rules.v6").with_ensure('absent')
+      is_expected.to contain_file("#{dir}/rules.fwd.v4").with_ensure('file')
+    end
+  end
+
   context 'in enforce mode' do
     let(:params) { { mode: 'enforce' } }
 
@@ -53,6 +86,12 @@ describe 'roles::nas_lan_firewall' do
   it 'stages the same setup.sh and rules for nas' do
     is_expected.to contain_file("#{stage}/setup.sh").with_source('puppet:///modules/roles/lan_firewall/setup.sh')
     is_expected.to contain_file("#{stage}/rules.v4").with_content(%r{Managed by OpenVox \(roles::nas_lan_firewall\)})
+  end
+
+  it 'stages the container chain with the Syncthing exception' do
+    is_expected.to contain_file("#{stage}/rules.fwd.v4").with_content(
+      %r{-d 192\.168\.50\.0/24 -p tcp -m tcp --dport 22000 -j RETURN},
+    )
   end
 
   it 'drives nas over nas-mgmt, guarded for noop' do
