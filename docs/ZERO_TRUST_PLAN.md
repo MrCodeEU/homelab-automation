@@ -1028,6 +1028,24 @@ Progress, 2026-11-26:
 - Remove the proxy `exec` pattern and any Tailscale-only code paths that are
   no longer used.
 
+Progress, 2026-11-27 (the gate itself waits for Phase 7's enforcement):
+
+- **Access flow on one page:** docs/ACCESS_FLOW.md. The qualitative metric
+  was "no" at the baseline.
+- **Tailscale's final role:** owner decision 2026-11-25, uninstall
+  `tailscaled` everywhere at the end of the plan; it carries no traffic
+  today. The code that goes with it: `roles::ugreen_tailscale`, wd_mycloud's
+  tailscale update, watchdog, cron and boot-hook scripts (the Ziti tunneler
+  there has its own watchdog in `wd_mycloud_ziti`), the Tailscale upgrade timer
+  in `dnf-upgrade-apply.sh`, `10-wait-tailscale.conf` cleanup in
+  `roles::base`, `tailscaled.service` in Caddy's unit, the `tailscale+`
+  interface in the firewall lists, and the FQDN in the CI facts.
+- **SSH through the IdP:** opkssh has been the daily path since 2026-11-07
+  on all agent hosts and nas, and it carried the DR drill; no SSH CA needed.
+- **Metrics:** the static ones are in the Phase 5 gate table; the ports
+  reachable from the LAN and the throughput are measured after Phase 7's
+  enforcement, because nas and ugreen are still in log mode.
+
 ## Metrics
 
 Baselined in Phase 0 and re-measured at every gate.
