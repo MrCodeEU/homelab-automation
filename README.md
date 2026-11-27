@@ -309,6 +309,9 @@ output is also prefixed with the host's short label (`[mljr]`, `[nuc]`,
 saved under `logs/openvox/<host>-<mode>-<timestamp>.log` for later
 inspection.
 
+Who reaches what, and what stops everyone else, is on one page:
+docs/ACCESS_FLOW.md.
+
 SSH to mljr, nuc and ugreen goes over Ziti with the opkssh key:
 `opkssh login` once a day, then `ssh root@<host>.ziti`
 (docs/ZITI_ENROLL.md). The scripts and make targets check the key first
