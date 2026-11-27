@@ -3,10 +3,17 @@
 # hooked into INPUT for IPv4 and IPv6 (files/lan_firewall/setup.sh); vendor
 # chains (UGOS's UG_*, ts-input, Docker's) are left alone.
 #
+# Containers get their own section in HOMELAB-INPUT: new connections from
+# docker0 and the compose bridges to this host's addresses are logged
+# ("homelab-ctr: ") and, in enforce mode, rejected except
+# $container_exceptions. Before this they were allowed wholesale.
+#
 # The second chain, HOMELAB-FORWARD in DOCKER-USER, keeps containers off
 # the home LAN (IPv4): a compromised container cannot reach nas, Home
 # Assistant, the router's admin page or another host. nuc, where firewalld
-# owns the input side, sets input_chain false and gets only this one.
+# owns the host side, sets input_scope 'containers': HOMELAB-INPUT then
+# holds only the container section and lets everything else return to
+# firewalld.
 # Host-network containers (Alloy, the Ziti routers) do not pass FORWARD
 # and are not affected. $egress_mode follows the same log-then-enforce
 # path as $mode, with "homelab-fwd: " log lines.
@@ -17,16 +24,16 @@
 # the logs decide which ports join the lists, then 'enforce' accepts the
 # lists and drops the rest.
 #
-# Allowed by default: loopback, established, ICMP, DHCP, $interfaces
-# (container bridges reach host services, the tailnet until tailscaled is
-# uninstalled), ssh 22 (LAN break-glass), the Ziti router 8442 and
-# Syncthing (22000, 21027; the nas and ugreen sync over the LAN).
+# Allowed by default: loopback, established, ICMP, DHCP, $interfaces (the
+# tailnet until tailscaled is uninstalled), ssh 22 (LAN break-glass), the
+# Ziti router 8442 and Syncthing (22000, 21027; the nas and ugreen sync
+# over the LAN).
 #
 # UGOS rebuilds INPUT at boot and on firewall changes in its UI, so a
 # timer reloads the chain (1 min after boot, then every 5 min) like
 # roles::ugreen_ssh_loopback.
 class roles::lan_firewall (
-  Boolean $input_chain = true,
+  Enum['full', 'containers'] $input_scope = 'full',
   Enum['log', 'enforce'] $mode = 'log',
   Enum['log', 'enforce'] $egress_mode = 'log',
   # Containers may open these to the LAN (proto:port): the Ziti proxy
@@ -35,7 +42,11 @@ class roles::lan_firewall (
   Array[String] $lan_cidrs = ['192.168.50.0/24'],
   Array[Integer] $tcp_ports = [22, 8442, 22000],
   Array[Integer] $udp_ports = [22000, 21027],
-  Array[String] $interfaces = ['docker0', 'br-+', 'tailscale+'],
+  Array[String] $interfaces = ['tailscale+'],
+  Array[String] $container_interfaces = ['docker0', 'br-+'],
+  # Containers may open these on the host (proto:port): the Ziti proxy
+  # sidecars dial their own host's router.
+  Array[String] $container_exceptions = ['tcp:8442'],
   String $dir = '/usr/local/libexec/openvox-lan-firewall',
 ) {
   file { $dir:
@@ -50,23 +61,20 @@ class roles::lan_firewall (
   }
 
   ['4', '6'].each |$family| {
-    if $input_chain {
-      file { "${dir}/rules.v${family}":
-        ensure  => file,
-        mode    => '0644',
-        content => epp('roles/lan_firewall/rules.epp', {
-          'family'     => $family,
-          'mode'       => $mode,
-          'tcp_ports'  => $tcp_ports,
-          'udp_ports'  => $udp_ports,
-          'interfaces' => $interfaces,
-          'class_name' => 'roles::lan_firewall',
-        }),
-      }
-    } else {
-      file { "${dir}/rules.v${family}":
-        ensure => absent,
-      }
+    file { "${dir}/rules.v${family}":
+      ensure  => file,
+      mode    => '0644',
+      content => epp('roles/lan_firewall/rules.epp', {
+        'family'               => $family,
+        'mode'                 => $mode,
+        'scope'                => $input_scope,
+        'tcp_ports'            => $tcp_ports,
+        'udp_ports'            => $udp_ports,
+        'interfaces'           => $interfaces,
+        'container_interfaces' => $container_interfaces,
+        'container_exceptions' => $container_exceptions,
+        'class_name'           => 'roles::lan_firewall',
+      }),
     }
   }
 

@@ -23,7 +23,7 @@ describe 'roles::lan_firewall' do
       expect(v4).to include(':HOMELAB-INPUT - [0:0]')
       expect(v4).to include('-A HOMELAB-INPUT -p tcp -m multiport --dports 22,8442,22000 -j RETURN')
       expect(v4).to include('-A HOMELAB-INPUT -p udp -m multiport --dports 21027,22000 -j RETURN')
-      expect(v4).to include('-A HOMELAB-INPUT -i br-+ -j RETURN')
+      expect(v4).to include('-A HOMELAB-INPUT -i tailscale+ -j RETURN')
       expect(v4).to include('--log-prefix "homelab-in: "')
       expect(v4).not_to match(%r{-j (ACCEPT|DROP)})
     end
@@ -31,6 +31,26 @@ describe 'roles::lan_firewall' do
     it 'uses ICMPv6 and DHCPv6 for IPv6' do
       expect(v6).to include('-A HOMELAB-INPUT -p ipv6-icmp -j RETURN')
       expect(v6).to include('--sport 547 --dport 546')
+    end
+  end
+
+  context 'containers to the host' do
+    it 'logs and returns by default, after the exceptions' do
+      expect(v4).to include('-A HOMELAB-INPUT -i br-+ -p tcp -m tcp --dport 8442 -j RETURN')
+      expect(v4).to include('-A HOMELAB-INPUT -i br-+ -m conntrack --ctstate NEW -m limit --limit 30/min --limit-burst 60 -j LOG --log-prefix "homelab-ctr: "')
+      expect(v4).to include('-A HOMELAB-INPUT -i docker0 -j RETURN')
+      expect(v4).not_to include('REJECT')
+      expect(v4.index('--dport 8442 -j RETURN')).to be < v4.index('-j LOG --log-prefix "homelab-ctr: "')
+    end
+
+    context 'in enforce mode' do
+      let(:params) { { mode: 'enforce' } }
+
+      it 'accepts the exceptions and rejects the rest of the container traffic' do
+        expect(v4).to include('-A HOMELAB-INPUT -i br-+ -p tcp -m tcp --dport 8442 -j ACCEPT')
+        expect(v4).to include('-A HOMELAB-INPUT -i br-+ -j REJECT')
+        expect(v4.index('-i br-+ -j REJECT')).to be < v4.index('multiport')
+      end
     end
   end
 
@@ -57,13 +77,25 @@ describe 'roles::lan_firewall' do
     end
   end
 
-  context 'with input_chain false (nuc, firewalld owns the input side)' do
-    let(:params) { { input_chain: false } }
+  context 'with input_scope containers (nuc, firewalld owns the host side)' do
+    let(:params) { { input_scope: 'containers' } }
 
-    it 'removes the input rules and keeps the container chain' do
-      is_expected.to contain_file("#{dir}/rules.v4").with_ensure('absent')
-      is_expected.to contain_file("#{dir}/rules.v6").with_ensure('absent')
+    it 'holds only the container section and leaves the rest to firewalld' do
+      expect(v4).to include('--log-prefix "homelab-ctr: "')
+      expect(v4).not_to include('multiport')
+      expect(v4).not_to include('homelab-in: ')
+      expect(v4).not_to match(%r{-j (ACCEPT|DROP)})
       is_expected.to contain_file("#{dir}/rules.fwd.v4").with_ensure('file')
+    end
+
+    context 'in enforce mode' do
+      let(:params) { { input_scope: 'containers', mode: 'enforce' } }
+
+      it 'returns the exceptions to firewalld and rejects the rest' do
+        expect(v4).to include('-A HOMELAB-INPUT -i br-+ -p tcp -m tcp --dport 8442 -j RETURN')
+        expect(v4).to include('-A HOMELAB-INPUT -i br-+ -j REJECT')
+        expect(v4).not_to match(%r{-j (ACCEPT|DROP)})
+      end
     end
   end
 

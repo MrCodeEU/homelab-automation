@@ -16,7 +16,9 @@ class roles::nas_lan_firewall (
   Array[String] $lan_cidrs = ['192.168.50.0/24'],
   Array[Integer] $tcp_ports = [22, 8442, 22000],
   Array[Integer] $udp_ports = [22000, 21027],
-  Array[String] $interfaces = ['docker0', 'br-+', 'tailscale+'],
+  Array[String] $interfaces = ['tailscale+'],
+  Array[String] $container_interfaces = ['docker0', 'br-+'],
+  Array[String] $container_exceptions = ['tcp:8442'],
   String $staging_dir = '/var/lib/openvox-nas-lan-firewall',
   String $work_dir = '/usr/local/libexec/openvox-nas-lan-firewall',
 ) {
@@ -38,12 +40,15 @@ class roles::nas_lan_firewall (
       ensure  => file,
       mode    => '0644',
       content => epp('roles/lan_firewall/rules.epp', {
-        'family'     => $family,
-        'mode'       => $mode,
-        'tcp_ports'  => $tcp_ports,
-        'udp_ports'  => $udp_ports,
-        'interfaces' => $interfaces,
-        'class_name' => 'roles::nas_lan_firewall',
+        'family'               => $family,
+        'mode'                 => $mode,
+        'scope'                => 'full',
+        'tcp_ports'            => $tcp_ports,
+        'udp_ports'            => $udp_ports,
+        'interfaces'           => $interfaces,
+        'container_interfaces' => $container_interfaces,
+        'container_exceptions' => $container_exceptions,
+        'class_name'           => 'roles::nas_lan_firewall',
       }),
     }
   }

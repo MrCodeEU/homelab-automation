@@ -112,6 +112,7 @@ roles::ziti_renew::identities:
     restart: 'docker restart ziti-proxy-nuc'
   - file: '/opt/ziti-router-nuc/data/nuc.cert'
 
-# firewalld owns the input side on nuc; roles::lan_firewall only keeps
-# containers off the LAN here (HOMELAB-FORWARD in DOCKER-USER).
-roles::lan_firewall::input_chain: false
+# firewalld owns the host side on nuc; roles::lan_firewall only keeps
+# containers off the LAN (HOMELAB-FORWARD in DOCKER-USER) and off the
+# host's own addresses (the container section of HOMELAB-INPUT).
+roles::lan_firewall::input_scope: 'containers'

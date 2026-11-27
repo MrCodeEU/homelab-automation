@@ -1,25 +1,50 @@
 <%- |
-  Enum['4', '6']   $family,
-  Enum['log', 'enforce'] $mode,
-  Array[Integer]   $tcp_ports,
-  Array[Integer]   $udp_ports,
-  Array[String]    $interfaces,
-  String           $class_name,
+  Enum['4', '6']              $family,
+  Enum['log', 'enforce']      $mode,
+  Enum['full', 'containers']  $scope,
+  Array[Integer]              $tcp_ports,
+  Array[Integer]              $udp_ports,
+  Array[String]               $interfaces,
+  Array[String]               $container_interfaces,
+  Array[String]               $container_exceptions,
+  String                      $class_name,
 | -%>
 <%-
-  $verdict = $mode ? { 'enforce' => 'ACCEPT', default => 'RETURN' }
+  # full: this chain is the host's whole inbound policy (accepts what it
+  # allows). containers: firewalld owns the host side, so everything that
+  # is allowed returns to it instead of being accepted here.
+  $verdict = ($mode == 'enforce' and $scope == 'full') ? { true => 'ACCEPT', default => 'RETURN' }
   $icmp = $family ? { '6' => 'ipv6-icmp', default => 'icmp' }
 -%>
 # Managed by OpenVox (<%= $class_name %>). Loaded by setup.sh with
 # <%= $family ? { '6' => 'ip6tables', default => 'iptables' } %>-restore --noflush.
 #
-# mode=<%= $mode %>: <%= $mode ? { 'enforce' => 'allowed traffic is accepted, everything else dropped (after a rate-limited log line).', default => 'nothing is blocked. Allowed traffic returns to INPUT unchanged; anything else new and unicast gets a rate-limited "homelab-in: " kernel log line (Loki), then returns too.' } %>
+# scope=<%= $scope %>, mode=<%= $mode %>.
+# Containers (<%= $container_interfaces.join(', ') %>) to this host: new connections get a
+# rate-limited "homelab-ctr: " kernel log line (Loki)<%= $mode ? { 'enforce' => ' and are rejected, except the listed exceptions.', default => ', then return: nothing from containers is blocked.' } %>
+# Container exceptions (proto:port): <%= $container_exceptions.sort.join(' ') %>
+<% if $scope == 'full' { -%>
+# Everything else: <%= $mode ? { 'enforce' => 'allowed traffic is accepted, the rest dropped (after a rate-limited "homelab-in: " log line).', default => 'allowed traffic returns to INPUT unchanged; anything else new and unicast gets a rate-limited "homelab-in: " kernel log line, then returns too.' } %>
+<% } -%>
 *filter
 :HOMELAB-INPUT - [0:0]
--A HOMELAB-INPUT -m comment --comment "homelab-sha=@SHA@ mode=<%= $mode %>"
+-A HOMELAB-INPUT -m comment --comment "homelab-sha=@SHA@ mode=<%= $mode %> scope=<%= $scope %>"
 -A HOMELAB-INPUT -i lo -j <%= $verdict %>
 -A HOMELAB-INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j <%= $verdict %>
 -A HOMELAB-INPUT -p <%= $icmp %> -j <%= $verdict %>
+<% $container_interfaces.each |$i| { -%>
+<% $container_exceptions.sort.each |$e| { -%>
+<% $pp = $e.split(':') -%>
+-A HOMELAB-INPUT -i <%= $i %> -p <%= $pp[0] %> -m <%= $pp[0] %> --dport <%= $pp[1] %> -j <%= $verdict %>
+<% } -%>
+-A HOMELAB-INPUT -i <%= $i %> -m conntrack --ctstate NEW -m limit --limit 30/min --limit-burst 60 -j LOG --log-prefix "homelab-ctr: " --log-level 6
+<% if $mode == 'enforce' { -%>
+-A HOMELAB-INPUT -i <%= $i %> -j REJECT
+<% } else { -%>
+-A HOMELAB-INPUT -i <%= $i %> -j RETURN
+<% } -%>
+<% } -%>
+<% if $scope == 'full' { -%>
 <% $interfaces.each |$i| { -%>
 -A HOMELAB-INPUT -i <%= $i %> -j <%= $verdict %>
 <% } -%>
@@ -40,5 +65,6 @@
 -A HOMELAB-INPUT -m conntrack --ctstate NEW -m limit --limit 30/min --limit-burst 60 -j LOG --log-prefix "homelab-in: " --log-level 6
 <% if $mode == 'enforce' { -%>
 -A HOMELAB-INPUT -j DROP
+<% } -%>
 <% } -%>
 COMMIT
