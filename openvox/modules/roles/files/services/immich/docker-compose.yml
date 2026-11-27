@@ -8,9 +8,14 @@ services:
         condition: service_healthy
       immich-valkey:
         condition: service_healthy
+    networks:
+      # default: internet for the app (map tiles, ML models); backend:
+      # its database and cache, which have no route out.
+      - default
+      - immich-backend
     ports:
-      # immich.mljr.eu is proxied to nas:8080 by Caddy; phones also use it
-      # directly on the LAN.
+      # immich.mljr.eu reaches it through the nas router (Ziti, 127.0.0.1).
+      # The phones use the domain, not a LAN URL.
       - "${BIND_ADDR:-127.0.0.1}:8080:8080"
     environment:
       - TZ=${TZ:-Europe/Vienna}
@@ -23,9 +28,7 @@ services:
       - UMASK=022
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8080
-      # The database runs on the host network, so it is reached through the
-      # host's LAN address.
-      - DB_HOSTNAME=192.168.50.80
+      - DB_HOSTNAME=immich-postgres
       - DB_PORT=5432
       - DB_USERNAME=postgres
       - DB_DATABASE_NAME=immich
@@ -52,9 +55,10 @@ services:
     image: ghcr.io/immich-app/postgres:16-vectorchord1.1.1-pgvector0.8.5@sha256:0446995e2b4713ae45d25de7c81c745a63180491018ded84cf13ef4d3c0c5cc9
     container_name: Immich_PostgreSQL
     restart: unless-stopped
-    # Host network on purpose: the app connects to 192.168.50.80:5432, and
-    # moving the database behind a bridge would change that address.
-    network_mode: host
+    # Internal network only (Phase 7). It ran on the host network until
+    # 2026-11-27, which put 5432 on the LAN (192.168.50.80).
+    networks:
+      - immich-backend
     environment:
       - TZ=${TZ:-Europe/Vienna}
       - POSTGRES_PASSWORD=${IMMICH_DB_PASSWORD}
@@ -73,6 +77,8 @@ services:
     image: valkey/valkey:9@sha256:3add1a336a920ea54770a001ab6feb3da5fceea96a40373a3a2cd469b815f0b7
     container_name: immich-valkey
     restart: unless-stopped
+    networks:
+      - immich-backend
     command: ["valkey-server", "--maxmemory", "0", "--appendonly", "yes", "--tcp-keepalive", "60"]
     environment:
       - TZ=${TZ:-Europe/Vienna}
@@ -89,3 +95,7 @@ services:
       options:
         max-size: "100m"
         max-file: "2"
+
+networks:
+  immich-backend:
+    internal: true
