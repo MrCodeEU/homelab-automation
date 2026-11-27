@@ -333,7 +333,11 @@ class roles::authelia (
           disable: true
         depends_on:
           - redis
-      
+        # default: SMTP for the notifier; backend: its session cache.
+        networks:
+          - default
+          - authelia-backend
+
       redis:
         image: redis:alpine
         container_name: authelia_redis
@@ -342,6 +346,13 @@ class roles::authelia (
         restart: unless-stopped
         expose:
           - 6379
+        # No route out (Phase 7).
+        networks:
+          - authelia-backend
+
+    networks:
+      authelia-backend:
+        internal: true
 
     volumes:
       redis_data:

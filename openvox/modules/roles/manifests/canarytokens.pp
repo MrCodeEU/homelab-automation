@@ -125,6 +125,9 @@ class roles::canarytokens (
         volumes:
           - redis-data:/data/
         command: redis-server --appendonly yes --protected-mode no --save 60 1
+        # No route out (Phase 7); --protected-mode no is safe only here.
+        networks:
+          - canarytokens-backend
 
       frontend:
         image: thinkst/canarytokens:${version}
@@ -136,6 +139,9 @@ class roles::canarytokens (
           # Host port 8101 (not 8082 - that's already homepage's catalog
           # port on this host) mapped to the container's own fixed 8082.
           - "${bind_addr}:8101:8082"
+        networks:
+          - default
+          - canarytokens-backend
         volumes:
           - ./frontend.env:/srv/frontend/frontend.env:ro
           - ./switchboard.env:/srv/switchboard/switchboard.env:ro
@@ -153,11 +159,18 @@ class roles::canarytokens (
           # catalog port on this host), matches the catalog entry's own
           # port field. Container's own fixed 8083 unchanged.
           - "${bind_addr}:8100:8083"
+        networks:
+          - default
+          - canarytokens-backend
         volumes:
           - ./frontend.env:/srv/frontend/frontend.env:ro
           - ./switchboard.env:/srv/switchboard/switchboard.env:ro
           - canarytokens-uploads:/uploads/
         command: bash -c "cd switchboard; rm -f switchboard.pid; uv run --no-sync twistd -noy switchboard.tac --pidfile=switchboard.pid"
+
+    networks:
+      canarytokens-backend:
+        internal: true
 
     volumes:
       redis-data:
