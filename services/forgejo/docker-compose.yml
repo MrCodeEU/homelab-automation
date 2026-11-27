@@ -42,6 +42,7 @@ services:
         condition: service_healthy
     networks:
       - forgejo-internal
+      - forgejo-backend
 
   runner-dind:
     image: docker:dind@sha256:4bbc7223f81db790097c6dea42fb93e05b8fead4f0431fbe6ccaba6e8473201c
@@ -133,9 +134,11 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - forgejo-internal
+      - forgejo-backend
 
 networks:
+  forgejo-backend:
+    internal: true
   forgejo-internal:
     driver: bridge
   runner-control:

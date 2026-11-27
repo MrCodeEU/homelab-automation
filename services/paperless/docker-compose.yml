@@ -15,6 +15,9 @@ services:
   paperless:
     image: ghcr.io/paperless-ngx/paperless-ngx:3.4.0
     container_name: paperless
+    networks:
+      - default
+      - paperless-backend
     restart: unless-stopped
     depends_on:
       paperless_db:
@@ -96,6 +99,8 @@ services:
   paperless_db:
     image: postgres:18-alpine
     container_name: paperless_db
+    networks:
+      - paperless-backend
     restart: unless-stopped
     environment:
       POSTGRES_DB: paperless
@@ -113,6 +118,8 @@ services:
   paperless_valkey:
     image: valkey/valkey:9-alpine
     container_name: paperless_valkey
+    networks:
+      - paperless-backend
     restart: unless-stopped
     volumes:
       - /mnt/user/appdata/paperless/valkey:/data
@@ -125,6 +132,8 @@ services:
   paperless_gotenberg:
     image: docker.io/gotenberg/gotenberg:8.40
     container_name: paperless_gotenberg
+    networks:
+      - paperless-backend
     restart: unless-stopped
     # Same flags as upstream: no JavaScript, no external content (tracking
     # pixels) when converting mails/office files.
@@ -140,4 +149,10 @@ services:
   paperless_tika:
     image: docker.io/apache/tika:3.3.3.0
     container_name: paperless_tika
+    networks:
+      - paperless-backend
     restart: unless-stopped
+
+networks:
+  paperless-backend:
+    internal: true

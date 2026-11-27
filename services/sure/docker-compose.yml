@@ -61,6 +61,7 @@ services:
     mem_limit: 1g
     networks:
       - sure-internal
+      - sure-backend
     logging: &logging
       driver: "json-file"
       options:
@@ -86,6 +87,7 @@ services:
     mem_limit: 1g
     networks:
       - sure-internal
+      - sure-backend
     logging: *logging
 
   db:
@@ -104,7 +106,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - sure-internal
+      - sure-backend
     logging: *logging
 
   redis:
@@ -119,10 +121,12 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - sure-internal
+      - sure-backend
     logging: *logging
 
 networks:
+  sure-backend:
+    internal: true
   sure-internal:
     driver: bridge
 
