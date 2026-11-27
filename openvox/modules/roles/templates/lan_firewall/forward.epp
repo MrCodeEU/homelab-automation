@@ -1,0 +1,29 @@
+<%- |
+  Enum['log', 'enforce'] $mode,
+  Array[String]          $lan_cidrs,
+  Array[String]          $exceptions,
+  String                 $class_name,
+| -%>
+# Managed by OpenVox (<%= $class_name %>). Loaded by setup.sh with
+# iptables-restore --noflush; hooked first into DOCKER-USER.
+#
+# Containers (docker0 and the compose bridges) to the home LAN.
+# mode=<%= $mode %>: <%= $mode ? { 'enforce' => 'new connections to the LAN are rejected after a rate-limited log line, except the listed exceptions.', default => 'nothing is blocked. New connections to the LAN get a rate-limited "homelab-fwd: " kernel log line (Loki), then return to Docker.' } %>
+# Exceptions (proto:port, any container to the LAN): <%= $exceptions.sort.join(' ') %>
+*filter
+:HOMELAB-FORWARD - [0:0]
+-A HOMELAB-FORWARD -m comment --comment "homelab-sha=@SHA@ mode=<%= $mode %>"
+-A HOMELAB-FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
+<% $lan_cidrs.each |$cidr| { -%>
+<% $exceptions.sort.each |$e| { -%>
+<% $pp = $e.split(':') -%>
+-A HOMELAB-FORWARD -d <%= $cidr %> -p <%= $pp[0] %> -m <%= $pp[0] %> --dport <%= $pp[1] %> -j RETURN
+<% } -%>
+<% ['docker0', 'br-+'].each |$i| { -%>
+-A HOMELAB-FORWARD -i <%= $i %> -d <%= $cidr %> -m conntrack --ctstate NEW -m limit --limit 30/min --limit-burst 60 -j LOG --log-prefix "homelab-fwd: " --log-level 6
+<% if $mode == 'enforce' { -%>
+-A HOMELAB-FORWARD -i <%= $i %> -d <%= $cidr %> -j REJECT
+<% } -%>
+<% } -%>
+<% } -%>
+COMMIT

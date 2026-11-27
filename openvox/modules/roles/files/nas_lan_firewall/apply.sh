@@ -6,5 +6,5 @@ STAGE=/var/lib/openvox-nas-lan-firewall
 BASE=/mnt/user/appdata/homelab/lan-firewall
 
 ssh -o BatchMode=yes "$TARGET" "install -d -m 0700 $BASE"
-scp -q -o BatchMode=yes "$STAGE/setup.sh" "$STAGE/rules.v4" "$STAGE/rules.v6" "$TARGET:$BASE/"
+scp -q -o BatchMode=yes "$STAGE/setup.sh" "$STAGE/rules.v4" "$STAGE/rules.v6" "$STAGE/rules.fwd.v4" "$TARGET:$BASE/"
 ssh -o BatchMode=yes "$TARGET" "bash $BASE/setup.sh"

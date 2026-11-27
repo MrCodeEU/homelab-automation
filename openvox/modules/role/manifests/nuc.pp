@@ -22,6 +22,8 @@ class role::nuc {
   include roles::nas_opkssh
   # Inbound firewall on nas, log mode first (Phase 7)
   include roles::nas_lan_firewall
+  # Containers off the LAN (Phase 7); firewalld owns the input side here
+  include roles::lan_firewall
   # Dockhand on nas -> Hawser on nuc and mljr (hosts, ports, tokens)
   include roles::dockhand_environments
   Class['roles::nas_ziti_tcp_proxy'] -> Class['roles::services_nas']

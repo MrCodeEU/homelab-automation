@@ -3,6 +3,14 @@
 # hooked into INPUT for IPv4 and IPv6 (files/lan_firewall/setup.sh); vendor
 # chains (UGOS's UG_*, ts-input, Docker's) are left alone.
 #
+# The second chain, HOMELAB-FORWARD in DOCKER-USER, keeps containers off
+# the home LAN (IPv4): a compromised container cannot reach nas, Home
+# Assistant, the router's admin page or another host. nuc, where firewalld
+# owns the input side, sets input_chain false and gets only this one.
+# Host-network containers (Alloy, the Ziti routers) do not pass FORWARD
+# and are not affected. $egress_mode follows the same log-then-enforce
+# path as $mode, with "homelab-fwd: " log lines.
+#
 # $mode 'log' (the start, 2026-11-26) blocks nothing: allowed traffic
 # returns to INPUT unchanged, other new unicast traffic gets a
 # rate-limited "homelab-in: " kernel log line in Loki. After about a week
@@ -18,7 +26,13 @@
 # timer reloads the chain (1 min after boot, then every 5 min) like
 # roles::ugreen_ssh_loopback.
 class roles::lan_firewall (
+  Boolean $input_chain = true,
   Enum['log', 'enforce'] $mode = 'log',
+  Enum['log', 'enforce'] $egress_mode = 'log',
+  # Containers may open these to the LAN (proto:port): the Ziti proxy
+  # sidecars dial the routers' 8442.
+  Array[String] $egress_exceptions = ['tcp:8442'],
+  Array[String] $lan_cidrs = ['192.168.50.0/24'],
   Array[Integer] $tcp_ports = [22, 8442, 22000],
   Array[Integer] $udp_ports = [22000, 21027],
   Array[String] $interfaces = ['docker0', 'br-+', 'tailscale+'],
@@ -36,18 +50,35 @@ class roles::lan_firewall (
   }
 
   ['4', '6'].each |$family| {
-    file { "${dir}/rules.v${family}":
-      ensure  => file,
-      mode    => '0644',
-      content => epp('roles/lan_firewall/rules.epp', {
-        'family'     => $family,
-        'mode'       => $mode,
-        'tcp_ports'  => $tcp_ports,
-        'udp_ports'  => $udp_ports,
-        'interfaces' => $interfaces,
-        'class_name' => 'roles::lan_firewall',
-      }),
+    if $input_chain {
+      file { "${dir}/rules.v${family}":
+        ensure  => file,
+        mode    => '0644',
+        content => epp('roles/lan_firewall/rules.epp', {
+          'family'     => $family,
+          'mode'       => $mode,
+          'tcp_ports'  => $tcp_ports,
+          'udp_ports'  => $udp_ports,
+          'interfaces' => $interfaces,
+          'class_name' => 'roles::lan_firewall',
+        }),
+      }
+    } else {
+      file { "${dir}/rules.v${family}":
+        ensure => absent,
+      }
     }
+  }
+
+  file { "${dir}/rules.fwd.v4":
+    ensure  => file,
+    mode    => '0644',
+    content => epp('roles/lan_firewall/forward.epp', {
+      'mode'       => $egress_mode,
+      'lan_cidrs'  => $lan_cidrs,
+      'exceptions' => $egress_exceptions,
+      'class_name' => 'roles::lan_firewall',
+    }),
   }
 
   file { '/etc/systemd/system/homelab-lan-firewall.service':
@@ -56,7 +87,7 @@ class roles::lan_firewall (
     content => @("UNIT"),
       [Unit]
       Description=Load the HOMELAB-INPUT chain (roles::lan_firewall)
-      After=network-online.target netfilter-persistent.service
+      After=network-online.target netfilter-persistent.service docker.service
 
       [Service]
       Type=oneshot
@@ -96,6 +127,6 @@ class roles::lan_firewall (
     command => "${dir}/setup.sh",
     unless  => "${dir}/setup.sh --check",
     path    => ['/usr/sbin', '/usr/bin', '/sbin', '/bin'],
-    require => File["${dir}/setup.sh", "${dir}/rules.v4", "${dir}/rules.v6"],
+    require => File["${dir}/setup.sh", "${dir}/rules.v4", "${dir}/rules.v6", "${dir}/rules.fwd.v4"],
   }
 }
