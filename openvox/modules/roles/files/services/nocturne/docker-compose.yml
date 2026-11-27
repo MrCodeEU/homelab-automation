@@ -21,7 +21,7 @@ services:
       - nocturne-postgres-data:/var/lib/postgresql
       - ./init/00-init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
     networks:
-      - nocturne-internal
+      - nocturne-backend
     logging:
       driver: "json-file"
       options:
@@ -48,6 +48,7 @@ services:
         condition: service_started
     networks:
       - nocturne-internal
+      - nocturne-backend
     logging:
       driver: "json-file"
       options:
@@ -75,6 +76,7 @@ services:
         condition: service_started
     networks:
       - nocturne-internal
+      - nocturne-backend
     logging:
       driver: "json-file"
       options:
@@ -163,6 +165,8 @@ services:
         max-file: "3"
 
 networks:
+  nocturne-backend:
+    internal: true
   nocturne-internal:
     driver: bridge
 

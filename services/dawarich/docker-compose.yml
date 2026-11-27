@@ -2,6 +2,9 @@ services:
   dawarich:
     image: &dawarich-image freikin/dawarich:latest@sha256:e22d39339a00ab03b057a75897a8950dfd5d084e0f23202a7c6d5e8814f96aff
     container_name: Dawarich
+    networks:
+      - default
+      - dawarich-backend
     restart: unless-stopped
     # The image has no usable default command; web-entrypoint.sh needs one.
     command: ["bin/rails", "server", "-p", "3000", "-b", "::"]
@@ -63,6 +66,9 @@ services:
   dawarich_sidekiq:
     image: *dawarich-image
     container_name: dawarich_sidekiq
+    networks:
+      - default
+      - dawarich-backend
     restart: unless-stopped
     entrypoint: sidekiq-entrypoint.sh
     command: ["sidekiq"]
@@ -86,6 +92,8 @@ services:
   dawarich_db:
     image: postgis/postgis:17-3.5-alpine@sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f
     container_name: dawarich_db
+    networks:
+      - dawarich-backend
     restart: unless-stopped
     environment:
       - TZ=${TZ:-Europe/Vienna}
@@ -110,6 +118,8 @@ services:
   dawarich_valkey:
     image: valkey/valkey:9@sha256:3add1a336a920ea54770a001ab6feb3da5fceea96a40373a3a2cd469b815f0b7
     container_name: dawarich_valkey
+    networks:
+      - dawarich-backend
     restart: unless-stopped
     command:
       - sh
@@ -133,3 +143,7 @@ services:
       options:
         max-size: "100m"
         max-file: "2"
+
+networks:
+  dawarich-backend:
+    internal: true

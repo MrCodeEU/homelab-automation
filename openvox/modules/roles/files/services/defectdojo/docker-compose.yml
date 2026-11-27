@@ -23,6 +23,7 @@ x-django: &django
     - no-new-privileges:true
   networks:
     - defectdojo-internal
+    - defectdojo-backend
   logging: &logging
     driver: "json-file"
     options:
@@ -171,7 +172,7 @@ services:
       - no-new-privileges:true
     mem_limit: 1g
     networks:
-      - defectdojo-internal
+      - defectdojo-backend
     logging: *logging
 
   valkey:
@@ -189,10 +190,12 @@ services:
       - no-new-privileges:true
     mem_limit: 256m
     networks:
-      - defectdojo-internal
+      - defectdojo-backend
     logging: *logging
 
 networks:
+  defectdojo-backend:
+    internal: true
   defectdojo-internal:
     driver: bridge
 

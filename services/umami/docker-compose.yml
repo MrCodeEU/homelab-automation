@@ -14,6 +14,7 @@ services:
         condition: service_healthy
     networks:
       - umami-internal
+      - umami-backend
 
   db:
     image: postgres:18-alpine
@@ -31,9 +32,11 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - umami-internal
+      - umami-backend
 
 networks:
+  umami-backend:
+    internal: true
   umami-internal:
     driver: bridge
 
