@@ -1003,9 +1003,20 @@ Progress, 2026-11-26:
   known from a conntrack snapshot: the Ziti proxy sidecars dialing the
   routers (tcp 8442, every host) and Syncthing on nas syncing with LAN
   peers (22000). Host-network containers (Alloy, the routers) do not pass
-  FORWARD. Containers to the host's own addresses (INPUT) are the next
-  piece: today `br-+` is allowed in `HOMELAB-INPUT`, and the docker zone
-  is `ACCEPT` on nuc. IPv4 only; mljr's containers have IPv6 on docker0.
+  FORWARD. IPv4 only; mljr's containers have IPv6 on docker0.
+- **Container egress, step 2b, containers to the host (log mode):**
+  `HOMELAB-INPUT` has a container section: new connections from `docker0`
+  and `br-+` to the host's own addresses get a `homelab-ctr: ` line
+  (`{host=~"nuc|nas|ugreen"} |= "homelab-ctr:"`), exception tcp 8442 (the
+  Ziti proxy sidecars dial their own host's router). Before, nas and
+  ugreen allowed `br-+` wholesale and nuc's docker zone is `ACCEPT`. nuc
+  runs the chain with `input_scope: containers`: only the container
+  section, everything else returns to firewalld. Some container-to-host
+  flows seen in conntrack are NAT hairpins to published ports (Hawser on
+  nas to the docker0 gateway) and never reach INPUT; the log shows what
+  does. Tested with real traffic through a bridge and a second network
+  namespace: log mode passes everything, enforce passes the exception and
+  rejects the rest.
 - **Open:** the CI exposure lint beyond published ports.
 
 ### Phase 8: Final gate
