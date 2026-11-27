@@ -17,7 +17,7 @@
 # and some contain database migrations), then run
 # `make sync-openvox-services`.
 x-django: &django
-  image: docker.io/defectdojo/defectdojo-django:3.5.201
+  image: docker.io/defectdojo/defectdojo-django:3.5.202
   restart: unless-stopped
   security_opt:
     - no-new-privileges:true
@@ -43,7 +43,7 @@ x-django-env: &django-env
 services:
   nginx:
     # Same release as defectdojo-django (one Renovate group, renovate.json).
-    image: docker.io/defectdojo/defectdojo-nginx:3.5.201
+    image: docker.io/defectdojo/defectdojo-nginx:3.5.202
     container_name: defectdojo-nginx
     restart: unless-stopped
     # nginx resolves the uwsgi host once at start. When an update recreated
