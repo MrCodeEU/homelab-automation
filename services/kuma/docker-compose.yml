@@ -1,6 +1,6 @@
 services:
   uptime-kuma:
-    image: louislam/uptime-kuma:2-slim@sha256:4837e2b531b118d2fad24430fabed1488b14542f03b2bebf035497271b3a1ee8
+    image: louislam/uptime-kuma:2-slim@sha256:f2a9bc853deb2a6f37df229649f96d62efc3cb24e38b08eee79234f76613d063
     container_name: uptime-kuma
     restart: unless-stopped
     ports:
